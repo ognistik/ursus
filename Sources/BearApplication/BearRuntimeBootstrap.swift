@@ -81,8 +81,7 @@ public enum BearRuntimeBootstrap {
     }
 
     private static func writeConfiguration(_ configuration: BearConfiguration, to url: URL) throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let encoder = BearJSON.makeEncoder()
         let data = try encoder.encode(configuration)
         try data.write(to: url, options: .atomic)
     }

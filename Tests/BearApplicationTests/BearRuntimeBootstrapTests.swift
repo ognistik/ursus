@@ -44,5 +44,7 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     #expect(updatedOnDisk.maxSnippetLength == BearConfiguration.default.maxSnippetLength)
     #expect(updatedText.contains("\"defaultDiscoveryLimit\""))
     #expect(updatedText.contains("\"maxSnippetLength\""))
+    #expect(updatedText.contains("\"databasePath\" : \"/tmp/custom.sqlite\""))
+    #expect(!updatedText.contains("\\/"))
     #expect(fileManager.fileExists(atPath: templateURL.path))
 }

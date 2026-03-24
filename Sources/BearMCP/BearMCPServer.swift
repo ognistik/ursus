@@ -161,9 +161,7 @@ public final class BearMCPServer: Sendable {
     }
 
     private func jsonResult<T: Encodable>(_ value: T) throws -> CallTool.Result {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
+        let encoder = BearJSON.makeEncoder()
         let data = try encoder.encode(value)
         let text = String(decoding: data, as: UTF8.self)
         return .init(content: [.text(text)], isError: false)
