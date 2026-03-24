@@ -102,7 +102,9 @@ Implemented:
 - real Bear DB reader against the installed Bear schema
 - config/bootstrap path helpers
 - single-file create-note template support
-- single-instance MCP process lock to prevent stale concurrent servers
+- runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
+- stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
+- process-lock acquisition that prefers `~/Library/Application Support/bear-mcp/Runtime/.server.lock` and falls back to temp runtime locks when sandbox policy denies that location or another live stdio launch already holds the shared lock
 - application service layer
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
@@ -152,7 +154,8 @@ Current local runtime paths are:
 
 - config: `~/.config/bear-mcp/config.json`
 - note template: `~/.config/bear-mcp/template.md`
-- process lock: `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
+- process lock (preferred shared path): `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
+- process lock (contention/temp fallback): `TMPDIR/bear-mcp/Runtime/.server.lock` and `TMPDIR/bear-mcp/Runtime/locks/<pid>.server.lock`
 - temporary debug log: `~/Library/Logs/bear-mcp/debug.log`
 - default Bear DB path:
   `/Users/ognistik/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/database.sqlite`
@@ -193,7 +196,10 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Search is functional but still basic; exact phrase semantics and better ranking can be improved later.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
 - Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.
-- The single-instance lock now lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.
+- The preferred shared runtime lock lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.
+- When Codex launches additional stdio MCP children while another Bear server is already active, the runtime now falls back to temp per-launch lock files instead of refusing to start.
+- The stdio server now shuts down on either transport EOF or loss of the original parent PID so Codex restarts do not leave orphaned MCP instances holding the lock.
+- When the preferred Application Support lock path is not writable under the client sandbox, the server falls back to a temp-directory lock path so Codex can still launch the MCP process.
 
 ## User Preferences That Should Survive Future Threads
 

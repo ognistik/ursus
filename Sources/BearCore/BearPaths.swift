@@ -42,6 +42,26 @@ public enum BearPaths {
         runtimeLockDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false)
     }
 
+    public static var fallbackRuntimeLockDirectoryURL: URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent(runtimeDirectoryName, isDirectory: true)
+            .appendingPathComponent("Runtime", isDirectory: true)
+    }
+
+    public static var fallbackProcessLockURL: URL {
+        fallbackRuntimeLockDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false)
+    }
+
+    public static func processSpecificFallbackLockURL(processID: Int32) -> URL {
+        fallbackRuntimeLockDirectoryURL
+            .appendingPathComponent("locks", isDirectory: true)
+            .appendingPathComponent("\(processID).server.lock", isDirectory: false)
+    }
+
+    public static var processLockCandidateURLs: [URL] {
+        [processLockURL, fallbackProcessLockURL]
+    }
+
     public static var defaultBearDatabaseURL: URL {
         homeDirectoryURL
             .appendingPathComponent("Library", isDirectory: true)

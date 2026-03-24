@@ -44,7 +44,8 @@ struct BearMCPMain {
         }
     }
 
-    private static func runMCP(logger: Logger, processLock _: BearProcessLock) async throws {
+    private static func runMCP(logger: Logger, processLock: BearProcessLock) async throws {
+        logger.info("bear-mcp acquired process lock at \(processLock.lockURL.path)")
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath),
@@ -60,13 +61,39 @@ struct BearMCPMain {
 
         let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
         try await server.start(transport: StdioTransport())
+        let originalParentPID = getppid()
+        let shutdownReason = await waitForShutdownTrigger(server: server, originalParentPID: originalParentPID)
 
-        while !Task.isCancelled {
-            if getppid() == 1 {
-                logger.info("bear-mcp parent process exited; shutting down orphaned stdio server.")
-                return
-            }
-            try await Task.sleep(for: .seconds(2))
+        switch shutdownReason {
+        case .serverCompleted:
+            logger.info("bear-mcp stdio transport closed; shutting down server.")
+        case .parentExited:
+            logger.info("bear-mcp parent process exited; shutting down orphaned stdio server.")
         }
+
+        await server.stop()
+    }
+
+    private static func waitForShutdownTrigger(server: Server, originalParentPID: Int32) async -> ShutdownReason {
+        await withTaskGroup(of: ShutdownReason.self, returning: ShutdownReason.self) { group in
+            group.addTask {
+                await server.waitUntilCompleted()
+                return .serverCompleted
+            }
+
+            group.addTask {
+                await BearParentProcessMonitor.waitForParentExit(originalParentPID: originalParentPID)
+                return .parentExited
+            }
+
+            let reason = await group.next() ?? .serverCompleted
+            group.cancelAll()
+            return reason
+        }
+    }
+
+    private enum ShutdownReason {
+        case serverCompleted
+        case parentExited
     }
 }
