@@ -63,18 +63,19 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try service.getScopeNotes(scope: scope))
 
         case "bear_create_notes":
+            let defaults = BearPresentationOptions(
+                openNote: configuration.createOpensNoteByDefault,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                floatingWindow: false,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 CreateNoteRequest(
                     title: try requiredString(object, "title"),
                     content: try requiredString(object, "content"),
                     tags: object["tags"]?.arrayValue?.compactMap(\.stringValue) ?? [],
-                    presentation: BearPresentationOptions(
-                        openNote: object["open_note"]?.boolValue ?? configuration.createOpensNoteByDefault,
-                        newWindow: configuration.openUsesNewWindowByDefault,
-                        floatingWindow: false,
-                        showWindow: true,
-                        edit: configuration.openNoteInEditModeByDefault
-                    )
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.createNotes(requests))
@@ -248,8 +249,10 @@ private enum ToolCatalog {
                 "content": .object(["type": .string("string")]),
                 "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                 "open_note": .object(["type": .string("boolean")]),
+                "new_window": .object(["type": .string("boolean")]),
             ],
-            required: ["title", "content"]
+            required: ["title", "content"],
+            presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_insert_text",
@@ -259,8 +262,11 @@ private enum ToolCatalog {
                 "text": .object(["type": .string("string")]),
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
+                "open_note": .object(["type": .string("boolean")]),
+                "new_window": .object(["type": .string("boolean")]),
             ],
-            required: ["note_id", "text"]
+            required: ["note_id", "text"],
+            presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_replace_note_body",
@@ -271,8 +277,11 @@ private enum ToolCatalog {
                 "old_string": .object(["type": .string("string")]),
                 "new_string": .object(["type": .string("string")]),
                 "expected_version": .object(["type": .string("integer")]),
+                "open_note": .object(["type": .string("boolean")]),
+                "new_window": .object(["type": .string("boolean")]),
             ],
-            required: ["note_id", "new_string"]
+            required: ["note_id", "new_string"],
+            presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_add_files",
@@ -282,16 +291,21 @@ private enum ToolCatalog {
                 "file_path": .object(["type": .string("string")]),
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
+                "open_note": .object(["type": .string("boolean")]),
+                "new_window": .object(["type": .string("boolean")]),
             ],
-            required: ["note_id", "file_path"]
+            required: ["note_id", "file_path"],
+            presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_open_notes",
             description: "Open Bear notes in the Bear UI.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
+                "new_window": .object(["type": .string("boolean")]),
             ],
-            required: ["note_id"]
+            required: ["note_id"],
+            presentationProperties: [:]
         ),
         Tool(
             name: "bear_archive_notes",
@@ -314,13 +328,7 @@ private enum ToolCatalog {
         description: String,
         operationProperties: [String: Value],
         required: [String],
-        presentationProperties: [String: Value] = [
-            "open_note": .object(["type": .string("boolean")]),
-            "new_window": .object(["type": .string("boolean")]),
-            "floating_window": .object(["type": .string("boolean")]),
-            "show_window": .object(["type": .string("boolean")]),
-            "edit": .object(["type": .string("boolean")]),
-        ]
+        presentationProperties: [String: Value] = [:]
     ) -> Tool {
         return Tool(
             name: name,

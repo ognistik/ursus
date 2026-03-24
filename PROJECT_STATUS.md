@@ -170,7 +170,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 ### Mutation side
 
 - Create builds final text locally, then uses Bear x-callback create.
-- Create uses config-driven defaults for open/edit behavior and active-tag inheritance.
+- Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
 - Insert uses Bear add-text with prepend/append mapping.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
 - Add file uses Bear add-file.
@@ -200,7 +200,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Keep the local MCP architecture first-class; remote/proxy work is a separate project.
 - Keep the old Alter/Shortcuts bridge untouched.
 - The create template matters for creation behavior and tag placement.
-- Create defaults are config-driven: open behavior, edit mode, and active-tag inheritance/replacement are user-configurable.
+- The MCP surface should stay simple: mutation tools only expose `open_note` and `new_window`, and `bear_open_notes` only exposes `new_window`.
+- Create defaults are config-driven for whether creation opens the note; when any tool opens a note, `new_window` and edit mode default from config.
 - Batch operations matter.
 - Returning giant note bodies after mutations wastes tokens and should usually be avoided.
 - The project name `aft-bear` was rejected.
