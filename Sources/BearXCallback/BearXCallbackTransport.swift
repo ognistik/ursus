@@ -15,7 +15,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
         let startedAt = Date()
         let url = try builder.createURL(request: request)
         BearDebugLog.append("xcallback.create url=\(url.absoluteString)")
-        try open(url: url)
+        try await open(url: url)
 
         let matched = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             let matches = try self.readStore.findNotes(title: request.title, modifiedAfter: startedAt.addingTimeInterval(-1))
@@ -33,7 +33,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.insertTextURL(request: request)
-        try open(url: url)
+        try await open(url: url)
 
         let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -47,7 +47,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.replaceAllURL(noteID: noteID, fullText: fullText, presentation: presentation)
-        try open(url: url)
+        try await open(url: url)
 
         let updated = try await waitForVersionChange(noteID: noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -61,7 +61,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.addFileURL(request: request)
-        try open(url: url)
+        try await open(url: url)
 
         let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -75,7 +75,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func open(_ request: OpenNoteRequest) async throws -> MutationReceipt {
         let url = try builder.openURL(request: request)
         BearDebugLog.append("xcallback.open url=\(url.absoluteString)")
-        try open(url: url)
+        try await open(url: url)
         let note = try readStore.note(id: request.noteID)
 
         return MutationReceipt(
@@ -89,7 +89,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.archiveURL(noteID: noteID, showWindow: showWindow)
-        try open(url: url)
+        try await open(url: url)
 
         let updated: BearNote? = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             guard let note = try self.readStore.note(id: noteID), note.archived else {
@@ -106,9 +106,18 @@ public actor BearXCallbackTransport: BearWriteTransport {
         )
     }
 
-    private func open(url: URL) throws {
-        guard NSWorkspace.shared.open(url) else {
-            throw BearError.xCallback("Bear did not accept URL: \(url.absoluteString)")
+    private func open(url: URL) async throws {
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = false
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            NSWorkspace.shared.open(url, configuration: configuration) { _, error in
+                if let error {
+                    continuation.resume(throwing: BearError.xCallback("Bear did not accept URL: \(url.absoluteString). \(error.localizedDescription)"))
+                } else {
+                    continuation.resume()
+                }
+            }
         }
     }
 

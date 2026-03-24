@@ -43,7 +43,7 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
             title: "Sample Note",
             content: "# Sample Note\n\nBody line",
             tags: ["project-x", "#daily"],
-            presentation: BearPresentationOptions(openNote: true, newWindow: true, floatingWindow: false, showWindow: true, edit: true)
+            presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
         ),
     ])
 
@@ -92,7 +92,7 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
             title: "Sample Note",
             content: "Body line",
             tags: ["project-x"],
-            presentation: BearPresentationOptions(openNote: true, newWindow: true, floatingWindow: false, showWindow: true, edit: true)
+            presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
         ),
     ])
 

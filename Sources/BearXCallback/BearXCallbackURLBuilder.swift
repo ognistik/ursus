@@ -90,17 +90,23 @@ public struct BearXCallbackURLBuilder: Sendable {
             URLQueryItem(name: "show_window", value: yesNo(presentation.showWindow)),
         ]
 
-        if presentation.openNote {
-            items.append(URLQueryItem(name: "open_note", value: yesNo(presentation.openNote)))
+        if let openNoteOverride = presentation.openNoteOverride {
+            items.append(URLQueryItem(name: "open_note", value: yesNo(openNoteOverride)))
+        } else if presentation.openNote {
+            items.append(URLQueryItem(name: "open_note", value: yesNo(true)))
         }
-        if presentation.newWindow {
-            items.append(URLQueryItem(name: "new_window", value: yesNo(presentation.newWindow)))
+
+        guard presentation.openNote else {
+            return items
         }
-        if presentation.floatingWindow {
-            items.append(URLQueryItem(name: "float", value: yesNo(presentation.floatingWindow)))
+
+        if let newWindowOverride = presentation.newWindowOverride {
+            items.append(URLQueryItem(name: "new_window", value: yesNo(newWindowOverride)))
+        } else if presentation.newWindow {
+            items.append(URLQueryItem(name: "new_window", value: yesNo(true)))
         }
         if presentation.edit {
-            items.append(URLQueryItem(name: "edit", value: yesNo(presentation.edit)))
+            items.append(URLQueryItem(name: "edit", value: yesNo(true)))
         }
 
         return items

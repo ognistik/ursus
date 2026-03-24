@@ -202,7 +202,9 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Keep the old Alter/Shortcuts bridge untouched.
 - The create template matters for creation behavior and tag placement.
 - The MCP surface should stay simple: mutation tools only expose `open_note` and `new_window`, and `bear_open_notes` only exposes `new_window`.
-- Create defaults are config-driven for whether creation opens the note; when any tool opens a note, `new_window` and edit mode default from config.
+- Create defaults are config-driven for whether creation opens the note; explicit `open_note` and `new_window` values override config for that request.
+- User phrasing like "floating window" should map to `new_window`; the server should not emit Bear's `float` URL parameter.
+- Bear x-callback URLs should launch without activating Bear unless Bear itself decides to foreground for its own reasons.
 - Presentation flags in MCP mutation inputs are optional overrides and should normally be omitted so config defaults apply.
 - Batch operations matter.
 - Returning giant note bodies after mutations wastes tokens and should usually be avoided.

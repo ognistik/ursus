@@ -132,21 +132,24 @@ public enum ReplaceMode: String, Codable, Hashable, Sendable {
 
 public struct BearPresentationOptions: Codable, Hashable, Sendable {
     public var openNote: Bool
+    public var openNoteOverride: Bool?
     public var newWindow: Bool
-    public var floatingWindow: Bool
+    public var newWindowOverride: Bool?
     public var showWindow: Bool
     public var edit: Bool
 
     public init(
         openNote: Bool = false,
+        openNoteOverride: Bool? = nil,
         newWindow: Bool = false,
-        floatingWindow: Bool = false,
+        newWindowOverride: Bool? = nil,
         showWindow: Bool = true,
         edit: Bool = false
     ) {
         self.openNote = openNote
+        self.openNoteOverride = openNoteOverride
         self.newWindow = newWindow
-        self.floatingWindow = floatingWindow
+        self.newWindowOverride = newWindowOverride
         self.showWindow = showWindow
         self.edit = edit
     }

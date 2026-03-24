@@ -77,7 +77,6 @@ public final class BearMCPServer: Sendable {
             let defaults = BearPresentationOptions(
                 openNote: configuration.createOpensNoteByDefault,
                 newWindow: configuration.openUsesNewWindowByDefault,
-                floatingWindow: false,
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
@@ -92,7 +91,7 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.createNotes(requests))
 
         case "bear_insert_text":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, floatingWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 InsertTextRequest(
                     noteID: try requiredString(object, "note_id"),
@@ -105,7 +104,7 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.insertText(requests))
 
         case "bear_replace_note_body":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, floatingWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 ReplaceNoteBodyRequest(
                     noteID: try requiredString(object, "note_id"),
@@ -119,7 +118,7 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.replaceNoteBody(requests))
 
         case "bear_add_files":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, floatingWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 AddFileRequest(
                     noteID: try requiredString(object, "note_id"),
@@ -135,7 +134,6 @@ public final class BearMCPServer: Sendable {
             let defaults = BearPresentationOptions(
                 openNote: true,
                 newWindow: configuration.openUsesNewWindowByDefault,
-                floatingWindow: false,
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
@@ -260,7 +258,7 @@ private enum ToolCatalog {
                 "content": .object(["type": .string("string")]),
                 "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                 "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured create-note open behavior. Only send true or false when intentionally overriding config for this request."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. This only matters when the created note is opened."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. Use true when the user asks for a separate or floating Bear window. This only matters when the created note is opened."),
             ],
             required: ["title", "content"],
             presentationProperties: [:]
@@ -274,7 +272,7 @@ private enum ToolCatalog {
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
                 "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for inserts."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
             ],
             required: ["note_id", "text"],
             presentationProperties: [:]
@@ -289,7 +287,7 @@ private enum ToolCatalog {
                 "new_string": .object(["type": .string("string")]),
                 "expected_version": .object(["type": .string("integer")]),
                 "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for replacements."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
             ],
             required: ["note_id", "new_string"],
             presentationProperties: [:]
@@ -303,7 +301,7 @@ private enum ToolCatalog {
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
                 "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for file attachments."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
             ],
             required: ["note_id", "file_path"],
             presentationProperties: [:]
@@ -313,7 +311,7 @@ private enum ToolCatalog {
             description: "Open Bear notes in the Bear UI. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. Use true when the user asks for a separate or floating Bear window."),
             ],
             required: ["note_id"],
             presentationProperties: [:]
