@@ -107,6 +107,7 @@ Implemented:
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
 - MCP server/tool registration
+- empty MCP resource/resource-template list handlers for client compatibility during discovery
 - CLI commands: `mcp`, `doctor`, `paths`
 - a few core tests
 

@@ -16,7 +16,10 @@ public final class BearMCPServer: Sendable {
         let server = Server(
             name: "bear",
             version: "0.1.0",
-            capabilities: .init(tools: .init(listChanged: false))
+            capabilities: .init(
+                resources: .init(listChanged: false),
+                tools: .init(listChanged: false)
+            )
         )
 
         await registerHandlers(on: server)
@@ -24,6 +27,14 @@ public final class BearMCPServer: Sendable {
     }
 
     private func registerHandlers(on server: Server) async {
+        await server.withMethodHandler(ListResources.self) { _ in
+            .init(resources: [])
+        }
+
+        await server.withMethodHandler(ListResourceTemplates.self) { _ in
+            .init(templates: [])
+        }
+
         await server.withMethodHandler(ListTools.self) { _ in
             .init(tools: ToolCatalog.tools)
         }

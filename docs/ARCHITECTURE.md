@@ -22,6 +22,7 @@
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`.
 - Runtime artifacts are kept out of the config folder: the lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
+- The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
 
 ## Current limits
 
