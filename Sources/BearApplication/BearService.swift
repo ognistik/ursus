@@ -20,17 +20,22 @@ public final class BearService: @unchecked Sendable {
         self.logger = logger
     }
 
-    public func searchNotes(query: String, scope: BearScope, limit: Int) throws -> [NoteSearchHit] {
-        logger.info("Searching Bear notes.", metadata: ["scope": "\(scope.rawValue)", "limit": "\(limit)"])
-        return try readStore.searchNotes(
+    public func searchNotes(
+        query: String,
+        location: BearNoteLocation,
+        limit: Int?,
+        snippetLength: Int?
+    ) throws -> [NoteSummary] {
+        let resolvedLimit = resolvedDiscoveryLimit(limit)
+        logger.info("Searching Bear notes.", metadata: ["location": "\(location.rawValue)", "limit": "\(resolvedLimit)"])
+        let notes = try readStore.searchNotes(
             NoteSearchQuery(
                 query: query,
-                scope: scope,
-                includeArchived: true,
-                includeTrashed: false,
-                limit: limit
+                location: location,
+                limit: resolvedLimit
             )
         )
+        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
     }
 
     public func getNotes(ids: [String]) throws -> [BearNote] {
@@ -41,20 +46,39 @@ public final class BearService: @unchecked Sendable {
         try readStore.listTags()
     }
 
-    public func getNotesByTag(tags: [String]) throws -> [BearNote] {
-        var notesByID: [String: BearNote] = [:]
-
-        for tag in tags {
-            for note in try readStore.notes(matchingTag: tag) {
-                notesByID[note.ref.identifier] = note
-            }
-        }
-
-        return notesByID.values.sorted { $0.revision.modifiedAt > $1.revision.modifiedAt }
+    public func getNotesByTag(
+        tags: [String],
+        location: BearNoteLocation,
+        limit: Int?,
+        snippetLength: Int?
+    ) throws -> [NoteSummary] {
+        let notes = try readStore.notes(
+            matchingAnyTags: tags,
+            location: location,
+            limit: resolvedDiscoveryLimit(limit)
+        )
+        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
     }
 
-    public func getScopeNotes(scope: BearScope) throws -> [BearNote] {
-        try readStore.notes(inScope: scope, activeTags: configuration.activeTags)
+    public func getActiveNotes(
+        location: BearNoteLocation,
+        limit: Int?,
+        snippetLength: Int?
+    ) throws -> [NoteSummary] {
+        let activeTags = configuration.activeTags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !activeTags.isEmpty else {
+            throw BearError.configuration("The active notes list is empty. Add tags to ~/.config/bear-mcp/config.json first.")
+        }
+
+        let notes = try readStore.notes(
+            matchingAnyTags: activeTags,
+            location: location,
+            limit: resolvedDiscoveryLimit(limit)
+        )
+        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
     }
 
     public func createNotes(_ requests: [CreateNoteRequest]) async throws -> [MutationReceipt] {
@@ -230,6 +254,96 @@ public final class BearService: @unchecked Sendable {
         }
 
         return trimmed
+    }
+
+    private func makeDiscoverySummaries(notes: [BearNote], snippetLength: Int?) throws -> [NoteSummary] {
+        let resolvedSnippetLength = resolvedSnippetLength(snippetLength)
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return notes.map { note in
+            NoteSummary(
+                noteID: note.ref.identifier,
+                title: note.title,
+                snippet: discoverySnippet(for: note, template: noteTemplate, limit: resolvedSnippetLength),
+                tags: note.tags,
+                createdAt: note.revision.createdAt,
+                modifiedAt: note.revision.modifiedAt,
+                archived: note.archived
+            )
+        }
+    }
+
+    private func discoverySnippet(for note: BearNote, template: String?, limit: Int) -> String {
+        let source = templateContent(for: note, template: template) ?? note.body
+        let normalized = source
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        guard normalized.count > limit else {
+            return normalized
+        }
+
+        let cutoff = normalized.index(normalized.startIndex, offsetBy: limit)
+        let prefix = String(normalized[..<cutoff])
+        let nextCharacter = cutoff < normalized.endIndex ? normalized[cutoff] : nil
+        let boundaryIndex = nextCharacter?.isWhitespace == false ? prefix.lastIndex(where: { $0.isWhitespace }) : nil
+        let base = String(prefix[..<(boundaryIndex ?? prefix.endIndex)]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return base + "…"
+    }
+
+    private func templateContent(for note: BearNote, template: String?) -> String? {
+        guard let template else {
+            return nil
+        }
+
+        let marker = "__BEAR_MCP_CONTENT_SENTINEL__"
+        guard template.components(separatedBy: "{{content}}").count == 2 else {
+            return nil
+        }
+
+        let rendered = TemplateRenderer.renderDocument(
+            context: TemplateContext(title: note.title, content: marker, tags: note.tags),
+            template: template
+        )
+        guard let range = rendered.range(of: marker) else {
+            return nil
+        }
+
+        let prefix = String(rendered[..<range.lowerBound]).replacingOccurrences(of: "\r\n", with: "\n")
+        let suffix = String(rendered[range.upperBound...]).replacingOccurrences(of: "\r\n", with: "\n")
+        let body = note.body.replacingOccurrences(of: "\r\n", with: "\n")
+
+        guard body.hasPrefix(prefix), body.hasSuffix(suffix) else {
+            return nil
+        }
+
+        let start = body.index(body.startIndex, offsetBy: prefix.count)
+        let end = body.index(body.endIndex, offsetBy: -suffix.count)
+        return String(body[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resolvedDiscoveryLimit(_ override: Int?) -> Int {
+        clampedValue(
+            override ?? configuration.defaultDiscoveryLimit,
+            fallback: configuration.defaultDiscoveryLimit,
+            maximum: configuration.maxDiscoveryLimit
+        )
+    }
+
+    private func resolvedSnippetLength(_ override: Int?) -> Int {
+        clampedValue(
+            override ?? configuration.defaultSnippetLength,
+            fallback: configuration.defaultSnippetLength,
+            maximum: configuration.maxSnippetLength
+        )
+    }
+
+    private func clampedValue(_ value: Int, fallback: Int, maximum: Int) -> Int {
+        let resolvedMaximum = max(1, maximum)
+        let resolvedFallback = max(1, min(fallback, resolvedMaximum))
+        return max(1, min(value > 0 ? value : resolvedFallback, resolvedMaximum))
     }
 
     private func mutateEach<Input>(

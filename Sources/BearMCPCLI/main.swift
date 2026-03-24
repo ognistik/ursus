@@ -18,6 +18,9 @@ struct BearMCPMain {
             let command = CommandLine.arguments.dropFirst().first ?? "mcp"
 
             switch command {
+            case "--update-config":
+                _ = try BearRuntimeBootstrap.updateConfigurationFile()
+                print("Updated config: \(BearPaths.configFileURL.path)")
             case "doctor":
                 print(BearRuntimeBootstrap.doctorReport(logger: logger))
             case "paths":
@@ -34,7 +37,7 @@ struct BearMCPMain {
                 let processLock = try BearProcessLock.acquire()
                 try await runMCP(logger: logger, processLock: processLock)
             default:
-                fputs("Unknown command '\(command)'. Use 'mcp', 'doctor', or 'paths'.\n", stderr)
+                fputs("Unknown command '\(command)'. Use 'mcp', '--update-config', 'doctor', or 'paths'.\n", stderr)
                 Foundation.exit(1)
             }
         } catch {
@@ -48,8 +51,7 @@ struct BearMCPMain {
         logger.info("bear-mcp acquired process lock at \(processLock.lockURL.path)")
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
         let databaseReader = try BearDatabaseReader(
-            databaseURL: URL(fileURLWithPath: configuration.databasePath),
-            activeScopeTags: configuration.activeTags
+            databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
         let writeTransport = BearXCallbackTransport(readStore: databaseReader)
         let service = BearService(

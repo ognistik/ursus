@@ -47,6 +47,10 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var openUsesNewWindowByDefault: Bool
     public var createAddsActiveTagsByDefault: Bool
     public var createRequestTagsMode: CreateRequestTagsMode
+    public var defaultDiscoveryLimit: Int
+    public var maxDiscoveryLimit: Int
+    public var defaultSnippetLength: Int
+    public var maxSnippetLength: Int
 
     public init(
         databasePath: String,
@@ -57,7 +61,11 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
         createAddsActiveTagsByDefault: Bool,
-        createRequestTagsMode: CreateRequestTagsMode
+        createRequestTagsMode: CreateRequestTagsMode,
+        defaultDiscoveryLimit: Int,
+        maxDiscoveryLimit: Int,
+        defaultSnippetLength: Int,
+        maxSnippetLength: Int
     ) {
         self.databasePath = databasePath
         self.activeTags = activeTags
@@ -68,6 +76,10 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
         self.createAddsActiveTagsByDefault = createAddsActiveTagsByDefault
         self.createRequestTagsMode = createRequestTagsMode
+        self.defaultDiscoveryLimit = defaultDiscoveryLimit
+        self.maxDiscoveryLimit = maxDiscoveryLimit
+        self.defaultSnippetLength = defaultSnippetLength
+        self.maxSnippetLength = maxSnippetLength
     }
 
     public static var `default`: BearConfiguration {
@@ -80,7 +92,11 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsActiveTagsByDefault: true,
-            createRequestTagsMode: .append
+            createRequestTagsMode: .append,
+            defaultDiscoveryLimit: 20,
+            maxDiscoveryLimit: 100,
+            defaultSnippetLength: 280,
+            maxSnippetLength: 1_000
         )
     }
 
@@ -94,6 +110,10 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case openUsesNewWindowByDefault
         case createAddsActiveTagsByDefault
         case createRequestTagsMode
+        case defaultDiscoveryLimit
+        case maxDiscoveryLimit
+        case defaultSnippetLength
+        case maxSnippetLength
     }
 
     public init(from decoder: Decoder) throws {
@@ -108,6 +128,10 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
         createAddsActiveTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsActiveTagsByDefault) ?? true
         createRequestTagsMode = try container.decodeIfPresent(CreateRequestTagsMode.self, forKey: .createRequestTagsMode) ?? .append
+        defaultDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20
+        maxDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .maxDiscoveryLimit) ?? 100
+        defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280
+        maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
     }
 
     public static func load(from url: URL = BearPaths.configFileURL) throws -> BearConfiguration {

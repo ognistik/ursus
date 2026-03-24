@@ -1,11 +1,10 @@
 import Foundation
 
 public protocol BearReadStore: Sendable {
-    func searchNotes(_ query: NoteSearchQuery) throws -> [NoteSearchHit]
+    func searchNotes(_ query: NoteSearchQuery) throws -> [BearNote]
     func note(id: String) throws -> BearNote?
     func notes(withIDs ids: [String]) throws -> [BearNote]
-    func notes(matchingTag tag: String) throws -> [BearNote]
-    func notes(inScope scope: BearScope, activeTags: [String]) throws -> [BearNote]
+    func notes(matchingAnyTags tags: [String], location: BearNoteLocation, limit: Int) throws -> [BearNote]
     func listTags() throws -> [TagSummary]
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote]
 }

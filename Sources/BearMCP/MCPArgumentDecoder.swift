@@ -18,6 +18,10 @@ enum MCPArgumentDecoder {
         arguments?[key]?.intValue ?? defaultValue
     }
 
+    static func optionalInt(_ arguments: [String: Value]?, _ key: String) -> Int? {
+        arguments?[key]?.intValue
+    }
+
     static func bool(_ arguments: [String: Value]?, _ key: String, default defaultValue: Bool) -> Bool {
         arguments?[key]?.boolValue ?? defaultValue
     }
@@ -30,14 +34,14 @@ enum MCPArgumentDecoder {
         arguments?[key]?.arrayValue?.compactMap(\.objectValue) ?? []
     }
 
-    static func scope(_ arguments: [String: Value]?, _ key: String = "scope") throws -> BearScope {
+    static func location(_ arguments: [String: Value]?, _ key: String = "location") throws -> BearNoteLocation {
         guard let raw = optionalString(arguments, key) else {
-            return .all
+            return .notes
         }
-        guard let scope = BearScope(rawValue: raw) else {
-            throw BearError.invalidInput("Invalid scope '\(raw)'. Expected 'all' or 'active'.")
+        guard let location = BearNoteLocation(rawValue: raw) else {
+            throw BearError.invalidInput("Invalid location '\(raw)'. Expected 'notes' or 'archive'.")
         }
-        return scope
+        return location
     }
 
     static func replaceMode(_ object: [String: Value], _ key: String = "mode") throws -> ReplaceMode {

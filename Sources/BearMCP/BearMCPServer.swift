@@ -52,9 +52,10 @@ public final class BearMCPServer: Sendable {
         switch params.name {
         case "bear_search_notes":
             let query = try MCPArgumentDecoder.string(params.arguments, "query")
-            let scope = try MCPArgumentDecoder.scope(params.arguments)
-            let limit = MCPArgumentDecoder.int(params.arguments, "limit", default: 20)
-            let results = try service.searchNotes(query: query, scope: scope, limit: limit)
+            let location = try MCPArgumentDecoder.location(params.arguments)
+            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
+            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
+            let results = try service.searchNotes(query: query, location: location, limit: limit, snippetLength: snippetLength)
             return try jsonResult(results)
 
         case "bear_get_notes":
@@ -67,11 +68,16 @@ public final class BearMCPServer: Sendable {
 
         case "bear_get_notes_by_tag":
             let tags = MCPArgumentDecoder.stringArray(params.arguments, "tags")
-            return try jsonResult(try service.getNotesByTag(tags: tags))
+            let location = try MCPArgumentDecoder.location(params.arguments)
+            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
+            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
+            return try jsonResult(try service.getNotesByTag(tags: tags, location: location, limit: limit, snippetLength: snippetLength))
 
-        case "bear_get_scope_notes":
-            let scope = try MCPArgumentDecoder.scope(params.arguments)
-            return try jsonResult(try service.getScopeNotes(scope: scope))
+        case "bear_get_active":
+            let location = try MCPArgumentDecoder.location(params.arguments)
+            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
+            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
+            return try jsonResult(try service.getActiveNotes(location: location, limit: limit, snippetLength: snippetLength))
 
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
@@ -182,22 +188,15 @@ private enum ToolCatalog {
     static let tools: [Tool] = [
         Tool(
             name: "bear_search_notes",
-            description: "Search Bear notes by query. Supports all notes or the configured active scope.",
+            description: "Search Bear notes by query and return compact note summaries. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
-                "properties": .object([
+                "properties": .object(discoveryProperties([
                     "query": .object([
                         "type": .string("string"),
                         "description": .string("Search text to match against note titles and note text."),
                     ]),
-                    "scope": .object([
-                        "type": .string("string"),
-                        "enum": .array([.string("all"), .string("active")]),
-                    ]),
-                    "limit": .object([
-                        "type": .string("integer"),
-                    ]),
-                ]),
+                ])),
                 "required": .array([.string("query")]),
             ])
         ),
@@ -225,29 +224,24 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_get_notes_by_tag",
-            description: "Fetch notes that belong to one or more Bear tags.",
+            description: "Fetch compact note summaries for notes that belong to one or more Bear tags. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
-                "properties": .object([
+                "properties": .object(discoveryProperties([
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
                     ]),
-                ]),
+                ])),
                 "required": .array([.string("tags")]),
             ])
         ),
         Tool(
-            name: "bear_get_scope_notes",
-            description: "Fetch notes in a named scope. In v1 this is mainly the configured active scope.",
+            name: "bear_get_active",
+            description: "Fetch compact note summaries for notes that match the configured active tags. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
-                "properties": .object([
-                    "scope": .object([
-                        "type": .string("string"),
-                        "enum": .array([.string("all"), .string("active")]),
-                    ]),
-                ]),
+                "properties": .object(discoveryProperties([:])),
             ])
         ),
         batchedMutationTool(
@@ -331,6 +325,24 @@ private enum ToolCatalog {
             ])
         ),
     ]
+
+    private static func discoveryProperties(_ base: [String: Value]) -> [String: Value] {
+        var properties = base
+        properties["location"] = .object([
+            "type": .string("string"),
+            "enum": .array([.string("notes"), .string("archive")]),
+            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to 'notes'."),
+        ])
+        properties["limit"] = .object([
+            "type": .string("integer"),
+            "description": .string("Optional number of summaries to return. Uses the configured default when omitted and is capped server-side."),
+        ])
+        properties["snippet_length"] = .object([
+            "type": .string("integer"),
+            "description": .string("Optional snippet length in characters. Uses the configured default when omitted and is capped server-side."),
+        ])
+        return properties
+    }
 
     private static func batchedMutationTool(
         name: String,

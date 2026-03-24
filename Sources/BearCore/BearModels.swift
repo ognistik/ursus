@@ -10,10 +10,12 @@ public struct NoteRef: Codable, Hashable, Sendable {
 
 public struct NoteRevision: Codable, Hashable, Sendable {
     public let version: Int
+    public let createdAt: Date
     public let modifiedAt: Date
 
-    public init(version: Int, modifiedAt: Date) {
+    public init(version: Int, createdAt: Date, modifiedAt: Date) {
         self.version = version
+        self.createdAt = createdAt
         self.modifiedAt = modifiedAt
     }
 }
@@ -54,51 +56,45 @@ public struct BearNote: Codable, Hashable, Sendable {
 
 public struct NoteSearchQuery: Codable, Hashable, Sendable {
     public let query: String
-    public let scope: BearScope
-    public let includeArchived: Bool
-    public let includeTrashed: Bool
+    public let location: BearNoteLocation
     public let limit: Int
 
     public init(
         query: String,
-        scope: BearScope = .all,
-        includeArchived: Bool = true,
-        includeTrashed: Bool = false,
+        location: BearNoteLocation = .notes,
         limit: Int = 20
     ) {
         self.query = query
-        self.scope = scope
-        self.includeArchived = includeArchived
-        self.includeTrashed = includeTrashed
+        self.location = location
         self.limit = limit
     }
 }
 
-public struct NoteSearchHit: Codable, Hashable, Sendable {
-    public let ref: NoteRef
+public struct NoteSummary: Codable, Hashable, Sendable {
+    public let noteID: String
     public let title: String
     public let snippet: String
     public let tags: [String]
-    public let archived: Bool
-    public let trashed: Bool
+    public let createdAt: Date
     public let modifiedAt: Date
+    public let archived: Bool
 
     public init(
-        ref: NoteRef,
+        noteID: String,
         title: String,
         snippet: String,
         tags: [String],
+        createdAt: Date,
+        modifiedAt: Date,
         archived: Bool,
-        trashed: Bool,
-        modifiedAt: Date
     ) {
-        self.ref = ref
+        self.noteID = noteID
         self.title = title
         self.snippet = snippet
         self.tags = tags
-        self.archived = archived
-        self.trashed = trashed
+        self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.archived = archived
     }
 }
 
@@ -114,9 +110,9 @@ public struct TagSummary: Codable, Hashable, Sendable {
     }
 }
 
-public enum BearScope: String, Codable, Hashable, Sendable {
-    case all
-    case active
+public enum BearNoteLocation: String, Codable, Hashable, Sendable {
+    case notes
+    case archive
 }
 
 public enum InsertPosition: String, Codable, Hashable, Sendable {

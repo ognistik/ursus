@@ -16,7 +16,11 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsActiveTagsByDefault: true,
-        createRequestTagsMode: .append
+        createRequestTagsMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000
     )
     let service = BearService(
         configuration: configuration,
@@ -25,27 +29,16 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
         logger: Logger(label: "BearServiceCreateTests")
     )
 
-    let templateURL = BearPaths.noteTemplateURL
-    let fileManager = FileManager.default
-    let originalTemplate = fileManager.fileExists(atPath: templateURL.path) ? try String(contentsOf: templateURL) : nil
-    try fileManager.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
-    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    defer {
-        if let originalTemplate {
-            try? originalTemplate.write(to: templateURL, atomically: true, encoding: .utf8)
-        } else {
-            try? fileManager.removeItem(at: templateURL)
-        }
+    try await withTemporaryNoteTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createNotes([
+            CreateNoteRequest(
+                title: "Sample Note",
+                content: "# Sample Note\n\nBody line",
+                tags: ["project-x", "#daily"],
+                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
+            ),
+        ])
     }
-
-    _ = try await service.createNotes([
-        CreateNoteRequest(
-            title: "Sample Note",
-            content: "# Sample Note\n\nBody line",
-            tags: ["project-x", "#daily"],
-            presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
-        ),
-    ])
 
     let captured = try #require(await transport.createdRequests.first)
     #expect(captured.title == "Sample Note")
@@ -65,7 +58,11 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsActiveTagsByDefault: true,
-        createRequestTagsMode: .replace
+        createRequestTagsMode: .replace,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000
     )
     let service = BearService(
         configuration: configuration,
@@ -74,27 +71,16 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
         logger: Logger(label: "BearServiceCreateTests")
     )
 
-    let templateURL = BearPaths.noteTemplateURL
-    let fileManager = FileManager.default
-    let originalTemplate = fileManager.fileExists(atPath: templateURL.path) ? try String(contentsOf: templateURL) : nil
-    try fileManager.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
-    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    defer {
-        if let originalTemplate {
-            try? originalTemplate.write(to: templateURL, atomically: true, encoding: .utf8)
-        } else {
-            try? fileManager.removeItem(at: templateURL)
-        }
+    try await withTemporaryNoteTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createNotes([
+            CreateNoteRequest(
+                title: "Sample Note",
+                content: "Body line",
+                tags: ["project-x"],
+                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
+            ),
+        ])
     }
-
-    _ = try await service.createNotes([
-        CreateNoteRequest(
-            title: "Sample Note",
-            content: "Body line",
-            tags: ["project-x"],
-            presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
-        ),
-    ])
 
     let captured = try #require(await transport.createdRequests.first)
     #expect(captured.content == "Body line\n\n#project-x")
@@ -102,11 +88,10 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
 }
 
 private struct EmptyReadStore: BearReadStore {
-    func searchNotes(_ query: NoteSearchQuery) throws -> [NoteSearchHit] { [] }
+    func searchNotes(_ query: NoteSearchQuery) throws -> [BearNote] { [] }
     func note(id: String) throws -> BearNote? { nil }
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
-    func notes(matchingTag tag: String) throws -> [BearNote] { [] }
-    func notes(inScope scope: BearScope, activeTags: [String]) throws -> [BearNote] { [] }
+    func notes(matchingAnyTags tags: [String], location: BearNoteLocation, limit: Int) throws -> [BearNote] { [] }
     func listTags() throws -> [TagSummary] { [] }
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }

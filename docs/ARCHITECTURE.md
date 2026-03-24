@@ -15,6 +15,11 @@
 
 - Reads come directly from Bear's local SQLite database.
 - Mutations are submitted through Bear's official x-callback actions.
+- Discovery tools (`bear_search_notes`, `bear_get_active`, and `bear_get_notes_by_tag`) return compact note summaries and reserve `bear_get_notes` for full note bodies.
+- Discovery reads always exclude trashed notes and target either normal notes or archived notes explicitly through `location: notes|archive`.
+- MCP tool descriptions steer clients to omit `location` unless the user explicitly asks for archived notes.
+- Discovery snippet length and result-count defaults come from config, allow per-call overrides, and are capped server-side.
+- Discovery snippets are template-aware when the current `template.md` can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - `bear_replace_note_body` computes the full note markdown locally, then writes with Bear's `replace_all` mode.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.
 - The MCP surface keeps mutation-time presentation intentionally small: create/insert/replace/add-file only expose `open_note` and `new_window`, while `bear_open_notes` only exposes `new_window`. Those presentation fields are optional overrides and should normally be omitted so config defaults apply. Explicit `open_note` and `new_window` values override config for that request. When a note is not being opened, open-only URL flags are suppressed. User requests for a separate or floating Bear window map to `new_window`; the server does not emit Bear's `float` URL parameter.
@@ -23,6 +28,7 @@
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`.
+- `bear-mcp --update-config` rewrites the config file in the latest canonical shape, preserving existing values and filling in any missing keys.
 - Runtime artifacts are kept out of the config folder: the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, with temp-directory fallback locks used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
 - The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
 

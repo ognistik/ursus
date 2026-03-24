@@ -82,15 +82,16 @@ Tools intentionally excluded for now:
 - restore
 - unarchive
 
-### 6. Scope / active notes
+### 6. Active notes / discovery
 
 The old `get-active` behavior is important.
 
 Current direction:
 
-- represent this as a scope concept
-- `active` scope is driven by configured active tags
-- this is read from config, not hardcoded into the MCP protocol
+- represent active-note listing as an explicit discovery tool
+- `bear_get_active` is driven by configured active tags from config
+- discovery tools return compact note summaries, not full note bodies
+- archive reads are explicit via tool input (`location: notes|archive`), not mixed into default note discovery
 
 ## Current Code Status
 
@@ -110,7 +111,7 @@ Implemented:
 - x-callback launcher transport with best-effort polling
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
-- CLI commands: `mcp`, `doctor`, `paths`
+- CLI commands: `mcp`, `--update-config`, `doctor`, `paths`
 - a few core tests
 
 Verified locally:
@@ -127,7 +128,7 @@ Implemented MCP tool names:
 - `bear_get_notes`
 - `bear_list_tags`
 - `bear_get_notes_by_tag`
-- `bear_get_scope_notes`
+- `bear_get_active`
 - `bear_create_notes`
 - `bear_insert_text`
 - `bear_replace_note_body`
@@ -168,8 +169,19 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - The current DB reader queries `ZSFNOTE`, `ZSFNOTETAG`, and `Z_5TAGS`.
 - Search currently uses straightforward SQL `LIKE` matching over title and text.
+- Discovery tools always exclude trashed notes.
+- Discovery tools search either normal notes or archived notes, never both in one call.
+- MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
+- `bear_search_notes`, `bear_get_active`, and `bear_get_notes_by_tag` now share a summary shape with note id, title, snippet, tags, created/modified timestamps, and archive status.
+- Discovery limits and snippet lengths are config-driven defaults with per-call overrides and server-side hard caps.
+- Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Notes are normalized into typed models.
 - Returned notes include `title`, `body`, `rawText`, tags, and note revision metadata.
+
+### Config behavior
+
+- Missing config keys fall back to defaults in memory during load.
+- `bear-mcp --update-config` rewrites `config.json` in canonical current format, preserving existing values while filling in any newer keys.
 
 ### Mutation side
 

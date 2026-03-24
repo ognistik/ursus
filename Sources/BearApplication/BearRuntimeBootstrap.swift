@@ -3,30 +3,60 @@ import Foundation
 import Logging
 
 public enum BearRuntimeBootstrap {
-    public static func prepareSupportFiles(fileManager: FileManager = .default) throws {
-        try fileManager.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
+    public static func prepareSupportFiles(
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws {
+        try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
 
-        if !fileManager.fileExists(atPath: BearPaths.configFileURL.path) {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(BearConfiguration.default)
-            try data.write(to: BearPaths.configFileURL, options: .atomic)
+        if !fileManager.fileExists(atPath: configFileURL.path) {
+            try writeConfiguration(BearConfiguration.default, to: configFileURL)
         }
 
-        if !fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path) {
+        if !fileManager.fileExists(atPath: templateURL.path) {
             guard let data = defaultNoteTemplate.data(using: .utf8) else {
                 throw BearError.configuration("Failed to encode the default Bear note template.")
             }
-            try data.write(to: BearPaths.noteTemplateURL, options: .atomic)
+            try data.write(to: templateURL, options: .atomic)
         }
     }
 
-    public static func loadConfiguration() throws -> BearConfiguration {
-        try prepareSupportFiles()
-        let configuration = try BearConfiguration.load()
-        BearDebugLog.append(
-            "config.loaded path=\(BearPaths.configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) createRequestTagsMode=\(configuration.createRequestTagsMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault)"
+    public static func loadConfiguration(
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws -> BearConfiguration {
+        try prepareSupportFiles(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
         )
+        let configuration = try BearConfiguration.load(from: configFileURL)
+        BearDebugLog.append(
+            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) createRequestTagsMode=\(configuration.createRequestTagsMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength)"
+        )
+        return configuration
+    }
+
+    @discardableResult
+    public static func updateConfigurationFile(
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws -> BearConfiguration {
+        let configuration = try loadConfiguration(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        try writeConfiguration(configuration, to: configFileURL)
+        BearDebugLog.append("config.updated path=\(configFileURL.path)")
         return configuration
     }
 
@@ -48,6 +78,13 @@ public enum BearRuntimeBootstrap {
 
     private static func status(_ exists: Bool) -> String {
         exists ? "ok" : "missing"
+    }
+
+    private static func writeConfiguration(_ configuration: BearConfiguration, to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(configuration)
+        try data.write(to: url, options: .atomic)
     }
 
     private static let defaultNoteTemplate = """
