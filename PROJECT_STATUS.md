@@ -151,8 +151,8 @@ Current local runtime paths are:
 
 - config: `~/.config/bear-mcp/config.json`
 - note template: `~/.config/bear-mcp/template.md`
-- process lock: `~/.config/bear-mcp/server.lock`
-- temporary debug log: `~/.config/bear-mcp/debug.log`
+- process lock: `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
+- temporary debug log: `~/Library/Logs/bear-mcp/debug.log`
 - default Bear DB path:
   `/Users/ognistik/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/database.sqlite`
 
@@ -191,7 +191,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Tag mutation tools are not implemented yet.
 - Search is functional but still basic; exact phrase semantics and better ranking can be improved later.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
-- Debug tracing currently writes under `~/.config/bear-mcp/debug.log`; a more standard long-term home would be `~/Library/Logs/bear-mcp` with rotation.
+- Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.
+- The single-instance lock now lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.
 
 ## User Preferences That Should Survive Future Threads
 
@@ -208,8 +209,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 ## Recommended Next Steps
 
-1. Move debug logging to a more standard macOS log location and add size-based rotation if persistent tracing is kept.
-2. Add keychain token support and any token-dependent Bear actions that are worth exposing.
-3. Improve create-result identification so note IDs are returned more reliably.
-4. Decide whether runtime paths should stay `bear-mcp` or migrate to `bear-inbox`.
-5. Add README/install docs now that the create/write path has been validated live.
+1. Add keychain token support and any token-dependent Bear actions that are worth exposing.
+2. Improve create-result identification so note IDs are returned more reliably.
+3. Decide whether runtime paths should stay `bear-mcp` or migrate to `bear-inbox`.
+4. Add README/install docs now that the create/write path has been validated live.

@@ -36,6 +36,7 @@ public enum BearRuntimeBootstrap {
         let lines = [
             "config: \(BearPaths.configFileURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.configFileURL.path)))]",
             "note-template: \(BearPaths.noteTemplateURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path)))]",
+            "process-lock: \(BearPaths.processLockURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.processLockURL.path)))]",
             "debug-log: \(BearPaths.debugLogURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.debugLogURL.path)))]",
             "bear-db: \(BearPaths.defaultBearDatabaseURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.defaultBearDatabaseURL.path)))]",
         ]

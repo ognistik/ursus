@@ -2,6 +2,7 @@ import Foundation
 
 public enum BearPaths {
     public static let configurationDirectoryName = "bear-mcp"
+    public static let runtimeDirectoryName = "bear-mcp"
 
     public static var configDirectoryURL: URL {
         homeDirectoryURL
@@ -17,12 +18,28 @@ public enum BearPaths {
         configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
     }
 
+    public static var logsDirectoryURL: URL {
+        libraryDirectoryURL
+            .appendingPathComponent("Logs", isDirectory: true)
+            .appendingPathComponent(runtimeDirectoryName, isDirectory: true)
+    }
+
     public static var debugLogURL: URL {
-        configDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
+        logsDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
+    }
+
+    public static var applicationSupportDirectoryURL: URL {
+        libraryDirectoryURL
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent(runtimeDirectoryName, isDirectory: true)
+    }
+
+    public static var runtimeLockDirectoryURL: URL {
+        applicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
     }
 
     public static var processLockURL: URL {
-        configDirectoryURL.appendingPathComponent("server.lock", isDirectory: false)
+        runtimeLockDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false)
     }
 
     public static var defaultBearDatabaseURL: URL {
@@ -36,5 +53,9 @@ public enum BearPaths {
 
     private static var homeDirectoryURL: URL {
         URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+    }
+
+    private static var libraryDirectoryURL: URL {
+        homeDirectoryURL.appendingPathComponent("Library", isDirectory: true)
     }
 }

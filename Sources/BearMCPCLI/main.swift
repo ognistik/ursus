@@ -3,6 +3,7 @@ import BearCore
 import BearDB
 import BearMCP
 import BearXCallback
+import Darwin
 import Foundation
 import Logging
 import MCP
@@ -24,6 +25,8 @@ struct BearMCPMain {
                     [
                         BearPaths.configFileURL.path,
                         BearPaths.noteTemplateURL.path,
+                        BearPaths.processLockURL.path,
+                        BearPaths.debugLogURL.path,
                         BearPaths.defaultBearDatabaseURL.path,
                     ].joined(separator: "\n")
                 )
@@ -59,7 +62,11 @@ struct BearMCPMain {
         try await server.start(transport: StdioTransport())
 
         while !Task.isCancelled {
-            try await Task.sleep(for: .seconds(3600))
+            if getppid() == 1 {
+                logger.info("bear-mcp parent process exited; shutting down orphaned stdio server.")
+                return
+            }
+            try await Task.sleep(for: .seconds(2))
         }
     }
 }

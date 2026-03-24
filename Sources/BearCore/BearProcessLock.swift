@@ -14,7 +14,7 @@ public final class BearProcessLock: @unchecked Sendable {
     }
 
     public static func acquire() throws -> BearProcessLock {
-        try FileManager.default.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: BearPaths.runtimeLockDirectoryURL, withIntermediateDirectories: true)
 
         let path = BearPaths.processLockURL.path
         let fileDescriptor = open(path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)

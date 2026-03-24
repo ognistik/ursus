@@ -20,10 +20,11 @@
 - `bear-mcp mcp` is intended to run as a single local server instance; startup takes a process lock so stale concurrent instances do not diverge on config or behavior.
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`.
+- Runtime artifacts are kept out of the config folder: the lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
 
 ## Current limits
 
 - Token-backed x-callback actions are not wired yet.
 - Create receipts use best-effort note discovery by title and recent modification time.
 - Tag mutations are not implemented yet.
-- Debug tracing currently uses a simple file under `~/.config/bear-mcp`; moving to `~/Library/Logs` with rotation is a likely cleanup step.
+- Debug tracing uses a simple file under `~/Library/Logs/bear-mcp` with size-based rotation.
