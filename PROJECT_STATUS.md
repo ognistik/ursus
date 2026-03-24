@@ -203,6 +203,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - The create template matters for creation behavior and tag placement.
 - The MCP surface should stay simple: mutation tools only expose `open_note` and `new_window`, and `bear_open_notes` only exposes `new_window`.
 - Create defaults are config-driven for whether creation opens the note; when any tool opens a note, `new_window` and edit mode default from config.
+- Presentation flags in MCP mutation inputs are optional overrides and should normally be omitted so config defaults apply.
 - Batch operations matter.
 - Returning giant note bodies after mutations wastes tokens and should usually be avoided.
 - The project name `aft-bear` was rejected.

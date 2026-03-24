@@ -17,7 +17,7 @@
 - Mutations are submitted through Bear's official x-callback actions.
 - `bear_replace_note_body` computes the full note markdown locally, then writes with Bear's `replace_all` mode.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.
-- The MCP surface keeps mutation-time presentation intentionally small: create/insert/replace/add-file only expose `open_note` and `new_window`, while `bear_open_notes` only exposes `new_window`. When a note is opened, `new_window` and edit mode default from config unless `new_window` is explicitly overridden; if `open_note` is false, `new_window` is ignored.
+- The MCP surface keeps mutation-time presentation intentionally small: create/insert/replace/add-file only expose `open_note` and `new_window`, while `bear_open_notes` only exposes `new_window`. Those presentation fields are optional overrides and should normally be omitted so config defaults apply. When a note is opened, `new_window` and edit mode default from config unless `new_window` is explicitly overridden; if `open_note` is false, `new_window` is ignored.
 - `bear-mcp mcp` is intended to run as a single local server instance; startup takes a process lock so stale concurrent instances do not diverge on config or behavior.
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`.

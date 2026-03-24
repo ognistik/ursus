@@ -254,66 +254,66 @@ private enum ToolCatalog {
         ),
         batchedMutationTool(
             name: "bear_create_notes",
-            description: "Create one or more Bear notes. Active tags from config are applied automatically; use tags only for extra explicit tags.",
+            description: "Create one or more Bear notes. Active tags from config are applied automatically; use tags only for extra explicit tags. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "title": .object(["type": .string("string")]),
                 "content": .object(["type": .string("string")]),
                 "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                "open_note": .object(["type": .string("boolean")]),
-                "new_window": .object(["type": .string("boolean")]),
+                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured create-note open behavior. Only send true or false when intentionally overriding config for this request."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. This only matters when the created note is opened."),
             ],
             required: ["title", "content"],
             presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_insert_text",
-            description: "Insert text at the top or bottom of one or more Bear notes.",
+            description: "Insert text at the top or bottom of one or more Bear notes. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
                 "text": .object(["type": .string("string")]),
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
-                "open_note": .object(["type": .string("boolean")]),
-                "new_window": .object(["type": .string("boolean")]),
+                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for inserts."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
             ],
             required: ["note_id", "text"],
             presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_replace_note_body",
-            description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode.",
+            description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
                 "mode": .object(["type": .string("string"), "enum": .array([.string("exact"), .string("all"), .string("entire_body")])]),
                 "old_string": .object(["type": .string("string")]),
                 "new_string": .object(["type": .string("string")]),
                 "expected_version": .object(["type": .string("integer")]),
-                "open_note": .object(["type": .string("boolean")]),
-                "new_window": .object(["type": .string("boolean")]),
+                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for replacements."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
             ],
             required: ["note_id", "new_string"],
             presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_add_files",
-            description: "Attach one or more local files to Bear notes.",
+            description: "Attach one or more local files to Bear notes. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
                 "file_path": .object(["type": .string("string")]),
                 "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
                 "expected_version": .object(["type": .string("integer")]),
-                "open_note": .object(["type": .string("boolean")]),
-                "new_window": .object(["type": .string("boolean")]),
+                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for file attachments."),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened."),
             ],
             required: ["note_id", "file_path"],
             presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_open_notes",
-            description: "Open Bear notes in the Bear UI.",
+            description: "Open Bear notes in the Bear UI. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
             operationProperties: [
                 "note_id": .object(["type": .string("string")]),
-                "new_window": .object(["type": .string("boolean")]),
+                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior."),
             ],
             required: ["note_id"],
             presentationProperties: [:]
@@ -359,5 +359,12 @@ private enum ToolCatalog {
                 "required": .array([.string("operations")]),
             ])
         )
+    }
+
+    private static func optionalPresentationBoolean(description: String) -> Value {
+        .object([
+            "type": .string("boolean"),
+            "description": .string(description),
+        ])
     }
 }
