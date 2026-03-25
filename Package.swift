@@ -74,7 +74,9 @@ let package = Package(
             dependencies: [
                 "BearApplication",
                 "BearCore",
+                "BearDB",
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
     ]

@@ -4,9 +4,16 @@ public protocol BearReadStore: Sendable {
     func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch
     func note(id: String) throws -> BearNote?
     func notes(withIDs ids: [String]) throws -> [BearNote]
+    func notes(titled title: String, location: BearNoteLocation) throws -> [BearNote]
     func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch
+    func attachments(noteID: String) throws -> [NoteAttachment]
     func listTags() throws -> [TagSummary]
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote]
+}
+
+public extension BearReadStore {
+    func notes(titled title: String, location: BearNoteLocation) throws -> [BearNote] { [] }
+    func attachments(noteID: String) throws -> [NoteAttachment] { [] }
 }
 
 public protocol BearWriteTransport: Sendable {

@@ -69,6 +69,35 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         )
     }
 
+    public func notes(titled title: String, location: BearNoteLocation) throws -> [BearNote] {
+        try fetchNotes(
+            sql: """
+            SELECT
+                n.Z_PK AS pk,
+                n.ZUNIQUEIDENTIFIER AS noteID,
+                n.ZTITLE AS title,
+                n.ZTEXT AS rawText,
+                n.ZVERSION AS version,
+                n.ZCREATIONDATE AS creationDate,
+                n.ZMODIFICATIONDATE AS modificationDate,
+                n.ZARCHIVED AS archived,
+                n.ZTRASHED AS trashed,
+                n.ZENCRYPTED AS encrypted,
+                COALESCE(GROUP_CONCAT(t.ZTITLE, '|'), '') AS tags
+            FROM ZSFNOTE n
+            LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
+            LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
+            WHERE n.ZPERMANENTLYDELETED = 0
+                AND n.ZTRASHED = 0
+                AND n.ZARCHIVED = ?
+                AND n.ZTITLE = ? COLLATE NOCASE
+            GROUP BY n.Z_PK
+            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
+            """,
+            arguments: [archivedFlag(for: location), title]
+        )
+    }
+
     public func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
         let normalizedTags = query.tags.map(normalizedTag).filter { !$0.isEmpty }
         guard !normalizedTags.isEmpty else {
@@ -130,6 +159,29 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
                 """
             )
             .map(\.summary)
+        }
+    }
+
+    public func attachments(noteID: String) throws -> [NoteAttachment] {
+        try databaseQueue.read { db in
+            try AttachmentRow.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    f.ZUNIQUEIDENTIFIER AS attachmentID,
+                    f.ZFILENAME AS filename,
+                    f.ZNORMALIZEDFILEEXTENSION AS fileExtension,
+                    f.ZSEARCHTEXT AS searchText
+                FROM ZSFNOTEFILE f
+                JOIN ZSFNOTE n ON n.Z_PK = f.ZNOTE
+                WHERE n.ZUNIQUEIDENTIFIER = ?
+                    AND n.ZPERMANENTLYDELETED = 0
+                    AND f.ZPERMANENTLYDELETED = 0
+                ORDER BY f.ZINSERTIONDATE ASC, f.ZUNIQUEIDENTIFIER ASC
+                """,
+                arguments: [noteID]
+            )
+            .map(\.attachment)
         }
     }
 
@@ -224,6 +276,14 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         }
     }
 
+    private func fetchNotes(
+        sql: String,
+        arguments: [DatabaseValueConvertible],
+        limit: Int
+    ) throws -> [BearNote] {
+        try fetchNotes(sql: sql + "\nLIMIT ?", arguments: arguments + [limit])
+    }
+
     private func fetchDiscoveryBatch(
         sql: String,
         arguments: [DatabaseValueConvertible],
@@ -284,5 +344,24 @@ private struct TagRow: FetchableRecord, Decodable {
 
     var summary: TagSummary {
         TagSummary(name: title, identifier: identifier, noteCount: noteCount)
+    }
+}
+
+private struct AttachmentRow: FetchableRecord, Decodable {
+    let attachmentID: String?
+    let filename: String?
+    let fileExtension: String?
+    let searchText: String?
+
+    var attachment: NoteAttachment {
+        let trimmedSearchText = searchText?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return NoteAttachment(
+            attachmentID: attachmentID ?? "",
+            filename: filename ?? "",
+            fileExtension: fileExtension,
+            searchText: trimmedSearchText?.isEmpty == false ? trimmedSearchText : nil
+        )
     }
 }

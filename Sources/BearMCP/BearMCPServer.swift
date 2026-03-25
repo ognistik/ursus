@@ -60,8 +60,9 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(results)
 
         case "bear_get_notes":
-            let noteIDs = MCPArgumentDecoder.stringArray(params.arguments, "note_ids")
-            let notes = try service.getNotes(ids: noteIDs)
+            let selectors = MCPArgumentDecoder.stringArray(params.arguments, "notes")
+            let location = try MCPArgumentDecoder.location(params.arguments)
+            let notes = try service.getNotes(selectors: selectors, location: location)
             return try jsonResult(notes)
 
         case "bear_list_tags":
@@ -204,16 +205,21 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_get_notes",
-            description: "Fetch full Bear note records for one or more note identifiers.",
+            description: "Fetch full Bear note records for one or more selectors. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
-                    "note_ids": .object([
+                    "notes": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
                     ]),
+                    "location": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("notes"), .string("archive")]),
+                        "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to 'notes'."),
+                    ]),
                 ]),
-                "required": .array([.string("note_ids")]),
+                "required": .array([.string("notes")]),
             ])
         ),
         Tool(

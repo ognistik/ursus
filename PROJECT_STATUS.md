@@ -95,7 +95,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-24, the repo contains a working initial scaffold.
+As of 2026-03-25, the repo contains a working initial scaffold.
 
 Implemented:
 
@@ -172,13 +172,16 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery tools always exclude trashed notes.
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
+- `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
+- `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
 - `bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags` now share a paged summary shape with note id, title, snippet, tags, created/modified timestamps, archive status, and pagination metadata.
 - Discovery pagination is cursor-based. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and use stable ordering by modified date plus note id.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
 - Discovery limits and snippet lengths are config-driven defaults with per-call overrides and server-side hard caps.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Notes are normalized into typed models.
-- Returned notes include `title`, `body`, `rawText`, tags, and note revision metadata.
+- Full note fetches now return a lean structured record with `noteID`, `title`, canonical template-aware `content`, tags, timestamps, version, and per-file attachment records including Bear's attachment search text when available.
+- Attached file OCR/index text currently comes from `ZSFNOTEFILE.ZSEARCHTEXT` and is returned separately from note content.
 
 ### Config behavior
 
@@ -209,6 +212,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Token/keychain-backed x-callback actions are not wired yet.
 - Tag mutation tools are not implemented yet.
 - Search is functional but still basic; exact phrase semantics and better ranking can be improved later.
+- Search still does not match attachment `ZSEARCHTEXT`; only `bear_get_notes` exposes attachment OCR/index text today.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
 - Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.
 - The preferred shared runtime lock lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.

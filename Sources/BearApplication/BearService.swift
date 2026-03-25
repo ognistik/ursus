@@ -53,8 +53,30 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
-    public func getNotes(ids: [String]) throws -> [BearNote] {
-        try readStore.notes(withIDs: ids)
+    public func getNotes(selectors: [String], location: BearNoteLocation) throws -> [BearFetchedNote] {
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+        let trimmedSelectors = selectors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+
+        var seen: Set<String> = []
+        var notes: [BearFetchedNote] = []
+
+        for selector in trimmedSelectors {
+            if let exactIDMatch = try readStore.note(id: selector), noteMatchesLocation(exactIDMatch, location: location) {
+                if seen.insert(exactIDMatch.ref.identifier).inserted {
+                    notes.append(try fetchedNote(from: exactIDMatch, template: noteTemplate))
+                }
+                continue
+            }
+
+            let titleMatches = try readStore.notes(titled: selector, location: location)
+                .sorted(by: noteSortOrder)
+
+            for note in titleMatches where seen.insert(note.ref.identifier).inserted {
+                notes.append(try fetchedNote(from: note, template: noteTemplate))
+            }
+        }
+
+        return notes
     }
 
     public func listTags() throws -> [TagSummary] {
@@ -369,9 +391,10 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func discoverySnippet(for note: BearNote, template: String?, limit: Int) -> String {
-        let source = templateContent(for: note, template: template) ?? note.body
+        let source = renderedContent(for: note, template: template)
         let normalized = source
             .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
@@ -388,7 +411,39 @@ public final class BearService: @unchecked Sendable {
         return base + "…"
     }
 
-    private func templateContent(for note: BearNote, template: String?) -> String? {
+    private func fetchedNote(from note: BearNote, template: String?) throws -> BearFetchedNote {
+        if note.encrypted {
+            return BearFetchedNote(
+                noteID: note.ref.identifier,
+                title: note.title,
+                content: "",
+                tags: note.tags,
+                createdAt: note.revision.createdAt,
+                modifiedAt: note.revision.modifiedAt,
+                version: note.revision.version,
+                attachments: [],
+                encrypted: true
+            )
+        }
+
+        return BearFetchedNote(
+            noteID: note.ref.identifier,
+            title: note.title,
+            content: renderedContent(for: note, template: template),
+            tags: note.tags,
+            createdAt: note.revision.createdAt,
+            modifiedAt: note.revision.modifiedAt,
+            version: note.revision.version,
+            attachments: try readStore.attachments(noteID: note.ref.identifier)
+        )
+    }
+
+    private func renderedContent(for note: BearNote, template: String?) -> String {
+        let normalizedBody = canonicalBody(for: note)
+        return templateContent(for: note, template: template, normalizedBody: normalizedBody) ?? normalizedBody
+    }
+
+    private func templateContent(for note: BearNote, template: String?, normalizedBody: String? = nil) -> String? {
         guard let template else {
             return nil
         }
@@ -406,9 +461,15 @@ public final class BearService: @unchecked Sendable {
             return nil
         }
 
-        let prefix = String(rendered[..<range.lowerBound]).replacingOccurrences(of: "\r\n", with: "\n")
-        let suffix = String(rendered[range.upperBound...]).replacingOccurrences(of: "\r\n", with: "\n")
-        let body = note.body.replacingOccurrences(of: "\r\n", with: "\n")
+        let prefix = String(rendered[..<range.lowerBound])
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let suffix = String(rendered[range.upperBound...])
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let body = (normalizedBody ?? canonicalBody(for: note))
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
 
         guard body.hasPrefix(prefix), body.hasSuffix(suffix) else {
             return nil
@@ -417,6 +478,49 @@ public final class BearService: @unchecked Sendable {
         let start = body.index(body.startIndex, offsetBy: prefix.count)
         let end = body.index(body.endIndex, offsetBy: -suffix.count)
         return String(body[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func canonicalBody(for note: BearNote) -> String {
+        let normalized = note.rawText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let titleLine = "# \(note.title)"
+
+        let firstLine: String
+        let remainder: String
+        if let newlineIndex = normalized.firstIndex(of: "\n") {
+            firstLine = String(normalized[..<newlineIndex])
+            remainder = String(normalized[normalized.index(after: newlineIndex)...])
+        } else {
+            firstLine = normalized
+            remainder = ""
+        }
+
+        guard firstLine == titleLine else {
+            return normalized
+        }
+
+        return remainder.trimmingCharacters(in: .newlines)
+    }
+
+    private func noteMatchesLocation(_ note: BearNote, location: BearNoteLocation) -> Bool {
+        guard !note.trashed else {
+            return false
+        }
+
+        switch location {
+        case .notes:
+            return note.archived == false
+        case .archive:
+            return note.archived
+        }
+    }
+
+    private func noteSortOrder(_ lhs: BearNote, _ rhs: BearNote) -> Bool {
+        if lhs.revision.modifiedAt != rhs.revision.modifiedAt {
+            return lhs.revision.modifiedAt > rhs.revision.modifiedAt
+        }
+        return lhs.ref.identifier > rhs.ref.identifier
     }
 
     private func resolveCursor(

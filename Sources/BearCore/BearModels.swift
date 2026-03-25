@@ -54,6 +54,66 @@ public struct BearNote: Codable, Hashable, Sendable {
     }
 }
 
+public struct NoteAttachment: Codable, Hashable, Sendable {
+    public let attachmentID: String
+    public let filename: String
+    public let fileExtension: String?
+    public let searchText: String?
+
+    public init(
+        attachmentID: String,
+        filename: String,
+        fileExtension: String?,
+        searchText: String?
+    ) {
+        self.attachmentID = attachmentID
+        self.filename = filename
+        self.fileExtension = fileExtension
+        self.searchText = searchText
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case attachmentID
+        case filename
+        case fileExtension = "extension"
+        case searchText
+    }
+}
+
+public struct BearFetchedNote: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let title: String
+    public let content: String
+    public let tags: [String]
+    public let createdAt: Date
+    public let modifiedAt: Date
+    public let version: Int
+    public let attachments: [NoteAttachment]
+    public let encrypted: Bool?
+
+    public init(
+        noteID: String,
+        title: String,
+        content: String,
+        tags: [String],
+        createdAt: Date,
+        modifiedAt: Date,
+        version: Int,
+        attachments: [NoteAttachment],
+        encrypted: Bool? = nil
+    ) {
+        self.noteID = noteID
+        self.title = title
+        self.content = content
+        self.tags = tags
+        self.createdAt = createdAt
+        self.modifiedAt = modifiedAt
+        self.version = version
+        self.attachments = attachments
+        self.encrypted = encrypted
+    }
+}
+
 public struct NoteSearchQuery: Codable, Hashable, Sendable {
     public let query: String
     public let location: BearNoteLocation
