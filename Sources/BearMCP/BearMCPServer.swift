@@ -245,17 +245,20 @@ private enum ToolCatalog {
         ),
         batchedMutationTool(
             name: "bear_create_notes",
-            description: "Create one or more Bear notes. Configured active tags are applied automatically. Use tags only for explicit requested tags. Include use_only_request_tags only when the user specifically wants to override how configured active tags are handled for this create request: true means use only the supplied request tags instead of configured active tags, false means explicitly append configured active tags, and omitting the field uses the configured default. Omit optional presentation flags unless the user explicitly asks to override config for this request.",
+            description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override configured defaults for this request. Omitted does not mean false: omission means use config defaults, while an explicit boolean forces behavior for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user does not mention opening, do not send `open_note` at all.",
             operationProperties: [
                 "title": .object(["type": .string("string")]),
-                "content": .object(["type": .string("string")]),
+                "content": .object([
+                    "type": .string("string"),
+                    "description": .string("Required non-empty note content."),
+                ]),
                 "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                 "use_only_request_tags": .object([
                     "type": .string("boolean"),
-                    "description": .string("Optional per-request override for note creation. Set true when the user explicitly wants to create the note with only the supplied request tags instead of configured active tags. Set false only when the user explicitly wants to append configured active tags. Omit this field to use the configured default tagsMergeMode."),
+                    "description": .string("Optional per-request override for note creation. Omit this field unless the user explicitly asks to replace the configured tag-merging behavior. Omission means use the configured default tagsMergeMode. `true` forces use of only the supplied request tags instead of configured active tags. `false` forces configured active tags to be appended. If the user only asks to add specific tags, pass those tags and omit this field."),
                 ]),
-                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Omit this field unless the user explicitly asks to override the configured create-note open behavior."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. Use true when the user asks for a separate or floating Bear window. This only matters when the created note is opened."),
+                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Omit this field unless the user explicitly asks to override the configured create-note open behavior. Omission means use the configured default. `true` forces open. `false` forces closed. If the user does not mention opening, do not send this field."),
+                "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Omit this field unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior. If omitted, the configured default applies. This only matters when the created note is opened."),
             ],
             required: ["title", "content"],
             presentationProperties: [:]
