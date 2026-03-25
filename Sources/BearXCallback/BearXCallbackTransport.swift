@@ -6,7 +6,7 @@ import GRDB
 public actor BearXCallbackTransport: BearWriteTransport {
     private let builder: BearXCallbackURLBuilder
     private let readStore: BearReadStore
-    private let urlOpener: @Sendable (URL) async throws -> Void
+    private let urlOpener: @Sendable (URL, Bool) async throws -> Void
 
     public init(
         builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
@@ -15,14 +15,30 @@ public actor BearXCallbackTransport: BearWriteTransport {
     ) {
         self.builder = builder
         self.readStore = readStore
-        self.urlOpener = urlOpener ?? Self.defaultOpen
+        if let urlOpener {
+            self.urlOpener = { url, _ in
+                try await urlOpener(url)
+            }
+        } else {
+            self.urlOpener = Self.defaultOpen
+        }
+    }
+
+    public init(
+        builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
+        readStore: BearReadStore,
+        urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void
+    ) {
+        self.builder = builder
+        self.readStore = readStore
+        self.urlOpener = urlOpenerWithActivation
     }
 
     public func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         let startedAt = Date()
         let url = try builder.createURL(request: request)
         BearDebugLog.append("xcallback.create url=\(url.absoluteString)")
-        try await open(url: url)
+        try await open(url: url, activates: request.presentation.opensNoteInUI)
 
         let matched = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             let matches = try self.readStore.findNotes(title: request.title, modifiedAfter: startedAt.addingTimeInterval(-1))
@@ -40,7 +56,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.insertTextURL(request: request)
-        try await open(url: url)
+        try await open(url: url, activates: request.presentation.opensNoteInUI)
 
         let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -54,7 +70,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.replaceAllURL(noteID: noteID, fullText: fullText, presentation: presentation)
-        try await open(url: url)
+        try await open(url: url, activates: presentation.opensNoteInUI)
 
         let updated = try await waitForVersionChange(noteID: noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -68,7 +84,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.addFileURL(request: request)
-        try await open(url: url)
+        try await open(url: url, activates: request.presentation.opensNoteInUI)
 
         let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
         return MutationReceipt(
@@ -82,7 +98,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func open(_ request: OpenNoteRequest) async throws -> MutationReceipt {
         let url = try builder.openURL(request: request)
         BearDebugLog.append("xcallback.open url=\(url.absoluteString)")
-        try await open(url: url)
+        try await open(url: url, activates: true)
         let note = try readStore.note(id: request.noteID)
 
         return MutationReceipt(
@@ -96,7 +112,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt {
         let url = try builder.openTagURL(request: request)
         BearDebugLog.append("xcallback.open-tag url=\(url.absoluteString)")
-        try await open(url: url)
+        try await open(url: url, activates: true)
 
         return TagMutationReceipt(
             tag: request.tag,
@@ -108,7 +124,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
         let url = try builder.renameTagURL(request: request)
         BearDebugLog.append("xcallback.rename-tag url=\(url.absoluteString)")
-        try await open(url: url)
+        try await open(url: url, activates: false)
 
         let renamed = try await waitForTagRename(from: request.name, to: request.newName)
         return TagMutationReceipt(
@@ -121,7 +137,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.archiveURL(noteID: noteID, showWindow: showWindow)
-        try await open(url: url)
+        try await open(url: url, activates: false)
 
         let updated: BearNote? = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             guard let note = try self.readStore.note(id: noteID), note.archived else {
@@ -138,13 +154,13 @@ public actor BearXCallbackTransport: BearWriteTransport {
         )
     }
 
-    private func open(url: URL) async throws {
-        try await urlOpener(url)
+    private func open(url: URL, activates: Bool) async throws {
+        try await urlOpener(url, activates)
     }
 
-    private static func defaultOpen(url: URL) async throws {
+    private static func defaultOpen(url: URL, activates: Bool) async throws {
         let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = false
+        configuration.activates = activates
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             NSWorkspace.shared.open(url, configuration: configuration) { _, error in
@@ -221,5 +237,11 @@ public actor BearXCallbackTransport: BearWriteTransport {
         default:
             return false
         }
+    }
+}
+
+private extension BearPresentationOptions {
+    var opensNoteInUI: Bool {
+        openNoteOverride ?? openNote
     }
 }

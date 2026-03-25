@@ -235,7 +235,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - The MCP surface should stay simple: note mutation tools only expose `open_note` and `new_window`, `bear_open_notes` only exposes `new_window`, `bear_open_tag` accepts a single canonical `tag`, and `bear_rename_tags` only exposes optional `show_window`.
 - Create defaults are config-driven for whether creation opens the note; explicit `open_note` and `new_window` values override config for that request.
 - User phrasing like "floating window" should map to `new_window`; the server should not emit Bear's `float` URL parameter.
-- Bear x-callback URLs should launch without activating Bear unless Bear itself decides to foreground for its own reasons.
+- Bear x-callback URLs should use an action-aware activation policy: UI-navigation actions and note-opening mutations foreground Bear, while background mutations stay unfocused.
 - Presentation flags in MCP mutation inputs are optional overrides and should normally be omitted so config defaults apply.
 - Batch operations matter.
 - Returning giant note bodies after mutations wastes tokens and should usually be avoided.
