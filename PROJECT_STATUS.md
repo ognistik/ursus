@@ -187,6 +187,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
+- Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
 - Insert uses Bear add-text with prepend/append mapping.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
 - Add file uses Bear add-file.

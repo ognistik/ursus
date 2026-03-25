@@ -1,6 +1,11 @@
 import Foundation
 
 public struct BearConfiguration: Codable, Hashable, Sendable {
+    public enum TagsMergeMode: String, Codable, Hashable, Sendable {
+        case append
+        case replace
+    }
+
     public enum InsertDefault: String, Codable, Hashable, Sendable {
         case top
         case bottom
@@ -15,29 +20,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         }
     }
 
-    public enum CreateRequestTagsMode: String, Codable, Hashable, Sendable {
-        case append
-        case replace
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            let raw = try container.decode(String.self)
-            switch raw {
-            case "append", "append_active":
-                self = .append
-            case "replace", "replace_active":
-                self = .replace
-            default:
-                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid createRequestTagsMode '\(raw)'.")
-            }
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            try container.encode(rawValue)
-        }
-    }
-
     public var databasePath: String
     public var activeTags: [String]
     public var defaultInsertPosition: InsertDefault
@@ -46,7 +28,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var createOpensNoteByDefault: Bool
     public var openUsesNewWindowByDefault: Bool
     public var createAddsActiveTagsByDefault: Bool
-    public var createRequestTagsMode: CreateRequestTagsMode
+    public var tagsMergeMode: TagsMergeMode
     public var defaultDiscoveryLimit: Int
     public var maxDiscoveryLimit: Int
     public var defaultSnippetLength: Int
@@ -61,7 +43,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
         createAddsActiveTagsByDefault: Bool,
-        createRequestTagsMode: CreateRequestTagsMode,
+        tagsMergeMode: TagsMergeMode,
         defaultDiscoveryLimit: Int,
         maxDiscoveryLimit: Int,
         defaultSnippetLength: Int,
@@ -75,7 +57,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.createOpensNoteByDefault = createOpensNoteByDefault
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
         self.createAddsActiveTagsByDefault = createAddsActiveTagsByDefault
-        self.createRequestTagsMode = createRequestTagsMode
+        self.tagsMergeMode = tagsMergeMode
         self.defaultDiscoveryLimit = defaultDiscoveryLimit
         self.maxDiscoveryLimit = maxDiscoveryLimit
         self.defaultSnippetLength = defaultSnippetLength
@@ -92,7 +74,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsActiveTagsByDefault: true,
-            createRequestTagsMode: .append,
+            tagsMergeMode: .append,
             defaultDiscoveryLimit: 20,
             maxDiscoveryLimit: 100,
             defaultSnippetLength: 280,
@@ -109,7 +91,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case createOpensNoteByDefault
         case openUsesNewWindowByDefault
         case createAddsActiveTagsByDefault
-        case createRequestTagsMode
+        case tagsMergeMode
         case defaultDiscoveryLimit
         case maxDiscoveryLimit
         case defaultSnippetLength
@@ -127,7 +109,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         createOpensNoteByDefault = try container.decodeIfPresent(Bool.self, forKey: .createOpensNoteByDefault) ?? true
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
         createAddsActiveTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsActiveTagsByDefault) ?? true
-        createRequestTagsMode = try container.decodeIfPresent(CreateRequestTagsMode.self, forKey: .createRequestTagsMode) ?? .append
+        tagsMergeMode = try container.decodeIfPresent(TagsMergeMode.self, forKey: .tagsMergeMode) ?? .append
         defaultDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20
         maxDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .maxDiscoveryLimit) ?? 100
         defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280

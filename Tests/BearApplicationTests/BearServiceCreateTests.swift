@@ -16,7 +16,7 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsActiveTagsByDefault: true,
-        createRequestTagsMode: .append,
+        tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
@@ -35,6 +35,7 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
                 title: "Sample Note",
                 content: "# Sample Note\n\nBody line",
                 tags: ["project-x", "#daily"],
+                useOnlyRequestTags: nil,
                 presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
             ),
         ])
@@ -58,7 +59,7 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsActiveTagsByDefault: true,
-        createRequestTagsMode: .replace,
+        tagsMergeMode: .replace,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
@@ -77,6 +78,7 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
                 title: "Sample Note",
                 content: "Body line",
                 tags: ["project-x"],
+                useOnlyRequestTags: nil,
                 presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
             ),
         ])
@@ -85,6 +87,92 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
     let captured = try #require(await transport.createdRequests.first)
     #expect(captured.content == "Body line\n\n#project-x")
     #expect(captured.tags == ["project-x"])
+}
+
+@Test
+func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
+    let transport = RecordingWriteTransport()
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/database.sqlite",
+        activeTags: ["0-inbox", "daily"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsActiveTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: EmptyReadStore(),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCreateTests")
+    )
+
+    try await withTemporaryNoteTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createNotes([
+            CreateNoteRequest(
+                title: "Sample Note",
+                content: "Body line",
+                tags: ["project-x"],
+                useOnlyRequestTags: true,
+                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
+            ),
+        ])
+    }
+
+    let captured = try #require(await transport.createdRequests.first)
+    #expect(captured.content == "Body line\n\n#project-x")
+    #expect(captured.tags == ["project-x"])
+    #expect(captured.useOnlyRequestTags == true)
+}
+
+@Test
+func createNotesCanExplicitlyAppendActiveTagsPerRequest() async throws {
+    let transport = RecordingWriteTransport()
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/database.sqlite",
+        activeTags: ["0-inbox", "daily"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsActiveTagsByDefault: true,
+        tagsMergeMode: .replace,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: EmptyReadStore(),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCreateTests")
+    )
+
+    try await withTemporaryNoteTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createNotes([
+            CreateNoteRequest(
+                title: "Sample Note",
+                content: "Body line",
+                tags: ["project-x"],
+                useOnlyRequestTags: false,
+                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
+            ),
+        ])
+    }
+
+    let captured = try #require(await transport.createdRequests.first)
+    #expect(captured.content == "Body line\n\n#0-inbox #daily #project-x")
+    #expect(captured.tags == ["0-inbox", "daily", "project-x"])
+    #expect(captured.useOnlyRequestTags == false)
 }
 
 private struct EmptyReadStore: BearReadStore {

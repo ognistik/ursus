@@ -87,7 +87,7 @@ public final class BearService: @unchecked Sendable {
         var receipts: [MutationReceipt] = []
         for request in requests {
             let title = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            let tags = mergedCreateTags(request.tags)
+            let tags = mergedCreateTags(request.tags, useOnlyRequestTagsOverride: request.useOnlyRequestTags)
             let sanitizedContent = sanitizedCreateContent(title: title, content: request.content)
             let content = configuration.templateManagementEnabled
                 ? TemplateRenderer.renderDocument(
@@ -97,13 +97,14 @@ public final class BearService: @unchecked Sendable {
                 : sanitizedContent
 
             BearDebugLog.append(
-                "create.rendered title='\(title)' config.activeTags=\(configuration.activeTags) config.createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) config.createRequestTagsMode=\(configuration.createRequestTagsMode.rawValue) config.openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) tags=\(tags) content=\(content.debugDescription)"
+                "create.rendered title='\(title)' config.activeTags=\(configuration.activeTags) config.createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) config.tagsMergeMode=\(configuration.tagsMergeMode.rawValue) request.useOnlyRequestTags=\(request.useOnlyRequestTags.map(String.init(describing:)) ?? "nil") config.openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) tags=\(tags) content=\(content.debugDescription)"
             )
 
             let effective = CreateNoteRequest(
                 title: title,
                 content: content,
                 tags: tags,
+                useOnlyRequestTags: request.useOnlyRequestTags,
                 presentation: request.presentation
             )
             receipts.append(try await writeTransport.create(effective))
@@ -205,10 +206,17 @@ public final class BearService: @unchecked Sendable {
         return try String(contentsOf: url)
     }
 
-    private func mergedCreateTags(_ requestTags: [String]) -> [String] {
+    private func mergedCreateTags(_ requestTags: [String], useOnlyRequestTagsOverride: Bool?) -> [String] {
         let baseTags: [String]
         if configuration.createAddsActiveTagsByDefault {
-            switch configuration.createRequestTagsMode {
+            let mergeMode: BearConfiguration.TagsMergeMode
+            if let useOnlyRequestTagsOverride {
+                mergeMode = useOnlyRequestTagsOverride ? .replace : .append
+            } else {
+                mergeMode = configuration.tagsMergeMode
+            }
+
+            switch mergeMode {
             case .append:
                 baseTags = configuration.activeTags + requestTags
             case .replace:

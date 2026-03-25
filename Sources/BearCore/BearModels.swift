@@ -155,12 +155,20 @@ public struct CreateNoteRequest: Codable, Hashable, Sendable {
     public let title: String
     public let content: String
     public let tags: [String]
+    public let useOnlyRequestTags: Bool?
     public let presentation: BearPresentationOptions
 
-    public init(title: String, content: String, tags: [String], presentation: BearPresentationOptions) {
+    public init(
+        title: String,
+        content: String,
+        tags: [String],
+        useOnlyRequestTags: Bool? = nil,
+        presentation: BearPresentationOptions
+    ) {
         self.title = title
         self.content = content
         self.tags = tags
+        self.useOnlyRequestTags = useOnlyRequestTags
         self.presentation = presentation
     }
 }

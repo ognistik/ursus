@@ -121,7 +121,7 @@ private func makeDiscoveryConfiguration(
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsActiveTagsByDefault: true,
-        createRequestTagsMode: .append,
+        tagsMergeMode: .append,
         defaultDiscoveryLimit: defaultDiscoveryLimit,
         maxDiscoveryLimit: maxDiscoveryLimit,
         defaultSnippetLength: defaultSnippetLength,

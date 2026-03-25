@@ -1,14 +1,21 @@
 import AppKit
 import BearCore
 import Foundation
+import GRDB
 
 public actor BearXCallbackTransport: BearWriteTransport {
     private let builder: BearXCallbackURLBuilder
     private let readStore: BearReadStore
+    private let urlOpener: @Sendable (URL) async throws -> Void
 
-    public init(builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(), readStore: BearReadStore) {
+    public init(
+        builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
+        readStore: BearReadStore,
+        urlOpener: (@Sendable (URL) async throws -> Void)? = nil
+    ) {
         self.builder = builder
         self.readStore = readStore
+        self.urlOpener = urlOpener ?? Self.defaultOpen
     }
 
     public func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
@@ -107,6 +114,10 @@ public actor BearXCallbackTransport: BearWriteTransport {
     }
 
     private func open(url: URL) async throws {
+        try await urlOpener(url)
+    }
+
+    private static func defaultOpen(url: URL) async throws {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
 
@@ -145,12 +156,31 @@ public actor BearXCallbackTransport: BearWriteTransport {
         let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(max(timeoutNs, 0))
 
         while DispatchTime.now().uptimeNanoseconds < deadline {
-            if let result = try operation() {
-                return result
+            do {
+                if let result = try operation() {
+                    return result
+                }
+            } catch let error as DatabaseError where Self.isRetryableReadLock(error) {
+                BearDebugLog.append("xcallback.poll retrying after transient sqlite lock code=\(error.resultCode.rawValue) message=\(error.message ?? "unknown")")
             }
             try await Task.sleep(nanoseconds: UInt64(max(intervalNs, 0)))
         }
 
         return nil
+    }
+
+    private static func isRetryableReadLock(_ error: DatabaseError) -> Bool {
+        switch error.resultCode {
+        case .SQLITE_BUSY,
+             .SQLITE_LOCKED,
+             .SQLITE_BUSY_RECOVERY,
+             .SQLITE_BUSY_SNAPSHOT,
+             .SQLITE_BUSY_TIMEOUT,
+             .SQLITE_LOCKED_SHAREDCACHE,
+             .SQLITE_LOCKED_VTAB:
+            return true
+        default:
+            return false
+        }
     }
 }

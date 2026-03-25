@@ -31,7 +31,10 @@ let package = Package(
         ),
         .target(
             name: "BearXCallback",
-            dependencies: ["BearCore"]
+            dependencies: [
+                "BearCore",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ]
         ),
         .target(
             name: "BearApplication",
@@ -63,6 +66,7 @@ let package = Package(
             dependencies: [
                 "BearCore",
                 "BearXCallback",
+                .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
         .testTarget(

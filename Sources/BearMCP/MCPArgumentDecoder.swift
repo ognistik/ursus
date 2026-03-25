@@ -54,6 +54,16 @@ enum MCPArgumentDecoder {
         return mode
     }
 
+    static func optionalBool(_ object: [String: Value], _ key: String) throws -> Bool? {
+        guard let value = object[key] else {
+            return nil
+        }
+        guard let raw = value.boolValue else {
+            throw BearError.invalidInput("Invalid boolean '\(key)'. Expected true or false.")
+        }
+        return raw
+    }
+
     static func presentation(_ object: [String: Value], defaults: BearPresentationOptions) -> BearPresentationOptions {
         let openNoteOverride = object["open_note"]?.boolValue
         let newWindowOverride = object["new_window"]?.boolValue
