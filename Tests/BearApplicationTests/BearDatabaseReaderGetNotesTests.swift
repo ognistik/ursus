@@ -93,6 +93,100 @@ func databaseReaderLoadsAttachmentsInInsertionOrderAndNormalizesEmptySearchText(
     #expect(attachments.last?.searchText == "Second OCR")
 }
 
+@Test
+func databaseReaderListTagsFiltersByLocationQueryAndParentPath() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertTag(db, pk: 10, title: "projects", identifier: "tag-projects")
+        try insertTag(db, pk: 11, title: "projects/workflows", identifier: "tag-workflows")
+        try insertTag(db, pk: 12, title: "projects/workflows/client", identifier: "tag-client")
+        try insertTag(db, pk: 13, title: "projects/ideas", identifier: "tag-ideas")
+        try insertTag(db, pk: 14, title: "home", identifier: "tag-home")
+        try insertTag(db, pk: 15, title: "trash-only", identifier: "tag-trash")
+
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Projects",
+            rawText: "# Projects\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Ideas",
+            rawText: "# Ideas\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+        try insertNote(
+            db,
+            pk: 3,
+            noteID: "note-3",
+            title: "Archived",
+            rawText: "# Archived\n\nBody",
+            archived: 1,
+            trashed: 0,
+            modifiedAt: 40
+        )
+        try insertNote(
+            db,
+            pk: 4,
+            noteID: "note-4",
+            title: "Trashed",
+            rawText: "# Trashed\n\nBody",
+            archived: 0,
+            trashed: 1,
+            modifiedAt: 50
+        )
+        try insertNote(
+            db,
+            pk: 5,
+            noteID: "note-5",
+            title: "Deleted",
+            rawText: "# Deleted\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 60,
+            permanentlyDeleted: 1
+        )
+
+        try attachTag(db, notePK: 1, tagPK: 10)
+        try attachTag(db, notePK: 1, tagPK: 11)
+        try attachTag(db, notePK: 2, tagPK: 11)
+        try attachTag(db, notePK: 2, tagPK: 12)
+        try attachTag(db, notePK: 2, tagPK: 13)
+        try attachTag(db, notePK: 3, tagPK: 11)
+        try attachTag(db, notePK: 3, tagPK: 14)
+        try attachTag(db, notePK: 4, tagPK: 15)
+        try attachTag(db, notePK: 5, tagPK: 12)
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+
+    let defaultTags = try reader.listTags(ListTagsQuery())
+    let archiveTags = try reader.listTags(ListTagsQuery(location: .archive))
+    let filteredTags = try reader.listTags(
+        ListTagsQuery(location: .notes, query: "WORK", underTag: "projects/")
+    )
+
+    #expect(defaultTags.map(\.name) == ["projects", "projects/ideas", "projects/workflows", "projects/workflows/client"])
+    #expect(defaultTags.first(where: { $0.name == "projects/workflows" })?.noteCount == 2)
+    #expect(defaultTags.first(where: { $0.name == "projects/workflows/client" })?.noteCount == 1)
+    #expect(defaultTags.contains(where: { $0.name == "home" }) == false)
+    #expect(defaultTags.contains(where: { $0.name == "trash-only" }) == false)
+
+    #expect(archiveTags.map(\.name) == ["home", "projects/workflows"])
+    #expect(archiveTags.first(where: { $0.name == "projects/workflows" })?.noteCount == 1)
+
+    #expect(filteredTags.map(\.name) == ["projects/workflows", "projects/workflows/client"])
+}
+
 private func makeTemporaryBearDatabaseURL() throws -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -158,7 +252,8 @@ private func insertNote(
     rawText: String,
     archived: Int,
     trashed: Int,
-    modifiedAt: Double
+    modifiedAt: Double,
+    permanentlyDeleted: Int = 0
 ) throws {
     try db.execute(
         sql: """
@@ -187,7 +282,48 @@ private func insertNote(
             archived,
             trashed,
             0,
-            0,
+            permanentlyDeleted,
+        ]
+    )
+}
+
+private func insertTag(
+    _ db: Database,
+    pk: Int,
+    title: String,
+    identifier: String
+) throws {
+    try db.execute(
+        sql: """
+        INSERT INTO ZSFNOTETAG (
+            Z_PK,
+            ZTITLE,
+            ZUNIQUEIDENTIFIER
+        ) VALUES (?, ?, ?)
+        """,
+        arguments: [
+            pk,
+            title,
+            identifier,
+        ]
+    )
+}
+
+private func attachTag(
+    _ db: Database,
+    notePK: Int,
+    tagPK: Int
+) throws {
+    try db.execute(
+        sql: """
+        INSERT INTO Z_5TAGS (
+            Z_5NOTES,
+            Z_13TAGS
+        ) VALUES (?, ?)
+        """,
+        arguments: [
+            notePK,
+            tagPK,
         ]
     )
 }

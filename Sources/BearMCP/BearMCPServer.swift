@@ -66,7 +66,10 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(notes)
 
         case "bear_list_tags":
-            return try jsonResult(try service.listTags())
+            let location = try MCPArgumentDecoder.location(params.arguments)
+            let query = MCPArgumentDecoder.optionalString(params.arguments, "query")
+            let underTag = MCPArgumentDecoder.optionalString(params.arguments, "under_tag")
+            return try jsonResult(try service.listTags(location: location, query: query, underTag: underTag))
 
         case "bear_get_notes_by_tag":
             let tags = MCPArgumentDecoder.stringArray(params.arguments, "tags")
@@ -224,10 +227,24 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_list_tags",
-            description: "List tags from the local Bear database.",
+            description: "List Bear tags for the selected note location. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
             inputSchema: .object([
                 "type": .string("object"),
-                "properties": .object([:]),
+                "properties": .object([
+                    "location": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("notes"), .string("archive")]),
+                        "description": .string("Optional. Omit unless the user explicitly asks for archived tags. Defaults to 'notes'."),
+                    ]),
+                    "query": .object([
+                        "type": .string("string"),
+                        "description": .string("Optional case-insensitive substring filter for tag names."),
+                    ]),
+                    "under_tag": .object([
+                        "type": .string("string"),
+                        "description": .string("Optional parent tag path. Returns descendant tags under the normalized parent path, excluding the parent tag itself."),
+                    ]),
+                ]),
             ])
         ),
         Tool(

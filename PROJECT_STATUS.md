@@ -172,6 +172,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery tools always exclude trashed notes.
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
+- `bear_list_tags` now defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped tag counts, and supports optional `query` and hierarchical `under_tag` filters.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
 - `bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags` now share a paged summary shape with note id, title, snippet, tags, created/modified timestamps, archive status, and pagination metadata.

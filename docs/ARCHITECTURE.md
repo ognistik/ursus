@@ -17,6 +17,7 @@
 - Mutations are submitted through Bear's official x-callback actions.
 - Discovery tools (`bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags`) return paged compact note summaries and reserve `bear_get_notes` for full structured note fetches.
 - Discovery reads always exclude trashed notes and target either normal notes or archived notes explicitly through `location: notes|archive`.
+- `bear_list_tags` defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped `noteCount`, and supports optional `query` and hierarchical `under_tag` filtering before tags are returned to clients.
 - `bear_get_notes` defaults `location` to `notes`, never returns trashed notes, resolves each selector as exact note id first and then exact case-insensitive title within the chosen location, and never mixes normal notes with archived notes in one call.
 - MCP tool descriptions steer clients to omit `location` unless the user explicitly asks for archived notes.
 - Discovery snippet length and result-count defaults come from config, allow per-call overrides, are capped server-side, and page forward with opaque cursor-based continuation.

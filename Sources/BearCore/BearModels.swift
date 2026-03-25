@@ -146,6 +146,22 @@ public struct TagNotesQuery: Codable, Hashable, Sendable {
     }
 }
 
+public struct ListTagsQuery: Codable, Hashable, Sendable {
+    public let location: BearNoteLocation
+    public let query: String?
+    public let underTag: String?
+
+    public init(
+        location: BearNoteLocation = .notes,
+        query: String? = nil,
+        underTag: String? = nil
+    ) {
+        self.location = location
+        self.query = query
+        self.underTag = underTag
+    }
+}
+
 public struct DiscoveryPaging: Codable, Hashable, Sendable {
     public let limit: Int
     public let cursor: DiscoveryCursor?

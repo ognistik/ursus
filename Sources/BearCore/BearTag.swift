@@ -24,4 +24,14 @@ public enum BearTag {
     public static func deduplicationKey(_ raw: String) -> String {
         normalizedName(raw).lowercased()
     }
+
+    public static func normalizedParentPath(_ raw: String) -> String {
+        let normalized = normalizedName(raw)
+        guard !normalized.isEmpty else {
+            return ""
+        }
+
+        let withoutTrailingSlash = normalized.hasSuffix("/") ? String(normalized.dropLast()) : normalized
+        return withoutTrailingSlash.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

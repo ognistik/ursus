@@ -79,8 +79,18 @@ public final class BearService: @unchecked Sendable {
         return notes
     }
 
-    public func listTags() throws -> [TagSummary] {
-        try readStore.listTags()
+    public func listTags(
+        location: BearNoteLocation = .notes,
+        query: String? = nil,
+        underTag: String? = nil
+    ) throws -> [TagSummary] {
+        try readStore.listTags(
+            ListTagsQuery(
+                location: location,
+                query: normalizedListTagsQuery(query),
+                underTag: normalizedUnderTag(underTag)
+            )
+        )
     }
 
     public func getNotesByTag(
@@ -551,6 +561,16 @@ public final class BearService: @unchecked Sendable {
 
     private func searchFilterKey(_ query: String) -> String {
         query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func normalizedListTagsQuery(_ query: String?) -> String? {
+        let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func normalizedUnderTag(_ underTag: String?) -> String? {
+        let normalized = BearTag.normalizedParentPath(underTag ?? "")
+        return normalized.isEmpty ? nil : normalized
     }
 
     private func tagFilterKey(_ tags: [String]) -> String {

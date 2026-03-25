@@ -240,6 +240,47 @@ func searchNotesRejectsMismatchedCursor() throws {
     #expect(didThrow)
 }
 
+@Test
+func listTagsDefaultsToNotesWithoutFilters() throws {
+    let readStore = DiscoveryReadStore(listTagsResults: [
+        TagSummary(name: "projects", identifier: "tag-1", noteCount: 2),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let tags = try service.listTags()
+
+    #expect(tags.map(\.name) == ["projects"])
+    #expect(readStore.lastListTagsQuery?.location == .notes)
+    #expect(readStore.lastListTagsQuery?.query == nil)
+    #expect(readStore.lastListTagsQuery?.underTag == nil)
+}
+
+@Test
+func listTagsNormalizesOptionalFiltersBeforeQuerying() throws {
+    let readStore = DiscoveryReadStore()
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    _ = try service.listTags(
+        location: .archive,
+        query: "  Work  ",
+        underTag: " #projects/workflows/# "
+    )
+
+    #expect(readStore.lastListTagsQuery?.location == .archive)
+    #expect(readStore.lastListTagsQuery?.query == "Work")
+    #expect(readStore.lastListTagsQuery?.underTag == "projects/workflows")
+}
+
 private func makeDiscoveryConfiguration(
     activeTags: [String],
     defaultDiscoveryLimit: Int = 20,
@@ -290,22 +331,27 @@ private func makeNote(
 private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {
     private let searchBatches: [DiscoveryNoteBatch]
     private let tagBatches: [DiscoveryNoteBatch]
+    private let listTagsResults: [TagSummary]
 
     private(set) var searchQueries: [NoteSearchQuery] = []
     private(set) var tagQueries: [TagNotesQuery] = []
+    private(set) var listTagQueries: [ListTagsQuery] = []
 
     private var nextSearchBatchIndex = 0
     private var nextTagBatchIndex = 0
 
     var lastSearchQuery: NoteSearchQuery? { searchQueries.last }
     var lastTagQuery: TagNotesQuery? { tagQueries.last }
+    var lastListTagsQuery: ListTagsQuery? { listTagQueries.last }
 
     init(
         searchBatches: [DiscoveryNoteBatch] = [],
-        tagBatches: [DiscoveryNoteBatch] = []
+        tagBatches: [DiscoveryNoteBatch] = [],
+        listTagsResults: [TagSummary] = []
     ) {
         self.searchBatches = searchBatches
         self.tagBatches = tagBatches
+        self.listTagsResults = listTagsResults
     }
 
     func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
@@ -332,7 +378,10 @@ private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {
         return tagBatches[nextTagBatchIndex]
     }
 
-    func listTags() throws -> [TagSummary] { [] }
+    func listTags(_ query: ListTagsQuery) throws -> [TagSummary] {
+        listTagQueries.append(query)
+        return listTagsResults
+    }
 
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }

@@ -35,7 +35,7 @@ private final class LockThenCreateReadStore: @unchecked Sendable, BearReadStore 
     func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
         DiscoveryNoteBatch(notes: [], hasMore: false)
     }
-    func listTags() throws -> [TagSummary] { [] }
+    func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
 
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] {
         if !didThrowLock {

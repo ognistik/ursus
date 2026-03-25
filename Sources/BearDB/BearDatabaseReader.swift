@@ -143,20 +143,41 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         )
     }
 
-    public func listTags() throws -> [TagSummary] {
-        try databaseQueue.read { db in
+    public func listTags(_ query: ListTagsQuery) throws -> [TagSummary] {
+        var conditions = [
+            "n.ZPERMANENTLYDELETED = 0",
+            "n.ZTRASHED = 0",
+            "n.ZARCHIVED = ?",
+        ]
+        var arguments: [DatabaseValueConvertible] = [archivedFlag(for: query.location)]
+
+        if let nameQuery = query.query?.trimmingCharacters(in: .whitespacesAndNewlines), !nameQuery.isEmpty {
+            conditions.append("LOWER(t.ZTITLE) LIKE ? ESCAPE '\\'")
+            arguments.append(likePattern(for: nameQuery.lowercased()))
+        }
+
+        let normalizedUnderTag = BearTag.normalizedParentPath(query.underTag ?? "")
+        if !normalizedUnderTag.isEmpty {
+            conditions.append("LOWER(t.ZTITLE) LIKE ? ESCAPE '\\'")
+            arguments.append(tagDescendantPattern(for: normalizedUnderTag.lowercased()))
+        }
+
+        return try databaseQueue.read { db in
             try TagRow.fetchAll(
                 db,
                 sql: """
                 SELECT
                     t.ZTITLE AS title,
                     t.ZUNIQUEIDENTIFIER AS identifier,
-                    COUNT(nt.Z_5NOTES) AS noteCount
+                    COUNT(DISTINCT n.Z_PK) AS noteCount
                 FROM ZSFNOTETAG t
-                LEFT JOIN Z_5TAGS nt ON nt.Z_13TAGS = t.Z_PK
+                JOIN Z_5TAGS nt ON nt.Z_13TAGS = t.Z_PK
+                JOIN ZSFNOTE n ON n.Z_PK = nt.Z_5NOTES
+                WHERE \(conditions.joined(separator: "\n                    AND "))
                 GROUP BY t.Z_PK
                 ORDER BY LOWER(t.ZTITLE) ASC
-                """
+                """,
+                arguments: StatementArguments(arguments) ?? StatementArguments()
             )
             .map(\.summary)
         }
@@ -247,6 +268,10 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
 
     private func likePattern(for query: String) -> String {
         "%\(query.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_"))%"
+    }
+
+    private func tagDescendantPattern(for parentTag: String) -> String {
+        "\(parentTag.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_"))/%"
     }
 
     private func normalizedTag(_ tag: String) -> String {

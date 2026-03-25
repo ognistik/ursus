@@ -277,7 +277,7 @@ private final class GetNotesReadStore: @unchecked Sendable, BearReadStore {
         attachmentsByNoteID[noteID] ?? []
     }
 
-    func listTags() throws -> [TagSummary] { [] }
+    func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
 
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }

@@ -7,7 +7,7 @@ public protocol BearReadStore: Sendable {
     func notes(titled title: String, location: BearNoteLocation) throws -> [BearNote]
     func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch
     func attachments(noteID: String) throws -> [NoteAttachment]
-    func listTags() throws -> [TagSummary]
+    func listTags(_ query: ListTagsQuery) throws -> [TagSummary]
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote]
 }
 
