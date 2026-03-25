@@ -29,4 +29,19 @@ func discoveryCursorCoderRoundTrips() throws {
     let decoded = try DiscoveryCursorCoder.decode(token)
 
     #expect(decoded == cursor)
+    #expect(!token.contains("="))
+    #expect(!token.contains("+"))
+    #expect(!token.contains("/"))
+}
+
+@Test
+func discoveryCursorCoderDecodesLegacyVerboseToken() throws {
+    let legacyToken = "eyJmaWx0ZXJLZXkiOiIzLXJlc291cmNlcy93b3JrZmxvd3MiLCJraW5kIjoibm90ZXNfYnlfdGFnIiwibGFzdE1vZGlmaWVkQXQiOiIyMDI2LTAyLTI3VDE5OjA2OjAxWiIsImxhc3ROb3RlSUQiOiJCODQ2RDMzQy1DODhELTQzQ0EtQjQ1MS1BQ0JEOEUwN0NBQkUiLCJsb2NhdGlvbiI6Im5vdGVzIiwidmVyc2lvbiI6MX0="
+    let cursor = try DiscoveryCursorCoder.decode(legacyToken)
+
+    #expect(cursor.version == 1)
+    #expect(cursor.kind == .notesByTag)
+    #expect(cursor.location == .notes)
+    #expect(cursor.filterKey == "3-resources/workflows")
+    #expect(cursor.lastNoteID == "B846D33C-C88D-43CA-B451-ACBD8E07CABE")
 }

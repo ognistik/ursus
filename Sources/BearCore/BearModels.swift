@@ -144,23 +144,73 @@ public enum DiscoveryCursorCoder {
     public static func encode(_ cursor: DiscoveryCursor) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(cursor)
-        return data.base64EncodedString()
+        let payload = CompactDiscoveryCursorPayload(cursor: cursor)
+        let data = try encoder.encode(payload)
+        return base64URLEncoded(data)
     }
 
     public static func decode(_ token: String) throws -> DiscoveryCursor {
-        guard let data = Data(base64Encoded: token) else {
+        guard let data = base64URLDecoded(token) else {
             throw DiscoveryCursorCodingError.invalidToken
         }
 
         do {
             let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            return try decoder.decode(DiscoveryCursor.self, from: data)
+            return try decoder.decode(CompactDiscoveryCursorPayload.self, from: data).cursor
         } catch {
-            throw DiscoveryCursorCodingError.invalidToken
+            do {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(DiscoveryCursor.self, from: data)
+            } catch {
+                throw DiscoveryCursorCodingError.invalidToken
+            }
         }
+    }
+
+    private static func base64URLEncoded(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    private static func base64URLDecoded(_ token: String) -> Data? {
+        let paddedLength = ((token.count + 3) / 4) * 4
+        let padding = String(repeating: "=", count: paddedLength - token.count)
+        let standard = (token + padding)
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        return Data(base64Encoded: standard)
+    }
+}
+
+private struct CompactDiscoveryCursorPayload: Codable {
+    let v: Int
+    let k: DiscoveryKind
+    let l: BearNoteLocation
+    let f: String
+    let m: Double
+    let i: String
+
+    init(cursor: DiscoveryCursor) {
+        self.v = cursor.version
+        self.k = cursor.kind
+        self.l = cursor.location
+        self.f = cursor.filterKey
+        self.m = cursor.lastModifiedAt.timeIntervalSinceReferenceDate
+        self.i = cursor.lastNoteID
+    }
+
+    var cursor: DiscoveryCursor {
+        DiscoveryCursor(
+            version: v,
+            kind: k,
+            location: l,
+            filterKey: f,
+            lastModifiedAt: Date(timeIntervalSinceReferenceDate: m),
+            lastNoteID: i
+        )
     }
 }
 
