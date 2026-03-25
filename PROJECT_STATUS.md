@@ -173,6 +173,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
 - `bear_search_notes`, `bear_get_active`, and `bear_get_notes_by_tag` now share a summary shape with note id, title, snippet, tags, created/modified timestamps, and archive status.
+- Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
 - Discovery limits and snippet lengths are config-driven defaults with per-call overrides and server-side hard caps.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Notes are normalized into typed models.

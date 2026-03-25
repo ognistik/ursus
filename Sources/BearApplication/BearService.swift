@@ -52,8 +52,9 @@ public final class BearService: @unchecked Sendable {
         limit: Int?,
         snippetLength: Int?
     ) throws -> [NoteSummary] {
+        let normalizedTags = tags.map(BearTag.normalizedName).filter { !$0.isEmpty }
         let notes = try readStore.notes(
-            matchingAnyTags: tags,
+            matchingAnyTags: normalizedTags,
             location: location,
             limit: resolvedDiscoveryLimit(limit)
         )
@@ -66,7 +67,7 @@ public final class BearService: @unchecked Sendable {
         snippetLength: Int?
     ) throws -> [NoteSummary] {
         let activeTags = configuration.activeTags
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .map(BearTag.normalizedName)
             .filter { !$0.isEmpty }
 
         guard !activeTags.isEmpty else {
@@ -230,11 +231,11 @@ public final class BearService: @unchecked Sendable {
         var merged: [String] = []
 
         for tag in baseTags {
-            let normalized = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = BearTag.normalizedName(tag)
             guard !normalized.isEmpty else {
                 continue
             }
-            let key = normalized.lowercased()
+            let key = BearTag.deduplicationKey(normalized)
             guard seen.insert(key).inserted else {
                 continue
             }

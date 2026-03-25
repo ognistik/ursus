@@ -30,14 +30,7 @@ public enum TemplateRenderer {
 
     public static func renderTags(_ tags: [String]) -> String {
         tags
-            .map { tag in
-                let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else {
-                    return nil
-                }
-                return trimmed.hasPrefix("#") ? trimmed : "#\(trimmed)"
-            }
-            .compactMap { $0 }
+            .compactMap(BearTag.render)
             .joined(separator: " ")
     }
 }

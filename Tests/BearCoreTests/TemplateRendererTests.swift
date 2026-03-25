@@ -18,6 +18,22 @@ func templateRendererRendersSingleTemplateDocument() {
 }
 
 @Test
+func templateRendererWrapsTagsThatContainSpaces() {
+    let context = TemplateContext(
+        title: "Test",
+        content: "Hello world",
+        tags: ["deep work", "#focus mode#"]
+    )
+
+    let rendered = TemplateRenderer.renderDocument(
+        context: context,
+        template: "{{tags}}"
+    )
+
+    #expect(rendered == "#deep work# #focus mode#")
+}
+
+@Test
 func bearTextParsesTitleAndBody() {
     let parsed = BearText.parse(rawText: "# Example\n\nBody line", fallbackTitle: "Fallback")
 

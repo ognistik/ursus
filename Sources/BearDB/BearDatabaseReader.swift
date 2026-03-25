@@ -158,7 +158,7 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
     }
 
     private func normalizedTag(_ tag: String) -> String {
-        tag.replacingOccurrences(of: "#", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        BearTag.normalizedName(tag)
     }
 
     private func archivedFlag(for location: BearNoteLocation) -> Int {

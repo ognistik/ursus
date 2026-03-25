@@ -9,7 +9,7 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox", "#Daily"],
+        activeTags: ["0-inbox", "#Daily", "#deep work#"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
@@ -34,7 +34,7 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
             CreateNoteRequest(
                 title: "Sample Note",
                 content: "# Sample Note\n\nBody line",
-                tags: ["project-x", "#daily"],
+                tags: ["project-x", "#daily", "deep work"],
                 useOnlyRequestTags: nil,
                 presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
             ),
@@ -43,8 +43,8 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
 
     let captured = try #require(await transport.createdRequests.first)
     #expect(captured.title == "Sample Note")
-    #expect(captured.content == "Body line\n\n#0-inbox #Daily #project-x")
-    #expect(captured.tags == ["0-inbox", "#Daily", "project-x"])
+    #expect(captured.content == "Body line\n\n#0-inbox #Daily #deep work# #project-x")
+    #expect(captured.tags == ["0-inbox", "Daily", "deep work", "project-x"])
 }
 
 @Test

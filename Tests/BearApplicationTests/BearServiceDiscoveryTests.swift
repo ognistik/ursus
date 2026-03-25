@@ -37,6 +37,21 @@ func getActiveNotesUsesTemplateContentForSnippets() async throws {
 }
 
 @Test
+func getActiveNotesNormalizesWrappedTagsBeforeQuerying() throws {
+    let readStore = DiscoveryReadStore()
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["#deep work#", " #focus mode# "]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    _ = try service.getActiveNotes(location: .notes, limit: 5, snippetLength: 50)
+
+    #expect(readStore.lastTagQuery?.tags == ["deep work", "focus mode"])
+}
+
+@Test
 func searchNotesClampsConfiguredDiscoveryOverrides() throws {
     let note = makeNote(
         id: "archive-1",
@@ -90,7 +105,7 @@ func getNotesByTagReturnsSummariesAndRespectsExplicitLimit() throws {
     )
 
     let summaries = try service.getNotesByTag(
-        tags: ["project"],
+        tags: ["#project#"],
         location: .archive,
         limit: 1,
         snippetLength: 18
