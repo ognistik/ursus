@@ -316,7 +316,7 @@ private enum ToolCatalog {
         ),
         batchedMutationTool(
             name: "bear_create_notes",
-            description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override configured defaults for this request. Omitted does not mean false: omission means use config defaults, while an explicit boolean forces behavior for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user does not mention opening, do not send `open_note` at all.",
+            description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override configured defaults for this request. Omitted does not mean false: omission means use config defaults, while an explicit boolean forces behavior for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
             operationProperties: [
                 "title": .object(["type": .string("string")]),
                 "content": .object([
@@ -328,7 +328,7 @@ private enum ToolCatalog {
                     "type": .string("boolean"),
                     "description": .string("Optional per-request override for note creation. Omit this field unless the user explicitly asks to replace the configured tag-merging behavior. Omission means use the configured default tagsMergeMode. `true` forces use of only the supplied request tags instead of configured active tags. `false` forces configured active tags to be appended. If the user only asks to add specific tags, pass those tags and omit this field."),
                 ]),
-                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Omit this field unless the user explicitly asks to override the configured create-note open behavior. Omission means use the configured default. `true` forces open. `false` forces closed. If the user does not mention opening, do not send this field."),
+                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Map any explicit user preference about opening to this field. `true` forces open and `false` forces closed. Omission means use the configured default, so omit this field only when the user does not mention opening at all."),
                 "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Omit this field unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior. If omitted, the configured default applies. This only matters when the created note is opened."),
             ],
             required: ["title", "content"],
