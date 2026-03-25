@@ -245,7 +245,7 @@ private enum ToolCatalog {
         ),
         batchedMutationTool(
             name: "bear_create_notes",
-            description: "Create one or more Bear notes. Configured active tags are applied automatically. Use tags only for explicit requested tags. Include use_only_request_tags only when the user specifically wants to override how configured active tags are handled for this create request: true means use only the supplied request tags instead of configured active tags, false means explicitly append configured active tags, and omitting the field uses the configured default. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
+            description: "Create one or more Bear notes. Configured active tags are applied automatically. Use tags only for explicit requested tags. Include use_only_request_tags only when the user specifically wants to override how configured active tags are handled for this create request: true means use only the supplied request tags instead of configured active tags, false means explicitly append configured active tags, and omitting the field uses the configured default. Omit optional presentation flags unless the user explicitly asks to override config for this request.",
             operationProperties: [
                 "title": .object(["type": .string("string")]),
                 "content": .object(["type": .string("string")]),
@@ -254,7 +254,7 @@ private enum ToolCatalog {
                     "type": .string("boolean"),
                     "description": .string("Optional per-request override for note creation. Set true when the user explicitly wants to create the note with only the supplied request tags instead of configured active tags. Set false only when the user explicitly wants to append configured active tags. Omit this field to use the configured default tagsMergeMode."),
                 ]),
-                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured create-note open behavior. Only send true or false when intentionally overriding config for this request."),
+                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Omit this field unless the user explicitly asks to override the configured create-note open behavior."),
                 "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. Use true when the user asks for a separate or floating Bear window. This only matters when the created note is opened."),
             ],
             required: ["title", "content"],
