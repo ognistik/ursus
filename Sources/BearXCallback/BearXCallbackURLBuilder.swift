@@ -59,6 +59,31 @@ public struct BearXCallbackURLBuilder: Sendable {
         )
     }
 
+    public func openTagURL(request: OpenTagRequest) throws -> URL {
+        try makeURL(
+            action: "open-tag",
+            queryItems: [
+                URLQueryItem(name: "name", value: request.tag),
+            ]
+        )
+    }
+
+    public func renameTagURL(request: RenameTagRequest) throws -> URL {
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "name", value: request.name),
+            URLQueryItem(name: "new_name", value: request.newName),
+        ]
+
+        if let showWindow = request.showWindow {
+            queryItems.append(URLQueryItem(name: "show_window", value: yesNo(showWindow)))
+        }
+
+        return try makeURL(
+            action: "rename-tag",
+            queryItems: queryItems
+        )
+    }
+
     public func archiveURL(noteID: String, showWindow: Bool) throws -> URL {
         try makeURL(
             action: "archive",

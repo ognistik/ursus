@@ -88,3 +88,41 @@ func createURLSendsExplicitNewWindowOverrideWhenOpened() throws {
     #expect(absolute.contains("new_window=no"))
     #expect(!absolute.contains("float="))
 }
+
+@Test
+func openTagURLUsesSingleTagNameOnly() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.openTagURL(
+        request: OpenTagRequest(tag: "projects/workflows")
+    )
+
+    let absolute = url.absoluteString
+    #expect(absolute.contains("bear://x-callback-url/open-tag"))
+    #expect(absolute.contains("name=projects/workflows"))
+    #expect(!absolute.contains("show_window="))
+}
+
+@Test
+func renameTagURLOmitsShowWindowWhenNotRequested() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.renameTagURL(
+        request: RenameTagRequest(name: "todo", newName: "done", showWindow: nil)
+    )
+
+    let absolute = url.absoluteString
+    #expect(absolute.contains("bear://x-callback-url/rename-tag"))
+    #expect(absolute.contains("name=todo"))
+    #expect(absolute.contains("new_name=done"))
+    #expect(!absolute.contains("show_window="))
+}
+
+@Test
+func renameTagURLIncludesExplicitShowWindowOverride() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.renameTagURL(
+        request: RenameTagRequest(name: "todo", newName: "done", showWindow: false)
+    )
+
+    let absolute = url.absoluteString
+    #expect(absolute.contains("show_window=no"))
+}

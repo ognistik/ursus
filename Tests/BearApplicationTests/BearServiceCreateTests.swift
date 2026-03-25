@@ -190,6 +190,8 @@ private struct EmptyReadStore: BearReadStore {
 
 private actor RecordingWriteTransport: BearWriteTransport {
     private(set) var createdRequests: [CreateNoteRequest] = []
+    private(set) var openedTags: [OpenTagRequest] = []
+    private(set) var renamedTags: [RenameTagRequest] = []
 
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         createdRequests.append(request)
@@ -210,6 +212,16 @@ private actor RecordingWriteTransport: BearWriteTransport {
 
     func open(_ request: OpenNoteRequest) async throws -> MutationReceipt {
         MutationReceipt(noteID: request.noteID, title: nil, status: "opened", modifiedAt: nil)
+    }
+
+    func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt {
+        openedTags.append(request)
+        return TagMutationReceipt(tag: request.tag, newTag: nil, status: "opened")
+    }
+
+    func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
+        renamedTags.append(request)
+        return TagMutationReceipt(tag: request.name, newTag: request.newName, status: "renamed")
     }
 
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {

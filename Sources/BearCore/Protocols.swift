@@ -22,5 +22,7 @@ public protocol BearWriteTransport: Sendable {
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt
     func addFile(_ request: AddFileRequest) async throws -> MutationReceipt
     func open(_ request: OpenNoteRequest) async throws -> MutationReceipt
+    func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt
+    func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt
 }

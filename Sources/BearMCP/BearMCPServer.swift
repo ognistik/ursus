@@ -86,6 +86,20 @@ public final class BearMCPServer: Sendable {
             let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
             return try jsonResult(try service.getNotesByActiveTags(location: location, limit: limit, snippetLength: snippetLength, cursor: cursor))
 
+        case "bear_open_tag":
+            let tag = try MCPArgumentDecoder.string(params.arguments, "tag")
+            return try jsonResult(try await service.openTag(tag))
+
+        case "bear_rename_tags":
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                RenameTagRequest(
+                    name: try requiredString(object, "name"),
+                    newName: try requiredString(object, "new_name"),
+                    showWindow: try MCPArgumentDecoder.optionalBool(object, "show_window")
+                )
+            }
+            return try jsonResult(try await service.renameTags(requests))
+
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
                 openNote: configuration.createOpensNoteByDefault,
@@ -227,7 +241,7 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_list_tags",
-            description: "List Bear tags for the selected note location. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
+            description: "List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -249,7 +263,7 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_get_notes_by_tag",
-            description: "Fetch a paged set of compact note summaries for notes that belong to one or more Bear tags. Omit location unless the user explicitly asks for archived notes.",
+            description: "Fetch a paged set of compact note summaries for notes that belong to one or more Bear tags. If the tag name is uncertain, call `bear_list_tags` first to discover the canonical name. Use `bear_open_tag` instead when the goal is to navigate Bear's UI to a single tag. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object(discoveryProperties([
@@ -268,6 +282,37 @@ private enum ToolCatalog {
                 "type": .string("object"),
                 "properties": .object(discoveryProperties([:])),
             ])
+        ),
+        Tool(
+            name: "bear_open_tag",
+            description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_get_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "tag": .object([
+                        "type": .string("string"),
+                        "description": .string("Required canonical tag name to open in Bear."),
+                    ]),
+                ]),
+                "required": .array([.string("tag")]),
+            ])
+        ),
+        batchedMutationTool(
+            name: "bear_rename_tags",
+            description: "Rename one or more Bear tags. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
+            operationProperties: [
+                "name": .object([
+                    "type": .string("string"),
+                    "description": .string("Existing tag name to rename."),
+                ]),
+                "new_name": .object([
+                    "type": .string("string"),
+                    "description": .string("Replacement tag name."),
+                ]),
+                "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the rename."),
+            ],
+            required: ["name", "new_name"],
+            presentationProperties: [:]
         ),
         batchedMutationTool(
             name: "bear_create_notes",

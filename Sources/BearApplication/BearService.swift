@@ -236,6 +236,24 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    public func openTag(_ tag: String) async throws -> TagMutationReceipt {
+        try await writeTransport.openTag(
+            OpenTagRequest(tag: try normalizedTagName(tag, fieldName: "tag"))
+        )
+    }
+
+    public func renameTags(_ requests: [RenameTagRequest]) async throws -> [TagMutationReceipt] {
+        try await mutateEach(requests) { request in
+            try await self.writeTransport.renameTag(
+                RenameTagRequest(
+                    name: try self.normalizedTagName(request.name, fieldName: "name"),
+                    newName: try self.normalizedTagName(request.newName, fieldName: "new_name"),
+                    showWindow: request.showWindow
+                )
+            )
+        }
+    }
+
     public func archiveNotes(_ noteIDs: [String]) async throws -> [MutationReceipt] {
         try await mutateEach(noteIDs) { noteID in
             try await self.writeTransport.archive(noteID: noteID, showWindow: true)
@@ -573,6 +591,14 @@ public final class BearService: @unchecked Sendable {
         return normalized.isEmpty ? nil : normalized
     }
 
+    private func normalizedTagName(_ tag: String, fieldName: String) throws -> String {
+        let normalized = BearTag.normalizedName(tag)
+        guard !normalized.isEmpty else {
+            throw BearError.invalidInput("Missing required string argument '\(fieldName)'.")
+        }
+        return normalized
+    }
+
     private func tagFilterKey(_ tags: [String]) -> String {
         tags.sorted().joined(separator: "\u{1F}")
     }
@@ -608,6 +634,17 @@ public final class BearService: @unchecked Sendable {
         operation: (Input) async throws -> MutationReceipt
     ) async throws -> [MutationReceipt] {
         var receipts: [MutationReceipt] = []
+        for input in inputs {
+            receipts.append(try await operation(input))
+        }
+        return receipts
+    }
+
+    private func mutateEach<Input>(
+        _ inputs: [Input],
+        operation: (Input) async throws -> TagMutationReceipt
+    ) async throws -> [TagMutationReceipt] {
+        var receipts: [TagMutationReceipt] = []
         for input in inputs {
             receipts.append(try await operation(input))
         }

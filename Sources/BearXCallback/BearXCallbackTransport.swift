@@ -93,6 +93,31 @@ public actor BearXCallbackTransport: BearWriteTransport {
         )
     }
 
+    public func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt {
+        let url = try builder.openTagURL(request: request)
+        BearDebugLog.append("xcallback.open-tag url=\(url.absoluteString)")
+        try await open(url: url)
+
+        return TagMutationReceipt(
+            tag: request.tag,
+            newTag: nil,
+            status: "opened"
+        )
+    }
+
+    public func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
+        let url = try builder.renameTagURL(request: request)
+        BearDebugLog.append("xcallback.rename-tag url=\(url.absoluteString)")
+        try await open(url: url)
+
+        let renamed = try await waitForTagRename(from: request.name, to: request.newName)
+        return TagMutationReceipt(
+            tag: request.name,
+            newTag: request.newName,
+            status: renamed ? "renamed" : "submitted"
+        )
+    }
+
     public func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.archiveURL(noteID: noteID, showWindow: showWindow)
@@ -144,6 +169,20 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
             return note.revision.version != previousVersion ? note : nil
         }
+    }
+
+    private func waitForTagRename(from oldTag: String, to newTag: String) async throws -> Bool {
+        let oldKey = BearTag.deduplicationKey(oldTag)
+        let newKey = BearTag.deduplicationKey(newTag)
+
+        let renamed = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
+            let notesTags = try self.readStore.listTags(ListTagsQuery(location: .notes, query: nil, underTag: nil))
+            let archiveTags = try self.readStore.listTags(ListTagsQuery(location: .archive, query: nil, underTag: nil))
+            let allKeys = Set((notesTags + archiveTags).map { BearTag.deduplicationKey($0.name) })
+            return allKeys.contains(newKey) && !allKeys.contains(oldKey) ? true : nil
+        }
+
+        return renamed ?? false
     }
 
     private func poll<T>(

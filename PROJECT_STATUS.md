@@ -129,6 +129,8 @@ Implemented MCP tool names:
 - `bear_list_tags`
 - `bear_get_notes_by_tag`
 - `bear_get_notes_by_active_tags`
+- `bear_open_tag`
+- `bear_rename_tags`
 - `bear_create_notes`
 - `bear_insert_text`
 - `bear_replace_note_body`
@@ -173,6 +175,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
 - `bear_list_tags` now defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped tag counts, and supports optional `query` and hierarchical `under_tag` filters.
+- MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_get_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
 - `bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags` now share a paged summary shape with note id, title, snippet, tags, created/modified timestamps, archive status, and pagination metadata.
@@ -197,6 +200,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Insert uses Bear add-text with prepend/append mapping.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
 - Add file uses Bear add-file.
+- Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
+- Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
 - Archive uses Bear archive.
 
@@ -205,13 +210,13 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Mutations return compact receipts by design.
 - Create currently uses best-effort note discovery by title and recent modification time.
 - Other mutations try to verify completion by polling Bear's DB for version/state changes.
+- Tag rename uses best-effort verification by polling tag lists across both notes and archive locations.
 
 ## Known Gaps / Risks
 
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Token/keychain-backed x-callback actions are not wired yet.
-- Tag mutation tools are not implemented yet.
 - Search is functional but still basic; exact phrase semantics and better ranking can be improved later.
 - Search still does not match attachment `ZSEARCHTEXT`; only `bear_get_notes` exposes attachment OCR/index text today.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
@@ -227,7 +232,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Keep the local MCP architecture first-class; remote/proxy work is a separate project.
 - Keep the old Alter/Shortcuts bridge untouched.
 - The create template matters for creation behavior and tag placement.
-- The MCP surface should stay simple: mutation tools only expose `open_note` and `new_window`, and `bear_open_notes` only exposes `new_window`.
+- The MCP surface should stay simple: note mutation tools only expose `open_note` and `new_window`, `bear_open_notes` only exposes `new_window`, `bear_open_tag` accepts a single canonical `tag`, and `bear_rename_tags` only exposes optional `show_window`.
 - Create defaults are config-driven for whether creation opens the note; explicit `open_note` and `new_window` values override config for that request.
 - User phrasing like "floating window" should map to `new_window`; the server should not emit Bear's `float` URL parameter.
 - Bear x-callback URLs should launch without activating Bear unless Bear itself decides to foreground for its own reasons.

@@ -486,6 +486,26 @@ public struct OpenNoteRequest: Codable, Hashable, Sendable {
     }
 }
 
+public struct OpenTagRequest: Codable, Hashable, Sendable {
+    public let tag: String
+
+    public init(tag: String) {
+        self.tag = tag
+    }
+}
+
+public struct RenameTagRequest: Codable, Hashable, Sendable {
+    public let name: String
+    public let newName: String
+    public let showWindow: Bool?
+
+    public init(name: String, newName: String, showWindow: Bool?) {
+        self.name = name
+        self.newName = newName
+        self.showWindow = showWindow
+    }
+}
+
 public struct AddFileRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let filePath: String
@@ -519,5 +539,17 @@ public struct MutationReceipt: Codable, Hashable, Sendable {
         self.title = title
         self.status = status
         self.modifiedAt = modifiedAt
+    }
+}
+
+public struct TagMutationReceipt: Codable, Hashable, Sendable {
+    public let tag: String
+    public let newTag: String?
+    public let status: String
+
+    public init(tag: String, newTag: String?, status: String) {
+        self.tag = tag
+        self.newTag = newTag
+        self.status = status
     }
 }

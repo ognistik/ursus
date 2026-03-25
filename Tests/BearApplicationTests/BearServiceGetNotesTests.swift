@@ -313,6 +313,14 @@ private struct GetNotesSilentWriteTransport: BearWriteTransport {
         MutationReceipt(noteID: request.noteID, title: nil, status: "opened", modifiedAt: nil)
     }
 
+    func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt {
+        TagMutationReceipt(tag: request.tag, newTag: nil, status: "opened")
+    }
+
+    func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
+        TagMutationReceipt(tag: request.name, newTag: request.newName, status: "renamed")
+    }
+
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
     }
