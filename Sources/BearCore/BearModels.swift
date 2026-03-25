@@ -57,16 +57,120 @@ public struct BearNote: Codable, Hashable, Sendable {
 public struct NoteSearchQuery: Codable, Hashable, Sendable {
     public let query: String
     public let location: BearNoteLocation
-    public let limit: Int
+    public let paging: DiscoveryPaging
 
     public init(
         query: String,
         location: BearNoteLocation = .notes,
-        limit: Int = 20
+        paging: DiscoveryPaging = DiscoveryPaging(limit: 20)
     ) {
         self.query = query
         self.location = location
+        self.paging = paging
+    }
+}
+
+public struct TagNotesQuery: Codable, Hashable, Sendable {
+    public let tags: [String]
+    public let location: BearNoteLocation
+    public let paging: DiscoveryPaging
+
+    public init(
+        tags: [String],
+        location: BearNoteLocation = .notes,
+        paging: DiscoveryPaging = DiscoveryPaging(limit: 20)
+    ) {
+        self.tags = tags
+        self.location = location
+        self.paging = paging
+    }
+}
+
+public struct DiscoveryPaging: Codable, Hashable, Sendable {
+    public let limit: Int
+    public let cursor: DiscoveryCursor?
+
+    public init(limit: Int, cursor: DiscoveryCursor? = nil) {
         self.limit = limit
+        self.cursor = cursor
+    }
+}
+
+public enum DiscoveryKind: String, Codable, Hashable, Sendable {
+    case searchNotes = "search_notes"
+    case notesByTag = "notes_by_tag"
+    case notesByActiveTags = "notes_by_active_tags"
+}
+
+public struct DiscoveryCursor: Codable, Hashable, Sendable {
+    public static let currentVersion = 1
+
+    public let version: Int
+    public let kind: DiscoveryKind
+    public let location: BearNoteLocation
+    public let filterKey: String
+    public let lastModifiedAt: Date
+    public let lastNoteID: String
+
+    public init(
+        version: Int = DiscoveryCursor.currentVersion,
+        kind: DiscoveryKind,
+        location: BearNoteLocation,
+        filterKey: String,
+        lastModifiedAt: Date,
+        lastNoteID: String
+    ) {
+        self.version = version
+        self.kind = kind
+        self.location = location
+        self.filterKey = filterKey
+        self.lastModifiedAt = lastModifiedAt
+        self.lastNoteID = lastNoteID
+    }
+}
+
+public enum DiscoveryCursorCodingError: LocalizedError {
+    case invalidToken
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidToken:
+            "Invalid discovery cursor."
+        }
+    }
+}
+
+public enum DiscoveryCursorCoder {
+    public static func encode(_ cursor: DiscoveryCursor) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(cursor)
+        return data.base64EncodedString()
+    }
+
+    public static func decode(_ token: String) throws -> DiscoveryCursor {
+        guard let data = Data(base64Encoded: token) else {
+            throw DiscoveryCursorCodingError.invalidToken
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            return try decoder.decode(DiscoveryCursor.self, from: data)
+        } catch {
+            throw DiscoveryCursorCodingError.invalidToken
+        }
+    }
+}
+
+public struct DiscoveryNoteBatch: Hashable, Sendable {
+    public let notes: [BearNote]
+    public let hasMore: Bool
+
+    public init(notes: [BearNote], hasMore: Bool) {
+        self.notes = notes
+        self.hasMore = hasMore
     }
 }
 
@@ -97,6 +201,32 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         self.archived = archived
     }
 }
+
+public struct DiscoveryPageInfo: Codable, Hashable, Sendable {
+    public let limit: Int
+    public let returned: Int
+    public let hasMore: Bool
+    public let nextCursor: String?
+
+    public init(limit: Int, returned: Int, hasMore: Bool, nextCursor: String?) {
+        self.limit = limit
+        self.returned = returned
+        self.hasMore = hasMore
+        self.nextCursor = nextCursor
+    }
+}
+
+public struct DiscoveryPage<Item: Codable & Hashable & Sendable>: Codable, Hashable, Sendable {
+    public let items: [Item]
+    public let page: DiscoveryPageInfo
+
+    public init(items: [Item], page: DiscoveryPageInfo) {
+        self.items = items
+        self.page = page
+    }
+}
+
+public typealias NoteSummaryPage = DiscoveryPage<NoteSummary>
 
 public struct TagSummary: Codable, Hashable, Sendable {
     public let name: String

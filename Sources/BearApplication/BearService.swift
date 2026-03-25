@@ -24,18 +24,33 @@ public final class BearService: @unchecked Sendable {
         query: String,
         location: BearNoteLocation,
         limit: Int?,
-        snippetLength: Int?
-    ) throws -> [NoteSummary] {
+        snippetLength: Int?,
+        cursor: String?
+    ) throws -> NoteSummaryPage {
         let resolvedLimit = resolvedDiscoveryLimit(limit)
+        let filterKey = searchFilterKey(query)
+        let resolvedCursor = try resolveCursor(
+            token: cursor,
+            kind: .searchNotes,
+            location: location,
+            filterKey: filterKey
+        )
         logger.info("Searching Bear notes.", metadata: ["location": "\(location.rawValue)", "limit": "\(resolvedLimit)"])
-        let notes = try readStore.searchNotes(
+        let batch = try readStore.searchNotes(
             NoteSearchQuery(
                 query: query,
                 location: location,
-                limit: resolvedLimit
+                paging: DiscoveryPaging(limit: resolvedLimit, cursor: resolvedCursor)
             )
         )
-        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
+        return try makeDiscoveryPage(
+            batch: batch,
+            kind: .searchNotes,
+            location: location,
+            filterKey: filterKey,
+            limit: resolvedLimit,
+            snippetLength: snippetLength
+        )
     }
 
     public func getNotes(ids: [String]) throws -> [BearNote] {
@@ -50,22 +65,41 @@ public final class BearService: @unchecked Sendable {
         tags: [String],
         location: BearNoteLocation,
         limit: Int?,
-        snippetLength: Int?
-    ) throws -> [NoteSummary] {
+        snippetLength: Int?,
+        cursor: String?
+    ) throws -> NoteSummaryPage {
         let normalizedTags = tags.map(BearTag.normalizedName).filter { !$0.isEmpty }
-        let notes = try readStore.notes(
-            matchingAnyTags: normalizedTags,
+        let resolvedLimit = resolvedDiscoveryLimit(limit)
+        let filterKey = tagFilterKey(normalizedTags)
+        let resolvedCursor = try resolveCursor(
+            token: cursor,
+            kind: .notesByTag,
             location: location,
-            limit: resolvedDiscoveryLimit(limit)
+            filterKey: filterKey
         )
-        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
+        let batch = try readStore.notes(
+            matchingAnyTags: TagNotesQuery(
+                tags: normalizedTags,
+                location: location,
+                paging: DiscoveryPaging(limit: resolvedLimit, cursor: resolvedCursor)
+            )
+        )
+        return try makeDiscoveryPage(
+            batch: batch,
+            kind: .notesByTag,
+            location: location,
+            filterKey: filterKey,
+            limit: resolvedLimit,
+            snippetLength: snippetLength
+        )
     }
 
-    public func getActiveNotes(
+    public func getNotesByActiveTags(
         location: BearNoteLocation,
         limit: Int?,
-        snippetLength: Int?
-    ) throws -> [NoteSummary] {
+        snippetLength: Int?,
+        cursor: String?
+    ) throws -> NoteSummaryPage {
         let activeTags = configuration.activeTags
             .map(BearTag.normalizedName)
             .filter { !$0.isEmpty }
@@ -74,12 +108,29 @@ public final class BearService: @unchecked Sendable {
             throw BearError.configuration("The active notes list is empty. Add tags to ~/.config/bear-mcp/config.json first.")
         }
 
-        let notes = try readStore.notes(
-            matchingAnyTags: activeTags,
+        let resolvedLimit = resolvedDiscoveryLimit(limit)
+        let filterKey = activeTagsFilterKey()
+        let resolvedCursor = try resolveCursor(
+            token: cursor,
+            kind: .notesByActiveTags,
             location: location,
-            limit: resolvedDiscoveryLimit(limit)
+            filterKey: filterKey
         )
-        return try makeDiscoverySummaries(notes: notes, snippetLength: snippetLength)
+        let batch = try readStore.notes(
+            matchingAnyTags: TagNotesQuery(
+                tags: activeTags,
+                location: location,
+                paging: DiscoveryPaging(limit: resolvedLimit, cursor: resolvedCursor)
+            )
+        )
+        return try makeDiscoveryPage(
+            batch: batch,
+            kind: .notesByActiveTags,
+            location: location,
+            filterKey: filterKey,
+            limit: resolvedLimit,
+            snippetLength: snippetLength
+        )
     }
 
     public func createNotes(_ requests: [CreateNoteRequest]) async throws -> [MutationReceipt] {
@@ -265,6 +316,41 @@ public final class BearService: @unchecked Sendable {
         return trimmed
     }
 
+    private func makeDiscoveryPage(
+        batch: DiscoveryNoteBatch,
+        kind: DiscoveryKind,
+        location: BearNoteLocation,
+        filterKey: String,
+        limit: Int,
+        snippetLength: Int?
+    ) throws -> NoteSummaryPage {
+        let summaries = try makeDiscoverySummaries(notes: batch.notes, snippetLength: snippetLength)
+        let nextCursor: String?
+        if batch.hasMore, let lastNote = batch.notes.last {
+            nextCursor = try DiscoveryCursorCoder.encode(
+                DiscoveryCursor(
+                    kind: kind,
+                    location: location,
+                    filterKey: filterKey,
+                    lastModifiedAt: lastNote.revision.modifiedAt,
+                    lastNoteID: lastNote.ref.identifier
+                )
+            )
+        } else {
+            nextCursor = nil
+        }
+
+        return NoteSummaryPage(
+            items: summaries,
+            page: DiscoveryPageInfo(
+                limit: limit,
+                returned: summaries.count,
+                hasMore: batch.hasMore,
+                nextCursor: nextCursor
+            )
+        )
+    }
+
     private func makeDiscoverySummaries(notes: [BearNote], snippetLength: Int?) throws -> [NoteSummary] {
         let resolvedSnippetLength = resolvedSnippetLength(snippetLength)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
@@ -331,6 +417,44 @@ public final class BearService: @unchecked Sendable {
         let start = body.index(body.startIndex, offsetBy: prefix.count)
         let end = body.index(body.endIndex, offsetBy: -suffix.count)
         return String(body[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resolveCursor(
+        token: String?,
+        kind: DiscoveryKind,
+        location: BearNoteLocation,
+        filterKey: String
+    ) throws -> DiscoveryCursor? {
+        guard let token else {
+            return nil
+        }
+
+        let cursor: DiscoveryCursor
+        do {
+            cursor = try DiscoveryCursorCoder.decode(token)
+        } catch {
+            throw BearError.invalidInput("Invalid discovery cursor.")
+        }
+
+        guard cursor.version == DiscoveryCursor.currentVersion else {
+            throw BearError.invalidInput("Unsupported discovery cursor version '\(cursor.version)'.")
+        }
+        guard cursor.kind == kind, cursor.location == location, cursor.filterKey == filterKey else {
+            throw BearError.invalidInput("Discovery cursor does not match this request.")
+        }
+        return cursor
+    }
+
+    private func searchFilterKey(_ query: String) -> String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func tagFilterKey(_ tags: [String]) -> String {
+        tags.sorted().joined(separator: "\u{1F}")
+    }
+
+    private func activeTagsFilterKey() -> String {
+        "active"
     }
 
     private func resolvedDiscoveryLimit(_ override: Int?) -> Int {

@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func getActiveNotesUsesTemplateContentForSnippets() async throws {
+func getNotesByActiveTagsUsesTemplateContentForSnippets() async throws {
     let note = makeNote(
         id: "note-1",
         title: "Inbox",
@@ -13,7 +13,9 @@ func getActiveNotesUsesTemplateContentForSnippets() async throws {
         tags: ["0-inbox"],
         archived: false
     )
-    let readStore = DiscoveryReadStore(tagNotes: [note])
+    let readStore = DiscoveryReadStore(tagBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
     let service = BearService(
         configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
         readStore: readStore,
@@ -21,23 +23,27 @@ func getActiveNotesUsesTemplateContentForSnippets() async throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let summaries = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
-        try service.getActiveNotes(location: .notes, limit: nil, snippetLength: 22)
+    let page = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try service.getNotesByActiveTags(location: .notes, limit: nil, snippetLength: 22, cursor: nil)
     }
 
-    let summary = try #require(summaries.first)
-    #expect(summaries.count == 1)
+    let summary = try #require(page.items.first)
+    #expect(page.items.count == 1)
     #expect(summary.noteID == "note-1")
     #expect(summary.snippet == "Alpha beta gamma delta…")
     #expect(summary.createdAt == note.revision.createdAt)
     #expect(summary.modifiedAt == note.revision.modifiedAt)
+    #expect(page.page.limit == 20)
+    #expect(page.page.returned == 1)
+    #expect(page.page.hasMore == false)
+    #expect(page.page.nextCursor == nil)
     #expect(readStore.lastTagQuery?.tags == ["0-inbox"])
     #expect(readStore.lastTagQuery?.location == .notes)
-    #expect(readStore.lastTagQuery?.limit == 20)
+    #expect(readStore.lastTagQuery?.paging.limit == 20)
 }
 
 @Test
-func getActiveNotesNormalizesWrappedTagsBeforeQuerying() throws {
+func getNotesByActiveTagsNormalizesWrappedTagsBeforeQuerying() throws {
     let readStore = DiscoveryReadStore()
     let service = BearService(
         configuration: makeDiscoveryConfiguration(activeTags: ["#deep work#", " #focus mode# "]),
@@ -46,7 +52,7 @@ func getActiveNotesNormalizesWrappedTagsBeforeQuerying() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    _ = try service.getActiveNotes(location: .notes, limit: 5, snippetLength: 50)
+    _ = try service.getNotesByActiveTags(location: .notes, limit: 5, snippetLength: 50, cursor: nil)
 
     #expect(readStore.lastTagQuery?.tags == ["deep work", "focus mode"])
 }
@@ -60,7 +66,9 @@ func searchNotesClampsConfiguredDiscoveryOverrides() throws {
         tags: ["project"],
         archived: true
     )
-    let readStore = DiscoveryReadStore(searchNotes: [note])
+    let readStore = DiscoveryReadStore(searchBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
     let service = BearService(
         configuration: makeDiscoveryConfiguration(
             activeTags: ["0-inbox"],
@@ -74,17 +82,19 @@ func searchNotesClampsConfiguredDiscoveryOverrides() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let summaries = try service.searchNotes(
+    let page = try service.searchNotes(
         query: "three",
         location: .archive,
         limit: 500,
-        snippetLength: 50
+        snippetLength: 50,
+        cursor: nil
     )
 
-    let summary = try #require(summaries.first)
+    let summary = try #require(page.items.first)
     #expect(summary.snippet == "One two three four…")
+    #expect(page.page.limit == 25)
     #expect(readStore.lastSearchQuery?.location == .archive)
-    #expect(readStore.lastSearchQuery?.limit == 25)
+    #expect(readStore.lastSearchQuery?.paging.limit == 25)
 }
 
 @Test
@@ -96,7 +106,9 @@ func getNotesByTagReturnsSummariesAndRespectsExplicitLimit() throws {
         tags: ["project"],
         archived: true
     )
-    let readStore = DiscoveryReadStore(tagNotes: [note])
+    let readStore = DiscoveryReadStore(tagBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
     let service = BearService(
         configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
         readStore: readStore,
@@ -104,20 +116,128 @@ func getNotesByTagReturnsSummariesAndRespectsExplicitLimit() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let summaries = try service.getNotesByTag(
+    let page = try service.getNotesByTag(
         tags: ["#project#"],
         location: .archive,
         limit: 1,
-        snippetLength: 18
+        snippetLength: 18,
+        cursor: nil
     )
 
-    let summary = try #require(summaries.first)
-    #expect(summaries.count == 1)
+    let summary = try #require(page.items.first)
+    #expect(page.items.count == 1)
     #expect(summary.noteID == "tag-1")
     #expect(summary.archived)
     #expect(readStore.lastTagQuery?.tags == ["project"])
     #expect(readStore.lastTagQuery?.location == .archive)
-    #expect(readStore.lastTagQuery?.limit == 1)
+    #expect(readStore.lastTagQuery?.paging.limit == 1)
+}
+
+@Test
+func searchNotesReturnsNextCursorAndAcceptsContinuation() throws {
+    let first = makeNote(
+        id: "note-2",
+        title: "Second",
+        body: "Second page body",
+        tags: [],
+        archived: false,
+        modifiedAt: Date(timeIntervalSince1970: 1_710_000_600)
+    )
+    let second = makeNote(
+        id: "note-1",
+        title: "First",
+        body: "First page body",
+        tags: [],
+        archived: false,
+        modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+    )
+    let readStore = DiscoveryReadStore(searchBatches: [
+        DiscoveryNoteBatch(notes: [first], hasMore: true),
+        DiscoveryNoteBatch(notes: [second], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let firstPage = try service.searchNotes(
+        query: "page",
+        location: .notes,
+        limit: 1,
+        snippetLength: 50,
+        cursor: nil
+    )
+    let token = try #require(firstPage.page.nextCursor)
+    let cursor = try DiscoveryCursorCoder.decode(token)
+
+    #expect(firstPage.page.hasMore)
+    #expect(firstPage.page.returned == 1)
+    #expect(cursor.kind == .searchNotes)
+    #expect(cursor.location == .notes)
+    #expect(cursor.lastNoteID == "note-2")
+
+    let secondPage = try service.searchNotes(
+        query: "page",
+        location: .notes,
+        limit: 1,
+        snippetLength: 50,
+        cursor: token
+    )
+
+    #expect(secondPage.items.count == 1)
+    #expect(secondPage.items.first?.noteID == "note-1")
+    #expect(secondPage.page.hasMore == false)
+    #expect(secondPage.page.nextCursor == nil)
+    #expect(readStore.searchQueries.count == 2)
+    #expect(readStore.searchQueries.last?.paging.cursor?.lastNoteID == "note-2")
+}
+
+@Test
+func searchNotesRejectsMismatchedCursor() throws {
+    let note = makeNote(
+        id: "note-1",
+        title: "Alpha",
+        body: "Alpha body",
+        tags: [],
+        archived: false
+    )
+    let readStore = DiscoveryReadStore(searchBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: true),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let firstPage = try service.searchNotes(
+        query: "alpha",
+        location: .notes,
+        limit: 1,
+        snippetLength: 50,
+        cursor: nil
+    )
+    let token = try #require(firstPage.page.nextCursor)
+
+    var didThrow = false
+    do {
+        _ = try service.searchNotes(
+            query: "beta",
+            location: .notes,
+            limit: 1,
+            snippetLength: 50,
+            cursor: token
+        )
+    } catch {
+        didThrow = true
+        let description = (error as? LocalizedError)?.errorDescription
+        #expect(description == "Discovery cursor does not match this request.")
+    }
+
+    #expect(didThrow)
 }
 
 private func makeDiscoveryConfiguration(
@@ -149,10 +269,10 @@ private func makeNote(
     title: String,
     body: String,
     tags: [String],
-    archived: Bool
+    archived: Bool,
+    modifiedAt: Date = Date(timeIntervalSince1970: 1_710_000_500)
 ) -> BearNote {
     let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
-    let modifiedAt = Date(timeIntervalSince1970: 1_710_000_500)
 
     return BearNote(
         ref: NoteRef(identifier: id),
@@ -168,35 +288,48 @@ private func makeNote(
 }
 
 private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {
-    struct TagQuery: Equatable {
-        let tags: [String]
-        let location: BearNoteLocation
-        let limit: Int
+    private let searchBatches: [DiscoveryNoteBatch]
+    private let tagBatches: [DiscoveryNoteBatch]
+
+    private(set) var searchQueries: [NoteSearchQuery] = []
+    private(set) var tagQueries: [TagNotesQuery] = []
+
+    private var nextSearchBatchIndex = 0
+    private var nextTagBatchIndex = 0
+
+    var lastSearchQuery: NoteSearchQuery? { searchQueries.last }
+    var lastTagQuery: TagNotesQuery? { tagQueries.last }
+
+    init(
+        searchBatches: [DiscoveryNoteBatch] = [],
+        tagBatches: [DiscoveryNoteBatch] = []
+    ) {
+        self.searchBatches = searchBatches
+        self.tagBatches = tagBatches
     }
 
-    private let searchResults: [BearNote]
-    private let tagResults: [BearNote]
+    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
+        searchQueries.append(query)
+        guard nextSearchBatchIndex < searchBatches.count else {
+            return DiscoveryNoteBatch(notes: [], hasMore: false)
+        }
 
-    var lastSearchQuery: NoteSearchQuery?
-    var lastTagQuery: TagQuery?
-
-    init(searchNotes: [BearNote] = [], tagNotes: [BearNote] = []) {
-        self.searchResults = searchNotes
-        self.tagResults = tagNotes
-    }
-
-    func searchNotes(_ query: NoteSearchQuery) throws -> [BearNote] {
-        lastSearchQuery = query
-        return searchResults
+        defer { nextSearchBatchIndex += 1 }
+        return searchBatches[nextSearchBatchIndex]
     }
 
     func note(id: String) throws -> BearNote? { nil }
 
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
 
-    func notes(matchingAnyTags tags: [String], location: BearNoteLocation, limit: Int) throws -> [BearNote] {
-        lastTagQuery = TagQuery(tags: tags, location: location, limit: limit)
-        return tagResults
+    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
+        tagQueries.append(query)
+        guard nextTagBatchIndex < tagBatches.count else {
+            return DiscoveryNoteBatch(notes: [], hasMore: false)
+        }
+
+        defer { nextTagBatchIndex += 1 }
+        return tagBatches[nextTagBatchIndex]
     }
 
     func listTags() throws -> [TagSummary] { [] }

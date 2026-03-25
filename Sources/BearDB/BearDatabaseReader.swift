@@ -12,15 +12,15 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         self.databaseQueue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
     }
 
-    public func searchNotes(_ query: NoteSearchQuery) throws -> [BearNote] {
+    public func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
+        let pagination = paginationClause(for: query.paging.cursor)
         let argumentValues: [DatabaseValueConvertible] = [
             archivedFlag(for: query.location),
             likePattern(for: query.query),
             likePattern(for: query.query),
-            query.limit,
-        ]
+        ] + pagination.arguments + [query.paging.limit + 1]
 
-        return try fetchNotes(
+        return try fetchDiscoveryBatch(
             sql: """
             SELECT
                 n.Z_PK AS pk,
@@ -41,11 +41,13 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
                 AND n.ZTRASHED = 0
                 AND n.ZARCHIVED = ?
                 AND (n.ZTITLE LIKE ? ESCAPE '\\' OR n.ZTEXT LIKE ? ESCAPE '\\')
+                \(pagination.sql)
             GROUP BY n.Z_PK
-            ORDER BY n.ZMODIFICATIONDATE DESC
+            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
             LIMIT ?
             """,
-            arguments: argumentValues
+            arguments: argumentValues,
+            limit: query.paging.limit
         )
     }
 
@@ -67,16 +69,33 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         )
     }
 
-    public func notes(matchingAnyTags tags: [String], location: BearNoteLocation, limit: Int) throws -> [BearNote] {
-        let normalizedTags = tags.map(normalizedTag).filter { !$0.isEmpty }
+    public func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
+        let normalizedTags = query.tags.map(normalizedTag).filter { !$0.isEmpty }
         guard !normalizedTags.isEmpty else {
-            return []
+            return DiscoveryNoteBatch(notes: [], hasMore: false)
         }
 
         let placeholders = Array(repeating: "?", count: normalizedTags.count).joined(separator: ",")
-        return try notes(
-            matchingSQL: """
-            n.ZTRASHED = 0
+        let pagination = paginationClause(for: query.paging.cursor)
+        return try fetchDiscoveryBatch(
+            sql: """
+            SELECT
+                n.Z_PK AS pk,
+                n.ZUNIQUEIDENTIFIER AS noteID,
+                n.ZTITLE AS title,
+                n.ZTEXT AS rawText,
+                n.ZVERSION AS version,
+                n.ZCREATIONDATE AS creationDate,
+                n.ZMODIFICATIONDATE AS modificationDate,
+                n.ZARCHIVED AS archived,
+                n.ZTRASHED AS trashed,
+                n.ZENCRYPTED AS encrypted,
+                COALESCE(GROUP_CONCAT(t.ZTITLE, '|'), '') AS tags
+            FROM ZSFNOTE n
+            LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
+            LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
+            WHERE n.ZPERMANENTLYDELETED = 0
+                AND n.ZTRASHED = 0
                 AND n.ZARCHIVED = ?
                 AND EXISTS (
                     SELECT 1
@@ -85,9 +104,13 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
                     WHERE nt2.Z_5NOTES = n.Z_PK
                         AND t2.ZTITLE IN (\(placeholders))
                 )
+                \(pagination.sql)
+            GROUP BY n.Z_PK
+            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
+            LIMIT ?
             """,
-            arguments: [archivedFlag(for: location)] + normalizedTags,
-            limit: limit
+            arguments: [archivedFlag(for: query.location)] + normalizedTags + pagination.arguments + [query.paging.limit + 1],
+            limit: query.paging.limit
         )
     }
 
@@ -146,10 +169,27 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             WHERE n.ZPERMANENTLYDELETED = 0
                 AND \(whereClause)
             GROUP BY n.Z_PK
-            ORDER BY n.ZMODIFICATIONDATE DESC
+            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
             LIMIT ?
             """,
             arguments: arguments + [limit]
+        )
+    }
+
+    private func paginationClause(for cursor: DiscoveryCursor?) -> (sql: String, arguments: [DatabaseValueConvertible]) {
+        guard let cursor else {
+            return ("", [])
+        }
+
+        let modifiedAt = cursor.lastModifiedAt.timeIntervalSinceReferenceDate
+        return (
+            """
+            AND (
+                n.ZMODIFICATIONDATE < ?
+                OR (n.ZMODIFICATIONDATE = ? AND n.ZUNIQUEIDENTIFIER < ?)
+            )
+            """,
+            [modifiedAt, modifiedAt, cursor.lastNoteID]
         )
     }
 
@@ -182,6 +222,16 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             )
             .map(\.note)
         }
+    }
+
+    private func fetchDiscoveryBatch(
+        sql: String,
+        arguments: [DatabaseValueConvertible],
+        limit: Int
+    ) throws -> DiscoveryNoteBatch {
+        let notes = try fetchNotes(sql: sql, arguments: arguments)
+        let hasMore = notes.count > limit
+        return DiscoveryNoteBatch(notes: Array(notes.prefix(limit)), hasMore: hasMore)
     }
 }
 

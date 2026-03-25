@@ -55,7 +55,8 @@ public final class BearMCPServer: Sendable {
             let location = try MCPArgumentDecoder.location(params.arguments)
             let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
             let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            let results = try service.searchNotes(query: query, location: location, limit: limit, snippetLength: snippetLength)
+            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
+            let results = try service.searchNotes(query: query, location: location, limit: limit, snippetLength: snippetLength, cursor: cursor)
             return try jsonResult(results)
 
         case "bear_get_notes":
@@ -71,13 +72,15 @@ public final class BearMCPServer: Sendable {
             let location = try MCPArgumentDecoder.location(params.arguments)
             let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
             let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            return try jsonResult(try service.getNotesByTag(tags: tags, location: location, limit: limit, snippetLength: snippetLength))
+            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
+            return try jsonResult(try service.getNotesByTag(tags: tags, location: location, limit: limit, snippetLength: snippetLength, cursor: cursor))
 
-        case "bear_get_active":
+        case "bear_get_notes_by_active_tags":
             let location = try MCPArgumentDecoder.location(params.arguments)
             let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
             let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            return try jsonResult(try service.getActiveNotes(location: location, limit: limit, snippetLength: snippetLength))
+            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
+            return try jsonResult(try service.getNotesByActiveTags(location: location, limit: limit, snippetLength: snippetLength, cursor: cursor))
 
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
@@ -187,7 +190,7 @@ private enum ToolCatalog {
     static let tools: [Tool] = [
         Tool(
             name: "bear_search_notes",
-            description: "Search Bear notes by query and return compact note summaries. Omit location unless the user explicitly asks for archived notes.",
+            description: "Search Bear notes by query and return a paged set of compact note summaries. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object(discoveryProperties([
@@ -223,7 +226,7 @@ private enum ToolCatalog {
         ),
         Tool(
             name: "bear_get_notes_by_tag",
-            description: "Fetch compact note summaries for notes that belong to one or more Bear tags. Omit location unless the user explicitly asks for archived notes.",
+            description: "Fetch a paged set of compact note summaries for notes that belong to one or more Bear tags. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object(discoveryProperties([
@@ -236,8 +239,8 @@ private enum ToolCatalog {
             ])
         ),
         Tool(
-            name: "bear_get_active",
-            description: "Fetch compact note summaries for notes that match the configured active tags. Omit location unless the user explicitly asks for archived notes.",
+            name: "bear_get_notes_by_active_tags",
+            description: "Fetch a paged set of compact note summaries for notes that match the configured active tags. Omit location unless the user explicitly asks for archived notes.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object(discoveryProperties([:])),
@@ -346,6 +349,10 @@ private enum ToolCatalog {
         properties["snippet_length"] = .object([
             "type": .string("integer"),
             "description": .string("Optional snippet length in characters. Uses the configured default when omitted and is capped server-side."),
+        ])
+        properties["cursor"] = .object([
+            "type": .string("string"),
+            "description": .string("Optional opaque pagination cursor returned by a previous discovery page. Omit for the first page and pass back `nextCursor` to continue."),
         ])
         return properties
     }

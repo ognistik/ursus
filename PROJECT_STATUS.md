@@ -89,7 +89,7 @@ The old `get-active` behavior is important.
 Current direction:
 
 - represent active-note listing as an explicit discovery tool
-- `bear_get_active` is driven by configured active tags from config
+- `bear_get_notes_by_active_tags` is driven by configured active tags from config
 - discovery tools return compact note summaries, not full note bodies
 - archive reads are explicit via tool input (`location: notes|archive`), not mixed into default note discovery
 
@@ -128,7 +128,7 @@ Implemented MCP tool names:
 - `bear_get_notes`
 - `bear_list_tags`
 - `bear_get_notes_by_tag`
-- `bear_get_active`
+- `bear_get_notes_by_active_tags`
 - `bear_create_notes`
 - `bear_insert_text`
 - `bear_replace_note_body`
@@ -172,7 +172,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery tools always exclude trashed notes.
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
-- `bear_search_notes`, `bear_get_active`, and `bear_get_notes_by_tag` now share a summary shape with note id, title, snippet, tags, created/modified timestamps, and archive status.
+- `bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags` now share a paged summary shape with note id, title, snippet, tags, created/modified timestamps, archive status, and pagination metadata.
+- Discovery pagination is cursor-based. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and use stable ordering by modified date plus note id.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
 - Discovery limits and snippet lengths are config-driven defaults with per-call overrides and server-side hard caps.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.

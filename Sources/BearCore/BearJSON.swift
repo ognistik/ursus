@@ -7,4 +7,10 @@ public enum BearJSON {
         encoder.dateEncodingStrategy = .iso8601
         return encoder
     }
+
+    public static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
 }

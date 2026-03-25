@@ -15,10 +15,10 @@
 
 - Reads come directly from Bear's local SQLite database.
 - Mutations are submitted through Bear's official x-callback actions.
-- Discovery tools (`bear_search_notes`, `bear_get_active`, and `bear_get_notes_by_tag`) return compact note summaries and reserve `bear_get_notes` for full note bodies.
+- Discovery tools (`bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags`) return paged compact note summaries and reserve `bear_get_notes` for full note bodies.
 - Discovery reads always exclude trashed notes and target either normal notes or archived notes explicitly through `location: notes|archive`.
 - MCP tool descriptions steer clients to omit `location` unless the user explicitly asks for archived notes.
-- Discovery snippet length and result-count defaults come from config, allow per-call overrides, and are capped server-side.
+- Discovery snippet length and result-count defaults come from config, allow per-call overrides, are capped server-side, and page forward with opaque cursor-based continuation.
 - Discovery snippets are template-aware when the current `template.md` can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - `bear_replace_note_body` computes the full note markdown locally, then writes with Bear's `replace_all` mode.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.

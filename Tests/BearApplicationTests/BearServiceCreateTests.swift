@@ -176,10 +176,14 @@ func createNotesCanExplicitlyAppendActiveTagsPerRequest() async throws {
 }
 
 private struct EmptyReadStore: BearReadStore {
-    func searchNotes(_ query: NoteSearchQuery) throws -> [BearNote] { [] }
+    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
+        DiscoveryNoteBatch(notes: [], hasMore: false)
+    }
     func note(id: String) throws -> BearNote? { nil }
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
-    func notes(matchingAnyTags tags: [String], location: BearNoteLocation, limit: Int) throws -> [BearNote] { [] }
+    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
+        DiscoveryNoteBatch(notes: [], hasMore: false)
+    }
     func listTags() throws -> [TagSummary] { [] }
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }
