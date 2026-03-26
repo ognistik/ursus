@@ -26,32 +26,66 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         appendDateConditions(to: &conditions, arguments: &arguments, query: query)
 
         let pagination = paginationClause(for: query.paging.cursor)
+        let ranking = rankingCaseExpression(query: query, noteAlias: "f")
         let sql = """
+            WITH filtered AS (
+                SELECT
+                    n.Z_PK AS pk,
+                    n.ZUNIQUEIDENTIFIER AS noteID,
+                    n.ZTITLE AS title,
+                    n.ZTEXT AS rawText,
+                    n.ZVERSION AS version,
+                    n.ZCREATIONDATE AS creationDate,
+                    n.ZMODIFICATIONDATE AS modificationDate,
+                    n.ZARCHIVED AS archived,
+                    n.ZTRASHED AS trashed,
+                    n.ZENCRYPTED AS encrypted,
+                    COALESCE(GROUP_CONCAT(t.ZTITLE, '|'), '') AS tags
+                FROM ZSFNOTE n
+                LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
+                LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
+                WHERE \(conditions.joined(separator: "\n                    AND "))
+                GROUP BY n.Z_PK
+            ),
+            ranked AS (
+                SELECT
+                    f.pk AS pk,
+                    f.noteID AS noteID,
+                    f.title AS title,
+                    f.rawText AS rawText,
+                    f.version AS version,
+                    f.creationDate AS creationDate,
+                    f.modificationDate AS modificationDate,
+                    f.archived AS archived,
+                    f.trashed AS trashed,
+                    f.encrypted AS encrypted,
+                    f.tags AS tags,
+                    \(ranking.sql) AS relevanceBucket
+                FROM filtered f
+            )
             SELECT
-                n.Z_PK AS pk,
-                n.ZUNIQUEIDENTIFIER AS noteID,
-                n.ZTITLE AS title,
-                n.ZTEXT AS rawText,
-                n.ZVERSION AS version,
-                n.ZCREATIONDATE AS creationDate,
-                n.ZMODIFICATIONDATE AS modificationDate,
-                n.ZARCHIVED AS archived,
-                n.ZTRASHED AS trashed,
-                n.ZENCRYPTED AS encrypted,
-                COALESCE(GROUP_CONCAT(t.ZTITLE, '|'), '') AS tags
-            FROM ZSFNOTE n
-            LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
-            LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
-            WHERE \(conditions.joined(separator: "\n                AND "))
+                pk,
+                noteID,
+                title,
+                rawText,
+                version,
+                creationDate,
+                modificationDate,
+                archived,
+                trashed,
+                encrypted,
+                tags,
+                relevanceBucket
+            FROM ranked
+            WHERE 1 = 1
                 \(pagination.sql)
-            GROUP BY n.Z_PK
-            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
+            ORDER BY relevanceBucket ASC, modificationDate DESC, noteID DESC
             LIMIT ?
             """
 
         return try fetchDiscoveryBatch(
             sql: sql,
-            arguments: arguments + pagination.arguments + [query.paging.limit + 1],
+            arguments: arguments + ranking.arguments + pagination.arguments + [query.paging.limit + 1],
             limit: query.paging.limit
         )
     }
@@ -218,11 +252,17 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         return (
             """
             AND (
-                n.ZMODIFICATIONDATE < ?
-                OR (n.ZMODIFICATIONDATE = ? AND n.ZUNIQUEIDENTIFIER < ?)
+                relevanceBucket > ?
+                OR (
+                    relevanceBucket = ?
+                    AND (
+                        modificationDate < ?
+                        OR (modificationDate = ? AND noteID < ?)
+                    )
+                )
             )
             """,
-            [modifiedAt, modifiedAt, cursor.lastNoteID]
+            [cursor.relevanceBucket, cursor.relevanceBucket, modifiedAt, modifiedAt, cursor.lastNoteID]
         )
     }
 
@@ -452,18 +492,106 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         value ? existsSQL : "NOT \(existsSQL)"
     }
 
+    private func rankingCaseExpression(query: FindNotesQuery, noteAlias: String) -> SQLPredicate {
+        guard let text = query.text else {
+            return SQLPredicate(sql: "0", arguments: [])
+        }
+
+        let terms = query.textTerms.isEmpty ? [text] : query.textTerms
+        var clauses: [(Int, SQLPredicate)] = []
+
+        if query.searchFields.contains(.title) {
+            clauses.append((1, likePredicate(expression: titleExpression(noteAlias: noteAlias), pattern: likePattern(for: text))))
+            clauses.append((4, likePredicate(expression: titleExpression(noteAlias: noteAlias), pattern: likeOrderedPattern(for: terms))))
+            clauses.append((7, allLikePredicate(expression: titleExpression(noteAlias: noteAlias), terms: terms)))
+        }
+
+        if query.searchFields.contains(.body) {
+            let expression = bodySearchExpression(rawTextExpression: "\(noteAlias).rawText", titleExpression: "\(noteAlias).title")
+            clauses.append((2, likePredicate(expression: expression, pattern: likePattern(for: text))))
+            clauses.append((5, likePredicate(expression: expression, pattern: likeOrderedPattern(for: terms))))
+            clauses.append((8, allLikePredicate(expression: expression, terms: terms)))
+        }
+
+        if query.searchFields.contains(.attachments) {
+            clauses.append((3, attachmentLikePredicate(notePKExpression: "\(noteAlias).pk", pattern: likePattern(for: text))))
+            clauses.append((6, attachmentLikePredicate(notePKExpression: "\(noteAlias).pk", pattern: likeOrderedPattern(for: terms))))
+            clauses.append((9, attachmentAllLikePredicate(notePKExpression: "\(noteAlias).pk", terms: terms)))
+        }
+
+        guard !clauses.isEmpty else {
+            return SQLPredicate(sql: "10", arguments: [])
+        }
+
+        let sql = """
+        CASE
+            \(clauses.map { "WHEN \($0.1.sql) THEN \($0.0)" }.joined(separator: "\n            "))
+            ELSE 10
+        END
+        """
+
+        return SQLPredicate(sql: sql, arguments: clauses.flatMap(\.1.arguments))
+    }
+
+    private func titleExpression(noteAlias: String) -> String {
+        "COALESCE(\(noteAlias).title, '')"
+    }
+
     private func bodySearchExpression() -> String {
+        bodySearchExpression(rawTextExpression: "n.ZTEXT", titleExpression: "n.ZTITLE")
+    }
+
+    private func bodySearchExpression(rawTextExpression: String, titleExpression: String) -> String {
         """
         CASE
-            WHEN n.ZTEXT = '# ' || COALESCE(n.ZTITLE, '') THEN ''
-            WHEN n.ZTEXT LIKE '# ' || COALESCE(n.ZTITLE, '') || char(10) || '%' THEN SUBSTR(n.ZTEXT, LENGTH('# ' || COALESCE(n.ZTITLE, '')) + 3)
-            ELSE n.ZTEXT
+            WHEN \(rawTextExpression) = '# ' || COALESCE(\(titleExpression), '') THEN ''
+            WHEN \(rawTextExpression) LIKE '# ' || COALESCE(\(titleExpression), '') || char(10) || '%' THEN SUBSTR(\(rawTextExpression), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3)
+            ELSE \(rawTextExpression)
         END
         """
     }
 
     private func likePattern(for query: String) -> String {
         "%\(query.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_"))%"
+    }
+
+    private func likeOrderedPattern(for terms: [String]) -> String {
+        let escapedTerms = terms.map {
+            $0.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_")
+        }
+        return "%" + escapedTerms.joined(separator: "%") + "%"
+    }
+
+    private func likePredicate(expression: String, pattern: String) -> SQLPredicate {
+        SQLPredicate(sql: "\(expression) LIKE ? ESCAPE '\\'", arguments: [pattern])
+    }
+
+    private func allLikePredicate(expression: String, terms: [String]) -> SQLPredicate {
+        let patterns = terms.map(likePattern(for:))
+        return SQLPredicate(
+            sql: "(" + Array(repeating: "\(expression) LIKE ? ESCAPE '\\'", count: patterns.count).joined(separator: " AND ") + ")",
+            arguments: patterns
+        )
+    }
+
+    private func attachmentLikePredicate(notePKExpression: String, pattern: String) -> SQLPredicate {
+        SQLPredicate(
+            sql: """
+            EXISTS (
+                SELECT 1
+                FROM ZSFNOTEFILE f
+                WHERE f.ZNOTE = \(notePKExpression)
+                    AND f.ZPERMANENTLYDELETED = 0
+                    AND COALESCE(f.ZSEARCHTEXT, '') LIKE ? ESCAPE '\\'
+            )
+            """,
+            arguments: [pattern]
+        )
+    }
+
+    private func attachmentAllLikePredicate(notePKExpression: String, terms: [String]) -> SQLPredicate {
+        let parts = terms.map { attachmentLikePredicate(notePKExpression: notePKExpression, pattern: likePattern(for: $0)) }
+        return combinePredicates(parts, joiner: "AND")
     }
 
     private func tagDescendantPattern(for parentTag: String) -> String {
@@ -514,9 +642,16 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         arguments: [DatabaseValueConvertible],
         limit: Int
     ) throws -> DiscoveryNoteBatch {
-        let notes = try fetchNotes(sql: sql, arguments: arguments)
-        let hasMore = notes.count > limit
-        return DiscoveryNoteBatch(notes: Array(notes.prefix(limit)), hasMore: hasMore)
+        let items = try databaseQueue.read { db in
+            try NoteRow.fetchAll(
+                db,
+                sql: sql,
+                arguments: StatementArguments(arguments) ?? StatementArguments()
+            )
+            .map(\.rankedNote)
+        }
+        let hasMore = items.count > limit
+        return DiscoveryNoteBatch(items: Array(items.prefix(limit)), hasMore: hasMore)
     }
 }
 
@@ -536,6 +671,7 @@ private struct NoteRow: FetchableRecord, Decodable {
     let trashed: Int?
     let encrypted: Int?
     let tags: String?
+    let relevanceBucket: Int?
 
     var note: BearNote {
         let resolvedTitle = title ?? ""
@@ -557,6 +693,10 @@ private struct NoteRow: FetchableRecord, Decodable {
             trashed: (trashed ?? 0) != 0,
             encrypted: (encrypted ?? 0) != 0
         )
+    }
+
+    var rankedNote: DiscoveryRankedNote {
+        DiscoveryRankedNote(note: note, relevanceBucket: relevanceBucket ?? 0)
     }
 
     private func splitTags(_ tags: String?) -> [String] {

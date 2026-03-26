@@ -344,10 +344,21 @@ public enum DiscoveryKind: String, Codable, Hashable, Sendable {
 public struct DiscoveryCursor: Codable, Hashable, Sendable {
     public static let currentVersion = 1
 
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case kind
+        case location
+        case filterKey
+        case relevanceBucket
+        case lastModifiedAt
+        case lastNoteID
+    }
+
     public let version: Int
     public let kind: DiscoveryKind
     public let location: BearNoteLocation
     public let filterKey: String
+    public let relevanceBucket: Int
     public let lastModifiedAt: Date
     public let lastNoteID: String
 
@@ -356,6 +367,7 @@ public struct DiscoveryCursor: Codable, Hashable, Sendable {
         kind: DiscoveryKind,
         location: BearNoteLocation,
         filterKey: String,
+        relevanceBucket: Int = 0,
         lastModifiedAt: Date,
         lastNoteID: String
     ) {
@@ -363,8 +375,31 @@ public struct DiscoveryCursor: Codable, Hashable, Sendable {
         self.kind = kind
         self.location = location
         self.filterKey = filterKey
+        self.relevanceBucket = relevanceBucket
         self.lastModifiedAt = lastModifiedAt
         self.lastNoteID = lastNoteID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+        self.kind = try container.decode(DiscoveryKind.self, forKey: .kind)
+        self.location = try container.decode(BearNoteLocation.self, forKey: .location)
+        self.filterKey = try container.decode(String.self, forKey: .filterKey)
+        self.relevanceBucket = try container.decodeIfPresent(Int.self, forKey: .relevanceBucket) ?? 0
+        self.lastModifiedAt = try container.decode(Date.self, forKey: .lastModifiedAt)
+        self.lastNoteID = try container.decode(String.self, forKey: .lastNoteID)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(kind, forKey: .kind)
+        try container.encode(location, forKey: .location)
+        try container.encode(filterKey, forKey: .filterKey)
+        try container.encode(relevanceBucket, forKey: .relevanceBucket)
+        try container.encode(lastModifiedAt, forKey: .lastModifiedAt)
+        try container.encode(lastNoteID, forKey: .lastNoteID)
     }
 }
 
@@ -429,6 +464,7 @@ private struct CompactDiscoveryCursorPayload: Codable {
     let k: DiscoveryKind
     let l: BearNoteLocation
     let f: String
+    let r: Int?
     let m: Double
     let i: String
 
@@ -437,6 +473,7 @@ private struct CompactDiscoveryCursorPayload: Codable {
         self.k = cursor.kind
         self.l = cursor.location
         self.f = cursor.filterKey
+        self.r = cursor.relevanceBucket
         self.m = cursor.lastModifiedAt.timeIntervalSinceReferenceDate
         self.i = cursor.lastNoteID
     }
@@ -447,18 +484,41 @@ private struct CompactDiscoveryCursorPayload: Codable {
             kind: k,
             location: l,
             filterKey: f,
+            relevanceBucket: r ?? 0,
             lastModifiedAt: Date(timeIntervalSinceReferenceDate: m),
             lastNoteID: i
         )
     }
 }
 
+public struct DiscoveryRankedNote: Hashable, Sendable {
+    public let note: BearNote
+    public let relevanceBucket: Int
+
+    public init(note: BearNote, relevanceBucket: Int = 0) {
+        self.note = note
+        self.relevanceBucket = relevanceBucket
+    }
+}
+
 public struct DiscoveryNoteBatch: Hashable, Sendable {
-    public let notes: [BearNote]
+    public let items: [DiscoveryRankedNote]
     public let hasMore: Bool
 
-    public init(notes: [BearNote], hasMore: Bool) {
-        self.notes = notes
+    public var notes: [BearNote] {
+        items.map(\.note)
+    }
+
+    public init(notes: [BearNote], hasMore: Bool, relevanceBuckets: [Int]? = nil) {
+        let buckets = relevanceBuckets ?? Array(repeating: 0, count: notes.count)
+        self.items = notes.enumerated().map { index, note in
+            DiscoveryRankedNote(note: note, relevanceBucket: index < buckets.count ? buckets[index] : 0)
+        }
+        self.hasMore = hasMore
+    }
+
+    public init(items: [DiscoveryRankedNote], hasMore: Bool) {
+        self.items = items
         self.hasMore = hasMore
     }
 }

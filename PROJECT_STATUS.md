@@ -179,12 +179,13 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
-- Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and use stable ordering by modified date plus note id.
+- Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
 - Discovery limits and snippet lengths are config-driven defaults with per-operation overrides and server-side hard caps.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Attachment snippets are built from `ZSFNOTEFILE.ZSEARCHTEXT` in attachment insertion order and truncated with the same configured snippet limit.
 - `bear_find_notes` supports query-less filtering by tags, presence flags, or dates and accepts supported past/present natural-language date phrases that are resolved server-side in the local timezone.
+- Text discovery now applies deterministic ranking when `text` is present: exact full-query phrase matches sort ahead of ordered-term matches, which sort ahead of unordered all-term matches, with ties broken by modified date plus note id. Filter-only discovery still uses pure recency ordering.
 - `from` and `to` are inclusive bounds rather than named-period presets; using the same phrase on both sides narrows the query to that one resolved interval.
 - Notes are normalized into typed models.
 - Full note fetches now return a lean structured record with `noteID`, `title`, canonical template-aware `content`, tags, timestamps, version, and per-file attachment records including Bear's attachment search text when available.
@@ -220,7 +221,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Token/keychain-backed x-callback actions are not wired yet.
-- Find is functional but still ranking-free; exact relevance scoring can be improved later.
+- Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
 - Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.
 - The preferred shared runtime lock lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.

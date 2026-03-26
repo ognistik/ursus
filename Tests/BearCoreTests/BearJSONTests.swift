@@ -21,6 +21,7 @@ func discoveryCursorCoderRoundTrips() throws {
         kind: .notesByTag,
         location: .archive,
         filterKey: "project",
+        relevanceBucket: 4,
         lastModifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
         lastNoteID: "note-123"
     )
@@ -42,6 +43,7 @@ func discoveryCursorCoderDecodesLegacyVerboseToken() throws {
     #expect(cursor.version == 1)
     #expect(cursor.kind == .notesByTag)
     #expect(cursor.location == .notes)
+    #expect(cursor.relevanceBucket == 0)
     #expect(cursor.filterKey == "3-resources/workflows")
     #expect(cursor.lastNoteID == "B846D33C-C88D-43CA-B451-ACBD8E07CABE")
 }

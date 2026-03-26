@@ -374,14 +374,15 @@ public final class BearService: @unchecked Sendable {
             query: query
         )
         let nextCursor: String?
-        if batch.hasMore, let lastNote = batch.notes.last {
+        if batch.hasMore, let lastItem = batch.items.last {
             nextCursor = try DiscoveryCursorCoder.encode(
                 DiscoveryCursor(
                     kind: .findNotes,
                     location: query.location,
                     filterKey: filterKey,
-                    lastModifiedAt: lastNote.revision.modifiedAt,
-                    lastNoteID: lastNote.ref.identifier
+                    relevanceBucket: lastItem.relevanceBucket,
+                    lastModifiedAt: lastItem.note.revision.modifiedAt,
+                    lastNoteID: lastItem.note.ref.identifier
                 )
             )
         } else {

@@ -23,7 +23,8 @@
 - MCP tool descriptions steer clients to omit `location` unless the user explicitly asks for archived notes, and tag-specific descriptions point clients back to `bear_list_tags` when a canonical tag name must be discovered first.
 - Discovery inputs are batched with `operations: []`, and each operation returns either a summary page or an inline error without failing sibling operations.
 - Discovery limit and snippet-length defaults come from config, allow per-operation overrides, and are capped server-side.
-- Discovery pagination remains cursor-based per operation, with opaque cursors keyed by a digest of the normalized filter set.
+- Discovery pagination remains cursor-based per operation, with opaque cursors keyed by a digest of the normalized filter set and the full internal sort key.
+- When a discovery request includes `text`, the shared find engine applies deterministic ranking: exact full-query phrase matches first, then ordered-term matches, then unordered all-term matches, with modified date and note id as tie-breakers. Filter-only discovery remains recency-sorted.
 - Discovery summaries keep a template-aware body `snippet`, add optional `attachmentSnippet` when attachment OCR/index text exists, and include `matchedFields` when a text filter is part of the request.
 - `bear_find_notes` accepts text, tag, active-tag, presence, and date filters. Presence filters cover attachments, non-empty attachment indexed/OCR text, and tag presence.
 - Natural-language date phrases for discovery are resolved by the server in the local timezone and are intentionally limited to present/past-oriented phrases such as `today`, `this week`, `last week`, and `last 7 days`.

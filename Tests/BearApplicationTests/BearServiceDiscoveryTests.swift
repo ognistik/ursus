@@ -144,7 +144,7 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
         modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
     )
     let readStore = DiscoveryReadStore(findBatches: [
-        DiscoveryNoteBatch(notes: [first], hasMore: true),
+        DiscoveryNoteBatch(notes: [first], hasMore: true, relevanceBuckets: [2]),
         DiscoveryNoteBatch(notes: [second], hasMore: false),
     ])
     let service = BearService(
@@ -163,6 +163,7 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
     #expect(firstBatch.results.first?.page?.hasMore == true)
     #expect(cursor.kind == .findNotes)
     #expect(cursor.location == .notes)
+    #expect(cursor.relevanceBucket == 2)
     #expect(cursor.lastNoteID == "note-2")
 
     let secondBatch = try service.findNotes([
@@ -173,6 +174,7 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
     #expect(secondBatch.results.first?.page?.hasMore == false)
     #expect(secondBatch.results.first?.page?.nextCursor == nil)
     #expect(readStore.findQueries.count == 2)
+    #expect(readStore.findQueries.last?.paging.cursor?.relevanceBucket == 2)
     #expect(readStore.findQueries.last?.paging.cursor?.lastNoteID == "note-2")
 }
 

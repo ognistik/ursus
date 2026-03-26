@@ -239,7 +239,327 @@ func databaseReaderFindNotesMatchesBodyAndAttachmentText() throws {
 
     let batch = try reader.findNotes(query)
 
+    #expect(batch.notes.map(\.ref.identifier) == ["note-1", "note-2"])
+    #expect(batch.items.map(\.relevanceBucket) == [2, 3])
+}
+
+@Test
+func databaseReaderFindNotesKeepsFilterOnlyDiscoveryInRecencyOrder() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertTag(db, pk: 10, title: "project", identifier: "tag-project")
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Older",
+            rawText: "# Older\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Newest",
+            rawText: "# Newest\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+        try insertTag(db, pk: 11, title: "notes", identifier: "tag-notes")
+        try attachTag(db, notePK: 1, tagPK: 10)
+        try attachTag(db, notePK: 2, tagPK: 10)
+        try attachTag(db, notePK: 2, tagPK: 11)
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let batch = try reader.findNotes(
+        FindNotesQuery(
+            text: nil,
+            textMode: .substring,
+            textTerms: [],
+            textNot: [],
+            searchFields: [.title, .body, .attachments],
+            tagsAny: ["project"],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
     #expect(batch.notes.map(\.ref.identifier) == ["note-2", "note-1"])
+    #expect(batch.items.map(\.relevanceBucket) == [0, 0])
+}
+
+@Test
+func databaseReaderFindNotesRanksTitlePhraseBeforeNewerBodyPhrase() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Searching these words",
+            rawText: "# Searching these words\n\nOlder body",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Fresh note",
+            rawText: "# Fresh note\n\nBody mentions searching these words here",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let batch = try reader.findNotes(
+        FindNotesQuery(
+            text: "searching these words",
+            textMode: .substring,
+            textTerms: ["searching these words"],
+            textNot: [],
+            searchFields: [.title, .body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-1", "note-2"])
+    #expect(batch.items.map(\.relevanceBucket) == [1, 2])
+}
+
+@Test
+func databaseReaderFindNotesRanksBodyPhraseBeforeOrderedTitleMatch() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Body phrase",
+            rawText: "# Body phrase\n\nBody includes searching these words in order",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "searching alpha these beta words",
+            rawText: "# searching alpha these beta words\n\nNewer body",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 40
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let batch = try reader.findNotes(
+        FindNotesQuery(
+            text: "searching these words",
+            textMode: .anyTerms,
+            textTerms: ["searching", "these", "words"],
+            textNot: [],
+            searchFields: [.title, .body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-1", "note-2"])
+    #expect(batch.items.map(\.relevanceBucket) == [2, 4])
+}
+
+@Test
+func databaseReaderFindNotesRanksOrderedTitleBeforeUnorderedTitleMatch() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "searching alpha these beta words",
+            rawText: "# searching alpha these beta words\n\nOlder body",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "words these searching",
+            rawText: "# words these searching\n\nNewer body",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 50
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let batch = try reader.findNotes(
+        FindNotesQuery(
+            text: "searching these words",
+            textMode: .allTerms,
+            textTerms: ["searching", "these", "words"],
+            textNot: [],
+            searchFields: [.title],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-1", "note-2"])
+    #expect(batch.items.map(\.relevanceBucket) == [4, 7])
+}
+
+@Test
+func databaseReaderFindNotesSearchFieldsPreventTitleRankingBoosts() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "searching these words",
+            rawText: "# searching these words\n\nBody says words then searching then these",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Body match",
+            rawText: "# Body match\n\nBody says searching these words exactly",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let batch = try reader.findNotes(
+        FindNotesQuery(
+            text: "searching these words",
+            textMode: .allTerms,
+            textTerms: ["searching", "these", "words"],
+            textNot: [],
+            searchFields: [.body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-2", "note-1"])
+    #expect(batch.items.map(\.relevanceBucket) == [2, 8])
+}
+
+@Test
+func databaseReaderFindNotesPaginatesAcrossRankingBuckets() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "searching these words",
+            rawText: "# searching these words\n\nOldest",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Body phrase",
+            rawText: "# Body phrase\n\nsearching these words in body",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 40
+        )
+        try insertNote(
+            db,
+            pk: 3,
+            noteID: "note-3",
+            title: "searching alpha these beta words",
+            rawText: "# searching alpha these beta words\n\nMiddle",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let query = FindNotesQuery(
+        text: "searching these words",
+        textMode: .anyTerms,
+        textTerms: ["searching", "these", "words"],
+        textNot: [],
+        searchFields: [.title, .body],
+        tagsAny: [],
+        tagsAll: [],
+        tagsNone: [],
+        location: .notes,
+        paging: DiscoveryPaging(limit: 2)
+    )
+
+    let firstBatch = try reader.findNotes(query)
+
+    #expect(firstBatch.notes.map(\.ref.identifier) == ["note-1", "note-2"])
+    #expect(firstBatch.items.map(\.relevanceBucket) == [1, 2])
+    #expect(firstBatch.hasMore == true)
+
+    let cursor = DiscoveryCursor(
+        kind: .findNotes,
+        location: .notes,
+        filterKey: "pagination-test",
+        relevanceBucket: try #require(firstBatch.items.last?.relevanceBucket),
+        lastModifiedAt: try #require(firstBatch.items.last?.note.revision.modifiedAt),
+        lastNoteID: try #require(firstBatch.items.last?.note.ref.identifier)
+    )
+    let secondBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: "searching these words",
+            textMode: .anyTerms,
+            textTerms: ["searching", "these", "words"],
+            textNot: [],
+            searchFields: [.title, .body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 2, cursor: cursor)
+        )
+    )
+
+    #expect(secondBatch.notes.map(\.ref.identifier) == ["note-3"])
+    #expect(secondBatch.items.map(\.relevanceBucket) == [4])
+    #expect(secondBatch.hasMore == false)
 }
 
 @Test
