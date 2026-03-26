@@ -179,11 +179,31 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func insertText(_ requests: [InsertTextRequest]) async throws -> [MutationReceipt] {
-        try await mutateEach(requests) { request in
-            if let expected = request.expectedVersion {
-                try self.assertVersion(noteID: request.noteID, expectedVersion: expected)
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
+            let note = try self.loadNote(id: request.noteID)
+            if let expected = request.expectedVersion, note.revision.version != expected {
+                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
-            return try await self.writeTransport.insertText(request)
+
+            guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
+                return try await self.writeTransport.insertText(request)
+            }
+
+            let updatedContent = self.insertedContent(
+                byApplying: request.text,
+                to: templateMatch.content,
+                position: request.position
+            )
+            let updatedBody = templateMatch.prefix + updatedContent + templateMatch.suffix
+            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+
+            return try await self.writeTransport.replaceAll(
+                noteID: request.noteID,
+                fullText: updatedRawText,
+                presentation: request.presentation
+            )
         }
     }
 
@@ -518,6 +538,16 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func templateContent(for note: BearNote, template: String?, normalizedBody: String? = nil) -> String? {
+        templateBodyMatch(for: note, template: template, normalizedBody: normalizedBody)?
+            .content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func templateBodyMatch(
+        for note: BearNote,
+        template: String?,
+        normalizedBody: String? = nil
+    ) -> TemplateBodyMatch? {
         guard let template else {
             return nil
         }
@@ -535,15 +565,9 @@ public final class BearService: @unchecked Sendable {
             return nil
         }
 
-        let prefix = String(rendered[..<range.lowerBound])
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let suffix = String(rendered[range.upperBound...])
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let body = (normalizedBody ?? canonicalBody(for: note))
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
+        let prefix = normalizedLineEndings(String(rendered[..<range.lowerBound]))
+        let suffix = normalizedLineEndings(String(rendered[range.upperBound...]))
+        let body = normalizedLineEndings(normalizedBody ?? canonicalBody(for: note))
 
         guard body.hasPrefix(prefix), body.hasSuffix(suffix) else {
             return nil
@@ -551,7 +575,45 @@ public final class BearService: @unchecked Sendable {
 
         let start = body.index(body.startIndex, offsetBy: prefix.count)
         let end = body.index(body.endIndex, offsetBy: -suffix.count)
-        return String(body[start..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return TemplateBodyMatch(
+            prefix: prefix,
+            content: String(body[start..<end]),
+            suffix: suffix
+        )
+    }
+
+    private func insertedContent(byApplying insertedText: String, to existingContent: String, position: InsertPosition) -> String {
+        switch position {
+        case .top:
+            return joinedContent(insertedText, existingContent)
+        case .bottom:
+            return joinedContent(existingContent, insertedText)
+        }
+    }
+
+    private func joinedContent(_ leading: String, _ trailing: String) -> String {
+        guard !leading.isEmpty else {
+            return trailing
+        }
+        guard !trailing.isEmpty else {
+            return leading
+        }
+
+        let separator = needsBoundaryNewline(between: leading, and: trailing) ? "\n" : ""
+        return leading + separator + trailing
+    }
+
+    private func needsBoundaryNewline(between leading: String, and trailing: String) -> Bool {
+        guard let trailingCharacterOfLeading = leading.last, let leadingCharacterOfTrailing = trailing.first else {
+            return false
+        }
+        return trailingCharacterOfLeading != "\n" && leadingCharacterOfTrailing != "\n"
+    }
+
+    private func normalizedLineEndings(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
     }
 
     private func canonicalBody(for note: BearNote) -> String {
@@ -575,6 +637,12 @@ public final class BearService: @unchecked Sendable {
         }
 
         return remainder.trimmingCharacters(in: .newlines)
+    }
+
+    private struct TemplateBodyMatch {
+        let prefix: String
+        let content: String
+        let suffix: String
     }
 
     private func noteMatchesLocation(_ note: BearNote, location: BearNoteLocation) -> Bool {

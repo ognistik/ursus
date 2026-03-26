@@ -201,7 +201,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
-- Insert uses Bear add-text with prepend/append mapping and now defaults omitted `position` to config `defaultInsertPosition`.
+- Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Add file uses Bear add-file and now defaults omitted `position` to config `defaultInsertPosition`.
@@ -235,7 +235,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Favor easy local installation and eventual GitHub sharing.
 - Keep the local MCP architecture first-class; remote/proxy work is a separate project.
 - Keep the old Alter/Shortcuts bridge untouched.
-- The create template matters for creation behavior and tag placement.
+- The create template matters for creation behavior, tag placement, and template-aware insert positioning.
 - The MCP surface should stay simple: note mutation tools only expose `open_note` and `new_window`, `bear_open_notes` only exposes `new_window`, `bear_open_tag` accepts a single canonical `tag`, and `bear_rename_tags` only exposes optional `show_window`.
 - Create defaults are config-driven for whether creation opens the note; explicit `open_note` and `new_window` values override config for that request.
 - User-overridable defaults should be reflected in MCP tool descriptions using the live loaded config, but internal-only config should stay out of the schema text.
