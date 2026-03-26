@@ -56,9 +56,10 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.insertTextURL(request: request)
+        BearDebugLog.append("xcallback.insert-text noteID=\(request.noteID) mode=\(request.position.rawValue)")
         try await open(url: url, activates: request.presentation.opensNoteInUI)
 
-        let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
+        let updated = try await waitForNoteMutation(noteID: request.noteID, previous: previous)
         return MutationReceipt(
             noteID: request.noteID,
             title: updated?.title ?? previous?.title,
@@ -70,9 +71,10 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.replaceAllURL(noteID: noteID, fullText: fullText, presentation: presentation)
+        BearDebugLog.append("xcallback.replace-all noteID=\(noteID) textLength=\(fullText.count)")
         try await open(url: url, activates: presentation.opensNoteInUI)
 
-        let updated = try await waitForVersionChange(noteID: noteID, previousVersion: previous?.revision.version)
+        let updated = try await waitForNoteMutation(noteID: noteID, previous: previous)
         return MutationReceipt(
             noteID: noteID,
             title: updated?.title ?? previous?.title,
@@ -83,10 +85,18 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
+        let previousAttachments = try readStore.attachments(noteID: request.noteID)
         let url = try builder.addFileURL(request: request)
+        BearDebugLog.append(
+            "xcallback.add-file noteID=\(request.noteID) filename=\(URL(fileURLWithPath: request.filePath).lastPathComponent) header=\(request.header ?? "nil") mode=\(request.position.rawValue)"
+        )
         try await open(url: url, activates: request.presentation.opensNoteInUI)
 
-        let updated = try await waitForVersionChange(noteID: request.noteID, previousVersion: previous?.revision.version)
+        let updated = try await waitForNoteMutation(
+            noteID: request.noteID,
+            previous: previous,
+            previousAttachmentCount: previousAttachments.count
+        )
         return MutationReceipt(
             noteID: request.noteID,
             title: updated?.title ?? previous?.title,
@@ -173,17 +183,40 @@ public actor BearXCallbackTransport: BearWriteTransport {
         }
     }
 
-    private func waitForVersionChange(noteID: String, previousVersion: Int?) async throws -> BearNote? {
+    private func waitForNoteMutation(
+        noteID: String,
+        previous: BearNote?,
+        previousAttachmentCount: Int? = nil
+    ) async throws -> BearNote? {
         try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             guard let note = try self.readStore.note(id: noteID) else {
                 return nil
             }
 
-            guard let previousVersion else {
+            guard let previous else {
                 return note
             }
 
-            return note.revision.version != previousVersion ? note : nil
+            if note.revision.version != previous.revision.version {
+                return note
+            }
+
+            if note.revision.modifiedAt != previous.revision.modifiedAt {
+                return note
+            }
+
+            if note.rawText != previous.rawText {
+                return note
+            }
+
+            if let previousAttachmentCount {
+                let currentAttachments = try self.readStore.attachments(noteID: noteID)
+                if currentAttachments.count != previousAttachmentCount {
+                    return note
+                }
+            }
+
+            return nil
         }
     }
 

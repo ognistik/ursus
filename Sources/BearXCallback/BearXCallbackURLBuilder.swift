@@ -39,12 +39,23 @@ public struct BearXCallbackURLBuilder: Sendable {
 
     public func addFileURL(request: AddFileRequest) throws -> URL {
         let fileURL = URL(fileURLWithPath: request.filePath)
+        let fileData: Data
+
+        do {
+            fileData = try Data(contentsOf: fileURL)
+        } catch {
+            throw BearError.invalidInput(
+                "Failed to read local file for Bear add-file: \(request.filePath). \(error.localizedDescription)"
+            )
+        }
+
         return try makeURL(
             action: "add-file",
             queryItems: [
                 URLQueryItem(name: "id", value: request.noteID),
-                URLQueryItem(name: "file", value: fileURL.path),
+                URLQueryItem(name: "file", value: fileData.base64EncodedString()),
                 URLQueryItem(name: "filename", value: fileURL.lastPathComponent),
+                URLQueryItem(name: "header", value: request.header),
                 URLQueryItem(name: "mode", value: request.position == .top ? "prepend" : "append"),
             ] + presentationItems(request.presentation)
         )

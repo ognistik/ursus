@@ -232,19 +232,84 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func addFiles(_ requests: [AddFileRequest]) async throws -> [MutationReceipt] {
-        try await mutateEach(requests) { request in
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
             if let expected = request.expectedVersion, note.revision.version != expected {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
-            return try await self.writeTransport.addFile(
+
+            guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
+                return try await self.writeTransport.addFile(
+                    AddFileRequest(
+                        noteID: note.ref.identifier,
+                        filePath: request.filePath,
+                        header: request.header,
+                        position: request.position,
+                        presentation: request.presentation,
+                        expectedVersion: request.expectedVersion
+                    )
+                )
+            }
+
+            let anchor = self.makeAttachmentAnchor()
+            let internalPresentation = BearPresentationOptions(
+                openNote: false,
+                newWindow: false,
+                showWindow: false,
+                edit: false
+            )
+            let anchoredContent = self.insertedContent(
+                byApplying: self.attachmentAnchorMarkdown(anchor),
+                to: templateMatch.content,
+                position: request.position
+            )
+            let anchoredBody = templateMatch.prefix + anchoredContent + templateMatch.suffix
+            let anchoredRawText = BearText.composeRawText(title: note.title, body: anchoredBody)
+
+            let anchorReceipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: anchoredRawText,
+                presentation: internalPresentation
+            )
+            guard anchorReceipt.status == "updated" else {
+                throw BearError.xCallback(
+                    "Could not verify temporary attachment anchor insertion for note \(note.ref.identifier)."
+                )
+            }
+
+            let addFileReceipt = try await self.writeTransport.addFile(
                 AddFileRequest(
                     noteID: note.ref.identifier,
                     filePath: request.filePath,
-                    position: request.position,
-                    presentation: request.presentation,
+                    header: anchor.title,
+                    position: .top,
+                    presentation: internalPresentation,
                     expectedVersion: request.expectedVersion
                 )
+            )
+            guard addFileReceipt.status == "updated" else {
+                throw BearError.xCallback(
+                    "File add could not be verified before attachment anchor cleanup for note \(note.ref.identifier). The temporary header '\(anchor.title)' may remain."
+                )
+            }
+
+            let latestNote = try self.loadNote(id: note.ref.identifier)
+            guard let latestMatch = self.templateBodyMatch(for: latestNote, template: noteTemplate) else {
+                throw BearError.xCallback(
+                    "Could not reconcile templated content after adding a file to note \(note.ref.identifier)."
+                )
+            }
+
+            let cleanedContent = try self.removingAttachmentAnchor(anchor.markdown, from: latestMatch.content)
+            let cleanedBody = latestMatch.prefix + cleanedContent + latestMatch.suffix
+            let cleanedRawText = BearText.composeRawText(title: latestNote.title, body: cleanedBody)
+
+            return try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: cleanedRawText,
+                presentation: request.presentation
             )
         }
     }
@@ -640,6 +705,34 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    private func makeAttachmentAnchor() -> AttachmentAnchor {
+        let token = UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        let title = "BEAR_MCP_ATTACHMENT_\(token)"
+        return AttachmentAnchor(title: title, markdown: "## \(title)")
+    }
+
+    private func attachmentAnchorMarkdown(_ anchor: AttachmentAnchor) -> String {
+        anchor.markdown
+    }
+
+    private func removingAttachmentAnchor(_ anchorMarkdown: String, from content: String) throws -> String {
+        let normalized = normalizedLineEndings(content)
+        var lines = normalized.components(separatedBy: "\n")
+
+        guard let index = lines.firstIndex(of: anchorMarkdown) else {
+            throw BearError.xCallback("Temporary attachment anchor '\(anchorMarkdown)' was not found during cleanup.")
+        }
+
+        lines.remove(at: index)
+        if index == 0 {
+            while lines.first?.isEmpty == true {
+                lines.removeFirst()
+            }
+        }
+
+        return lines.joined(separator: "\n")
+    }
+
     private func joinedContent(_ leading: String, _ trailing: String) -> String {
         guard !leading.isEmpty else {
             return trailing
@@ -701,6 +794,11 @@ public final class BearService: @unchecked Sendable {
         let prefix: String
         let content: String
         let suffix: String
+    }
+
+    private struct AttachmentAnchor {
+        let title: String
+        let markdown: String
     }
 
     private func noteMatchesLocation(_ note: BearNote, location: BearNoteLocation) -> Bool {

@@ -205,7 +205,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
-- Add file uses Bear add-file and now defaults omitted `position` to config `defaultInsertPosition`.
+- Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
@@ -215,7 +215,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Mutations return compact receipts by design.
 - Create currently uses best-effort note discovery by title and recent modification time.
-- Other mutations try to verify completion by polling Bear's DB for version/state changes.
+- Other mutations try to verify completion by polling Bear's DB for concrete note-state changes such as version, modified timestamp, raw text, and attachment-count deltas rather than relying on version bumps alone.
 - Tag rename uses best-effort verification by polling tag lists across both notes and archive locations.
 
 ## Known Gaps / Risks

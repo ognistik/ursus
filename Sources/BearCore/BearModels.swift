@@ -768,6 +768,7 @@ public struct RenameTagRequest: Codable, Hashable, Sendable {
 public struct AddFileRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let filePath: String
+    public let header: String?
     public let position: InsertPosition
     public let presentation: BearPresentationOptions
     public let expectedVersion: Int?
@@ -775,12 +776,14 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
     public init(
         noteID: String,
         filePath: String,
+        header: String? = nil,
         position: InsertPosition,
         presentation: BearPresentationOptions,
         expectedVersion: Int?
     ) {
         self.noteID = noteID
         self.filePath = filePath
+        self.header = header
         self.position = position
         self.presentation = presentation
         self.expectedVersion = expectedVersion

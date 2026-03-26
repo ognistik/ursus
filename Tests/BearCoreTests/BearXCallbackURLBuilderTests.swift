@@ -4,6 +4,37 @@ import Foundation
 import Testing
 
 @Test
+func addFileURLReadsLocalFileAsBase64AndIncludesHeaderTarget() throws {
+    let builder = BearXCallbackURLBuilder()
+    let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("txt")
+    try "payload".write(to: fileURL, atomically: true, encoding: .utf8)
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    let url = try builder.addFileURL(
+        request: AddFileRequest(
+            noteID: "abc123",
+            filePath: fileURL.path,
+            header: "Attachments",
+            position: .bottom,
+            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false),
+            expectedVersion: nil
+        )
+    )
+
+    let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+    let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+
+    #expect(components.path == "/add-file")
+    #expect(items["id"] == "abc123")
+    #expect(items["filename"] == fileURL.lastPathComponent)
+    #expect(items["header"] == "Attachments")
+    #expect(items["mode"] == "append")
+    #expect(items["file"] == Data("payload".utf8).base64EncodedString())
+}
+
+@Test
 func replaceAllURLUsesAddTextAndReplaceAllMode() throws {
     let builder = BearXCallbackURLBuilder()
     let url = try builder.replaceAllURL(
