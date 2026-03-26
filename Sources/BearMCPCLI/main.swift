@@ -28,6 +28,7 @@ struct BearMCPMain {
                     [
                         BearPaths.configFileURL.path,
                         BearPaths.noteTemplateURL.path,
+                        BearPaths.backupsIndexURL.path,
                         BearPaths.processLockURL.path,
                         BearPaths.debugLogURL.path,
                         BearPaths.defaultBearDatabaseURL.path,
@@ -54,10 +55,12 @@ struct BearMCPMain {
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
         let writeTransport = BearXCallbackTransport(readStore: databaseReader)
+        let backupStore = BearBackupFileStore(retentionDays: configuration.backupRetentionDays)
         let service = BearService(
             configuration: configuration,
             readStore: databaseReader,
             writeTransport: writeTransport,
+            backupStore: backupStore,
             logger: logger
         )
 

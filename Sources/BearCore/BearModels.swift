@@ -613,6 +613,71 @@ public struct FindNotesBatchResult: Codable, Hashable, Sendable {
     }
 }
 
+public struct ListBackupsOperation: Codable, Hashable, Sendable {
+    public let id: String?
+    public let noteID: String?
+    public let limit: Int?
+
+    public init(id: String? = nil, noteID: String? = nil, limit: Int? = nil) {
+        self.id = id
+        self.noteID = noteID
+        self.limit = limit
+    }
+}
+
+public struct BearBackupSummary: Codable, Hashable, Sendable {
+    public let snapshotID: String
+    public let noteID: String
+    public let title: String
+    public let version: Int
+    public let modifiedAt: Date
+    public let capturedAt: Date
+    public let reason: BackupReason
+    public let snippet: String?
+
+    public init(
+        snapshotID: String,
+        noteID: String,
+        title: String,
+        version: Int,
+        modifiedAt: Date,
+        capturedAt: Date,
+        reason: BackupReason,
+        snippet: String?
+    ) {
+        self.snapshotID = snapshotID
+        self.noteID = noteID
+        self.title = title
+        self.version = version
+        self.modifiedAt = modifiedAt
+        self.capturedAt = capturedAt
+        self.reason = reason
+        self.snippet = snippet
+    }
+}
+
+public struct ListBackupsOperationResult: Codable, Hashable, Sendable {
+    public let index: Int
+    public let id: String?
+    public let items: [BearBackupSummary]
+    public let error: String?
+
+    public init(index: Int, id: String?, items: [BearBackupSummary] = [], error: String? = nil) {
+        self.index = index
+        self.id = id
+        self.items = items
+        self.error = error
+    }
+}
+
+public struct ListBackupsBatchResult: Codable, Hashable, Sendable {
+    public let results: [ListBackupsOperationResult]
+
+    public init(results: [ListBackupsOperationResult]) {
+        self.results = results
+    }
+}
+
 public struct TagSummary: Codable, Hashable, Sendable {
     public let name: String
     public let identifier: String?
@@ -644,6 +709,13 @@ public enum ReplaceContentKind: String, Codable, Hashable, Sendable {
 public enum ReplaceStringOccurrence: String, Codable, Hashable, Sendable {
     case one
     case all
+}
+
+public enum BackupReason: String, Codable, Hashable, Sendable {
+    case insertText = "insert_text"
+    case replaceContent = "replace_content"
+    case addFile = "add_file"
+    case restore = "restore"
 }
 
 public struct BearPresentationOptions: Codable, Hashable, Sendable {
@@ -798,6 +870,18 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
     }
 }
 
+public struct RestoreBackupRequest: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let snapshotID: String?
+    public let presentation: BearPresentationOptions
+
+    public init(noteID: String, snapshotID: String?, presentation: BearPresentationOptions) {
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+        self.presentation = presentation
+    }
+}
+
 public struct MutationReceipt: Codable, Hashable, Sendable {
     public let noteID: String?
     public let title: String?
@@ -812,6 +896,22 @@ public struct MutationReceipt: Codable, Hashable, Sendable {
     }
 }
 
+public struct RestoreBackupReceipt: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let title: String?
+    public let status: String
+    public let modifiedAt: Date?
+    public let snapshotID: String
+
+    public init(noteID: String, title: String?, status: String, modifiedAt: Date?, snapshotID: String) {
+        self.noteID = noteID
+        self.title = title
+        self.status = status
+        self.modifiedAt = modifiedAt
+        self.snapshotID = snapshotID
+    }
+}
+
 public struct TagMutationReceipt: Codable, Hashable, Sendable {
     public let tag: String
     public let newTag: String?
@@ -821,5 +921,39 @@ public struct TagMutationReceipt: Codable, Hashable, Sendable {
         self.tag = tag
         self.newTag = newTag
         self.status = status
+    }
+}
+
+public struct BearBackupSnapshot: Codable, Hashable, Sendable {
+    public let snapshotID: String
+    public let noteID: String
+    public let title: String
+    public let rawText: String
+    public let version: Int
+    public let modifiedAt: Date
+    public let capturedAt: Date
+    public let reason: BackupReason
+    public let operationGroupID: String?
+
+    public init(
+        snapshotID: String,
+        noteID: String,
+        title: String,
+        rawText: String,
+        version: Int,
+        modifiedAt: Date,
+        capturedAt: Date,
+        reason: BackupReason,
+        operationGroupID: String?
+    ) {
+        self.snapshotID = snapshotID
+        self.noteID = noteID
+        self.title = title
+        self.rawText = rawText
+        self.version = version
+        self.modifiedAt = modifiedAt
+        self.capturedAt = capturedAt
+        self.reason = reason
+        self.operationGroupID = operationGroupID
     }
 }

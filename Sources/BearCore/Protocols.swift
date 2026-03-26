@@ -25,3 +25,9 @@ public protocol BearWriteTransport: Sendable {
     func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt
 }
+
+public protocol BearBackupStore: Sendable {
+    func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) async throws -> BearBackupSummary?
+    func list(noteID: String?, limit: Int?) async throws -> [BearBackupSummary]
+    func snapshot(noteID: String, snapshotID: String?) async throws -> BearBackupSnapshot?
+}

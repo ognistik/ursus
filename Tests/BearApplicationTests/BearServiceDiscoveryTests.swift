@@ -369,7 +369,8 @@ private func makeDiscoveryConfiguration(
     defaultDiscoveryLimit: Int = 20,
     maxDiscoveryLimit: Int = 100,
     defaultSnippetLength: Int = 280,
-    maxSnippetLength: Int = 1_000
+    maxSnippetLength: Int = 1_000,
+    backupRetentionDays: Int = 30
 ) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -384,7 +385,8 @@ private func makeDiscoveryConfiguration(
         defaultDiscoveryLimit: defaultDiscoveryLimit,
         maxDiscoveryLimit: maxDiscoveryLimit,
         defaultSnippetLength: defaultSnippetLength,
-        maxSnippetLength: maxSnippetLength
+        maxSnippetLength: maxSnippetLength,
+        backupRetentionDays: backupRetentionDays
     )
 }
 

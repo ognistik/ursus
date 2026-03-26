@@ -74,6 +74,16 @@ public final class BearMCPServer: Sendable {
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByActiveTagsOperation)
             return try jsonResult(try service.findNotesByActiveTags(operations))
 
+        case "bear_list_backups":
+            let operations = try requiredObjectArray(params.arguments, "operations").map { object in
+                ListBackupsOperation(
+                    id: MCPArgumentDecoder.optionalString(object, "id"),
+                    noteID: MCPArgumentDecoder.optionalString(object, "note"),
+                    limit: MCPArgumentDecoder.optionalInt(object, "limit")
+                )
+            }
+            return try jsonResult(try await service.listBackups(operations))
+
         case "bear_open_tag":
             let tag = try MCPArgumentDecoder.string(params.arguments, "tag")
             return try jsonResult(try await service.openTag(tag))
@@ -180,6 +190,22 @@ public final class BearMCPServer: Sendable {
         case "bear_archive_notes":
             let noteSelectors = try requiredNoteSelectors(params.arguments)
             return try jsonResult(try await service.archiveNotes(noteSelectors))
+
+        case "bear_restore_notes":
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                RestoreBackupRequest(
+                    noteID: try requiredNoteSelector(object),
+                    snapshotID: MCPArgumentDecoder.optionalString(object, "snapshot_id"),
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
+                )
+            }
+            return try jsonResult(try await service.restoreBackups(requests))
 
         default:
             throw BearError.invalidInput("Unknown Bear tool '\(params.name)'.")
@@ -353,6 +379,12 @@ private enum ToolCatalog {
                 operationProperties: findNotesByActiveTagsOperationProperties(configuration: configuration),
                 required: []
             ),
+            batchedDiscoveryTool(
+                name: "bear_list_backups",
+                description: "List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `limit` unless the user explicitly asks for a different number of snapshots. `note` is optional; omit it to list recent backups across notes.",
+                operationProperties: backupListOperationProperties(configuration: configuration),
+                required: []
+            ),
             Tool(
                 name: "bear_open_tag",
                 description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_find_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
@@ -495,6 +527,21 @@ private enum ToolCatalog {
                     "required": .array([.string("notes")]),
                 ])
             ),
+            batchedMutationTool(
+                name: "bear_restore_notes",
+                description: "Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                operationProperties: [
+                    "note": noteSelectorProperty(),
+                    "snapshot_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Optional backup snapshot identifier. Omit to restore the most recent snapshot for the selected note."),
+                    ]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after restoring."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note"],
+                presentationProperties: [:]
+            ),
         ]
     }
 
@@ -613,6 +660,20 @@ private enum ToolCatalog {
                 "description": .string("Optional matching mode over the current configured active tags \(formattedTagList(configuration.activeTags))."),
             ]),
         ], configuration: configuration)
+    }
+
+    private static func backupListOperationProperties(configuration: BearConfiguration) -> [String: Value] {
+        [
+            "id": .object(["type": .string("string")]),
+            "note": .object([
+                "type": .string("string"),
+                "description": .string("Optional note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If omitted, recent backups across notes are returned."),
+            ]),
+            "limit": .object([
+                "type": .string("integer"),
+                "description": .string("Optional number of backup summaries to return. Omit unless the user explicitly asks for a different limit. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
+            ]),
+        ]
     }
 
     private static func discoveryOperationProperties(

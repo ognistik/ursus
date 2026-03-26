@@ -20,7 +20,8 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
     )
     let service = BearService(
         configuration: configuration,
@@ -63,7 +64,8 @@ func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
     )
     let service = BearService(
         configuration: configuration,
@@ -105,7 +107,8 @@ func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
     )
     let service = BearService(
         configuration: configuration,
@@ -148,7 +151,8 @@ func createNotesCanExplicitlyAppendActiveTagsPerRequest() async throws {
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
     )
     let service = BearService(
         configuration: configuration,

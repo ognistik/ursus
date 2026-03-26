@@ -18,7 +18,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         defaultDiscoveryLimit: 7,
         maxDiscoveryLimit: 25,
         defaultSnippetLength: 90,
-        maxSnippetLength: 180
+        maxSnippetLength: 180,
+        backupRetentionDays: 30
     )
 
     let tools = BearMCPServer.toolCatalog(configuration: configuration)
@@ -50,6 +51,14 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
+
+    let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
+    #expect(listBackups.description?.contains("Use this before `bear_restore_notes`") == true)
+    #expect(propertyDescription(named: "limit", in: listBackups)?.contains("Omitted uses `7`") == true)
+
+    let restore = try #require(tool(named: "bear_restore_notes", in: tools))
+    #expect(restore.description?.contains("If `snapshot_id` is omitted, the most recent backup") == true)
+    #expect(propertyDescription(named: "snapshot_id", in: restore)?.contains("most recent snapshot") == true)
 }
 
 @Test
@@ -67,7 +76,8 @@ func toolCatalogInjectsDiscoveryDefaultsAndActiveTags() throws {
         defaultDiscoveryLimit: 11,
         maxDiscoveryLimit: 44,
         defaultSnippetLength: 120,
-        maxSnippetLength: 360
+        maxSnippetLength: 360,
+        backupRetentionDays: 30
     )
 
     let tools = BearMCPServer.toolCatalog(configuration: configuration)

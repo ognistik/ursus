@@ -206,7 +206,8 @@ private func makeGetNotesConfiguration(
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
     )
 }
 

@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength)"
+            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays)"
         )
         return configuration
     }
@@ -66,6 +66,7 @@ public enum BearRuntimeBootstrap {
         let lines = [
             "config: \(BearPaths.configFileURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.configFileURL.path)))]",
             "note-template: \(BearPaths.noteTemplateURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path)))]",
+            "backups-index: \(BearPaths.backupsIndexURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.backupsIndexURL.path)))]",
             "process-lock-primary: \(BearPaths.processLockURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.processLockURL.path)))]",
             "process-lock-fallback: \(BearPaths.fallbackProcessLockURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.fallbackProcessLockURL.path)))]",
             "debug-log: \(BearPaths.debugLogURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.debugLogURL.path)))]",

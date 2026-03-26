@@ -79,7 +79,6 @@ Current implementation follows that direction.
 Tools intentionally excluded for now:
 
 - trash
-- restore
 - unarchive
 
 ### 6. Active notes / discovery
@@ -129,6 +128,7 @@ Implemented MCP tool names:
 - `bear_list_tags`
 - `bear_find_notes_by_tag`
 - `bear_find_notes_by_active_tags`
+- `bear_list_backups`
 - `bear_open_tag`
 - `bear_rename_tags`
 - `bear_create_notes`
@@ -137,6 +137,7 @@ Implemented MCP tool names:
 - `bear_add_files`
 - `bear_open_notes`
 - `bear_archive_notes`
+- `bear_restore_notes`
 
 ## Current File Map
 
@@ -145,6 +146,7 @@ Primary files:
 - `Package.swift`
 - `Sources/BearDB/BearDatabaseReader.swift`
 - `Sources/BearApplication/BearService.swift`
+- `Sources/BearApplication/BearBackupFileStore.swift`
 - `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
 - `Sources/BearXCallback/BearXCallbackTransport.swift`
 - `Sources/BearMCP/BearMCPServer.swift`
@@ -157,6 +159,8 @@ Current local runtime paths are:
 
 - config: `~/.config/bear-mcp/config.json`
 - note template: `~/.config/bear-mcp/template.md`
+- backups: `~/Library/Application Support/bear-mcp/Backups/`
+- backup index: `~/Library/Application Support/bear-mcp/Backups/index.json`
 - process lock (preferred shared path): `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
 - process lock (contention/temp fallback): `TMPDIR/bear-mcp/Runtime/.server.lock` and `TMPDIR/bear-mcp/Runtime/locks/<pid>.server.lock`
 - temporary debug log: `~/Library/Logs/bear-mcp/debug.log`
@@ -195,17 +199,20 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Missing config keys fall back to defaults in memory during load.
 - `bear-mcp --update-config` rewrites `config.json` in canonical current format, preserving existing values while filling in any newer keys.
+- `backupRetentionDays` controls durable backup retention under Application Support. `0` disables capture and prunes stored backups.
 
 ### Mutation side
 
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
+- Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
+- `bear_list_backups` returns compact snapshot summaries for one note or across notes, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
@@ -223,6 +230,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Token/keychain-backed x-callback actions are not wired yet.
+- Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
 - Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.

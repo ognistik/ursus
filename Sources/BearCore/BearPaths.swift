@@ -34,6 +34,14 @@ public enum BearPaths {
             .appendingPathComponent(runtimeDirectoryName, isDirectory: true)
     }
 
+    public static var backupsDirectoryURL: URL {
+        applicationSupportDirectoryURL.appendingPathComponent("Backups", isDirectory: true)
+    }
+
+    public static var backupsIndexURL: URL {
+        backupsDirectoryURL.appendingPathComponent("index.json", isDirectory: false)
+    }
+
     public static var runtimeLockDirectoryURL: URL {
         applicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
     }

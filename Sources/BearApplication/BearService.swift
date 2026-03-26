@@ -7,6 +7,7 @@ public final class BearService: @unchecked Sendable {
     private let configuration: BearConfiguration
     private let readStore: BearReadStore
     private let writeTransport: BearWriteTransport
+    private let backupStore: (any BearBackupStore)?
     private let logger: Logger
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -26,11 +27,13 @@ public final class BearService: @unchecked Sendable {
         configuration: BearConfiguration,
         readStore: BearReadStore,
         writeTransport: BearWriteTransport,
+        backupStore: (any BearBackupStore)? = nil,
         logger: Logger
     ) {
         self.configuration = configuration
         self.readStore = readStore
         self.writeTransport = writeTransport
+        self.backupStore = backupStore
         self.logger = logger
     }
 
@@ -105,6 +108,32 @@ public final class BearService: @unchecked Sendable {
                 )
             }
         )
+    }
+
+    public func listBackups(_ operations: [ListBackupsOperation]) async throws -> ListBackupsBatchResult {
+        guard !operations.isEmpty else {
+            throw BearError.invalidInput("Missing required array argument 'operations'.")
+        }
+
+        let results = try await mutateEach(Array(operations.enumerated())) { entry in
+            let (index, operation) = entry
+            do {
+                let noteID = try self.resolvedBackupNoteID(operation.noteID)
+                let items = try await self.backupStore?.list(
+                    noteID: noteID,
+                    limit: self.resolvedDiscoveryLimit(operation.limit)
+                ) ?? []
+                return ListBackupsOperationResult(index: index, id: operation.id, items: items)
+            } catch {
+                return ListBackupsOperationResult(
+                    index: index,
+                    id: operation.id,
+                    error: Self.renderOperationError(error)
+                )
+            }
+        }
+
+        return ListBackupsBatchResult(results: results)
     }
 
     public func getNotes(selectors: [String], location: BearNoteLocation) throws -> [BearFetchedNote] {
@@ -187,6 +216,7 @@ public final class BearService: @unchecked Sendable {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
+            try await self.captureBackupIfNeeded(for: note, reason: .insertText)
             guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
                 return try await self.writeTransport.insertText(
                     InsertTextRequest(
@@ -224,6 +254,7 @@ public final class BearService: @unchecked Sendable {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
+            try await self.captureBackupIfNeeded(for: note, reason: .replaceContent)
             let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
@@ -242,6 +273,7 @@ public final class BearService: @unchecked Sendable {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
+            try await self.captureBackupIfNeeded(for: note, reason: .addFile)
             guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
                 return try await self.writeTransport.addFile(
                     AddFileRequest(
@@ -353,6 +385,35 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
+        try await mutateEach(requests) { request in
+            let note = try self.resolveNoteSelector(request.noteID)
+            guard let snapshot = try await self.backupStore?.snapshot(
+                noteID: note.ref.identifier,
+                snapshotID: request.snapshotID
+            ) else {
+                if let snapshotID = request.snapshotID {
+                    throw BearError.notFound("Backup snapshot '\(snapshotID)' was not found for note \(note.ref.identifier).")
+                }
+                throw BearError.notFound("No backup snapshots were found for note \(note.ref.identifier).")
+            }
+
+            try await self.captureBackupIfNeeded(for: note, reason: .restore)
+            let receipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: snapshot.rawText,
+                presentation: request.presentation
+            )
+            return RestoreBackupReceipt(
+                noteID: note.ref.identifier,
+                title: receipt.title ?? note.title,
+                status: receipt.status,
+                modifiedAt: receipt.modifiedAt,
+                snapshotID: snapshot.snapshotID
+            )
+        }
+    }
+
     private func updatedRawText(note: BearNote, request: ReplaceContentRequest, template: String?) throws -> String {
         try validateReplaceContentRequest(request)
 
@@ -388,6 +449,22 @@ public final class BearService: @unchecked Sendable {
         return note
     }
 
+    private func captureBackupIfNeeded(
+        for note: BearNote,
+        reason: BackupReason,
+        operationGroupID: String = UUID().uuidString
+    ) async throws {
+        guard let backupStore else {
+            return
+        }
+
+        _ = try await backupStore.capture(
+            note: note,
+            reason: reason,
+            operationGroupID: operationGroupID
+        )
+    }
+
     private func resolveNoteSelector(_ selector: String) throws -> BearNote {
         let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -411,6 +488,14 @@ public final class BearService: @unchecked Sendable {
         default:
             throw BearError.ambiguous("Note selector '\(trimmed)' matched \(titleMatches.count) notes. Use the note id.")
         }
+    }
+
+    private func resolvedBackupNoteID(_ selector: String?) throws -> String? {
+        guard let selector else {
+            return nil
+        }
+
+        return try resolveNoteSelector(selector).ref.identifier
     }
 
     private func assertVersion(noteID: String, expectedVersion: Int) throws {
@@ -1429,22 +1514,11 @@ public final class BearService: @unchecked Sendable {
         return max(1, min(value > 0 ? value : resolvedFallback, resolvedMaximum))
     }
 
-    private func mutateEach<Input>(
+    private func mutateEach<Input, Output>(
         _ inputs: [Input],
-        operation: (Input) async throws -> MutationReceipt
-    ) async throws -> [MutationReceipt] {
-        var receipts: [MutationReceipt] = []
-        for input in inputs {
-            receipts.append(try await operation(input))
-        }
-        return receipts
-    }
-
-    private func mutateEach<Input>(
-        _ inputs: [Input],
-        operation: (Input) async throws -> TagMutationReceipt
-    ) async throws -> [TagMutationReceipt] {
-        var receipts: [TagMutationReceipt] = []
+        operation: (Input) async throws -> Output
+    ) async throws -> [Output] {
+        var receipts: [Output] = []
         for input in inputs {
             receipts.append(try await operation(input))
         }

@@ -27,12 +27,14 @@
 - When a discovery request includes `text`, the shared find engine applies deterministic ranking: exact full-query phrase matches first, then ordered-term matches, then unordered all-term matches, with modified date and note id as tie-breakers. Filter-only discovery remains recency-sorted.
 - Discovery summaries keep a template-aware body `snippet`, add optional `attachmentSnippet` when attachment OCR/index text exists, and include `matchedFields` when a text filter is part of the request.
 - `bear_find_notes` accepts text, tag, active-tag, presence, and date filters. Presence filters cover attachments, non-empty attachment indexed/OCR text, and tag presence.
+- `bear_list_backups` is a compact discovery surface over durable note backup snapshots stored under Application Support, and `bear_restore_notes` is the explicit mutation surface for restoring one of those snapshots.
 - Natural-language date phrases for discovery are resolved by the server in the local timezone and are intentionally limited to present/past-oriented phrases such as `today`, `this week`, `last week`, and `last 7 days`.
 - `from` and `to` are inclusive bounds, so filtering to one named period can use the same phrase on both sides when needed.
 - Full note fetches expose a single canonical `content` field derived from normalized raw markdown, strip template wrapper noise when the current template matches, and return attachment metadata plus Bear's extracted attachment search text separately instead of duplicating `body` and `rawText`. The exposed note `version` is backed by Bear's SQLite row revision field (`Z_OPT`) so optimistic mutation guards can observe real note changes.
 - Note-targeting mutation tools accept selector-style note inputs at the MCP surface. Each selector resolves as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - `bear_replace_content` computes the final full note markdown locally from protected edit intents, then writes with Bear's `replace_all` mode.
 - `bear_replace_content` is template-aware: title edits rebuild the note with the new title, body edits replace only editable content, and surgical string replacement is limited to editable content rather than full raw note markdown.
+- Before note-destructive mutations, the service captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under `~/Library/Application Support/bear-mcp/Backups`. Template-aware internal multi-step writes such as attachment anchor cleanup are treated as one logical operation so backup history does not record temporary transport states.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.
 - `bear_insert_text` preserves templated note structure when possible: if template management is enabled and the current note matches the active `template.md`, the service inserts at the top or bottom of the extracted `{{content}}` region and then writes the full note back with `replace_all`; otherwise it falls back to Bear's direct prepend/append add-text path.
 - `bear_add_files` now follows the same template-aware planning model: if the current note matches the active `template.md`, the service inserts a temporary backend-only header anchor inside the extracted `{{content}}` region, targets Bear's `add-file` call at that header using `prepend`, and then removes the temporary header with a final `replace_all` write so the attachment lands inside the template content boundaries. Cleanup tolerates Bear rewriting the anchor line by appending the attachment inline, which avoids leaking the temporary `BEAR_MCP_ATTACHMENT_*` header into user-visible content. Top/bottom placement is controlled by where the anchor is inserted, not by Bear's header-targeted append behavior. Non-templated notes still fall back to Bear's direct prepend/append add-file path.
@@ -46,13 +48,15 @@
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`.
+- Durable backup snapshots live under `~/Library/Application Support/bear-mcp/Backups`, while process locks remain under the sibling `Runtime/` path.
 - `bear-mcp --update-config` rewrites the config file in the latest canonical shape, preserving existing values and filling in any missing keys.
-- Runtime artifacts are kept out of the config folder: the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, with temp-directory fallback locks used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
+- Runtime artifacts are kept out of the config folder: durable backups live under `~/Library/Application Support/bear-mcp/Backups`, the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, temp-directory fallback locks are used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
 - The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
 
 ## Current limits
 
 - Token-backed x-callback actions are not wired yet.
 - Create receipts use best-effort note discovery by title and recent modification time.
+- Backup restore is designed primarily for note-text rollback. Attachment-related restore remains best-effort because replaying saved raw markdown cannot perfectly reverse every attachment-side mutation Bear may have performed.
 - Tag rename uses best-effort verification by polling tag lists across both normal and archived note locations after Bear accepts the x-callback.
 - Debug tracing uses a simple file under `~/Library/Logs/bear-mcp` with size-based rotation.

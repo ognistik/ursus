@@ -33,6 +33,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var maxDiscoveryLimit: Int
     public var defaultSnippetLength: Int
     public var maxSnippetLength: Int
+    public var backupRetentionDays: Int
 
     public init(
         databasePath: String,
@@ -47,7 +48,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultDiscoveryLimit: Int,
         maxDiscoveryLimit: Int,
         defaultSnippetLength: Int,
-        maxSnippetLength: Int
+        maxSnippetLength: Int,
+        backupRetentionDays: Int
     ) {
         self.databasePath = databasePath
         self.activeTags = activeTags
@@ -62,6 +64,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.maxDiscoveryLimit = maxDiscoveryLimit
         self.defaultSnippetLength = defaultSnippetLength
         self.maxSnippetLength = maxSnippetLength
+        self.backupRetentionDays = max(0, backupRetentionDays)
     }
 
     public static var `default`: BearConfiguration {
@@ -78,7 +81,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultDiscoveryLimit: 20,
             maxDiscoveryLimit: 100,
             defaultSnippetLength: 280,
-            maxSnippetLength: 1_000
+            maxSnippetLength: 1_000,
+            backupRetentionDays: 30
         )
     }
 
@@ -96,6 +100,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case maxDiscoveryLimit
         case defaultSnippetLength
         case maxSnippetLength
+        case backupRetentionDays
     }
 
     public init(from decoder: Decoder) throws {
@@ -114,6 +119,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .maxDiscoveryLimit) ?? 100
         defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280
         maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
+        backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
     }
 
     public static func load(from url: URL = BearPaths.configFileURL) throws -> BearConfiguration {
