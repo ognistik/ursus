@@ -50,14 +50,9 @@ public final class BearMCPServer: Sendable {
 
     private func handleToolCall(_ params: CallTool.Parameters) async throws -> CallTool.Result {
         switch params.name {
-        case "bear_search_notes":
-            let query = try MCPArgumentDecoder.string(params.arguments, "query")
-            let location = try MCPArgumentDecoder.location(params.arguments)
-            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
-            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
-            let results = try service.searchNotes(query: query, location: location, limit: limit, snippetLength: snippetLength, cursor: cursor)
-            return try jsonResult(results)
+        case "bear_find_notes":
+            let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesOperation)
+            return try jsonResult(try service.findNotes(operations))
 
         case "bear_get_notes":
             let selectors = MCPArgumentDecoder.stringArray(params.arguments, "notes")
@@ -71,20 +66,13 @@ public final class BearMCPServer: Sendable {
             let underTag = MCPArgumentDecoder.optionalString(params.arguments, "under_tag")
             return try jsonResult(try service.listTags(location: location, query: query, underTag: underTag))
 
-        case "bear_get_notes_by_tag":
-            let tags = MCPArgumentDecoder.stringArray(params.arguments, "tags")
-            let location = try MCPArgumentDecoder.location(params.arguments)
-            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
-            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
-            return try jsonResult(try service.getNotesByTag(tags: tags, location: location, limit: limit, snippetLength: snippetLength, cursor: cursor))
+        case "bear_find_notes_by_tag":
+            let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByTagOperation)
+            return try jsonResult(try service.findNotesByTag(operations))
 
-        case "bear_get_notes_by_active_tags":
-            let location = try MCPArgumentDecoder.location(params.arguments)
-            let limit = MCPArgumentDecoder.optionalInt(params.arguments, "limit")
-            let snippetLength = MCPArgumentDecoder.optionalInt(params.arguments, "snippet_length")
-            let cursor = MCPArgumentDecoder.optionalString(params.arguments, "cursor")
-            return try jsonResult(try service.getNotesByActiveTags(location: location, limit: limit, snippetLength: snippetLength, cursor: cursor))
+        case "bear_find_notes_by_active_tags":
+            let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByActiveTagsOperation)
+            return try jsonResult(try service.findNotesByActiveTags(operations))
 
         case "bear_open_tag":
             let tag = try MCPArgumentDecoder.string(params.arguments, "tag")
@@ -196,6 +184,58 @@ public final class BearMCPServer: Sendable {
         return value
     }
 
+    private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
+        let values = MCPArgumentDecoder.objectArray(arguments, key)
+        guard !values.isEmpty else {
+            throw BearError.invalidInput("Missing required array argument '\(key)'.")
+        }
+        return values
+    }
+
+    private func decodeFindNotesOperation(_ object: [String: Value]) throws -> FindNotesOperation {
+        FindNotesOperation(
+            id: MCPArgumentDecoder.optionalString(object, "id"),
+            text: MCPArgumentDecoder.optionalString(object, "text"),
+            textMode: try MCPArgumentDecoder.findTextMode(object),
+            textNot: MCPArgumentDecoder.stringArray(object, "text_not"),
+            searchFields: try MCPArgumentDecoder.findSearchFields(object),
+            tagsAny: MCPArgumentDecoder.stringArray(object, "tags_any"),
+            tagsAll: MCPArgumentDecoder.stringArray(object, "tags_all"),
+            tagsNone: MCPArgumentDecoder.stringArray(object, "tags_none"),
+            activeTagsMode: try MCPArgumentDecoder.optionalFindTagMatchMode(object, key: "active_tags_mode"),
+            dateField: try MCPArgumentDecoder.optionalFindDateField(object, key: "date_field"),
+            from: MCPArgumentDecoder.optionalString(object, "from"),
+            to: MCPArgumentDecoder.optionalString(object, "to"),
+            location: try MCPArgumentDecoder.location(object),
+            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
+            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
+            cursor: MCPArgumentDecoder.optionalString(object, "cursor")
+        )
+    }
+
+    private func decodeFindNotesByTagOperation(_ object: [String: Value]) throws -> FindNotesByTagOperation {
+        FindNotesByTagOperation(
+            id: MCPArgumentDecoder.optionalString(object, "id"),
+            tags: MCPArgumentDecoder.stringArray(object, "tags"),
+            tagMatch: try MCPArgumentDecoder.findTagMatchMode(object, key: "tag_match"),
+            location: try MCPArgumentDecoder.location(object),
+            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
+            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
+            cursor: MCPArgumentDecoder.optionalString(object, "cursor")
+        )
+    }
+
+    private func decodeFindNotesByActiveTagsOperation(_ object: [String: Value]) throws -> FindNotesByActiveTagsOperation {
+        FindNotesByActiveTagsOperation(
+            id: MCPArgumentDecoder.optionalString(object, "id"),
+            match: try MCPArgumentDecoder.findTagMatchMode(object, key: "match"),
+            location: try MCPArgumentDecoder.location(object),
+            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
+            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
+            cursor: MCPArgumentDecoder.optionalString(object, "cursor")
+        )
+    }
+
     private static func renderError(_ error: Error) -> String {
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
@@ -206,19 +246,11 @@ public final class BearMCPServer: Sendable {
 
 private enum ToolCatalog {
     static let tools: [Tool] = [
-        Tool(
-            name: "bear_search_notes",
-            description: "Search Bear notes by query and return a paged set of compact note summaries. Omit location unless the user explicitly asks for archived notes.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object(discoveryProperties([
-                    "query": .object([
-                        "type": .string("string"),
-                        "description": .string("Search text to match against note titles and note text."),
-                    ]),
-                ])),
-                "required": .array([.string("query")]),
-            ])
+        batchedDiscoveryTool(
+            name: "bear_find_notes",
+            description: "Find Bear notes with text, tag, active-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
+            operationProperties: findNotesOperationProperties(),
+            required: []
         ),
         Tool(
             name: "bear_get_notes",
@@ -261,31 +293,21 @@ private enum ToolCatalog {
                 ]),
             ])
         ),
-        Tool(
-            name: "bear_get_notes_by_tag",
-            description: "Fetch a paged set of compact note summaries for notes that belong to one or more Bear tags. If the tag name is uncertain, call `bear_list_tags` first to discover the canonical name. Use `bear_open_tag` instead when the goal is to navigate Bear's UI to a single tag. Omit location unless the user explicitly asks for archived notes.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object(discoveryProperties([
-                    "tags": .object([
-                        "type": .string("array"),
-                        "items": .object(["type": .string("string")]),
-                    ]),
-                ])),
-                "required": .array([.string("tags")]),
-            ])
+        batchedDiscoveryTool(
+            name: "bear_find_notes_by_tag",
+            description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
+            operationProperties: findNotesByTagOperationProperties(),
+            required: ["tags"]
         ),
-        Tool(
-            name: "bear_get_notes_by_active_tags",
-            description: "Fetch a paged set of compact note summaries for notes that match the configured active tags. Omit location unless the user explicitly asks for archived notes.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object(discoveryProperties([:])),
-            ])
+        batchedDiscoveryTool(
+            name: "bear_find_notes_by_active_tags",
+            description: "Find Bear notes by the configured active tags and return compact summaries. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
+            operationProperties: findNotesByActiveTagsOperationProperties(),
+            required: []
         ),
         Tool(
             name: "bear_open_tag",
-            description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_get_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
+            description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_find_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
@@ -403,7 +425,110 @@ private enum ToolCatalog {
         ),
     ]
 
-    private static func discoveryProperties(_ base: [String: Value]) -> [String: Value] {
+    private static func batchedDiscoveryTool(
+        name: String,
+        description: String,
+        operationProperties: [String: Value],
+        required: [String]
+    ) -> Tool {
+        Tool(
+            name: name,
+            description: description,
+            inputSchema: .object([
+                "type": .string("object"),
+                "properties": .object([
+                    "operations": .object([
+                        "type": .string("array"),
+                        "items": .object([
+                            "type": .string("object"),
+                            "properties": .object(operationProperties),
+                            "required": .array(required.map(Value.string)),
+                        ]),
+                    ]),
+                ]),
+                "required": .array([.string("operations")]),
+            ])
+        )
+    }
+
+    private static func findNotesOperationProperties() -> [String: Value] {
+        discoveryOperationProperties([
+            "id": .object(["type": .string("string")]),
+            "text": .object([
+                "type": .string("string"),
+                "description": .string("Optional text to find inside note titles, bodies, or attachments."),
+            ]),
+            "text_mode": .object([
+                "type": .string("string"),
+                "enum": .array([.string("substring"), .string("any_terms"), .string("all_terms")]),
+            ]),
+            "text_not": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+            ]),
+            "search_fields": .object([
+                "type": .string("array"),
+                "items": .object([
+                    "type": .string("string"),
+                    "enum": .array([.string("title"), .string("body"), .string("attachments")]),
+                ]),
+            ]),
+            "tags_any": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+            ]),
+            "tags_all": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+            ]),
+            "tags_none": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+            ]),
+            "active_tags_mode": .object([
+                "type": .string("string"),
+                "enum": .array([.string("any"), .string("all")]),
+            ]),
+            "date_field": .object([
+                "type": .string("string"),
+                "enum": .array([.string("created_at"), .string("modified_at")]),
+            ]),
+            "from": .object([
+                "type": .string("string"),
+                "description": .string("Optional start date. Accepts ISO 8601, YYYY-MM-DD, or supported natural-language phrases such as 'last week'."),
+            ]),
+            "to": .object([
+                "type": .string("string"),
+                "description": .string("Optional end date. Accepts ISO 8601, YYYY-MM-DD, or supported natural-language phrases such as 'today'."),
+            ]),
+        ])
+    }
+
+    private static func findNotesByTagOperationProperties() -> [String: Value] {
+        discoveryOperationProperties([
+            "id": .object(["type": .string("string")]),
+            "tags": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+            ]),
+            "tag_match": .object([
+                "type": .string("string"),
+                "enum": .array([.string("any"), .string("all")]),
+            ]),
+        ])
+    }
+
+    private static func findNotesByActiveTagsOperationProperties() -> [String: Value] {
+        discoveryOperationProperties([
+            "id": .object(["type": .string("string")]),
+            "match": .object([
+                "type": .string("string"),
+                "enum": .array([.string("any"), .string("all")]),
+            ]),
+        ])
+    }
+
+    private static func discoveryOperationProperties(_ base: [String: Value]) -> [String: Value] {
         var properties = base
         properties["location"] = .object([
             "type": .string("string"),
@@ -412,11 +537,11 @@ private enum ToolCatalog {
         ])
         properties["limit"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional number of summaries to return. Uses the configured default when omitted and is capped server-side."),
+            "description": .string("Optional number of summaries to return. Omit unless the user explicitly asks for a different limit or a continuation flow requires it. Uses the configured default when omitted and is capped server-side."),
         ])
         properties["snippet_length"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional snippet length in characters. Uses the configured default when omitted and is capped server-side."),
+            "description": .string("Optional snippet length in characters. Omit unless the user explicitly asks for a different snippet size. Uses the configured default when omitted and is capped server-side."),
         ])
         properties["cursor"] = .object([
             "type": .string("string"),

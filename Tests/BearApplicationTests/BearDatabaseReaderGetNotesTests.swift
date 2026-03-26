@@ -187,6 +187,114 @@ func databaseReaderListTagsFiltersByLocationQueryAndParentPath() throws {
     #expect(filteredTags.map(\.name) == ["projects/workflows", "projects/workflows/client"])
 }
 
+@Test
+func databaseReaderFindNotesMatchesBodyAndAttachmentText() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Inbox",
+            rawText: "# Inbox\n\nBody mentions superwhisper",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Attachment note",
+            rawText: "# Attachment note\n\nNo body match here",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+        try insertAttachment(
+            db,
+            pk: 10,
+            attachmentID: "attachment-1",
+            notePK: 2,
+            filename: "ocr.pdf",
+            fileExtension: "pdf",
+            insertionDate: 10,
+            searchText: "Attachment mentions superwhisper too"
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let query = FindNotesQuery(
+        text: "superwhisper",
+        textMode: .substring,
+        textTerms: ["superwhisper"],
+        textNot: [],
+        searchFields: [.title, .body, .attachments],
+        tagsAny: [],
+        tagsAll: [],
+        tagsNone: [],
+        location: .notes,
+        paging: DiscoveryPaging(limit: 10)
+    )
+
+    let batch = try reader.findNotes(query)
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-2", "note-1"])
+}
+
+@Test
+func databaseReaderFindNotesRespectsDateAndTagFilters() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertTag(db, pk: 10, title: "0-inbox", identifier: "tag-inbox")
+        try insertTag(db, pk: 11, title: "project", identifier: "tag-project")
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Recent",
+            rawText: "# Recent\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Older",
+            rawText: "# Older\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 5
+        )
+        try attachTag(db, notePK: 1, tagPK: 10)
+        try attachTag(db, notePK: 1, tagPK: 11)
+        try attachTag(db, notePK: 2, tagPK: 10)
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let query = FindNotesQuery(
+        text: nil,
+        textMode: .substring,
+        textTerms: [],
+        textNot: [],
+        searchFields: [.title, .body, .attachments],
+        tagsAny: ["0-inbox"],
+        tagsAll: ["project"],
+        tagsNone: [],
+        location: .notes,
+        dateField: .modifiedAt,
+        from: Date(timeIntervalSinceReferenceDate: 10),
+        to: nil,
+        paging: DiscoveryPaging(limit: 10)
+    )
+
+    let batch = try reader.findNotes(query)
+
+    #expect(batch.notes.map(\.ref.identifier) == ["note-1"])
+}
+
 private func makeTemporaryBearDatabaseURL() throws -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)

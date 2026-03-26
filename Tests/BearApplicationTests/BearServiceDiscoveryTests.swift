@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func getNotesByActiveTagsUsesTemplateContentForSnippets() async throws {
+func findNotesByActiveTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet() async throws {
     let note = makeNote(
         id: "note-1",
         title: "Inbox",
@@ -13,9 +13,19 @@ func getNotesByActiveTagsUsesTemplateContentForSnippets() async throws {
         tags: ["0-inbox"],
         archived: false
     )
-    let readStore = DiscoveryReadStore(tagBatches: [
-        DiscoveryNoteBatch(notes: [note], hasMore: false),
-    ])
+    let readStore = DiscoveryReadStore(
+        findBatches: [DiscoveryNoteBatch(notes: [note], hasMore: false)],
+        attachmentsByNoteID: [
+            "note-1": [
+                NoteAttachment(
+                    attachmentID: "file-1",
+                    filename: "scan.pdf",
+                    fileExtension: "pdf",
+                    searchText: "Invoice attachment OCR text"
+                ),
+            ],
+        ]
+    )
     let service = BearService(
         configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
         readStore: readStore,
@@ -23,42 +33,25 @@ func getNotesByActiveTagsUsesTemplateContentForSnippets() async throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let page = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
-        try service.getNotesByActiveTags(location: .notes, limit: nil, snippetLength: 22, cursor: nil)
+    let batch = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try service.findNotesByActiveTags([
+            FindNotesByActiveTagsOperation(location: .notes, snippetLength: 22),
+        ])
     }
 
-    let summary = try #require(page.items.first)
-    #expect(page.items.count == 1)
-    #expect(summary.noteID == "note-1")
+    let result = try #require(batch.results.first)
+    let summary = try #require(result.items?.first)
+    #expect(result.error == nil)
     #expect(summary.snippet == "Alpha beta gamma delta…")
-    #expect(summary.createdAt == note.revision.createdAt)
-    #expect(summary.modifiedAt == note.revision.modifiedAt)
-    #expect(page.page.limit == 20)
-    #expect(page.page.returned == 1)
-    #expect(page.page.hasMore == false)
-    #expect(page.page.nextCursor == nil)
-    #expect(readStore.lastTagQuery?.tags == ["0-inbox"])
-    #expect(readStore.lastTagQuery?.location == .notes)
-    #expect(readStore.lastTagQuery?.paging.limit == 20)
+    #expect(summary.attachmentSnippet == "Invoice attachment OCR…")
+    #expect(summary.matchedFields == nil)
+    #expect(readStore.lastFindQuery?.tagsAny == ["0-inbox"])
+    #expect(readStore.lastFindQuery?.location == .notes)
+    #expect(readStore.lastFindQuery?.paging.limit == 20)
 }
 
 @Test
-func getNotesByActiveTagsNormalizesWrappedTagsBeforeQuerying() throws {
-    let readStore = DiscoveryReadStore()
-    let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["#deep work#", " #focus mode# "]),
-        readStore: readStore,
-        writeTransport: SilentWriteTransport(),
-        logger: Logger(label: "BearServiceDiscoveryTests")
-    )
-
-    _ = try service.getNotesByActiveTags(location: .notes, limit: 5, snippetLength: 50, cursor: nil)
-
-    #expect(readStore.lastTagQuery?.tags == ["deep work", "focus mode"])
-}
-
-@Test
-func searchNotesClampsConfiguredDiscoveryOverrides() throws {
+func findNotesClampsConfiguredOverridesAndTracksMatchedFields() throws {
     let note = makeNote(
         id: "archive-1",
         title: "Archived",
@@ -66,7 +59,7 @@ func searchNotesClampsConfiguredDiscoveryOverrides() throws {
         tags: ["project"],
         archived: true
     )
-    let readStore = DiscoveryReadStore(searchBatches: [
+    let readStore = DiscoveryReadStore(findBatches: [
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
@@ -82,31 +75,29 @@ func searchNotesClampsConfiguredDiscoveryOverrides() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let page = try service.searchNotes(
-        query: "three",
-        location: .archive,
-        limit: 500,
-        snippetLength: 50,
-        cursor: nil
-    )
+    let batch = try service.findNotes([
+        FindNotesOperation(text: "three", location: .archive, limit: 500, snippetLength: 50),
+    ])
 
-    let summary = try #require(page.items.first)
+    let result = try #require(batch.results.first)
+    let summary = try #require(result.items?.first)
+    #expect(result.page?.limit == 25)
     #expect(summary.snippet == "One two three four…")
-    #expect(page.page.limit == 25)
-    #expect(readStore.lastSearchQuery?.location == .archive)
-    #expect(readStore.lastSearchQuery?.paging.limit == 25)
+    #expect(summary.matchedFields == [.body])
+    #expect(readStore.lastFindQuery?.location == .archive)
+    #expect(readStore.lastFindQuery?.paging.limit == 25)
 }
 
 @Test
-func getNotesByTagReturnsSummariesAndRespectsExplicitLimit() throws {
+func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
     let note = makeNote(
         id: "tag-1",
         title: "Project",
         body: "Body text with enough words to truncate cleanly",
-        tags: ["project"],
+        tags: ["deep work", "project"],
         archived: true
     )
-    let readStore = DiscoveryReadStore(tagBatches: [
+    let readStore = DiscoveryReadStore(findBatches: [
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
@@ -116,25 +107,26 @@ func getNotesByTagReturnsSummariesAndRespectsExplicitLimit() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let page = try service.getNotesByTag(
-        tags: ["#project#"],
-        location: .archive,
-        limit: 1,
-        snippetLength: 18,
-        cursor: nil
-    )
+    let batch = try service.findNotesByTag([
+        FindNotesByTagOperation(
+            tags: ["#deep work#", " #project# "],
+            tagMatch: .all,
+            location: .archive,
+            limit: 1,
+            snippetLength: 18
+        ),
+    ])
 
-    let summary = try #require(page.items.first)
-    #expect(page.items.count == 1)
+    let summary = try #require(batch.results.first?.items?.first)
     #expect(summary.noteID == "tag-1")
     #expect(summary.archived)
-    #expect(readStore.lastTagQuery?.tags == ["project"])
-    #expect(readStore.lastTagQuery?.location == .archive)
-    #expect(readStore.lastTagQuery?.paging.limit == 1)
+    #expect(readStore.lastFindQuery?.tagsAll == ["deep work", "project"])
+    #expect(readStore.lastFindQuery?.location == .archive)
+    #expect(readStore.lastFindQuery?.paging.limit == 1)
 }
 
 @Test
-func searchNotesReturnsNextCursorAndAcceptsContinuation() throws {
+func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
     let first = makeNote(
         id: "note-2",
         title: "Second",
@@ -151,7 +143,7 @@ func searchNotesReturnsNextCursorAndAcceptsContinuation() throws {
         archived: false,
         modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
     )
-    let readStore = DiscoveryReadStore(searchBatches: [
+    let readStore = DiscoveryReadStore(findBatches: [
         DiscoveryNoteBatch(notes: [first], hasMore: true),
         DiscoveryNoteBatch(notes: [second], hasMore: false),
     ])
@@ -162,40 +154,30 @@ func searchNotesReturnsNextCursorAndAcceptsContinuation() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let firstPage = try service.searchNotes(
-        query: "page",
-        location: .notes,
-        limit: 1,
-        snippetLength: 50,
-        cursor: nil
-    )
-    let token = try #require(firstPage.page.nextCursor)
+    let firstBatch = try service.findNotes([
+        FindNotesOperation(id: "op-1", text: "page", limit: 1, snippetLength: 50),
+    ])
+    let token = try #require(firstBatch.results.first?.page?.nextCursor)
     let cursor = try DiscoveryCursorCoder.decode(token)
 
-    #expect(firstPage.page.hasMore)
-    #expect(firstPage.page.returned == 1)
-    #expect(cursor.kind == .searchNotes)
+    #expect(firstBatch.results.first?.page?.hasMore == true)
+    #expect(cursor.kind == .findNotes)
     #expect(cursor.location == .notes)
     #expect(cursor.lastNoteID == "note-2")
 
-    let secondPage = try service.searchNotes(
-        query: "page",
-        location: .notes,
-        limit: 1,
-        snippetLength: 50,
-        cursor: token
-    )
+    let secondBatch = try service.findNotes([
+        FindNotesOperation(id: "op-1", text: "page", limit: 1, snippetLength: 50, cursor: token),
+    ])
 
-    #expect(secondPage.items.count == 1)
-    #expect(secondPage.items.first?.noteID == "note-1")
-    #expect(secondPage.page.hasMore == false)
-    #expect(secondPage.page.nextCursor == nil)
-    #expect(readStore.searchQueries.count == 2)
-    #expect(readStore.searchQueries.last?.paging.cursor?.lastNoteID == "note-2")
+    #expect(secondBatch.results.first?.items?.first?.noteID == "note-1")
+    #expect(secondBatch.results.first?.page?.hasMore == false)
+    #expect(secondBatch.results.first?.page?.nextCursor == nil)
+    #expect(readStore.findQueries.count == 2)
+    #expect(readStore.findQueries.last?.paging.cursor?.lastNoteID == "note-2")
 }
 
 @Test
-func searchNotesRejectsMismatchedCursor() throws {
+func findNotesReturnsPerOperationErrorsWithoutFailingSiblings() throws {
     let note = makeNote(
         id: "note-1",
         title: "Alpha",
@@ -203,7 +185,40 @@ func searchNotesRejectsMismatchedCursor() throws {
         tags: [],
         archived: false
     )
-    let readStore = DiscoveryReadStore(searchBatches: [
+    let readStore = DiscoveryReadStore(findBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(id: "bad"),
+        FindNotesOperation(id: "good", text: "alpha"),
+    ])
+
+    #expect(batch.results.count == 2)
+    #expect(batch.results[0].id == "bad")
+    #expect(batch.results[0].error == "Each find operation must include at least one filter.")
+    #expect(batch.results[1].id == "good")
+    #expect(batch.results[1].error == nil)
+    #expect(batch.results[1].items?.first?.noteID == "note-1")
+    #expect(readStore.findQueries.count == 1)
+}
+
+@Test
+func findNotesRejectsMismatchedCursorPerOperation() throws {
+    let note = makeNote(
+        id: "note-1",
+        title: "Alpha",
+        body: "Alpha body",
+        tags: [],
+        archived: false
+    )
+    let readStore = DiscoveryReadStore(findBatches: [
         DiscoveryNoteBatch(notes: [note], hasMore: true),
     ])
     let service = BearService(
@@ -213,31 +228,42 @@ func searchNotesRejectsMismatchedCursor() throws {
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
-    let firstPage = try service.searchNotes(
-        query: "alpha",
-        location: .notes,
-        limit: 1,
-        snippetLength: 50,
-        cursor: nil
+    let firstBatch = try service.findNotes([
+        FindNotesOperation(text: "alpha", limit: 1),
+    ])
+    let token = try #require(firstBatch.results.first?.page?.nextCursor)
+
+    let secondBatch = try service.findNotes([
+        FindNotesOperation(text: "beta", limit: 1, cursor: token),
+    ])
+
+    #expect(secondBatch.results.first?.error == "Discovery cursor does not match this request.")
+}
+
+@Test
+func findNotesParsesDateFiltersAndDefaultsDateFieldToModifiedAt() throws {
+    let readStore = DiscoveryReadStore(findBatches: [
+        DiscoveryNoteBatch(notes: [], hasMore: false),
+        DiscoveryNoteBatch(notes: [], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
     )
-    let token = try #require(firstPage.page.nextCursor)
 
-    var didThrow = false
-    do {
-        _ = try service.searchNotes(
-            query: "beta",
-            location: .notes,
-            limit: 1,
-            snippetLength: 50,
-            cursor: token
-        )
-    } catch {
-        didThrow = true
-        let description = (error as? LocalizedError)?.errorDescription
-        #expect(description == "Discovery cursor does not match this request.")
-    }
+    _ = try service.findNotes([
+        FindNotesOperation(dateField: .createdAt, from: "2026-03-01", to: "2026-03-31"),
+        FindNotesOperation(from: "last week"),
+    ])
 
-    #expect(didThrow)
+    #expect(readStore.findQueries.count == 2)
+    #expect(readStore.findQueries[0].dateField == .createdAt)
+    #expect(readStore.findQueries[0].from != nil)
+    #expect(readStore.findQueries[0].to != nil)
+    #expect(readStore.findQueries[1].dateField == .modifiedAt)
+    #expect(readStore.findQueries[1].from != nil)
 }
 
 @Test
@@ -329,53 +355,44 @@ private func makeNote(
 }
 
 private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {
-    private let searchBatches: [DiscoveryNoteBatch]
-    private let tagBatches: [DiscoveryNoteBatch]
+    private let findBatches: [DiscoveryNoteBatch]
     private let listTagsResults: [TagSummary]
+    private let attachmentsByNoteID: [String: [NoteAttachment]]
 
-    private(set) var searchQueries: [NoteSearchQuery] = []
-    private(set) var tagQueries: [TagNotesQuery] = []
+    private(set) var findQueries: [FindNotesQuery] = []
     private(set) var listTagQueries: [ListTagsQuery] = []
 
-    private var nextSearchBatchIndex = 0
-    private var nextTagBatchIndex = 0
+    private var nextFindBatchIndex = 0
 
-    var lastSearchQuery: NoteSearchQuery? { searchQueries.last }
-    var lastTagQuery: TagNotesQuery? { tagQueries.last }
+    var lastFindQuery: FindNotesQuery? { findQueries.last }
     var lastListTagsQuery: ListTagsQuery? { listTagQueries.last }
 
     init(
-        searchBatches: [DiscoveryNoteBatch] = [],
-        tagBatches: [DiscoveryNoteBatch] = [],
-        listTagsResults: [TagSummary] = []
+        findBatches: [DiscoveryNoteBatch] = [],
+        listTagsResults: [TagSummary] = [],
+        attachmentsByNoteID: [String: [NoteAttachment]] = [:]
     ) {
-        self.searchBatches = searchBatches
-        self.tagBatches = tagBatches
+        self.findBatches = findBatches
         self.listTagsResults = listTagsResults
+        self.attachmentsByNoteID = attachmentsByNoteID
     }
 
-    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        searchQueries.append(query)
-        guard nextSearchBatchIndex < searchBatches.count else {
+    func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch {
+        findQueries.append(query)
+        guard nextFindBatchIndex < findBatches.count else {
             return DiscoveryNoteBatch(notes: [], hasMore: false)
         }
 
-        defer { nextSearchBatchIndex += 1 }
-        return searchBatches[nextSearchBatchIndex]
+        defer { nextFindBatchIndex += 1 }
+        return findBatches[nextFindBatchIndex]
     }
 
     func note(id: String) throws -> BearNote? { nil }
 
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
 
-    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        tagQueries.append(query)
-        guard nextTagBatchIndex < tagBatches.count else {
-            return DiscoveryNoteBatch(notes: [], hasMore: false)
-        }
-
-        defer { nextTagBatchIndex += 1 }
-        return tagBatches[nextTagBatchIndex]
+    func attachments(noteID: String) throws -> [NoteAttachment] {
+        attachmentsByNoteID[noteID] ?? []
     }
 
     func listTags(_ query: ListTagsQuery) throws -> [TagSummary] {

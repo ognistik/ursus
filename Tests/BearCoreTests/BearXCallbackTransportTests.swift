@@ -114,14 +114,9 @@ func archiveStaysBackgroundedEvenWhenShowWindowIsTrue() async throws {
 private final class LockThenCreateReadStore: @unchecked Sendable, BearReadStore {
     private var didThrowLock = false
 
-    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
+    func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
     func note(id: String) throws -> BearNote? { nil }
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
-    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
     func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
 
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] {
@@ -150,9 +145,7 @@ private struct StaticReadStore: BearReadStore {
     let note: BearNote?
     let tags: [TagSummary]
 
-    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
+    func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
 
     func note(id: String) throws -> BearNote? {
         guard note?.ref.identifier == id else {
@@ -162,10 +155,6 @@ private struct StaticReadStore: BearReadStore {
     }
 
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
-
-    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
 
     func listTags(_ query: ListTagsQuery) throws -> [TagSummary] {
         tags

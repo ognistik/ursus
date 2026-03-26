@@ -253,9 +253,7 @@ private final class GetNotesReadStore: @unchecked Sendable, BearReadStore {
         self.attachmentsByNoteID = attachmentsByNoteID
     }
 
-    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
+    func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
 
     func note(id: String) throws -> BearNote? {
         noteByID[id]
@@ -267,10 +265,6 @@ private final class GetNotesReadStore: @unchecked Sendable, BearReadStore {
         let key = TitleLookupKey(title: title, location: location)
         titleLookups.append(key)
         return notesByTitleAndLocation[key] ?? []
-    }
-
-    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
     }
 
     func attachments(noteID: String) throws -> [NoteAttachment] {

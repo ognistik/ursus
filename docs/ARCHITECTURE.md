@@ -15,14 +15,17 @@
 
 - Reads come directly from Bear's local SQLite database.
 - Mutations are submitted through Bear's official x-callback actions.
-- Discovery tools (`bear_search_notes`, `bear_get_notes_by_tag`, and `bear_get_notes_by_active_tags`) return paged compact note summaries and reserve `bear_get_notes` for full structured note fetches.
+- Discovery tools (`bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags`) return batched compact note summaries and reserve `bear_get_notes` for full structured note fetches.
 - Discovery reads always exclude trashed notes and target either normal notes or archived notes explicitly through `location: notes|archive`.
 - `bear_list_tags` defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped `noteCount`, and supports optional `query` and hierarchical `under_tag` filtering before tags are returned to clients.
-- Tag tools are split by intent: `bear_list_tags` is discovery, `bear_get_notes_by_tag` is read, `bear_open_tag` is UI navigation for one known tag name, and `bear_rename_tags` is a batched mutation surface.
+- Tag tools are split by intent: `bear_list_tags` is discovery, `bear_find_notes_by_tag` is a shortcut read surface over the main find engine, `bear_open_tag` is UI navigation for one known tag name, and `bear_rename_tags` is a batched mutation surface.
 - `bear_get_notes` defaults `location` to `notes`, never returns trashed notes, resolves each selector as exact note id first and then exact case-insensitive title within the chosen location, and never mixes normal notes with archived notes in one call.
 - MCP tool descriptions steer clients to omit `location` unless the user explicitly asks for archived notes, and tag-specific descriptions point clients back to `bear_list_tags` when a canonical tag name must be discovered first.
-- Discovery snippet length and result-count defaults come from config, allow per-call overrides, are capped server-side, and page forward with opaque cursor-based continuation.
-- Discovery snippets are template-aware when the current `template.md` can be matched back to the stored note body; otherwise they fall back to the parsed note body.
+- Discovery inputs are batched with `operations: []`, and each operation returns either a summary page or an inline error without failing sibling operations.
+- Discovery limit and snippet-length defaults come from config, allow per-operation overrides, and are capped server-side.
+- Discovery pagination remains cursor-based per operation, with opaque cursors keyed by a digest of the normalized filter set.
+- Discovery summaries keep a template-aware body `snippet`, add optional `attachmentSnippet` when attachment OCR/index text exists, and include `matchedFields` when a text filter is part of the request.
+- `bear_find_notes` accepts text, tag, active-tag, and date filters, including supported natural-language date phrases resolved by the server in the local timezone.
 - Full note fetches expose a single canonical `content` field derived from normalized raw markdown, strip template wrapper noise when the current template matches, and return attachment metadata plus Bear's extracted attachment search text separately instead of duplicating `body` and `rawText`.
 - `bear_replace_note_body` computes the full note markdown locally, then writes with Bear's `replace_all` mode.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.

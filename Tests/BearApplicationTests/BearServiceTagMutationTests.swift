@@ -64,16 +64,10 @@ private func makeTagMutationConfiguration() -> BearConfiguration {
 }
 
 private struct TagMutationReadStore: BearReadStore {
-    func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
+    func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
 
     func note(id: String) throws -> BearNote? { nil }
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
-
-    func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        DiscoveryNoteBatch(notes: [], hasMore: false)
-    }
 
     func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }

@@ -12,16 +12,20 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         self.databaseQueue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
     }
 
-    public func searchNotes(_ query: NoteSearchQuery) throws -> DiscoveryNoteBatch {
-        let pagination = paginationClause(for: query.paging.cursor)
-        let argumentValues: [DatabaseValueConvertible] = [
-            archivedFlag(for: query.location),
-            likePattern(for: query.query),
-            likePattern(for: query.query),
-        ] + pagination.arguments + [query.paging.limit + 1]
+    public func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch {
+        var conditions = [
+            "n.ZPERMANENTLYDELETED = 0",
+            "n.ZTRASHED = 0",
+            "n.ZARCHIVED = ?",
+        ]
+        var arguments: [DatabaseValueConvertible] = [archivedFlag(for: query.location)]
 
-        return try fetchDiscoveryBatch(
-            sql: """
+        appendTextConditions(to: &conditions, arguments: &arguments, query: query)
+        appendTagConditions(to: &conditions, arguments: &arguments, query: query)
+        appendDateConditions(to: &conditions, arguments: &arguments, query: query)
+
+        let pagination = paginationClause(for: query.paging.cursor)
+        let sql = """
             SELECT
                 n.Z_PK AS pk,
                 n.ZUNIQUEIDENTIFIER AS noteID,
@@ -37,16 +41,16 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             FROM ZSFNOTE n
             LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
             LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
-            WHERE n.ZPERMANENTLYDELETED = 0
-                AND n.ZTRASHED = 0
-                AND n.ZARCHIVED = ?
-                AND (n.ZTITLE LIKE ? ESCAPE '\\' OR n.ZTEXT LIKE ? ESCAPE '\\')
+            WHERE \(conditions.joined(separator: "\n                AND "))
                 \(pagination.sql)
             GROUP BY n.Z_PK
             ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
             LIMIT ?
-            """,
-            arguments: argumentValues,
+            """
+
+        return try fetchDiscoveryBatch(
+            sql: sql,
+            arguments: arguments + pagination.arguments + [query.paging.limit + 1],
             limit: query.paging.limit
         )
     }
@@ -95,51 +99,6 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
             """,
             arguments: [archivedFlag(for: location), title]
-        )
-    }
-
-    public func notes(matchingAnyTags query: TagNotesQuery) throws -> DiscoveryNoteBatch {
-        let normalizedTags = query.tags.map(normalizedTag).filter { !$0.isEmpty }
-        guard !normalizedTags.isEmpty else {
-            return DiscoveryNoteBatch(notes: [], hasMore: false)
-        }
-
-        let placeholders = Array(repeating: "?", count: normalizedTags.count).joined(separator: ",")
-        let pagination = paginationClause(for: query.paging.cursor)
-        return try fetchDiscoveryBatch(
-            sql: """
-            SELECT
-                n.Z_PK AS pk,
-                n.ZUNIQUEIDENTIFIER AS noteID,
-                n.ZTITLE AS title,
-                n.ZTEXT AS rawText,
-                n.ZVERSION AS version,
-                n.ZCREATIONDATE AS creationDate,
-                n.ZMODIFICATIONDATE AS modificationDate,
-                n.ZARCHIVED AS archived,
-                n.ZTRASHED AS trashed,
-                n.ZENCRYPTED AS encrypted,
-                COALESCE(GROUP_CONCAT(t.ZTITLE, '|'), '') AS tags
-            FROM ZSFNOTE n
-            LEFT JOIN Z_5TAGS nt ON nt.Z_5NOTES = n.Z_PK
-            LEFT JOIN ZSFNOTETAG t ON t.Z_PK = nt.Z_13TAGS
-            WHERE n.ZPERMANENTLYDELETED = 0
-                AND n.ZTRASHED = 0
-                AND n.ZARCHIVED = ?
-                AND EXISTS (
-                    SELECT 1
-                    FROM Z_5TAGS nt2
-                    JOIN ZSFNOTETAG t2 ON t2.Z_PK = nt2.Z_13TAGS
-                    WHERE nt2.Z_5NOTES = n.Z_PK
-                        AND t2.ZTITLE IN (\(placeholders))
-                )
-                \(pagination.sql)
-            GROUP BY n.Z_PK
-            ORDER BY n.ZMODIFICATIONDATE DESC, n.ZUNIQUEIDENTIFIER DESC
-            LIMIT ?
-            """,
-            arguments: [archivedFlag(for: query.location)] + normalizedTags + pagination.arguments + [query.paging.limit + 1],
-            limit: query.paging.limit
         )
     }
 
@@ -266,6 +225,190 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         )
     }
 
+    private func appendTextConditions(
+        to conditions: inout [String],
+        arguments: inout [DatabaseValueConvertible],
+        query: FindNotesQuery
+    ) {
+        if let text = query.text {
+            switch query.textMode {
+            case .substring:
+                let predicate = positiveTextPredicate(
+                    mode: .substring,
+                    terms: [text],
+                    searchFields: query.searchFields
+                )
+                conditions.append(predicate.sql)
+                arguments += predicate.arguments
+            case .anyTerms:
+                let predicate = positiveTextPredicate(
+                    mode: .anyTerms,
+                    terms: query.textTerms,
+                    searchFields: query.searchFields
+                )
+                conditions.append(predicate.sql)
+                arguments += predicate.arguments
+            case .allTerms:
+                let predicate = positiveTextPredicate(
+                    mode: .allTerms,
+                    terms: query.textTerms,
+                    searchFields: query.searchFields
+                )
+                conditions.append(predicate.sql)
+                arguments += predicate.arguments
+            }
+        }
+
+        for excluded in query.textNot {
+            let predicate = fieldMatchPredicate(term: excluded, searchFields: query.searchFields)
+            conditions.append("NOT \(predicate.sql)")
+            arguments += predicate.arguments
+        }
+    }
+
+    private func appendTagConditions(
+        to conditions: inout [String],
+        arguments: inout [DatabaseValueConvertible],
+        query: FindNotesQuery
+    ) {
+        if !query.tagsAny.isEmpty {
+            let placeholders = placeholders(count: query.tagsAny.count)
+            conditions.append("""
+                EXISTS (
+                    SELECT 1
+                    FROM Z_5TAGS nt2
+                    JOIN ZSFNOTETAG t2 ON t2.Z_PK = nt2.Z_13TAGS
+                    WHERE nt2.Z_5NOTES = n.Z_PK
+                        AND t2.ZTITLE IN (\(placeholders))
+                )
+                """)
+            arguments += query.tagsAny
+        }
+
+        for tag in query.tagsAll {
+            conditions.append("""
+                EXISTS (
+                    SELECT 1
+                    FROM Z_5TAGS nt2
+                    JOIN ZSFNOTETAG t2 ON t2.Z_PK = nt2.Z_13TAGS
+                    WHERE nt2.Z_5NOTES = n.Z_PK
+                        AND t2.ZTITLE = ?
+                )
+                """)
+            arguments.append(tag)
+        }
+
+        if !query.tagsNone.isEmpty {
+            let placeholders = placeholders(count: query.tagsNone.count)
+            conditions.append("""
+                NOT EXISTS (
+                    SELECT 1
+                    FROM Z_5TAGS nt2
+                    JOIN ZSFNOTETAG t2 ON t2.Z_PK = nt2.Z_13TAGS
+                    WHERE nt2.Z_5NOTES = n.Z_PK
+                        AND t2.ZTITLE IN (\(placeholders))
+                )
+                """)
+            arguments += query.tagsNone
+        }
+    }
+
+    private func appendDateConditions(
+        to conditions: inout [String],
+        arguments: inout [DatabaseValueConvertible],
+        query: FindNotesQuery
+    ) {
+        guard let field = query.dateField else {
+            return
+        }
+
+        let column: String
+        switch field {
+        case .createdAt:
+            column = "n.ZCREATIONDATE"
+        case .modifiedAt:
+            column = "n.ZMODIFICATIONDATE"
+        }
+
+        if let from = query.from {
+            conditions.append("\(column) >= ?")
+            arguments.append(from.timeIntervalSinceReferenceDate)
+        }
+
+        if let to = query.to {
+            conditions.append("\(column) <= ?")
+            arguments.append(to.timeIntervalSinceReferenceDate)
+        }
+    }
+
+    private func positiveTextPredicate(
+        mode: FindTextMode,
+        terms: [String],
+        searchFields: [FindSearchField]
+    ) -> SQLPredicate {
+        switch mode {
+        case .substring, .anyTerms:
+            let parts = terms.map { fieldMatchPredicate(term: $0, searchFields: searchFields) }
+            return combinePredicates(parts, joiner: "OR")
+        case .allTerms:
+            let parts = terms.map { fieldMatchPredicate(term: $0, searchFields: searchFields) }
+            return combinePredicates(parts, joiner: "AND")
+        }
+    }
+
+    private func fieldMatchPredicate(
+        term: String,
+        searchFields: [FindSearchField]
+    ) -> SQLPredicate {
+        let pattern = likePattern(for: term)
+        var clauses: [String] = []
+        var arguments: [DatabaseValueConvertible] = []
+
+        for field in searchFields {
+            switch field {
+            case .title:
+                clauses.append("n.ZTITLE LIKE ? ESCAPE '\\'")
+                arguments.append(pattern)
+            case .body:
+                clauses.append("\(bodySearchExpression()) LIKE ? ESCAPE '\\'")
+                arguments.append(pattern)
+            case .attachments:
+                clauses.append("""
+                    EXISTS (
+                        SELECT 1
+                        FROM ZSFNOTEFILE f
+                        WHERE f.ZNOTE = n.Z_PK
+                            AND f.ZPERMANENTLYDELETED = 0
+                            AND f.ZSEARCHTEXT LIKE ? ESCAPE '\\'
+                    )
+                    """)
+                arguments.append(pattern)
+            }
+        }
+
+        return SQLPredicate(
+            sql: "(" + clauses.joined(separator: " OR ") + ")",
+            arguments: arguments
+        )
+    }
+
+    private func combinePredicates(_ predicates: [SQLPredicate], joiner: String) -> SQLPredicate {
+        SQLPredicate(
+            sql: "(" + predicates.map(\.sql).joined(separator: " \(joiner) ") + ")",
+            arguments: predicates.flatMap(\.arguments)
+        )
+    }
+
+    private func bodySearchExpression() -> String {
+        """
+        CASE
+            WHEN n.ZTEXT = '# ' || COALESCE(n.ZTITLE, '') THEN ''
+            WHEN n.ZTEXT LIKE '# ' || COALESCE(n.ZTITLE, '') || char(10) || '%' THEN SUBSTR(n.ZTEXT, LENGTH('# ' || COALESCE(n.ZTITLE, '')) + 3)
+            ELSE n.ZTEXT
+        END
+        """
+    }
+
     private func likePattern(for query: String) -> String {
         "%\(query.replacingOccurrences(of: "%", with: "\\%").replacingOccurrences(of: "_", with: "\\_"))%"
     }
@@ -276,6 +419,10 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
 
     private func normalizedTag(_ tag: String) -> String {
         BearTag.normalizedName(tag)
+    }
+
+    private func placeholders(count: Int) -> String {
+        Array(repeating: "?", count: count).joined(separator: ",")
     }
 
     private func archivedFlag(for location: BearNoteLocation) -> Int {
@@ -318,6 +465,11 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         let hasMore = notes.count > limit
         return DiscoveryNoteBatch(notes: Array(notes.prefix(limit)), hasMore: hasMore)
     }
+}
+
+private struct SQLPredicate {
+    let sql: String
+    let arguments: [DatabaseValueConvertible]
 }
 
 private struct NoteRow: FetchableRecord, Decodable {

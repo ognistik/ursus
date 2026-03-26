@@ -114,35 +114,179 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
     }
 }
 
-public struct NoteSearchQuery: Codable, Hashable, Sendable {
-    public let query: String
+public enum FindTextMode: String, Codable, Hashable, Sendable {
+    case substring
+    case anyTerms = "any_terms"
+    case allTerms = "all_terms"
+}
+
+public enum FindSearchField: String, Codable, Hashable, Sendable {
+    case title
+    case body
+    case attachments
+}
+
+public enum FindTagMatchMode: String, Codable, Hashable, Sendable {
+    case any
+    case all
+}
+
+public enum FindDateField: String, Codable, Hashable, Sendable {
+    case createdAt = "created_at"
+    case modifiedAt = "modified_at"
+}
+
+public struct FindNotesOperation: Codable, Hashable, Sendable {
+    public let id: String?
+    public let text: String?
+    public let textMode: FindTextMode
+    public let textNot: [String]
+    public let searchFields: [FindSearchField]
+    public let tagsAny: [String]
+    public let tagsAll: [String]
+    public let tagsNone: [String]
+    public let activeTagsMode: FindTagMatchMode?
+    public let dateField: FindDateField?
+    public let from: String?
+    public let to: String?
     public let location: BearNoteLocation
+    public let limit: Int?
+    public let snippetLength: Int?
+    public let cursor: String?
+
+    public init(
+        id: String? = nil,
+        text: String? = nil,
+        textMode: FindTextMode = .substring,
+        textNot: [String] = [],
+        searchFields: [FindSearchField] = [],
+        tagsAny: [String] = [],
+        tagsAll: [String] = [],
+        tagsNone: [String] = [],
+        activeTagsMode: FindTagMatchMode? = nil,
+        dateField: FindDateField? = nil,
+        from: String? = nil,
+        to: String? = nil,
+        location: BearNoteLocation = .notes,
+        limit: Int? = nil,
+        snippetLength: Int? = nil,
+        cursor: String? = nil
+    ) {
+        self.id = id
+        self.text = text
+        self.textMode = textMode
+        self.textNot = textNot
+        self.searchFields = searchFields
+        self.tagsAny = tagsAny
+        self.tagsAll = tagsAll
+        self.tagsNone = tagsNone
+        self.activeTagsMode = activeTagsMode
+        self.dateField = dateField
+        self.from = from
+        self.to = to
+        self.location = location
+        self.limit = limit
+        self.snippetLength = snippetLength
+        self.cursor = cursor
+    }
+}
+
+public struct FindNotesQuery: Codable, Hashable, Sendable {
+    public let text: String?
+    public let textMode: FindTextMode
+    public let textTerms: [String]
+    public let textNot: [String]
+    public let searchFields: [FindSearchField]
+    public let tagsAny: [String]
+    public let tagsAll: [String]
+    public let tagsNone: [String]
+    public let location: BearNoteLocation
+    public let dateField: FindDateField?
+    public let from: Date?
+    public let to: Date?
     public let paging: DiscoveryPaging
 
     public init(
-        query: String,
+        text: String?,
+        textMode: FindTextMode,
+        textTerms: [String],
+        textNot: [String],
+        searchFields: [FindSearchField],
+        tagsAny: [String],
+        tagsAll: [String],
+        tagsNone: [String],
         location: BearNoteLocation = .notes,
+        dateField: FindDateField? = nil,
+        from: Date? = nil,
+        to: Date? = nil,
         paging: DiscoveryPaging = DiscoveryPaging(limit: 20)
     ) {
-        self.query = query
+        self.text = text
+        self.textMode = textMode
+        self.textTerms = textTerms
+        self.textNot = textNot
+        self.searchFields = searchFields
+        self.tagsAny = tagsAny
+        self.tagsAll = tagsAll
+        self.tagsNone = tagsNone
         self.location = location
+        self.dateField = dateField
+        self.from = from
+        self.to = to
         self.paging = paging
     }
 }
 
-public struct TagNotesQuery: Codable, Hashable, Sendable {
+public struct FindNotesByTagOperation: Codable, Hashable, Sendable {
+    public let id: String?
     public let tags: [String]
+    public let tagMatch: FindTagMatchMode
     public let location: BearNoteLocation
-    public let paging: DiscoveryPaging
+    public let limit: Int?
+    public let snippetLength: Int?
+    public let cursor: String?
 
     public init(
+        id: String? = nil,
         tags: [String],
+        tagMatch: FindTagMatchMode = .any,
         location: BearNoteLocation = .notes,
-        paging: DiscoveryPaging = DiscoveryPaging(limit: 20)
+        limit: Int? = nil,
+        snippetLength: Int? = nil,
+        cursor: String? = nil
     ) {
+        self.id = id
         self.tags = tags
+        self.tagMatch = tagMatch
         self.location = location
-        self.paging = paging
+        self.limit = limit
+        self.snippetLength = snippetLength
+        self.cursor = cursor
+    }
+}
+
+public struct FindNotesByActiveTagsOperation: Codable, Hashable, Sendable {
+    public let id: String?
+    public let match: FindTagMatchMode
+    public let location: BearNoteLocation
+    public let limit: Int?
+    public let snippetLength: Int?
+    public let cursor: String?
+
+    public init(
+        id: String? = nil,
+        match: FindTagMatchMode = .any,
+        location: BearNoteLocation = .notes,
+        limit: Int? = nil,
+        snippetLength: Int? = nil,
+        cursor: String? = nil
+    ) {
+        self.id = id
+        self.match = match
+        self.location = location
+        self.limit = limit
+        self.snippetLength = snippetLength
+        self.cursor = cursor
     }
 }
 
@@ -173,6 +317,7 @@ public struct DiscoveryPaging: Codable, Hashable, Sendable {
 }
 
 public enum DiscoveryKind: String, Codable, Hashable, Sendable {
+    case findNotes = "find_notes"
     case searchNotes = "search_notes"
     case notesByTag = "notes_by_tag"
     case notesByActiveTags = "notes_by_active_tags"
@@ -304,6 +449,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
     public let noteID: String
     public let title: String
     public let snippet: String
+    public let attachmentSnippet: String?
+    public let matchedFields: [FindSearchField]?
     public let tags: [String]
     public let createdAt: Date
     public let modifiedAt: Date
@@ -313,6 +460,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         noteID: String,
         title: String,
         snippet: String,
+        attachmentSnippet: String? = nil,
+        matchedFields: [FindSearchField]? = nil,
         tags: [String],
         createdAt: Date,
         modifiedAt: Date,
@@ -321,6 +470,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         self.noteID = noteID
         self.title = title
         self.snippet = snippet
+        self.attachmentSnippet = attachmentSnippet
+        self.matchedFields = matchedFields
         self.tags = tags
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
@@ -353,6 +504,36 @@ public struct DiscoveryPage<Item: Codable & Hashable & Sendable>: Codable, Hasha
 }
 
 public typealias NoteSummaryPage = DiscoveryPage<NoteSummary>
+
+public struct FindNotesOperationResult: Codable, Hashable, Sendable {
+    public let index: Int
+    public let id: String?
+    public let items: [NoteSummary]?
+    public let page: DiscoveryPageInfo?
+    public let error: String?
+
+    public init(
+        index: Int,
+        id: String?,
+        items: [NoteSummary]? = nil,
+        page: DiscoveryPageInfo? = nil,
+        error: String? = nil
+    ) {
+        self.index = index
+        self.id = id
+        self.items = items
+        self.page = page
+        self.error = error
+    }
+}
+
+public struct FindNotesBatchResult: Codable, Hashable, Sendable {
+    public let results: [FindNotesOperationResult]
+
+    public init(results: [FindNotesOperationResult]) {
+        self.results = results
+    }
+}
 
 public struct TagSummary: Codable, Hashable, Sendable {
     public let name: String
