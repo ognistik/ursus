@@ -34,14 +34,21 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
     #expect(insert.description?.contains("`position` uses `top`") == true)
     #expect(insert.description?.contains("`new_window` uses `false` when the note is opened") == true)
+    #expect(insert.description?.contains("`note` accepts a selector matched as exact note id first") == true)
+    #expect(propertyDescription(named: "note", in: insert)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "position", in: insert)?.contains("Omitted uses the current session default `top`") == true)
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
     #expect(addFiles.description?.contains("`position` uses `top`") == true)
+    #expect(propertyDescription(named: "note", in: addFiles)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "position", in: addFiles)?.contains("Omitted uses the current session default `top`") == true)
 
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
     #expect(openNotes.description?.contains("Current omission default: `new_window` uses `false`") == true)
+    #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
+
+    let replace = try #require(tool(named: "bear_replace_note_body", in: tools))
+    #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
 }
 
 @Test

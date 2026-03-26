@@ -115,7 +115,7 @@ public final class BearMCPServer: Sendable {
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 InsertTextRequest(
-                    noteID: try requiredString(object, "note_id"),
+                    noteID: try requiredNoteSelector(object),
                     text: try requiredString(object, "text"),
                     position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
@@ -133,7 +133,7 @@ public final class BearMCPServer: Sendable {
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 ReplaceNoteBodyRequest(
-                    noteID: try requiredString(object, "note_id"),
+                    noteID: try requiredNoteSelector(object),
                     mode: try MCPArgumentDecoder.replaceMode(object),
                     oldString: object["old_string"]?.stringValue,
                     newString: try requiredString(object, "new_string"),
@@ -152,7 +152,7 @@ public final class BearMCPServer: Sendable {
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 AddFileRequest(
-                    noteID: try requiredString(object, "note_id"),
+                    noteID: try requiredNoteSelector(object),
                     filePath: try requiredString(object, "file_path"),
                     position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
@@ -170,15 +170,15 @@ public final class BearMCPServer: Sendable {
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 OpenNoteRequest(
-                    noteID: try requiredString(object, "note_id"),
+                    noteID: try requiredNoteSelector(object),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.openNotes(requests))
 
         case "bear_archive_notes":
-            let noteIDs = MCPArgumentDecoder.stringArray(params.arguments, "note_ids")
-            return try jsonResult(try await service.archiveNotes(noteIDs))
+            let noteSelectors = try requiredNoteSelectors(params.arguments)
+            return try jsonResult(try await service.archiveNotes(noteSelectors))
 
         default:
             throw BearError.invalidInput("Unknown Bear tool '\(params.name)'.")
@@ -197,6 +197,30 @@ public final class BearMCPServer: Sendable {
             throw BearError.invalidInput("Missing required string argument '\(key)'.")
         }
         return value
+    }
+
+    private func requiredNoteSelector(_ object: [String: Value]) throws -> String {
+        if let value = object["note"]?.stringValue, !value.isEmpty {
+            return value
+        }
+        if let value = object["note_id"]?.stringValue, !value.isEmpty {
+            return value
+        }
+        throw BearError.invalidInput("Missing required string argument 'note'.")
+    }
+
+    private func requiredNoteSelectors(_ arguments: [String: Value]?) throws -> [String] {
+        let selectors = MCPArgumentDecoder.stringArray(arguments, "notes")
+        if !selectors.isEmpty {
+            return selectors
+        }
+
+        let legacySelectors = MCPArgumentDecoder.stringArray(arguments, "note_ids")
+        if !legacySelectors.isEmpty {
+            return legacySelectors
+        }
+
+        throw BearError.invalidInput("Missing required array argument 'notes'.")
     }
 
     private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
@@ -381,9 +405,9 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text at the top or bottom of one or more Bear notes. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: "Insert text at the top or bottom of one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note_id": .object(["type": .string("string")]),
+                    "note": noteSelectorProperty(),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -394,14 +418,14 @@ private enum ToolCatalog {
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
-                required: ["note_id", "text"],
+                required: ["note", "text"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_replace_note_body",
-                description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note_id": .object(["type": .string("string")]),
+                    "note": noteSelectorProperty(),
                     "mode": .object(["type": .string("string"), "enum": .array([.string("exact"), .string("all"), .string("entire_body")])]),
                     "old_string": .object(["type": .string("string")]),
                     "new_string": .object(["type": .string("string")]),
@@ -409,14 +433,14 @@ private enum ToolCatalog {
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
-                required: ["note_id", "new_string"],
+                required: ["note", "new_string"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note_id": .object(["type": .string("string")]),
+                    "note": noteSelectorProperty(),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -427,31 +451,32 @@ private enum ToolCatalog {
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
-                required: ["note_id", "file_path"],
+                required: ["note", "file_path"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_open_notes",
-                description: "Open Bear notes in the Bear UI. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
+                description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
                 operationProperties: [
-                    "note_id": .object(["type": .string("string")]),
+                    "note": noteSelectorProperty(),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
-                required: ["note_id"],
+                required: ["note"],
                 presentationProperties: [:]
             ),
             Tool(
                 name: "bear_archive_notes",
-                description: "Archive one or more Bear notes.",
+                description: "Archive one or more Bear notes. `notes` accepts selectors matched as exact note ids first, then exact case-insensitive titles; ambiguous title matches must be disambiguated with the note id.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
-                        "note_ids": .object([
+                        "notes": .object([
                             "type": .string("array"),
                             "items": .object(["type": .string("string")]),
+                            "description": .string("Required note selectors. Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
                         ]),
                     ]),
-                    "required": .array([.string("note_ids")]),
+                    "required": .array([.string("notes")]),
                 ])
             ),
         ]
@@ -630,6 +655,13 @@ private enum ToolCatalog {
         .object([
             "type": .string("boolean"),
             "description": .string(description),
+        ])
+    }
+
+    private static func noteSelectorProperty() -> Value {
+        .object([
+            "type": .string("string"),
+            "description": .string("Required note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
         ])
     }
 

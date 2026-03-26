@@ -182,13 +182,21 @@ public final class BearService: @unchecked Sendable {
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
-            let note = try self.loadNote(id: request.noteID)
+            let note = try self.resolveNoteSelector(request.noteID)
             if let expected = request.expectedVersion, note.revision.version != expected {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
             guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
-                return try await self.writeTransport.insertText(request)
+                return try await self.writeTransport.insertText(
+                    InsertTextRequest(
+                        noteID: note.ref.identifier,
+                        text: request.text,
+                        position: request.position,
+                        presentation: request.presentation,
+                        expectedVersion: request.expectedVersion
+                    )
+                )
             }
 
             let updatedContent = self.insertedContent(
@@ -200,7 +208,7 @@ public final class BearService: @unchecked Sendable {
             let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
 
             return try await self.writeTransport.replaceAll(
-                noteID: request.noteID,
+                noteID: note.ref.identifier,
                 fullText: updatedRawText,
                 presentation: request.presentation
             )
@@ -209,14 +217,14 @@ public final class BearService: @unchecked Sendable {
 
     public func replaceNoteBody(_ requests: [ReplaceNoteBodyRequest]) async throws -> [MutationReceipt] {
         try await mutateEach(requests) { request in
-            let note = try self.loadNote(id: request.noteID)
+            let note = try self.resolveNoteSelector(request.noteID)
             if let expected = request.expectedVersion, note.revision.version != expected {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
             let updatedText = try self.updatedRawText(note: note, request: request)
             return try await self.writeTransport.replaceAll(
-                noteID: request.noteID,
+                noteID: note.ref.identifier,
                 fullText: updatedText,
                 presentation: request.presentation
             )
@@ -225,16 +233,31 @@ public final class BearService: @unchecked Sendable {
 
     public func addFiles(_ requests: [AddFileRequest]) async throws -> [MutationReceipt] {
         try await mutateEach(requests) { request in
-            if let expected = request.expectedVersion {
-                try self.assertVersion(noteID: request.noteID, expectedVersion: expected)
+            let note = try self.resolveNoteSelector(request.noteID)
+            if let expected = request.expectedVersion, note.revision.version != expected {
+                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
-            return try await self.writeTransport.addFile(request)
+            return try await self.writeTransport.addFile(
+                AddFileRequest(
+                    noteID: note.ref.identifier,
+                    filePath: request.filePath,
+                    position: request.position,
+                    presentation: request.presentation,
+                    expectedVersion: request.expectedVersion
+                )
+            )
         }
     }
 
     public func openNotes(_ requests: [OpenNoteRequest]) async throws -> [MutationReceipt] {
         try await mutateEach(requests) { request in
-            try await self.writeTransport.open(request)
+            let note = try self.resolveNoteSelector(request.noteID)
+            return try await self.writeTransport.open(
+                OpenNoteRequest(
+                    noteID: note.ref.identifier,
+                    presentation: request.presentation
+                )
+            )
         }
     }
 
@@ -256,9 +279,10 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    public func archiveNotes(_ noteIDs: [String]) async throws -> [MutationReceipt] {
-        try await mutateEach(noteIDs) { noteID in
-            try await self.writeTransport.archive(noteID: noteID, showWindow: true)
+    public func archiveNotes(_ noteSelectors: [String]) async throws -> [MutationReceipt] {
+        try await mutateEach(noteSelectors) { noteSelector in
+            let note = try self.resolveNoteSelector(noteSelector)
+            return try await self.writeTransport.archive(noteID: note.ref.identifier, showWindow: true)
         }
     }
 
@@ -291,6 +315,31 @@ public final class BearService: @unchecked Sendable {
             throw BearError.notFound("Bear note not found: \(id)")
         }
         return note
+    }
+
+    private func resolveNoteSelector(_ selector: String) throws -> BearNote {
+        let trimmed = selector.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw BearError.invalidInput("Note selector must not be empty.")
+        }
+
+        if let exactIDMatch = try readStore.note(id: trimmed) {
+            return exactIDMatch
+        }
+
+        let titleMatches = try uniqueNotes(
+            readStore.notes(titled: trimmed, location: .notes) +
+            readStore.notes(titled: trimmed, location: .archive)
+        )
+
+        switch titleMatches.count {
+        case 0:
+            throw BearError.notFound("Bear note not found for selector '\(trimmed)'.")
+        case 1:
+            return titleMatches[0]
+        default:
+            throw BearError.ambiguous("Note selector '\(trimmed)' matched \(titleMatches.count) notes. Use the note id.")
+        }
     }
 
     private func assertVersion(noteID: String, expectedVersion: Int) throws {
@@ -614,6 +663,15 @@ public final class BearService: @unchecked Sendable {
         value
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private func uniqueNotes(_ notes: [BearNote]) -> [BearNote] {
+        var seen: Set<String> = []
+        return notes
+            .sorted(by: noteSortOrder)
+            .filter { note in
+                seen.insert(note.ref.identifier).inserted
+            }
     }
 
     private func canonicalBody(for note: BearNote) -> String {
