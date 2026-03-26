@@ -815,11 +815,19 @@ public final class BearService: @unchecked Sendable {
         let normalized = normalizedLineEndings(content)
         var lines = normalized.components(separatedBy: "\n")
 
-        guard let index = lines.firstIndex(of: anchorMarkdown) else {
+        guard let index = lines.firstIndex(where: { $0 == anchorMarkdown || $0.hasPrefix(anchorMarkdown) }) else {
             throw BearError.xCallback("Temporary attachment anchor '\(anchorMarkdown)' was not found during cleanup.")
         }
 
-        lines.remove(at: index)
+        let remainder = String(lines[index].dropFirst(anchorMarkdown.count))
+            .trimmingCharacters(in: .whitespaces)
+
+        if remainder.isEmpty {
+            lines.remove(at: index)
+        } else {
+            lines[index] = remainder
+        }
+
         if index == 0 {
             while lines.first?.isEmpty == true {
                 lines.removeFirst()

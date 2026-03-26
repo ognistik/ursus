@@ -91,6 +91,43 @@ func addFilesRespectTopPlacementInsideTemplateContent() async throws {
 }
 
 @Test
+func addFilesCleanupRemovesAnchorWhenBearAppendsAttachmentInline() async throws {
+    let note = makeAddFileSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "---\n#0-inbox\n---\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let readStore = MutableAddFileReadStore(note: note, headerAttachmentLayout: .sameLine)
+    let transport = AddFileRecordingWriteTransport(readStore: readStore)
+    let service = BearService(
+        configuration: makeAddFileConfiguration(templateManagementEnabled: true),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceAddFileTests")
+    )
+
+    let fileURL = try temporaryAddFileURL(named: "example.txt", contents: "payload")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        _ = try await service.addFiles([
+            AddFileRequest(
+                noteID: "note-1",
+                filePath: fileURL.path,
+                position: .bottom,
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCalls = await transport.replaceCalls
+    #expect(replaceCalls.count == 2)
+    #expect(replaceCalls[1].fullText == "# Inbox\n\n---\n#0-inbox\n---\nLine 1\n[file:example.txt]")
+}
+
+@Test
 func addFilesFallBackToDirectAddFileWhenNoteDoesNotMatchActiveTemplate() async throws {
     let note = makeAddFileSourceNote(
         id: "note-1",
@@ -179,9 +216,11 @@ private func temporaryAddFileURL(named filename: String, contents: String) throw
 private final class MutableAddFileReadStore: @unchecked Sendable, BearReadStore {
     private let lock = NSLock()
     private var note: BearNote
+    private let headerAttachmentLayout: HeaderAttachmentLayout
 
-    init(note: BearNote) {
+    init(note: BearNote, headerAttachmentLayout: HeaderAttachmentLayout = .nextLine) {
         self.note = note
+        self.headerAttachmentLayout = headerAttachmentLayout
     }
 
     func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
@@ -235,9 +274,15 @@ private final class MutableAddFileReadStore: @unchecked Sendable, BearReadStore 
             let headerLine = "## \(header)"
             switch position {
             case .top:
+                let replacement = switch headerAttachmentLayout {
+                case .nextLine:
+                    "\(headerLine)\n\(attachmentLine)\n"
+                case .sameLine:
+                    "\(headerLine)\(attachmentLine)"
+                }
                 updatedBody = parsed.body.replacingOccurrences(
                     of: headerLine,
-                    with: "\(headerLine)\n\(attachmentLine)\n",
+                    with: replacement,
                     options: [],
                     range: parsed.body.range(of: headerLine)
                 )
@@ -285,6 +330,11 @@ private final class MutableAddFileReadStore: @unchecked Sendable, BearReadStore 
 
         return (remainder, "")
     }
+}
+
+private enum HeaderAttachmentLayout {
+    case nextLine
+    case sameLine
 }
 
 private actor AddFileRecordingWriteTransport: BearWriteTransport {

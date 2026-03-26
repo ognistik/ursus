@@ -94,6 +94,29 @@ func databaseReaderLoadsAttachmentsInInsertionOrderAndNormalizesEmptySearchText(
 }
 
 @Test
+func databaseReaderUsesZOPTForNoteVersion() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Inbox",
+            rawText: "# Inbox\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20,
+            zOpt: 42
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let note = try #require(try reader.note(id: "note-1"))
+
+    #expect(note.revision.version == 42)
+}
+
+@Test
 func databaseReaderListTagsFiltersByLocationQueryAndParentPath() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
@@ -741,6 +764,7 @@ private func seedBearDatabase(
         try db.execute(sql: """
         CREATE TABLE ZSFNOTE (
             Z_PK INTEGER PRIMARY KEY,
+            Z_OPT INTEGER,
             ZUNIQUEIDENTIFIER TEXT,
             ZTITLE TEXT,
             ZTEXT TEXT,
@@ -792,12 +816,14 @@ private func insertNote(
     archived: Int,
     trashed: Int,
     modifiedAt: Double,
-    permanentlyDeleted: Int = 0
+    permanentlyDeleted: Int = 0,
+    zOpt: Int = 3
 ) throws {
     try db.execute(
         sql: """
         INSERT INTO ZSFNOTE (
             Z_PK,
+            Z_OPT,
             ZUNIQUEIDENTIFIER,
             ZTITLE,
             ZTEXT,
@@ -808,10 +834,11 @@ private func insertNote(
             ZTRASHED,
             ZENCRYPTED,
             ZPERMANENTLYDELETED
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         arguments: [
             pk,
+            zOpt,
             noteID,
             title,
             rawText,
