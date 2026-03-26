@@ -25,7 +25,9 @@
 - Discovery limit and snippet-length defaults come from config, allow per-operation overrides, and are capped server-side.
 - Discovery pagination remains cursor-based per operation, with opaque cursors keyed by a digest of the normalized filter set.
 - Discovery summaries keep a template-aware body `snippet`, add optional `attachmentSnippet` when attachment OCR/index text exists, and include `matchedFields` when a text filter is part of the request.
-- `bear_find_notes` accepts text, tag, active-tag, and date filters, including supported natural-language date phrases resolved by the server in the local timezone.
+- `bear_find_notes` accepts text, tag, active-tag, presence, and date filters. Presence filters cover attachments, non-empty attachment indexed/OCR text, and tag presence.
+- Natural-language date phrases for discovery are resolved by the server in the local timezone and are intentionally limited to present/past-oriented phrases such as `today`, `this week`, `last week`, and `last 7 days`.
+- `from` and `to` are inclusive bounds, so filtering to one named period can use the same phrase on both sides when needed.
 - Full note fetches expose a single canonical `content` field derived from normalized raw markdown, strip template wrapper noise when the current template matches, and return attachment metadata plus Bear's extracted attachment search text separately instead of duplicating `body` and `rawText`.
 - `bear_replace_note_body` computes the full note markdown locally, then writes with Bear's `replace_all` mode.
 - `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured active tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.

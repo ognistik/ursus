@@ -648,6 +648,9 @@ public final class BearService: @unchecked Sendable {
         var tagsAny = normalizedTags(operation.tagsAny)
         var tagsAll = normalizedTags(operation.tagsAll)
         let tagsNone = normalizedTags(operation.tagsNone)
+        let hasAttachments = operation.hasAttachments
+        let hasAttachmentSearchText = operation.hasAttachmentSearchText
+        let hasTags = operation.hasTags
 
         if let activeTagsMode = operation.activeTagsMode {
             let activeTags = normalizedTags(configuration.activeTags)
@@ -679,6 +682,9 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny,
             tagsAll: tagsAll,
             tagsNone: tagsNone,
+            hasAttachments: hasAttachments,
+            hasAttachmentSearchText: hasAttachmentSearchText,
+            hasTags: hasTags,
             from: from,
             to: to
         ) else {
@@ -700,6 +706,9 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny,
             tagsAll: tagsAll,
             tagsNone: tagsNone,
+            hasAttachments: hasAttachments,
+            hasAttachmentSearchText: hasAttachmentSearchText,
+            hasTags: hasTags,
             location: operation.location,
             dateField: dateField,
             from: from,
@@ -722,6 +731,9 @@ public final class BearService: @unchecked Sendable {
                 tagsAny: tagsAny,
                 tagsAll: tagsAll,
                 tagsNone: tagsNone,
+                hasAttachments: hasAttachments,
+                hasAttachmentSearchText: hasAttachmentSearchText,
+                hasTags: hasTags,
                 location: operation.location,
                 dateField: dateField,
                 from: from,
@@ -741,6 +753,9 @@ public final class BearService: @unchecked Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasAttachments: Bool?,
+        hasAttachmentSearchText: Bool?,
+        hasTags: Bool?,
         location: BearNoteLocation,
         dateField: FindDateField?,
         from: Date?,
@@ -754,6 +769,9 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny.sorted(),
             tagsAll: tagsAll.sorted(),
             tagsNone: tagsNone.sorted(),
+            hasAttachments: hasAttachments,
+            hasAttachmentSearchText: hasAttachmentSearchText,
+            hasTags: hasTags,
             location: location.rawValue,
             dateField: dateField?.rawValue,
             from: from?.timeIntervalSinceReferenceDate,
@@ -772,6 +790,9 @@ public final class BearService: @unchecked Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasAttachments: Bool?,
+        hasAttachmentSearchText: Bool?,
+        hasTags: Bool?,
         from: Date?,
         to: Date?
     ) -> Bool {
@@ -780,6 +801,9 @@ public final class BearService: @unchecked Sendable {
             || !tagsAny.isEmpty
             || !tagsAll.isEmpty
             || !tagsNone.isEmpty
+            || hasAttachments != nil
+            || hasAttachmentSearchText != nil
+            || hasTags != nil
             || from != nil
             || to != nil
     }
@@ -928,26 +952,18 @@ public final class BearService: @unchecked Sendable {
             return dayInterval(offset: 0)
         case "yesterday":
             return dayInterval(offset: -1)
-        case "tomorrow":
-            return dayInterval(offset: 1)
         case "this week":
             return shiftedInterval(of: .weekOfYear, by: 0)
         case "last week":
             return shiftedInterval(of: .weekOfYear, by: -1)
-        case "next week":
-            return shiftedInterval(of: .weekOfYear, by: 1)
         case "this month":
             return shiftedInterval(of: .month, by: 0)
         case "last month":
             return shiftedInterval(of: .month, by: -1)
-        case "next month":
-            return shiftedInterval(of: .month, by: 1)
         case "this year":
             return shiftedInterval(of: .year, by: 0)
         case "last year":
             return shiftedInterval(of: .year, by: -1)
-        case "next year":
-            return shiftedInterval(of: .year, by: 1)
         default:
             return relativeSpanInterval(normalized)
         }
@@ -979,8 +995,6 @@ public final class BearService: @unchecked Sendable {
         switch direction {
         case "last":
             return trailingInterval(unit: unit, amount: amount)
-        case "next":
-            return leadingInterval(unit: unit, amount: amount)
         default:
             return nil
         }
@@ -1001,26 +1015,6 @@ public final class BearService: @unchecked Sendable {
                 return nil
             }
             return DateInterval(start: startInterval.start, end: endOfInterval(currentInterval))
-        default:
-            return nil
-        }
-    }
-
-    private func leadingInterval(unit: Calendar.Component, amount: Int) -> DateInterval? {
-        switch unit {
-        case .day:
-            guard let endDate = calendar.date(byAdding: .day, value: amount - 1, to: now) else {
-                return nil
-            }
-            return DateInterval(start: startOfDay(now), end: endOfDay(endDate))
-        case .weekOfYear, .month:
-            guard let endDate = calendar.date(byAdding: unit, value: amount - 1, to: now),
-                  let startInterval = calendar.dateInterval(of: unit, for: now),
-                  let endInterval = calendar.dateInterval(of: unit, for: endDate)
-            else {
-                return nil
-            }
-            return DateInterval(start: startInterval.start, end: endOfInterval(endInterval))
         default:
             return nil
         }
@@ -1138,6 +1132,9 @@ private struct FindFilterIdentity: Encodable {
     let tagsAny: [String]
     let tagsAll: [String]
     let tagsNone: [String]
+    let hasAttachments: Bool?
+    let hasAttachmentSearchText: Bool?
+    let hasTags: Bool?
     let location: String
     let dateField: String?
     let from: Double?

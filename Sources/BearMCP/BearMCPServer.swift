@@ -202,6 +202,9 @@ public final class BearMCPServer: Sendable {
             tagsAny: MCPArgumentDecoder.stringArray(object, "tags_any"),
             tagsAll: MCPArgumentDecoder.stringArray(object, "tags_all"),
             tagsNone: MCPArgumentDecoder.stringArray(object, "tags_none"),
+            hasAttachments: try MCPArgumentDecoder.optionalBool(object, "has_attachments"),
+            hasAttachmentSearchText: try MCPArgumentDecoder.optionalBool(object, "has_attachment_search_text"),
+            hasTags: try MCPArgumentDecoder.optionalBool(object, "has_tags"),
             activeTagsMode: try MCPArgumentDecoder.optionalFindTagMatchMode(object, key: "active_tags_mode"),
             dateField: try MCPArgumentDecoder.optionalFindDateField(object, key: "date_field"),
             from: MCPArgumentDecoder.optionalString(object, "from"),
@@ -485,6 +488,18 @@ private enum ToolCatalog {
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
             ]),
+            "has_attachments": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional presence filter. Set true to return only notes with attachments, or false to return only notes without attachments."),
+            ]),
+            "has_attachment_search_text": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional presence filter over attachment indexed/OCR text. Set true to require non-empty attachment search text, or false to require none."),
+            ]),
+            "has_tags": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional presence filter. Set true to return only tagged notes, or false to return only notes without tags."),
+            ]),
             "active_tags_mode": .object([
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
@@ -495,11 +510,11 @@ private enum ToolCatalog {
             ]),
             "from": .object([
                 "type": .string("string"),
-                "description": .string("Optional start date. Accepts ISO 8601, YYYY-MM-DD, or supported natural-language phrases such as 'last week'."),
+                "description": .string("Optional inclusive start date bound. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'last week'."),
             ]),
             "to": .object([
                 "type": .string("string"),
-                "description": .string("Optional end date. Accepts ISO 8601, YYYY-MM-DD, or supported natural-language phrases such as 'today'."),
+                "description": .string("Optional inclusive end date bound. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'today'."),
             ]),
         ])
     }

@@ -22,6 +22,7 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
 
         appendTextConditions(to: &conditions, arguments: &arguments, query: query)
         appendTagConditions(to: &conditions, arguments: &arguments, query: query)
+        appendPresenceConditions(to: &conditions, query: query)
         appendDateConditions(to: &conditions, arguments: &arguments, query: query)
 
         let pagination = paginationClause(for: query.paging.cursor)
@@ -341,6 +342,54 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         }
     }
 
+    private func appendPresenceConditions(
+        to conditions: inout [String],
+        query: FindNotesQuery
+    ) {
+        if let hasAttachments = query.hasAttachments {
+            conditions.append(booleanPresencePredicate(
+                hasAttachments,
+                existsSQL: """
+                    EXISTS (
+                        SELECT 1
+                        FROM ZSFNOTEFILE f
+                        WHERE f.ZNOTE = n.Z_PK
+                            AND f.ZPERMANENTLYDELETED = 0
+                    )
+                    """
+            ))
+        }
+
+        if let hasAttachmentSearchText = query.hasAttachmentSearchText {
+            conditions.append(booleanPresencePredicate(
+                hasAttachmentSearchText,
+                existsSQL: """
+                    EXISTS (
+                        SELECT 1
+                        FROM ZSFNOTEFILE f
+                        WHERE f.ZNOTE = n.Z_PK
+                            AND f.ZPERMANENTLYDELETED = 0
+                            AND TRIM(COALESCE(f.ZSEARCHTEXT, '')) <> ''
+                    )
+                    """
+            ))
+        }
+
+        if let hasTags = query.hasTags {
+            conditions.append(booleanPresencePredicate(
+                hasTags,
+                existsSQL: """
+                    EXISTS (
+                        SELECT 1
+                        FROM Z_5TAGS nt2
+                        JOIN ZSFNOTETAG t2 ON t2.Z_PK = nt2.Z_13TAGS
+                        WHERE nt2.Z_5NOTES = n.Z_PK
+                    )
+                    """
+            ))
+        }
+    }
+
     private func positiveTextPredicate(
         mode: FindTextMode,
         terms: [String],
@@ -397,6 +446,10 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             sql: "(" + predicates.map(\.sql).joined(separator: " \(joiner) ") + ")",
             arguments: predicates.flatMap(\.arguments)
         )
+    }
+
+    private func booleanPresencePredicate(_ value: Bool, existsSQL: String) -> String {
+        value ? existsSQL : "NOT \(existsSQL)"
     }
 
     private func bodySearchExpression() -> String {

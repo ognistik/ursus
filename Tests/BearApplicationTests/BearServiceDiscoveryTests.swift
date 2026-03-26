@@ -267,6 +267,61 @@ func findNotesParsesDateFiltersAndDefaultsDateFieldToModifiedAt() throws {
 }
 
 @Test
+func findNotesAllowsPresenceOnlyFilters() throws {
+    let note = makeNote(
+        id: "note-1",
+        title: "Filtered",
+        body: "Body",
+        tags: [],
+        archived: false
+    )
+    let readStore = DiscoveryReadStore(findBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(
+            hasAttachments: true,
+            hasAttachmentSearchText: false,
+            hasTags: false
+        ),
+    ])
+
+    #expect(batch.results.first?.error == nil)
+    #expect(batch.results.first?.items?.first?.noteID == "note-1")
+    #expect(readStore.lastFindQuery?.hasAttachments == true)
+    #expect(readStore.lastFindQuery?.hasAttachmentSearchText == false)
+    #expect(readStore.lastFindQuery?.hasTags == false)
+}
+
+@Test
+func findNotesRejectsFutureNaturalLanguageDateFilters() throws {
+    let readStore = DiscoveryReadStore(findBatches: [])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(from: "next week"),
+        FindNotesOperation(to: "tomorrow"),
+    ])
+
+    #expect(batch.results.count == 2)
+    #expect(batch.results[0].error == "Could not parse date 'next week'.")
+    #expect(batch.results[1].error == "Could not parse date 'tomorrow'.")
+    #expect(readStore.findQueries.isEmpty)
+}
+
+@Test
 func listTagsDefaultsToNotesWithoutFilters() throws {
     let readStore = DiscoveryReadStore(listTagsResults: [
         TagSummary(name: "projects", identifier: "tag-1", noteCount: 2),

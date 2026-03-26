@@ -170,7 +170,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 ### Search/read side
 
 - The current DB reader queries `ZSFNOTE`, `ZSFNOTETAG`, and `Z_5TAGS`.
-- Find currently uses structured SQL filtering over title, body, tags, dates, and attachment OCR/index text.
+- Find currently uses structured SQL filtering over title, body, tags, tag presence, dates, attachment presence, and attachment OCR/index text.
 - Discovery tools always exclude trashed notes.
 - Discovery tools search either normal notes or archived notes, never both in one call.
 - MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
@@ -184,7 +184,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Discovery limits and snippet lengths are config-driven defaults with per-operation overrides and server-side hard caps.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Attachment snippets are built from `ZSFNOTEFILE.ZSEARCHTEXT` in attachment insertion order and truncated with the same configured snippet limit.
-- `bear_find_notes` supports query-less filtering by tags or dates and accepts supported natural-language date phrases that are resolved server-side in the local timezone.
+- `bear_find_notes` supports query-less filtering by tags, presence flags, or dates and accepts supported past/present natural-language date phrases that are resolved server-side in the local timezone.
+- `from` and `to` are inclusive bounds rather than named-period presets; using the same phrase on both sides narrows the query to that one resolved interval.
 - Notes are normalized into typed models.
 - Full note fetches now return a lean structured record with `noteID`, `title`, canonical template-aware `content`, tags, timestamps, version, and per-file attachment records including Bear's attachment search text when available.
 - Attached file OCR/index text currently comes from `ZSFNOTEFILE.ZSEARCHTEXT` and is returned separately from note content.

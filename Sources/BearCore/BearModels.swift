@@ -145,6 +145,9 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
     public let tagsAny: [String]
     public let tagsAll: [String]
     public let tagsNone: [String]
+    public let hasAttachments: Bool?
+    public let hasAttachmentSearchText: Bool?
+    public let hasTags: Bool?
     public let activeTagsMode: FindTagMatchMode?
     public let dateField: FindDateField?
     public let from: String?
@@ -163,6 +166,9 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         tagsAny: [String] = [],
         tagsAll: [String] = [],
         tagsNone: [String] = [],
+        hasAttachments: Bool? = nil,
+        hasAttachmentSearchText: Bool? = nil,
+        hasTags: Bool? = nil,
         activeTagsMode: FindTagMatchMode? = nil,
         dateField: FindDateField? = nil,
         from: String? = nil,
@@ -180,6 +186,9 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         self.tagsAny = tagsAny
         self.tagsAll = tagsAll
         self.tagsNone = tagsNone
+        self.hasAttachments = hasAttachments
+        self.hasAttachmentSearchText = hasAttachmentSearchText
+        self.hasTags = hasTags
         self.activeTagsMode = activeTagsMode
         self.dateField = dateField
         self.from = from
@@ -200,6 +209,9 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
     public let tagsAny: [String]
     public let tagsAll: [String]
     public let tagsNone: [String]
+    public let hasAttachments: Bool?
+    public let hasAttachmentSearchText: Bool?
+    public let hasTags: Bool?
     public let location: BearNoteLocation
     public let dateField: FindDateField?
     public let from: Date?
@@ -215,6 +227,9 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasAttachments: Bool? = nil,
+        hasAttachmentSearchText: Bool? = nil,
+        hasTags: Bool? = nil,
         location: BearNoteLocation = .notes,
         dateField: FindDateField? = nil,
         from: Date? = nil,
@@ -229,6 +244,9 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         self.tagsAny = tagsAny
         self.tagsAll = tagsAll
         self.tagsNone = tagsNone
+        self.hasAttachments = hasAttachments
+        self.hasAttachmentSearchText = hasAttachmentSearchText
+        self.hasTags = hasTags
         self.location = location
         self.dateField = dateField
         self.from = from
