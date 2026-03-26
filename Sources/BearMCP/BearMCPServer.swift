@@ -84,6 +84,16 @@ public final class BearMCPServer: Sendable {
             }
             return try jsonResult(try await service.listBackups(operations))
 
+        case "bear_delete_backups":
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                DeleteBackupRequest(
+                    noteID: MCPArgumentDecoder.optionalString(object, "note"),
+                    snapshotID: MCPArgumentDecoder.optionalString(object, "snapshot_id"),
+                    deleteAll: try MCPArgumentDecoder.optionalBool(object, "delete_all") ?? false
+                )
+            }
+            return try jsonResult(try await service.deleteBackups(requests))
+
         case "bear_open_tag":
             let tag = try MCPArgumentDecoder.string(params.arguments, "tag")
             return try jsonResult(try await service.openTag(tag))
@@ -384,6 +394,26 @@ private enum ToolCatalog {
                 description: "List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `limit` unless the user explicitly asks for a different number of snapshots. `note` is optional; omit it to list recent backups across notes.",
                 operationProperties: backupListOperationProperties(configuration: configuration),
                 required: []
+            ),
+            batchedMutationTool(
+                name: "bear_delete_backups",
+                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
+                operationProperties: [
+                    "note": .object([
+                        "type": .string("string"),
+                        "description": .string("Optional note selector. Use with `delete_all: true` to remove all saved backups for one note. Matched as exact note id first, then exact case-insensitive title across notes and archive."),
+                    ]),
+                    "snapshot_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Optional exact backup snapshot identifier to delete."),
+                    ]),
+                    "delete_all": .object([
+                        "type": .string("boolean"),
+                        "description": .string("Optional. Set `true` with `note` to remove all saved backups for that note. Omit unless the user explicitly wants a bulk delete."),
+                    ]),
+                ],
+                required: [],
+                presentationProperties: [:]
             ),
             Tool(
                 name: "bear_open_tag",

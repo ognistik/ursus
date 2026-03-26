@@ -56,6 +56,10 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(listBackups.description?.contains("Use this before `bear_restore_notes`") == true)
     #expect(propertyDescription(named: "limit", in: listBackups)?.contains("Omitted uses `7`") == true)
 
+    let deleteBackups = try #require(tool(named: "bear_delete_backups", in: tools))
+    #expect(deleteBackups.description?.contains("Provide `snapshot_id` to delete one exact backup") == true)
+    #expect(propertyDescription(named: "delete_all", in: deleteBackups)?.contains("remove all saved backups for that note") == true)
+
     let restore = try #require(tool(named: "bear_restore_notes", in: tools))
     #expect(restore.description?.contains("If `snapshot_id` is omitted, the most recent backup") == true)
     #expect(propertyDescription(named: "snapshot_id", in: restore)?.contains("most recent snapshot") == true)

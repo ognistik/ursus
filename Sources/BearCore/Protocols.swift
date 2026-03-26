@@ -30,4 +30,6 @@ public protocol BearBackupStore: Sendable {
     func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) async throws -> BearBackupSummary?
     func list(noteID: String?, limit: Int?) async throws -> [BearBackupSummary]
     func snapshot(noteID: String, snapshotID: String?) async throws -> BearBackupSnapshot?
+    func delete(snapshotID: String, noteID: String?) async throws -> Int
+    func deleteAll(noteID: String) async throws -> Int
 }

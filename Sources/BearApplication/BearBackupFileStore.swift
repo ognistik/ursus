@@ -95,6 +95,37 @@ public actor BearBackupFileStore: BearBackupStore {
         return try BearJSON.makeDecoder().decode(BearBackupSnapshot.self, from: data)
     }
 
+    public func delete(snapshotID: String, noteID: String?) throws -> Int {
+        let index = try loadPrunedIndex()
+        guard let entry = index.entries.first(where: { entry in
+            entry.snapshotID == snapshotID && (noteID == nil || entry.noteID == noteID)
+        }) else {
+            return 0
+        }
+
+        var updatedIndex = index
+        updatedIndex.entries.removeAll { $0.snapshotID == entry.snapshotID }
+        try removeSnapshotFile(named: entry.fileName)
+        try writeIndex(updatedIndex)
+        return 1
+    }
+
+    public func deleteAll(noteID: String) throws -> Int {
+        let index = try loadPrunedIndex()
+        let entries = index.entries.filter { $0.noteID == noteID }
+        guard !entries.isEmpty else {
+            return 0
+        }
+
+        var updatedIndex = index
+        updatedIndex.entries.removeAll { $0.noteID == noteID }
+        for entry in entries {
+            try removeSnapshotFile(named: entry.fileName)
+        }
+        try writeIndex(updatedIndex)
+        return entries.count
+    }
+
     private func loadPrunedIndex() throws -> BackupIndex {
         let index = try loadIndex()
         let pruned = try prune(index)
@@ -124,6 +155,14 @@ public actor BearBackupFileStore: BearBackupStore {
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
         let data = try BearJSON.makeEncoder().encode(index)
         try data.write(to: indexURL, options: .atomic)
+    }
+
+    private func removeSnapshotFile(named fileName: String) throws {
+        let snapshotURL = directoryURL.appendingPathComponent(fileName, isDirectory: false)
+        guard fileManager.fileExists(atPath: snapshotURL.path) else {
+            return
+        }
+        try fileManager.removeItem(at: snapshotURL)
     }
 
     private func prune(_ index: BackupIndex) throws -> BackupIndex {

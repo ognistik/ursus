@@ -414,6 +414,38 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    public func deleteBackups(_ requests: [DeleteBackupRequest]) async throws -> [DeleteBackupReceipt] {
+        try await mutateEach(requests) { request in
+            let mode = try self.resolvedBackupDeleteMode(request)
+            guard let backupStore = self.backupStore else {
+                return DeleteBackupReceipt(
+                    noteID: mode.noteID,
+                    snapshotID: mode.snapshotID,
+                    deletedCount: 0,
+                    status: "not_found"
+                )
+            }
+
+            let deletedCount: Int
+            switch mode.kind {
+            case .snapshot:
+                deletedCount = try await backupStore.delete(
+                    snapshotID: mode.snapshotID ?? "",
+                    noteID: mode.noteID
+                )
+            case .note:
+                deletedCount = try await backupStore.deleteAll(noteID: mode.noteID ?? "")
+            }
+
+            return DeleteBackupReceipt(
+                noteID: mode.noteID,
+                snapshotID: mode.snapshotID,
+                deletedCount: deletedCount,
+                status: deletedCount > 0 ? "deleted" : "not_found"
+            )
+        }
+    }
+
     private func updatedRawText(note: BearNote, request: ReplaceContentRequest, template: String?) throws -> String {
         try validateReplaceContentRequest(request)
 
@@ -496,6 +528,31 @@ public final class BearService: @unchecked Sendable {
         }
 
         return try resolveNoteSelector(selector).ref.identifier
+    }
+
+    private func resolvedBackupDeleteMode(_ request: DeleteBackupRequest) throws -> ResolvedBackupDelete {
+        let noteID = try resolvedBackupNoteID(request.noteID)
+        let snapshotID = normalizedOptionalString(request.snapshotID)
+
+        if let snapshotID {
+            return ResolvedBackupDelete(
+                kind: .snapshot,
+                noteID: noteID,
+                snapshotID: snapshotID
+            )
+        }
+
+        guard request.deleteAll, let noteID else {
+            throw BearError.invalidInput(
+                "Delete backup operations require either `snapshot_id`, or `note` with `delete_all: true`."
+            )
+        }
+
+        return ResolvedBackupDelete(
+            kind: .note,
+            noteID: noteID,
+            snapshotID: nil
+        )
     }
 
     private func assertVersion(noteID: String, expectedVersion: Int) throws {
@@ -1530,6 +1587,17 @@ private struct ResolvedFindOperation {
     let query: FindNotesQuery
     let filterKey: String
     let limit: Int
+}
+
+private struct ResolvedBackupDelete {
+    enum Kind {
+        case snapshot
+        case note
+    }
+
+    let kind: Kind
+    let noteID: String?
+    let snapshotID: String?
 }
 
 private struct FindFilterIdentity: Encodable {

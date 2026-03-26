@@ -155,6 +155,70 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     #expect(second.error?.contains("not found") == true)
 }
 
+@Test
+func deleteBackupsDeletesExactSnapshotAndNoteScopedHistory() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        listedSummariesByNoteID: [
+            "note-1": [
+                BearBackupSummary(
+                    snapshotID: "snapshot-1",
+                    noteID: "note-1",
+                    title: "Inbox",
+                    version: 3,
+                    modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
+                    capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
+                    reason: .insertText,
+                    snippet: "Current"
+                ),
+            ],
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let receipts = try await service.deleteBackups([
+        DeleteBackupRequest(snapshotID: "snapshot-1"),
+        DeleteBackupRequest(noteID: "Inbox", deleteAll: true),
+    ])
+
+    let first = try #require(receipts.first)
+    let second = try #require(receipts.last)
+    #expect(first.snapshotID == "snapshot-1")
+    #expect(first.deletedCount == 1)
+    #expect(first.status == "deleted")
+    #expect(second.noteID == "note-1")
+    #expect(second.deletedCount == 1)
+    #expect(second.status == "deleted")
+    #expect(await backupStore.deletedSnapshotIDs == ["snapshot-1"])
+    #expect(await backupStore.deletedAllNoteIDs == ["note-1"])
+}
+
+@Test
+func deleteBackupsRejectsBlindBulkDelete() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: BackupServiceReadStore(noteByID: ["note-1": note]),
+        writeTransport: BackupServiceWriteTransport(),
+        backupStore: RecordingBackupStore(),
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.deleteBackups([
+            DeleteBackupRequest(deleteAll: true),
+        ])
+    }
+}
+
 private func makeBackupServiceConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -265,6 +329,8 @@ private actor RecordingBackupStore: BearBackupStore {
     private(set) var captures: [Capture] = []
     private let snapshots: [String: BearBackupSnapshot]
     private let listedSummariesByNoteID: [String: [BearBackupSummary]]
+    private(set) var deletedSnapshotIDs: [String] = []
+    private(set) var deletedAllNoteIDs: [String] = []
 
     init(
         snapshots: [String: BearBackupSnapshot] = [:],
@@ -294,5 +360,15 @@ private actor RecordingBackupStore: BearBackupStore {
         }
 
         return snapshots.values.first(where: { $0.noteID == noteID })
+    }
+
+    func delete(snapshotID: String, noteID: String?) async throws -> Int {
+        deletedSnapshotIDs.append(snapshotID)
+        return 1
+    }
+
+    func deleteAll(noteID: String) async throws -> Int {
+        deletedAllNoteIDs.append(noteID)
+        return 1
     }
 }

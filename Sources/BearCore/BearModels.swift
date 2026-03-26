@@ -678,6 +678,18 @@ public struct ListBackupsBatchResult: Codable, Hashable, Sendable {
     }
 }
 
+public struct DeleteBackupRequest: Codable, Hashable, Sendable {
+    public let noteID: String?
+    public let snapshotID: String?
+    public let deleteAll: Bool
+
+    public init(noteID: String? = nil, snapshotID: String? = nil, deleteAll: Bool = false) {
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+        self.deleteAll = deleteAll
+    }
+}
+
 public struct TagSummary: Codable, Hashable, Sendable {
     public let name: String
     public let identifier: String?
@@ -909,6 +921,20 @@ public struct RestoreBackupReceipt: Codable, Hashable, Sendable {
         self.status = status
         self.modifiedAt = modifiedAt
         self.snapshotID = snapshotID
+    }
+}
+
+public struct DeleteBackupReceipt: Codable, Hashable, Sendable {
+    public let noteID: String?
+    public let snapshotID: String?
+    public let deletedCount: Int
+    public let status: String
+
+    public init(noteID: String?, snapshotID: String?, deletedCount: Int, status: String) {
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+        self.deletedCount = deletedCount
+        self.status = status
     }
 }
 

@@ -129,6 +129,7 @@ Implemented MCP tool names:
 - `bear_find_notes_by_tag`
 - `bear_find_notes_by_active_tags`
 - `bear_list_backups`
+- `bear_delete_backups`
 - `bear_open_tag`
 - `bear_rename_tags`
 - `bear_create_notes`
@@ -212,7 +213,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
-- `bear_list_backups` returns compact snapshot summaries for one note or across notes, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
+- `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
