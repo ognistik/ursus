@@ -36,7 +36,7 @@ public final class BearMCPServer: Sendable {
         }
 
         await server.withMethodHandler(ListTools.self) { _ in
-            .init(tools: ToolCatalog.tools)
+            .init(tools: Self.toolCatalog(configuration: self.configuration))
         }
 
         await server.withMethodHandler(CallTool.self) { params in
@@ -107,12 +107,17 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.createNotes(requests))
 
         case "bear_insert_text":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 InsertTextRequest(
                     noteID: try requiredString(object, "note_id"),
                     text: try requiredString(object, "text"),
-                    position: try MCPArgumentDecoder.position(object, default: .bottom),
+                    position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -120,7 +125,12 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.insertText(requests))
 
         case "bear_replace_note_body":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 ReplaceNoteBodyRequest(
                     noteID: try requiredString(object, "note_id"),
@@ -134,12 +144,17 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try await service.replaceNoteBody(requests))
 
         case "bear_add_files":
-            let defaults = BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: configuration.openNoteInEditModeByDefault)
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 AddFileRequest(
                     noteID: try requiredString(object, "note_id"),
                     filePath: try requiredString(object, "file_path"),
-                    position: try MCPArgumentDecoder.position(object, default: .bottom),
+                    position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -245,188 +260,202 @@ public final class BearMCPServer: Sendable {
         }
         return String(describing: error)
     }
+
+    static func toolCatalog(configuration: BearConfiguration) -> [Tool] {
+        ToolCatalog.makeTools(configuration: configuration)
+    }
 }
 
 private enum ToolCatalog {
-    static let tools: [Tool] = [
-        batchedDiscoveryTool(
-            name: "bear_find_notes",
-            description: "Find Bear notes with text, tag, active-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
-            operationProperties: findNotesOperationProperties(),
-            required: []
-        ),
-        Tool(
-            name: "bear_get_notes",
-            description: "Fetch full Bear note records for one or more selectors. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object([
-                    "notes": .object([
-                        "type": .string("array"),
-                        "items": .object(["type": .string("string")]),
+    static func makeTools(configuration: BearConfiguration) -> [Tool] {
+        [
+            batchedDiscoveryTool(
+                name: "bear_find_notes",
+                description: "Find Bear notes with text, tag, active-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                operationProperties: findNotesOperationProperties(configuration: configuration),
+                required: []
+            ),
+            Tool(
+                name: "bear_get_notes",
+                description: "Fetch full Bear note records for one or more selectors. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "notes": .object([
+                            "type": .string("array"),
+                            "items": .object(["type": .string("string")]),
+                        ]),
+                        "location": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("notes"), .string("archive")]),
+                            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
+                        ]),
                     ]),
-                    "location": .object([
+                    "required": .array([.string("notes")]),
+                ])
+            ),
+            Tool(
+                name: "bear_list_tags",
+                description: "List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "location": .object([
+                            "type": .string("string"),
+                            "enum": .array([.string("notes"), .string("archive")]),
+                            "description": .string("Optional. Omit unless the user explicitly asks for archived tags. Defaults to `notes`."),
+                        ]),
+                        "query": .object([
+                            "type": .string("string"),
+                            "description": .string("Optional case-insensitive substring filter for tag names."),
+                        ]),
+                        "under_tag": .object([
+                            "type": .string("string"),
+                            "description": .string("Optional parent tag path. Returns descendant tags under the normalized parent path, excluding the parent tag itself."),
+                        ]),
+                    ]),
+                ])
+            ),
+            batchedDiscoveryTool(
+                name: "bear_find_notes_by_tag",
+                description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                operationProperties: findNotesByTagOperationProperties(configuration: configuration),
+                required: ["tags"]
+            ),
+            batchedDiscoveryTool(
+                name: "bear_find_notes_by_active_tags",
+                description: "Find Bear notes by the configured active tags and return compact summaries. Current active tags: \(formattedTagList(configuration.activeTags)). Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                operationProperties: findNotesByActiveTagsOperationProperties(configuration: configuration),
+                required: []
+            ),
+            Tool(
+                name: "bear_open_tag",
+                description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_find_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "tag": .object([
+                            "type": .string("string"),
+                            "description": .string("Required canonical tag name to open in Bear."),
+                        ]),
+                    ]),
+                    "required": .array([.string("tag")]),
+                ])
+            ),
+            batchedMutationTool(
+                name: "bear_rename_tags",
+                description: "Rename one or more Bear tags. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
+                operationProperties: [
+                    "name": .object([
                         "type": .string("string"),
-                        "enum": .array([.string("notes"), .string("archive")]),
-                        "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to 'notes'."),
+                        "description": .string("Existing tag name to rename."),
                     ]),
-                ]),
-                "required": .array([.string("notes")]),
-            ])
-        ),
-        Tool(
-            name: "bear_list_tags",
-            description: "List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object([
-                    "location": .object([
+                    "new_name": .object([
                         "type": .string("string"),
-                        "enum": .array([.string("notes"), .string("archive")]),
-                        "description": .string("Optional. Omit unless the user explicitly asks for archived tags. Defaults to 'notes'."),
+                        "description": .string("Replacement tag name."),
                     ]),
-                    "query": .object([
+                    "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the rename."),
+                ],
+                required: ["name", "new_name"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_create_notes",
+                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Current create defaults: omitted `open_note` uses \(formattedBool(configuration.createOpensNoteByDefault)); omitted `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened; configured active tags are \(formattedTagList(configuration.activeTags)); tag merging on omission currently \(formattedCreateTagMergeBehavior(configuration)). Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override those defaults for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
+                operationProperties: [
+                    "title": .object(["type": .string("string")]),
+                    "content": .object([
                         "type": .string("string"),
-                        "description": .string("Optional case-insensitive substring filter for tag names."),
+                        "description": .string("Required non-empty note content."),
                     ]),
-                    "under_tag": .object([
+                    "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                    "use_only_request_tags": .object([
+                        "type": .string("boolean"),
+                        "description": .string("Optional per-request override for note creation. Omit unless the user explicitly asks to change the current tag-merging default. Current omission behavior: \(formattedCreateTagMergeBehavior(configuration)). `true` uses only the supplied request tags instead of configured active tags. `false` appends configured active tags. If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                    ]),
+                    "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Current omission default: \(formattedBool(configuration.createOpensNoteByDefault)). Map any explicit user preference about opening to this field. `true` forces open and `false` forces closed. Omit this field when the user does not mention opening."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Current omission default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior."),
+                ],
+                required: ["title", "content"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_insert_text",
+                description: "Insert text at the top or bottom of one or more Bear notes. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                operationProperties: [
+                    "note_id": .object(["type": .string("string")]),
+                    "text": .object(["type": .string("string")]),
+                    "position": .object([
                         "type": .string("string"),
-                        "description": .string("Optional parent tag path. Returns descendant tags under the normalized parent path, excluding the parent tag itself."),
+                        "enum": .array([.string("top"), .string("bottom")]),
+                        "description": .string("Optional insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
-                ]),
-            ])
-        ),
-        batchedDiscoveryTool(
-            name: "bear_find_notes_by_tag",
-            description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
-            operationProperties: findNotesByTagOperationProperties(),
-            required: ["tags"]
-        ),
-        batchedDiscoveryTool(
-            name: "bear_find_notes_by_active_tags",
-            description: "Find Bear notes by the configured active tags and return compact summaries. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the configured defaults. Discovery excludes trash.",
-            operationProperties: findNotesByActiveTagsOperationProperties(),
-            required: []
-        ),
-        Tool(
-            name: "bear_open_tag",
-            description: "Open Bear's UI for a single known tag name. Use `bear_list_tags` first if the exact tag name is uncertain. Use `bear_find_notes_by_tag` instead when the goal is to read compact note summaries rather than navigate the Bear UI.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object([
-                    "tag": .object([
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note_id", "text"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_replace_note_body",
+                description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                operationProperties: [
+                    "note_id": .object(["type": .string("string")]),
+                    "mode": .object(["type": .string("string"), "enum": .array([.string("exact"), .string("all"), .string("entire_body")])]),
+                    "old_string": .object(["type": .string("string")]),
+                    "new_string": .object(["type": .string("string")]),
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note_id", "new_string"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_add_files",
+                description: "Attach one or more local files to Bear notes. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                operationProperties: [
+                    "note_id": .object(["type": .string("string")]),
+                    "file_path": .object(["type": .string("string")]),
+                    "position": .object([
                         "type": .string("string"),
-                        "description": .string("Required canonical tag name to open in Bear."),
+                        "enum": .array([.string("top"), .string("bottom")]),
+                        "description": .string("Optional file insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
-                ]),
-                "required": .array([.string("tag")]),
-            ])
-        ),
-        batchedMutationTool(
-            name: "bear_rename_tags",
-            description: "Rename one or more Bear tags. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
-            operationProperties: [
-                "name": .object([
-                    "type": .string("string"),
-                    "description": .string("Existing tag name to rename."),
-                ]),
-                "new_name": .object([
-                    "type": .string("string"),
-                    "description": .string("Replacement tag name."),
-                ]),
-                "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the rename."),
-            ],
-            required: ["name", "new_name"],
-            presentationProperties: [:]
-        ),
-        batchedMutationTool(
-            name: "bear_create_notes",
-            description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override configured defaults for this request. Omitted does not mean false: omission means use config defaults, while an explicit boolean forces behavior for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
-            operationProperties: [
-                "title": .object(["type": .string("string")]),
-                "content": .object([
-                    "type": .string("string"),
-                    "description": .string("Required non-empty note content."),
-                ]),
-                "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
-                "use_only_request_tags": .object([
-                    "type": .string("boolean"),
-                    "description": .string("Optional per-request override for note creation. Omit this field unless the user explicitly asks to replace the configured tag-merging behavior. Omission means use the configured default tagsMergeMode. `true` forces use of only the supplied request tags instead of configured active tags. `false` forces configured active tags to be appended. If the user only asks to add specific tags, pass those tags and omit this field."),
-                ]),
-                "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Map any explicit user preference about opening to this field. `true` forces open and `false` forces closed. Omission means use the configured default, so omit this field only when the user does not mention opening at all."),
-                "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Omit this field unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior. If omitted, the configured default applies. This only matters when the created note is opened."),
-            ],
-            required: ["title", "content"],
-            presentationProperties: [:]
-        ),
-        batchedMutationTool(
-            name: "bear_insert_text",
-            description: "Insert text at the top or bottom of one or more Bear notes. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
-            operationProperties: [
-                "note_id": .object(["type": .string("string")]),
-                "text": .object(["type": .string("string")]),
-                "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
-                "expected_version": .object(["type": .string("integer")]),
-                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for inserts."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
-            ],
-            required: ["note_id", "text"],
-            presentationProperties: [:]
-        ),
-        batchedMutationTool(
-            name: "bear_replace_note_body",
-            description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
-            operationProperties: [
-                "note_id": .object(["type": .string("string")]),
-                "mode": .object(["type": .string("string"), "enum": .array([.string("exact"), .string("all"), .string("entire_body")])]),
-                "old_string": .object(["type": .string("string")]),
-                "new_string": .object(["type": .string("string")]),
-                "expected_version": .object(["type": .string("integer")]),
-                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for replacements."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
-            ],
-            required: ["note_id", "new_string"],
-            presentationProperties: [:]
-        ),
-        batchedMutationTool(
-            name: "bear_add_files",
-            description: "Attach one or more local files to Bear notes. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
-            operationProperties: [
-                "note_id": .object(["type": .string("string")]),
-                "file_path": .object(["type": .string("string")]),
-                "position": .object(["type": .string("string"), "enum": .array([.string("top"), .string("bottom")])]),
-                "expected_version": .object(["type": .string("integer")]),
-                "open_note": optionalPresentationBoolean(description: "Optional override. Omit this field to keep the tool's default closed behavior for file attachments."),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior when the note is opened. Use true when the user asks for a separate or floating Bear window."),
-            ],
-            required: ["note_id", "file_path"],
-            presentationProperties: [:]
-        ),
-        batchedMutationTool(
-            name: "bear_open_notes",
-            description: "Open Bear notes in the Bear UI. Omit optional presentation flags unless you are intentionally overriding config defaults for this request.",
-            operationProperties: [
-                "note_id": .object(["type": .string("string")]),
-                "new_window": optionalPresentationBoolean(description: "Optional override. Omit this field to use the configured open-window behavior. Use true when the user asks for a separate or floating Bear window."),
-            ],
-            required: ["note_id"],
-            presentationProperties: [:]
-        ),
-        Tool(
-            name: "bear_archive_notes",
-            description: "Archive one or more Bear notes.",
-            inputSchema: .object([
-                "type": .string("object"),
-                "properties": .object([
-                    "note_ids": .object([
-                        "type": .string("array"),
-                        "items": .object(["type": .string("string")]),
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note_id", "file_path"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_open_notes",
+                description: "Open Bear notes in the Bear UI. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
+                operationProperties: [
+                    "note_id": .object(["type": .string("string")]),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note_id"],
+                presentationProperties: [:]
+            ),
+            Tool(
+                name: "bear_archive_notes",
+                description: "Archive one or more Bear notes.",
+                inputSchema: .object([
+                    "type": .string("object"),
+                    "properties": .object([
+                        "note_ids": .object([
+                            "type": .string("array"),
+                            "items": .object(["type": .string("string")]),
+                        ]),
                     ]),
-                ]),
-                "required": .array([.string("note_ids")]),
-            ])
-        ),
-    ]
+                    "required": .array([.string("note_ids")]),
+                ])
+            ),
+        ]
+    }
 
     private static func batchedDiscoveryTool(
         name: String,
@@ -454,7 +483,7 @@ private enum ToolCatalog {
         )
     }
 
-    private static func findNotesOperationProperties() -> [String: Value] {
+    private static func findNotesOperationProperties(configuration: BearConfiguration) -> [String: Value] {
         discoveryOperationProperties([
             "id": .object(["type": .string("string")]),
             "text": .object([
@@ -503,6 +532,7 @@ private enum ToolCatalog {
             "active_tags_mode": .object([
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
+                "description": .string("Optional active-tag filter against the current configured active tags \(formattedTagList(configuration.activeTags))."),
             ]),
             "date_field": .object([
                 "type": .string("string"),
@@ -516,10 +546,10 @@ private enum ToolCatalog {
                 "type": .string("string"),
                 "description": .string("Optional inclusive end date bound. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'today'."),
             ]),
-        ])
+        ], configuration: configuration)
     }
 
-    private static func findNotesByTagOperationProperties() -> [String: Value] {
+    private static func findNotesByTagOperationProperties(configuration: BearConfiguration) -> [String: Value] {
         discoveryOperationProperties([
             "id": .object(["type": .string("string")]),
             "tags": .object([
@@ -530,33 +560,37 @@ private enum ToolCatalog {
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
             ]),
-        ])
+        ], configuration: configuration)
     }
 
-    private static func findNotesByActiveTagsOperationProperties() -> [String: Value] {
+    private static func findNotesByActiveTagsOperationProperties(configuration: BearConfiguration) -> [String: Value] {
         discoveryOperationProperties([
             "id": .object(["type": .string("string")]),
             "match": .object([
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
+                "description": .string("Optional matching mode over the current configured active tags \(formattedTagList(configuration.activeTags))."),
             ]),
-        ])
+        ], configuration: configuration)
     }
 
-    private static func discoveryOperationProperties(_ base: [String: Value]) -> [String: Value] {
+    private static func discoveryOperationProperties(
+        _ base: [String: Value],
+        configuration: BearConfiguration
+    ) -> [String: Value] {
         var properties = base
         properties["location"] = .object([
             "type": .string("string"),
             "enum": .array([.string("notes"), .string("archive")]),
-            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to 'notes'."),
+            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
         ])
         properties["limit"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional number of summaries to return. Omit unless the user explicitly asks for a different limit or a continuation flow requires it. Uses the configured default when omitted and is capped server-side."),
+            "description": .string("Optional number of summaries to return. Omit unless the user explicitly asks for a different limit or a continuation flow requires it. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
         ])
         properties["snippet_length"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional snippet length in characters. Omit unless the user explicitly asks for a different snippet size. Uses the configured default when omitted and is capped server-side."),
+            "description": .string("Optional snippet length in characters. Omit unless the user explicitly asks for a different snippet size. Omitted uses `\(configuration.defaultSnippetLength)`. Values above `\(configuration.maxSnippetLength)` are capped."),
         ])
         properties["cursor"] = .object([
             "type": .string("string"),
@@ -597,5 +631,29 @@ private enum ToolCatalog {
             "type": .string("boolean"),
             "description": .string(description),
         ])
+    }
+
+    private static func formattedBool(_ value: Bool) -> String {
+        value ? "`true`" : "`false`"
+    }
+
+    private static func formattedTagList(_ tags: [String]) -> String {
+        guard !tags.isEmpty else {
+            return "none"
+        }
+        return tags.map { "`\($0)`" }.joined(separator: ", ")
+    }
+
+    private static func formattedCreateTagMergeBehavior(_ configuration: BearConfiguration) -> String {
+        guard configuration.createAddsActiveTagsByDefault else {
+            return "uses only request tags unless explicitly overridden"
+        }
+
+        switch configuration.tagsMergeMode {
+        case .append:
+            return "appends configured active tags to request tags"
+        case .replace:
+            return "uses request tags when any are supplied, otherwise falls back to configured active tags"
+        }
     }
 }

@@ -79,5 +79,13 @@ let package = Package(
                 .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
+        .testTarget(
+            name: "BearMCPTests",
+            dependencies: [
+                "BearMCP",
+                "BearCore",
+                .product(name: "MCP", package: "swift-sdk"),
+            ]
+        ),
     ]
 )

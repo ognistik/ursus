@@ -173,7 +173,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Find currently uses structured SQL filtering over title, body, tags, tag presence, dates, attachment presence, and attachment OCR/index text.
 - Discovery tools always exclude trashed notes.
 - Discovery tools search either normal notes or archived notes, never both in one call.
-- MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes.
+- MCP tool descriptions now explicitly steer clients to omit `location` unless the user asks for archived notes, and user-overridable defaults are injected from the loaded config at startup.
 - `bear_list_tags` now defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped tag counts, and supports optional `query` and hierarchical `under_tag` filters.
 - MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_find_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
@@ -181,7 +181,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
-- Discovery limits and snippet lengths are config-driven defaults with per-operation overrides and server-side hard caps.
+- Discovery limits and snippet lengths are config-driven defaults with per-operation overrides and server-side hard caps, and the live default/cap values are injected into MCP property descriptions at startup.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Attachment snippets are built from `ZSFNOTEFILE.ZSEARCHTEXT` in attachment insertion order and truncated with the same configured snippet limit.
 - `bear_find_notes` supports query-less filtering by tags, presence flags, or dates and accepts supported past/present natural-language date phrases that are resolved server-side in the local timezone.
@@ -201,9 +201,10 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
-- Insert uses Bear add-text with prepend/append mapping.
+- Insert uses Bear add-text with prepend/append mapping and now defaults omitted `position` to config `defaultInsertPosition`.
 - Replace computes full new note text locally, then writes through add-text with `replace_all`.
-- Add file uses Bear add-file.
+- For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
+- Add file uses Bear add-file and now defaults omitted `position` to config `defaultInsertPosition`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
@@ -237,6 +238,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - The create template matters for creation behavior and tag placement.
 - The MCP surface should stay simple: note mutation tools only expose `open_note` and `new_window`, `bear_open_notes` only exposes `new_window`, `bear_open_tag` accepts a single canonical `tag`, and `bear_rename_tags` only exposes optional `show_window`.
 - Create defaults are config-driven for whether creation opens the note; explicit `open_note` and `new_window` values override config for that request.
+- User-overridable defaults should be reflected in MCP tool descriptions using the live loaded config, but internal-only config should stay out of the schema text.
 - User phrasing like "floating window" should map to `new_window`; the server should not emit Bear's `float` URL parameter.
 - Bear x-callback URLs should use an action-aware activation policy: UI-navigation actions and note-opening mutations foreground Bear, while background mutations stay unfocused.
 - Presentation flags in MCP mutation inputs are optional overrides and should normally be omitted so config defaults apply.
