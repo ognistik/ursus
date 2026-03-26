@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func replaceNoteBodyResolvesExactCaseInsensitiveTitleSelector() async throws {
+func replaceContentResolvesExactCaseInsensitiveTitleSelector() async throws {
     let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Line 1")
     let transport = MutationSelectorRecordingWriteTransport()
     let service = BearService(
@@ -15,12 +15,13 @@ func replaceNoteBodyResolvesExactCaseInsensitiveTitleSelector() async throws {
         logger: Logger(label: "BearServiceMutationSelectorTests")
     )
 
-    _ = try await service.replaceNoteBody([
-        ReplaceNoteBodyRequest(
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
             noteID: " inbox ",
-            mode: .entireBody,
+            kind: .body,
             oldString: nil,
-            newString: "# Inbox\n\nUpdated",
+            occurrence: nil,
+            newString: "Updated",
             presentation: BearPresentationOptions(),
             expectedVersion: 3
         ),
@@ -29,6 +30,38 @@ func replaceNoteBodyResolvesExactCaseInsensitiveTitleSelector() async throws {
     let replaceCall = try #require(await transport.replaceCalls.first)
     #expect(replaceCall.noteID == "note-1")
     #expect(replaceCall.fullText == "# Inbox\n\nUpdated")
+}
+
+@Test
+func replaceContentTitleCanAddTitleToTitlelessNote() async throws {
+    let note = makeMutationSelectorNote(
+        id: "note-1",
+        title: "",
+        body: "Line 1",
+        rawText: "Line 1"
+    )
+    let transport = MutationSelectorRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeMutationSelectorConfiguration(),
+        readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceMutationSelectorTests")
+    )
+
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .title,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Inbox",
+            presentation: BearPresentationOptions(),
+            expectedVersion: 3
+        ),
+    ])
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\nLine 1")
 }
 
 @Test
@@ -140,6 +173,7 @@ private func makeMutationSelectorNote(
     id: String,
     title: String,
     body: String,
+    rawText: String? = nil,
     archived: Bool = false
 ) -> BearNote {
     let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
@@ -150,7 +184,7 @@ private func makeMutationSelectorNote(
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
         title: title,
         body: body,
-        rawText: BearText.composeRawText(title: title, body: body),
+        rawText: rawText ?? BearText.composeRawText(title: title, body: body),
         tags: ["0-inbox"],
         archived: archived,
         trashed: false,

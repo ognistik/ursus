@@ -635,10 +635,15 @@ public enum InsertPosition: String, Codable, Hashable, Sendable {
     case bottom
 }
 
-public enum ReplaceMode: String, Codable, Hashable, Sendable {
-    case exact
+public enum ReplaceContentKind: String, Codable, Hashable, Sendable {
+    case title
+    case body
+    case string
+}
+
+public enum ReplaceStringOccurrence: String, Codable, Hashable, Sendable {
+    case one
     case all
-    case entireBody = "entire_body"
 }
 
 public struct BearPresentationOptions: Codable, Hashable, Sendable {
@@ -710,25 +715,28 @@ public struct InsertTextRequest: Codable, Hashable, Sendable {
     }
 }
 
-public struct ReplaceNoteBodyRequest: Codable, Hashable, Sendable {
+public struct ReplaceContentRequest: Codable, Hashable, Sendable {
     public let noteID: String
-    public let mode: ReplaceMode
+    public let kind: ReplaceContentKind
     public let oldString: String?
+    public let occurrence: ReplaceStringOccurrence?
     public let newString: String
     public let presentation: BearPresentationOptions
     public let expectedVersion: Int?
 
     public init(
         noteID: String,
-        mode: ReplaceMode,
+        kind: ReplaceContentKind,
         oldString: String?,
+        occurrence: ReplaceStringOccurrence?,
         newString: String,
         presentation: BearPresentationOptions,
         expectedVersion: Int?
     ) {
         self.noteID = noteID
-        self.mode = mode
+        self.kind = kind
         self.oldString = oldString
+        self.occurrence = occurrence
         self.newString = newString
         self.presentation = presentation
         self.expectedVersion = expectedVersion

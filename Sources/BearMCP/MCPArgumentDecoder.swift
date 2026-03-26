@@ -116,14 +116,24 @@ enum MCPArgumentDecoder {
         }
     }
 
-    static func replaceMode(_ object: [String: Value], _ key: String = "mode") throws -> ReplaceMode {
+    static func replaceContentKind(_ object: [String: Value], _ key: String = "kind") throws -> ReplaceContentKind {
         guard let raw = object[key]?.stringValue else {
-            return .exact
+            throw BearError.invalidInput("Missing required string argument '\(key)'.")
         }
-        guard let mode = ReplaceMode(rawValue: raw) else {
-            throw BearError.invalidInput("Invalid replace mode '\(raw)'.")
+        guard let kind = ReplaceContentKind(rawValue: raw) else {
+            throw BearError.invalidInput("Invalid replace content kind '\(raw)'.")
         }
-        return mode
+        return kind
+    }
+
+    static func replaceStringOccurrence(_ object: [String: Value], _ key: String = "occurrence") throws -> ReplaceStringOccurrence? {
+        guard let raw = object[key]?.stringValue else {
+            return nil
+        }
+        guard let occurrence = ReplaceStringOccurrence(rawValue: raw) else {
+            throw BearError.invalidInput("Invalid replace occurrence '\(raw)'.")
+        }
+        return occurrence
     }
 
     static func optionalBool(_ object: [String: Value], _ key: String) throws -> Bool? {

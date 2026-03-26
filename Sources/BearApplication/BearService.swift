@@ -215,14 +215,16 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    public func replaceNoteBody(_ requests: [ReplaceNoteBodyRequest]) async throws -> [MutationReceipt] {
-        try await mutateEach(requests) { request in
+    public func replaceContent(_ requests: [ReplaceContentRequest]) async throws -> [MutationReceipt] {
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
             if let expected = request.expectedVersion, note.revision.version != expected {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
-            let updatedText = try self.updatedRawText(note: note, request: request)
+            let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedText,
@@ -351,27 +353,31 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    private func updatedRawText(note: BearNote, request: ReplaceNoteBodyRequest) throws -> String {
-        switch request.mode {
-        case .entireBody:
-            return request.newString
-        case .exact:
-            guard let oldString = request.oldString else {
-                throw BearError.invalidInput("replace mode 'exact' requires old_string.")
+    private func updatedRawText(note: BearNote, request: ReplaceContentRequest, template: String?) throws -> String {
+        try validateReplaceContentRequest(request)
+
+        let plan = replaceContentPlan(for: note, template: template)
+
+        switch request.kind {
+        case .title:
+            let newTitle = request.newString.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !newTitle.isEmpty else {
+                throw BearError.invalidInput("replace kind 'title' requires a non-empty new_string.")
             }
-            let occurrences = note.rawText.components(separatedBy: oldString).count - 1
-            guard occurrences == 1 else {
-                throw BearError.ambiguous("Exact replace in note \(request.noteID) matched \(occurrences) times.")
-            }
-            return note.rawText.replacingOccurrences(of: oldString, with: request.newString)
-        case .all:
-            guard let oldString = request.oldString else {
-                throw BearError.invalidInput("replace mode 'all' requires old_string.")
-            }
-            guard note.rawText.contains(oldString) else {
-                throw BearError.notFound("String not found in note \(request.noteID).")
-            }
-            return note.rawText.replacingOccurrences(of: oldString, with: request.newString)
+            return try rawTextByReplacingTitle(in: note, plan: plan, newTitle: newTitle, template: template)
+        case .body:
+            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: request.newString)
+        case .string:
+            let oldString = try requiredReplaceString(request.oldString, noteID: request.noteID)
+            let occurrence = try requiredReplaceOccurrence(request.occurrence, noteID: request.noteID)
+            let updatedContent = try replacedContent(
+                in: plan.content,
+                noteID: request.noteID,
+                oldString: oldString,
+                newString: request.newString,
+                occurrence: occurrence
+            )
+            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: updatedContent)
         }
     }
 
@@ -480,6 +486,96 @@ public final class BearService: @unchecked Sendable {
         }
 
         return trimmed
+    }
+
+    private func validateReplaceContentRequest(_ request: ReplaceContentRequest) throws {
+        switch request.kind {
+        case .title, .body:
+            if request.oldString != nil {
+                throw BearError.invalidInput("replace kind '\(request.kind.rawValue)' does not accept old_string.")
+            }
+            if request.occurrence != nil {
+                throw BearError.invalidInput("replace kind '\(request.kind.rawValue)' does not accept occurrence.")
+            }
+        case .string:
+            break
+        }
+    }
+
+    private func requiredReplaceString(_ value: String?, noteID: String) throws -> String {
+        guard let value else {
+            throw BearError.invalidInput("replace kind 'string' requires old_string for note \(noteID).")
+        }
+        return value
+    }
+
+    private func requiredReplaceOccurrence(_ value: ReplaceStringOccurrence?, noteID: String) throws -> ReplaceStringOccurrence {
+        guard let value else {
+            throw BearError.invalidInput("replace kind 'string' requires occurrence for note \(noteID).")
+        }
+        return value
+    }
+
+    private func replaceContentPlan(for note: BearNote, template: String?) -> ReplaceContentPlan {
+        if let templateMatch = templateBodyMatch(for: note, template: template) {
+            return ReplaceContentPlan(content: templateMatch.content, templateMatch: templateMatch)
+        }
+
+        return ReplaceContentPlan(content: canonicalBody(for: note), templateMatch: nil)
+    }
+
+    private func rawTextByReplacingTitle(
+        in note: BearNote,
+        plan: ReplaceContentPlan,
+        newTitle: String,
+        template: String?
+    ) throws -> String {
+        if let template, plan.templateMatch != nil {
+            let updatedBody = TemplateRenderer.renderDocument(
+                context: TemplateContext(title: newTitle, content: plan.content, tags: note.tags),
+                template: template
+            )
+            return BearText.composeRawText(title: newTitle, body: updatedBody)
+        }
+
+        return BearText.composeRawText(title: newTitle, body: plan.content)
+    }
+
+    private func rawTextByReplacingEditableContent(
+        in note: BearNote,
+        plan: ReplaceContentPlan,
+        newContent: String
+    ) -> String {
+        let updatedBody: String
+        if let templateMatch = plan.templateMatch {
+            updatedBody = templateMatch.prefix + newContent + templateMatch.suffix
+        } else {
+            updatedBody = newContent
+        }
+
+        return BearText.composeRawText(title: note.title, body: updatedBody)
+    }
+
+    private func replacedContent(
+        in content: String,
+        noteID: String,
+        oldString: String,
+        newString: String,
+        occurrence: ReplaceStringOccurrence
+    ) throws -> String {
+        switch occurrence {
+        case .one:
+            let occurrences = content.components(separatedBy: oldString).count - 1
+            guard occurrences == 1 else {
+                throw BearError.ambiguous("Single content replace in note \(noteID) matched \(occurrences) times.")
+            }
+        case .all:
+            guard content.contains(oldString) else {
+                throw BearError.notFound("String not found in editable content for note \(noteID).")
+            }
+        }
+
+        return content.replacingOccurrences(of: oldString, with: newString)
     }
 
     private func executeFindOperation(_ operation: FindNotesOperation) throws -> NoteSummaryPage {
@@ -794,6 +890,11 @@ public final class BearService: @unchecked Sendable {
         let prefix: String
         let content: String
         let suffix: String
+    }
+
+    private struct ReplaceContentPlan {
+        let content: String
+        let templateMatch: TemplateBodyMatch?
     }
 
     private struct AttachmentAnchor {

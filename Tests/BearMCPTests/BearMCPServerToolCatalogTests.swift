@@ -47,8 +47,9 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(openNotes.description?.contains("Current omission default: `new_window` uses `false`") == true)
     #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
 
-    let replace = try #require(tool(named: "bear_replace_note_body", in: tools))
+    let replace = try #require(tool(named: "bear_replace_content", in: tools))
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
+    #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
 }
 
 @Test

@@ -124,7 +124,7 @@ public final class BearMCPServer: Sendable {
             }
             return try jsonResult(try await service.insertText(requests))
 
-        case "bear_replace_note_body":
+        case "bear_replace_content":
             let defaults = BearPresentationOptions(
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
@@ -132,16 +132,17 @@ public final class BearMCPServer: Sendable {
                 edit: configuration.openNoteInEditModeByDefault
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
-                ReplaceNoteBodyRequest(
+                ReplaceContentRequest(
                     noteID: try requiredNoteSelector(object),
-                    mode: try MCPArgumentDecoder.replaceMode(object),
+                    kind: try MCPArgumentDecoder.replaceContentKind(object),
                     oldString: object["old_string"]?.stringValue,
+                    occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
                     newString: try requiredString(object, "new_string"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
             }
-            return try jsonResult(try await service.replaceNoteBody(requests))
+            return try jsonResult(try await service.replaceContent(requests))
 
         case "bear_add_files":
             let defaults = BearPresentationOptions(
@@ -422,18 +423,33 @@ private enum ToolCatalog {
                 presentationProperties: [:]
             ),
             batchedMutationTool(
-                name: "bear_replace_note_body",
-                description: "Compute a replacement against the full Bear note markdown and write it back with Bear's replace_all mode. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                name: "bear_replace_content",
+                description: "Replace Bear note content while preserving note structure. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
-                    "mode": .object(["type": .string("string"), "enum": .array([.string("exact"), .string("all"), .string("entire_body")])]),
-                    "old_string": .object(["type": .string("string")]),
-                    "new_string": .object(["type": .string("string")]),
+                    "kind": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("title"), .string("body"), .string("string")]),
+                        "description": .string("Required replacement kind. Use `title` to replace only the note title, `body` to replace only editable note content, and `string` for surgical text replacement inside editable content."),
+                    ]),
+                    "old_string": .object([
+                        "type": .string("string"),
+                        "description": .string("Required for `kind: string`. Pass the exact current text as stored in the note content. Prefer `bear_get_notes` first if uncertain."),
+                    ]),
+                    "occurrence": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("one"), .string("all")]),
+                        "description": .string("Required for `kind: string`. Use `one` for a single exact content match and `all` to replace every matching content occurrence."),
+                    ]),
+                    "new_string": .object([
+                        "type": .string("string"),
+                        "description": .string("Required replacement text. For `kind: title`, this is the full new title. For `kind: body`, this is the full new editable content. For `kind: string`, this is the replacement text."),
+                    ]),
                     "expected_version": .object(["type": .string("integer")]),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
-                required: ["note", "new_string"],
+                required: ["note", "kind", "new_string"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(

@@ -63,7 +63,7 @@ Current package layout:
 
 The user explicitly clarified an important behavior:
 
-- `bear_replace_note_body` should build the new full note content programmatically outside Bear.
+- `bear_replace_content` should build the new full note content programmatically outside Bear.
 - The write path should then use Bear's full replacement mode.
 - Even when the user conceptually wants to change a title, a word, a phrase, or the entire content, the system can still compute the final full text locally and perform one full replacement write.
 
@@ -133,7 +133,7 @@ Implemented MCP tool names:
 - `bear_rename_tags`
 - `bear_create_notes`
 - `bear_insert_text`
-- `bear_replace_note_body`
+- `bear_replace_content`
 - `bear_add_files`
 - `bear_open_notes`
 - `bear_archive_notes`
@@ -203,7 +203,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
-- Replace computes full new note text locally, then writes through add-text with `replace_all`.
+- Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
