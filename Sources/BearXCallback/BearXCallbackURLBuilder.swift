@@ -137,17 +137,19 @@ public struct BearXCallbackURLBuilder: Sendable {
     }
 
     private func presentationItems(_ presentation: BearPresentationOptions) -> [URLQueryItem] {
-        var items: [URLQueryItem] = [
-            URLQueryItem(name: "show_window", value: yesNo(presentation.showWindow)),
-        ]
+        let opensNote = presentation.openNoteOverride ?? presentation.openNote
+        var items: [URLQueryItem] = []
 
-        if let openNoteOverride = presentation.openNoteOverride {
-            items.append(URLQueryItem(name: "open_note", value: yesNo(openNoteOverride)))
-        } else if presentation.openNote {
-            items.append(URLQueryItem(name: "open_note", value: yesNo(true)))
-        }
-
-        guard presentation.openNote else {
+        if opensNote {
+            items.append(URLQueryItem(name: "show_window", value: yesNo(presentation.showWindow)))
+            if let openNoteOverride = presentation.openNoteOverride {
+                items.append(URLQueryItem(name: "open_note", value: yesNo(openNoteOverride)))
+            } else {
+                items.append(URLQueryItem(name: "open_note", value: yesNo(true)))
+            }
+        } else {
+            items.append(URLQueryItem(name: "show_window", value: yesNo(false)))
+            items.append(URLQueryItem(name: "open_note", value: yesNo(false)))
             return items
         }
 

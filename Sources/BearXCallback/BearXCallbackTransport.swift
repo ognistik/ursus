@@ -37,8 +37,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         let startedAt = Date()
         let url = try builder.createURL(request: request)
-        BearDebugLog.append("xcallback.create url=\(url.absoluteString)")
-        try await open(url: url, activates: request.presentation.opensNoteInUI)
+        try await openAndLog(action: "create", url: url, activates: request.presentation.opensNoteInUI)
 
         let matched = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             let matches = try self.readStore.findNotes(title: request.title, modifiedAfter: startedAt.addingTimeInterval(-1))
@@ -56,8 +55,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
         let previous = try readStore.note(id: request.noteID)
         let url = try builder.insertTextURL(request: request)
-        BearDebugLog.append("xcallback.insert-text noteID=\(request.noteID) mode=\(request.position.rawValue)")
-        try await open(url: url, activates: request.presentation.opensNoteInUI)
+        try await openAndLog(action: "insert-text", url: url, activates: request.presentation.opensNoteInUI)
 
         let updated = try await waitForNoteMutation(noteID: request.noteID, previous: previous)
         return MutationReceipt(
@@ -71,8 +69,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.replaceAllURL(noteID: noteID, fullText: fullText, presentation: presentation)
-        BearDebugLog.append("xcallback.replace-all noteID=\(noteID) textLength=\(fullText.count)")
-        try await open(url: url, activates: presentation.opensNoteInUI)
+        try await openAndLog(action: "replace-all", url: url, activates: presentation.opensNoteInUI)
 
         let updated = try await waitForNoteMutation(noteID: noteID, previous: previous)
         return MutationReceipt(
@@ -87,10 +84,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
         let previous = try readStore.note(id: request.noteID)
         let previousAttachments = try readStore.attachments(noteID: request.noteID)
         let url = try builder.addFileURL(request: request)
-        BearDebugLog.append(
-            "xcallback.add-file noteID=\(request.noteID) filename=\(URL(fileURLWithPath: request.filePath).lastPathComponent) header=\(request.header ?? "nil") mode=\(request.position.rawValue)"
-        )
-        try await open(url: url, activates: request.presentation.opensNoteInUI)
+        try await openAndLog(action: "add-file", url: url, activates: request.presentation.opensNoteInUI)
 
         let updated = try await waitForNoteMutation(
             noteID: request.noteID,
@@ -107,8 +101,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func open(_ request: OpenNoteRequest) async throws -> MutationReceipt {
         let url = try builder.openURL(request: request)
-        BearDebugLog.append("xcallback.open url=\(url.absoluteString)")
-        try await open(url: url, activates: true)
+        try await openAndLog(action: "open", url: url, activates: true)
         let note = try readStore.note(id: request.noteID)
 
         return MutationReceipt(
@@ -121,8 +114,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt {
         let url = try builder.openTagURL(request: request)
-        BearDebugLog.append("xcallback.open-tag url=\(url.absoluteString)")
-        try await open(url: url, activates: true)
+        try await openAndLog(action: "open-tag", url: url, activates: true)
 
         return TagMutationReceipt(
             tag: request.tag,
@@ -133,8 +125,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
         let url = try builder.renameTagURL(request: request)
-        BearDebugLog.append("xcallback.rename-tag url=\(url.absoluteString)")
-        try await open(url: url, activates: false)
+        try await openAndLog(action: "rename-tag", url: url, activates: false)
 
         let renamed = try await waitForTagRename(from: request.name, to: request.newName)
         return TagMutationReceipt(
@@ -146,8 +137,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt {
         let url = try builder.deleteTagURL(request: request)
-        BearDebugLog.append("xcallback.delete-tag url=\(url.absoluteString)")
-        try await open(url: url, activates: false)
+        try await openAndLog(action: "delete-tag", url: url, activates: false)
 
         let deleted = try await waitForTagDeletion(tag: request.name)
         return TagMutationReceipt(
@@ -160,7 +150,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.archiveURL(noteID: noteID, showWindow: showWindow)
-        try await open(url: url, activates: false)
+        try await openAndLog(action: "archive", url: url, activates: false)
 
         let updated: BearNote? = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
             guard let note = try self.readStore.note(id: noteID), note.archived else {
@@ -179,6 +169,34 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     private func open(url: URL, activates: Bool) async throws {
         try await urlOpener(url, activates)
+    }
+
+    private func openAndLog(action: String, url: URL, activates: Bool) async throws {
+        BearDebugLog.append("xcallback.\(action) activates=\(activates) \(debugDescription(for: url))")
+        try await open(url: url, activates: activates)
+    }
+
+    private func debugDescription(for url: URL) -> String {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return "url=\(url.absoluteString)"
+        }
+
+        let base = "\(components.scheme ?? "bear")://\(components.host ?? "x-callback-url")\(components.path)"
+        let query = (components.queryItems ?? []).map { item in
+            let value = item.value ?? ""
+            switch item.name {
+            case "text", "file":
+                return "\(item.name)=<redacted length=\(value.count)>"
+            default:
+                return "\(item.name)=\(value)"
+            }
+        }.joined(separator: "&")
+
+        guard !query.isEmpty else {
+            return "url=\(base)"
+        }
+
+        return "url=\(base)?\(query)"
     }
 
     private static func defaultOpen(url: URL, activates: Bool) async throws {

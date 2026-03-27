@@ -108,6 +108,8 @@ Implemented:
 - application service layer
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
+- background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
+- redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
 - CLI commands: `mcp`, `--update-config`, `doctor`, `paths`
@@ -218,6 +220,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
 - Template-aware note-tag mutations now update the literal `{{tags}}` slot when the current note matches the active template. Non-templated note-tag mutations remove literal tag tokens from the body with whitespace cleanup, and add tags by extending an existing tag-only cluster when found or appending one canonical tag line at the end of the note body otherwise.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
+- Background note mutations now always serialize `open_note=no` and `show_window=no` when the effective presentation keeps the note closed, even if the client omitted `open_note` and the closed state came from defaults.
+- x-callback debug traces now log the outgoing action plus a redacted query summary so `open_note`, `show_window`, `new_window`, `mode`, and similar flags can be inspected without dumping full note text or base64 file payloads.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.

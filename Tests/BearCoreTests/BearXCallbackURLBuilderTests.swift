@@ -31,6 +31,8 @@ func addFileURLReadsLocalFileAsBase64AndIncludesHeaderTarget() throws {
     #expect(items["filename"] == fileURL.lastPathComponent)
     #expect(items["header"] == "Attachments")
     #expect(items["mode"] == "append")
+    #expect(items["show_window"] == "no")
+    #expect(items["open_note"] == "no")
     #expect(items["file"] == Data("payload".utf8).base64EncodedString())
 }
 
@@ -47,6 +49,8 @@ func replaceAllURLUsesAddTextAndReplaceAllMode() throws {
     #expect(absolute.contains("bear://x-callback-url/add-text"))
     #expect(absolute.contains("mode=replace_all"))
     #expect(absolute.contains("id=abc123"))
+    #expect(absolute.contains("show_window=no"))
+    #expect(absolute.contains("open_note=no"))
 }
 
 @Test
@@ -89,10 +93,35 @@ func createURLSendsExplicitClosedOverrideAndSuppressesOpenOnlyFlags() throws {
     )
 
     let absolute = url.absoluteString
+    #expect(absolute.contains("show_window=no"))
     #expect(absolute.contains("open_note=no"))
     #expect(!absolute.contains("new_window="))
     #expect(!absolute.contains("edit="))
     #expect(!absolute.contains("float="))
+}
+
+@Test
+func createURLOmittedClosedDefaultStillSerializesBackgroundFlags() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.createURL(
+        request: CreateNoteRequest(
+            title: "Background Example",
+            content: "Body",
+            tags: [],
+            presentation: BearPresentationOptions(
+                openNote: false,
+                newWindow: true,
+                showWindow: true,
+                edit: true
+            )
+        )
+    )
+
+    let absolute = url.absoluteString
+    #expect(absolute.contains("show_window=no"))
+    #expect(absolute.contains("open_note=no"))
+    #expect(!absolute.contains("new_window="))
+    #expect(!absolute.contains("edit="))
 }
 
 @Test
