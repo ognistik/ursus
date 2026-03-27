@@ -160,9 +160,9 @@ enum MCPArgumentDecoder {
         )
     }
 
-    static func position(_ object: [String: Value], default defaultValue: InsertPosition) throws -> InsertPosition {
-        guard let raw = object["position"]?.stringValue else {
-            return defaultValue
+    static func optionalPosition(_ object: [String: Value], key: String = "position") throws -> InsertPosition? {
+        guard let raw = object[key]?.stringValue else {
+            return nil
         }
         switch raw {
         case "top":
@@ -172,5 +172,42 @@ enum MCPArgumentDecoder {
         default:
             throw BearError.invalidInput("Invalid insert position '\(raw)'. Expected 'top' or 'bottom'.")
         }
+    }
+
+    static func position(_ object: [String: Value], default defaultValue: InsertPosition) throws -> InsertPosition {
+        try optionalPosition(object) ?? defaultValue
+    }
+
+    static func relativeTextTarget(_ object: [String: Value], key: String = "target") throws -> RelativeTextTarget? {
+        guard let targetObject = object[key]?.objectValue else {
+            return nil
+        }
+
+        guard let text = targetObject["text"]?.stringValue, !text.isEmpty else {
+            throw BearError.invalidInput("Target objects require a non-empty string `text`.")
+        }
+
+        let targetKind: RelativeTargetKind
+        if let rawTargetKind = targetObject["target_kind"]?.stringValue {
+            guard let decoded = RelativeTargetKind(rawValue: rawTargetKind) else {
+                throw BearError.invalidInput("Invalid target kind '\(rawTargetKind)'. Expected 'heading' or 'string'.")
+            }
+            targetKind = decoded
+        } else {
+            targetKind = .string
+        }
+
+        guard let rawPlacement = targetObject["placement"]?.stringValue else {
+            throw BearError.invalidInput("Target objects require a `placement` of 'before' or 'after'.")
+        }
+        guard let placement = RelativeTargetPlacement(rawValue: rawPlacement) else {
+            throw BearError.invalidInput("Invalid target placement '\(rawPlacement)'. Expected 'before' or 'after'.")
+        }
+
+        return RelativeTextTarget(text: text, targetKind: targetKind, placement: placement)
+    }
+
+    static func position(_ object: [String: Value], default defaultValue: InsertPosition, key: String) throws -> InsertPosition {
+        try optionalPosition(object, key: key) ?? defaultValue
     }
 }

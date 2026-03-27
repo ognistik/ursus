@@ -139,6 +139,69 @@ func insertTextFallsBackToDirectInsertWhenTemplateManagementIsDisabled() async t
     #expect(await transport.replaceCalls.isEmpty)
 }
 
+@Test
+func insertTextUsesReplaceAllForRelativeHeadingTargetOnPlainNote() async throws {
+    let note = makeInsertSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "## Tasks\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let transport = InsertRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeInsertConfiguration(templateManagementEnabled: false),
+        readStore: InsertReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceInsertTests")
+    )
+
+    _ = try await service.insertText([
+        InsertTextRequest(
+            noteID: "note-1",
+            text: "Line 2",
+            target: RelativeTextTarget(text: "Tasks", targetKind: .heading, placement: .after),
+            presentation: BearPresentationOptions(),
+            expectedVersion: 3
+        ),
+    ])
+
+    #expect(await transport.insertRequests.isEmpty)
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\n## Tasks\nLine 2\nLine 1")
+}
+
+@Test
+func insertTextRejectsAmbiguousRelativeStringTargetBeforeWriting() async throws {
+    let note = makeInsertSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1\n\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let transport = InsertRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeInsertConfiguration(templateManagementEnabled: false),
+        readStore: InsertReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceInsertTests")
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.insertText([
+            InsertTextRequest(
+                noteID: "note-1",
+                text: "Inserted",
+                target: RelativeTextTarget(text: "Line 1", placement: .after),
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    #expect(await transport.insertRequests.isEmpty)
+    #expect(await transport.replaceCalls.isEmpty)
+}
+
 private func makeInsertConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",

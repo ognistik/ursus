@@ -196,6 +196,99 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
     try? serverToClientWrite.close()
 }
 
+@Test(.timeLimit(.minutes(1)))
+func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(
+            version: 3,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: "Test Note",
+        body: "## Tasks\nLine 1",
+        rawText: "# Test Note\n\n## Tasks\nLine 1",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        activeTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsActiveTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        logger: Logger(label: "BearMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_insert_text",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "text": .string("Line 2"),
+                        "target": .object([
+                            "text": .string("Tasks"),
+                            "target_kind": .string("heading"),
+                            "placement": .string("after"),
+                        ]),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError != true)
+
+        let replaceCall = try #require(await writeTransport.replaceCalls.first)
+        #expect(replaceCall.noteID == "note-1")
+        #expect(replaceCall.fullText == "# Test Note\n\n## Tasks\nLine 2\nLine 1")
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
 private struct MCPToolReadStore: BearReadStore {
     let note: BearNote
 

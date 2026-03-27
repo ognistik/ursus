@@ -216,13 +216,36 @@ public final class BearService: @unchecked Sendable {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
+            try self.validateRelativeInsertionRequest(position: request.position, target: request.target)
+            let plan = self.replaceContentPlan(for: note, template: noteTemplate)
+
+            if let target = request.target {
+                let updatedContent = try self.contentByInserting(
+                    request.text,
+                    into: plan.content,
+                    target: target
+                )
+                try await self.captureBackupIfNeeded(for: note, reason: .insertText)
+                let updatedRawText = self.rawTextByReplacingEditableContent(
+                    in: note,
+                    plan: plan,
+                    newContent: updatedContent,
+                    template: noteTemplate
+                )
+                return try await self.writeTransport.replaceAll(
+                    noteID: note.ref.identifier,
+                    fullText: updatedRawText,
+                    presentation: request.presentation
+                )
+            }
+
             try await self.captureBackupIfNeeded(for: note, reason: .insertText)
-            guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
+            guard let templateMatch = plan.templateMatch else {
                 return try await self.writeTransport.insertText(
                     InsertTextRequest(
                         noteID: note.ref.identifier,
                         text: request.text,
-                        position: request.position,
+                        position: self.resolvedInsertPosition(request.position),
                         presentation: request.presentation,
                         expectedVersion: request.expectedVersion
                     )
@@ -232,7 +255,7 @@ public final class BearService: @unchecked Sendable {
             let updatedContent = self.insertedContent(
                 byApplying: request.text,
                 to: templateMatch.content,
-                position: request.position
+                position: self.resolvedInsertPosition(request.position)
             )
             let updatedBody = self.renderedTemplateBody(
                 title: note.title,
@@ -278,14 +301,35 @@ public final class BearService: @unchecked Sendable {
                 throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
             }
 
+            try self.validateRelativeInsertionRequest(position: request.position, target: request.target)
+            let plan = self.replaceContentPlan(for: note, template: noteTemplate)
+
+            if let target = request.target {
+                let anchor = self.makeAttachmentAnchor()
+                let anchoredContent = try self.contentByInserting(
+                    self.attachmentAnchorMarkdown(anchor),
+                    into: plan.content,
+                    target: target
+                )
+                try await self.captureBackupIfNeeded(for: note, reason: .addFile)
+                return try await self.addFileUsingAnchorFlow(
+                    note: note,
+                    plan: plan,
+                    template: noteTemplate,
+                    request: request,
+                    updatedContent: anchoredContent,
+                    anchor: anchor
+                )
+            }
+
             try await self.captureBackupIfNeeded(for: note, reason: .addFile)
-            guard let templateMatch = self.templateBodyMatch(for: note, template: noteTemplate) else {
+            guard let templateMatch = plan.templateMatch else {
                 return try await self.writeTransport.addFile(
                     AddFileRequest(
                         noteID: note.ref.identifier,
                         filePath: request.filePath,
                         header: request.header,
-                        position: request.position,
+                        position: self.resolvedInsertPosition(request.position),
                         presentation: request.presentation,
                         expectedVersion: request.expectedVersion
                     )
@@ -293,72 +337,18 @@ public final class BearService: @unchecked Sendable {
             }
 
             let anchor = self.makeAttachmentAnchor()
-            let internalPresentation = BearPresentationOptions(
-                openNote: false,
-                newWindow: false,
-                showWindow: false,
-                edit: false
-            )
             let anchoredContent = self.insertedContent(
                 byApplying: self.attachmentAnchorMarkdown(anchor),
                 to: templateMatch.content,
-                position: request.position
+                position: self.resolvedInsertPosition(request.position)
             )
-            let anchoredBody = self.renderedTemplateBody(
-                title: note.title,
-                content: anchoredContent,
-                literalTags: templateMatch.literalTags,
-                template: noteTemplate
-            )
-            let anchoredRawText = self.composeRawTextPreservingStyle(for: note, title: note.title, body: anchoredBody)
-
-            let anchorReceipt = try await self.writeTransport.replaceAll(
-                noteID: note.ref.identifier,
-                fullText: anchoredRawText,
-                presentation: internalPresentation
-            )
-            guard anchorReceipt.status == "updated" else {
-                throw BearError.xCallback(
-                    "Could not verify temporary attachment anchor insertion for note \(note.ref.identifier)."
-                )
-            }
-
-            let addFileReceipt = try await self.writeTransport.addFile(
-                AddFileRequest(
-                    noteID: note.ref.identifier,
-                    filePath: request.filePath,
-                    header: anchor.title,
-                    position: .top,
-                    presentation: internalPresentation,
-                    expectedVersion: request.expectedVersion
-                )
-            )
-            guard addFileReceipt.status == "updated" else {
-                throw BearError.xCallback(
-                    "File add could not be verified before attachment anchor cleanup for note \(note.ref.identifier). The temporary header '\(anchor.title)' may remain."
-                )
-            }
-
-            let latestNote = try self.loadNote(id: note.ref.identifier)
-            guard let latestMatch = self.templateBodyMatch(for: latestNote, template: noteTemplate) else {
-                throw BearError.xCallback(
-                    "Could not reconcile templated content after adding a file to note \(note.ref.identifier)."
-                )
-            }
-
-            let cleanedContent = try self.removingAttachmentAnchor(anchor.markdown, from: latestMatch.content)
-            let cleanedBody = self.renderedTemplateBody(
-                title: latestNote.title,
-                content: cleanedContent,
-                literalTags: latestMatch.literalTags,
-                template: noteTemplate
-            )
-            let cleanedRawText = self.composeRawTextPreservingStyle(for: latestNote, title: latestNote.title, body: cleanedBody)
-
-            return try await self.writeTransport.replaceAll(
-                noteID: note.ref.identifier,
-                fullText: cleanedRawText,
-                presentation: request.presentation
+            return try await self.addFileUsingAnchorFlow(
+                note: note,
+                plan: plan,
+                template: noteTemplate,
+                request: request,
+                updatedContent: anchoredContent,
+                anchor: anchor
             )
         }
     }
@@ -1134,6 +1124,214 @@ public final class BearService: @unchecked Sendable {
         case .bottom:
             return joinedContent(existingContent, insertedText)
         }
+    }
+
+    private func resolvedInsertPosition(_ explicitPosition: InsertPosition?) -> InsertPosition {
+        explicitPosition ?? configuration.defaultInsertPosition.asInsertPosition
+    }
+
+    private func validateRelativeInsertionRequest(position: InsertPosition?, target: RelativeTextTarget?) throws {
+        guard target != nil, position != nil else {
+            return
+        }
+
+        throw BearError.invalidInput("Provide either `position` or `target`, not both, for a single insertion request.")
+    }
+
+    private func contentByInserting(
+        _ insertedText: String,
+        into content: String,
+        target: RelativeTextTarget
+    ) throws -> String {
+        let normalizedContent = normalizedLineEndings(content)
+        let matchRange = try insertionTargetRange(in: normalizedContent, target: target)
+        let prefix = String(normalizedContent[..<matchRange.lowerBound])
+        let matched = String(normalizedContent[matchRange])
+        let suffix = String(normalizedContent[matchRange.upperBound...])
+
+        switch target.placement {
+        case .before:
+            return prefix
+                + insertionBoundary(from: prefix, to: insertedText)
+                + insertedText
+                + insertionBoundary(from: insertedText, to: matched)
+                + matched
+                + suffix
+        case .after:
+            return prefix
+                + matched
+                + insertionBoundary(from: matched, to: insertedText)
+                + insertedText
+                + insertionBoundary(from: insertedText, to: suffix)
+                + suffix
+        }
+    }
+
+    private func insertionTargetRange(in content: String, target: RelativeTextTarget) throws -> Range<String.Index> {
+        switch target.targetKind {
+        case .string:
+            return try stringTargetRange(in: content, targetText: target.text)
+        case .heading:
+            return try headingTargetRange(in: content, headingText: target.text)
+        }
+    }
+
+    private func stringTargetRange(in content: String, targetText: String) throws -> Range<String.Index> {
+        guard !targetText.isEmpty else {
+            throw BearError.invalidInput("Relative insertion target text must not be empty.")
+        }
+
+        var matches: [Range<String.Index>] = []
+        var searchStart = content.startIndex
+        while searchStart < content.endIndex,
+              let range = content.range(of: targetText, range: searchStart..<content.endIndex) {
+            matches.append(range)
+            searchStart = range.upperBound
+        }
+
+        if matches.isEmpty {
+            throw BearError.notFound("Relative insertion target was not found in editable content.")
+        }
+        if matches.count > 1 {
+            throw BearError.ambiguous("Relative insertion target matched \(matches.count) times in editable content.")
+        }
+
+        return matches[0]
+    }
+
+    private func headingTargetRange(in content: String, headingText: String) throws -> Range<String.Index> {
+        let normalizedNeedle = normalizedHeadingLookupKey(headingText)
+        guard !normalizedNeedle.isEmpty else {
+            throw BearError.invalidInput("Relative heading target text must not be empty.")
+        }
+
+        let lines = content.split(separator: "\n", omittingEmptySubsequences: false)
+        var cursor = content.startIndex
+        var matches: [Range<String.Index>] = []
+
+        for line in lines {
+            let lineString = String(line)
+            let lineStart = cursor
+            let lineEnd = content.index(lineStart, offsetBy: lineString.count)
+            if let matchedHeadingText = markdownHeadingText(from: lineString),
+               normalizedHeadingLookupKey(matchedHeadingText) == normalizedNeedle {
+                matches.append(lineStart..<lineEnd)
+            }
+
+            cursor = lineEnd
+            if cursor < content.endIndex {
+                cursor = content.index(after: cursor)
+            }
+        }
+
+        if matches.isEmpty {
+            throw BearError.notFound("Relative heading target '\(headingText)' was not found in editable content.")
+        }
+        if matches.count > 1 {
+            throw BearError.ambiguous("Relative heading target '\(headingText)' matched \(matches.count) headings in editable content.")
+        }
+
+        return matches[0]
+    }
+
+    private func markdownHeadingText(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("#") else {
+            return nil
+        }
+
+        let hashes = trimmed.prefix { $0 == "#" }
+        guard !hashes.isEmpty, hashes.count <= 6 else {
+            return nil
+        }
+
+        let remainder = trimmed.dropFirst(hashes.count)
+        guard remainder.first == " " || remainder.first == "\t" else {
+            return nil
+        }
+
+        return remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func normalizedHeadingLookupKey(_ text: String) -> String {
+        text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+    }
+
+    private func insertionBoundary(from leading: String, to trailing: String) -> String {
+        guard !leading.isEmpty, !trailing.isEmpty else {
+            return ""
+        }
+        guard leading.last != "\n", trailing.first != "\n" else {
+            return ""
+        }
+        return "\n"
+    }
+
+    private func addFileUsingAnchorFlow(
+        note: BearNote,
+        plan: ReplaceContentPlan,
+        template: String?,
+        request: AddFileRequest,
+        updatedContent: String,
+        anchor: AttachmentAnchor
+    ) async throws -> MutationReceipt {
+        let internalPresentation = BearPresentationOptions(
+            openNote: false,
+            newWindow: false,
+            showWindow: false,
+            edit: false
+        )
+        let anchoredRawText = self.rawTextByReplacingEditableContent(
+            in: note,
+            plan: plan,
+            newContent: updatedContent,
+            template: template
+        )
+
+        let anchorReceipt = try await self.writeTransport.replaceAll(
+            noteID: note.ref.identifier,
+            fullText: anchoredRawText,
+            presentation: internalPresentation
+        )
+        guard anchorReceipt.status == "updated" else {
+            throw BearError.xCallback(
+                "Could not verify temporary attachment anchor insertion for note \(note.ref.identifier)."
+            )
+        }
+
+        let addFileReceipt = try await self.writeTransport.addFile(
+            AddFileRequest(
+                noteID: note.ref.identifier,
+                filePath: request.filePath,
+                header: anchor.title,
+                position: .top,
+                presentation: internalPresentation,
+                expectedVersion: request.expectedVersion
+            )
+        )
+        guard addFileReceipt.status == "updated" else {
+            throw BearError.xCallback(
+                "File add could not be verified before attachment anchor cleanup for note \(note.ref.identifier). The temporary header '\(anchor.title)' may remain."
+            )
+        }
+
+        let latestNote = try self.loadNote(id: note.ref.identifier)
+        let latestPlan = self.replaceContentPlan(for: latestNote, template: template)
+        let cleanedContent = try self.removingAttachmentAnchor(anchor.markdown, from: latestPlan.content)
+        let cleanedRawText = self.rawTextByReplacingEditableContent(
+            in: latestNote,
+            plan: latestPlan,
+            newContent: cleanedContent,
+            template: template
+        )
+
+        return try await self.writeTransport.replaceAll(
+            noteID: note.ref.identifier,
+            fullText: cleanedRawText,
+            presentation: request.presentation
+        )
     }
 
     private func makeAttachmentAnchor() -> AttachmentAnchor {

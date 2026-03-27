@@ -94,12 +94,13 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-26, the repo contains a working initial scaffold plus note-tag mutation support.
+As of 2026-03-27, the repo contains a working initial scaffold plus note-tag mutation support.
 
 Implemented:
 
 - Swift package manifest and dependency graph
 - real Bear DB reader against the installed Bear schema
+- transient SQLite busy/locked retry handling on normal Bear DB reads
 - config/bootstrap path helpers
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
@@ -203,6 +204,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Notes are normalized into typed models.
 - Full note fetches now return a lean structured record with `noteID`, `title`, canonical template-aware `content`, tags, timestamps, version, and per-file attachment records including Bear's attachment search text when available. The exposed note `version` now tracks Bear's changing SQLite row revision field (`Z_OPT`) rather than the mostly static `ZVERSION` column.
 - Attached file OCR/index text currently comes from `ZSFNOTEFILE.ZSEARCHTEXT` and is returned separately from note content.
+- Normal DB reads now do a short bounded retry on transient SQLite busy/locked errors so immediate post-write reads are more resilient when Bear is still settling its local database.
 
 ### Config behavior
 
@@ -217,7 +219,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
 - Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_apply_template`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
-- Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
+- Insert now supports both top/bottom placement and relative-target placement. Without a relative target, it tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`. With a relative target, the service resolves one heading-title or exact editable-content string match and writes the updated note through `replace_all`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
 - Template-aware note-tag mutations now treat the active template as the highest-priority tag placement when a note matches it and the template contains `{{tags}}`. If no template match exists, add-tags extends the first raw tag-only cluster when found; otherwise it applies the active template to the note when template management is enabled or inserts one canonical tag line at the configured default position when template management is disabled. When template management requires that fallback template application and `template.md` is missing or lacks a valid `{{tags}}` slot, add-tags now fails clearly so the template can be fixed before continuing.
@@ -225,7 +227,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Background note mutations now always serialize `open_note=no` and `show_window=no` when the effective presentation keeps the note closed, even if the client omitted `open_note` and the closed state came from defaults.
 - x-callback debug traces now log the outgoing action plus a redacted query summary so `open_note`, `show_window`, `new_window`, `mode`, and similar flags can be inspected without dumping full note text or base64 file payloads.
-- Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
+- Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and supports both top/bottom placement and relative-target placement. For template-aware top/bottom placement, it preserves active template boundaries by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. For relative-target placement, it uses the same anchor orchestration for both templated and non-templated notes after resolving one heading-title or exact editable-content string match. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In every anchor-managed path, Bear's header-targeted add-file call uses `prepend`; final placement is determined by where the temporary anchor is inserted in editable content.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.

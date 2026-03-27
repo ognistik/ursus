@@ -39,12 +39,14 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "note", in: insert)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "note", in: insert)?.contains("Do not call `bear_get_notes` only to resolve this selector") == true)
     #expect(propertyDescription(named: "position", in: insert)?.contains("Omitted uses the current session default `top`") == true)
+    #expect(propertyDescription(named: "target", in: insert)?.contains("before or after a matching heading") == true)
     #expect(propertyDescription(named: "expected_version", in: insert)?.contains("Omit unless the user explicitly asks for concurrency protection") == true)
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
     #expect(addFiles.description?.contains("`position` uses `top`") == true)
     #expect(propertyDescription(named: "note", in: addFiles)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "position", in: addFiles)?.contains("Omitted uses the current session default `top`") == true)
+    #expect(propertyDescription(named: "target", in: addFiles)?.contains("before or after a matching heading") == true)
 
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
     #expect(openNotes.description?.contains("Current omission default: `new_window` uses `false`") == true)

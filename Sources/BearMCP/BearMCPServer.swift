@@ -196,7 +196,8 @@ public final class BearMCPServer: Sendable {
                 InsertTextRequest(
                     noteID: try requiredNoteSelector(object),
                     text: try requiredString(object, "text"),
-                    position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
+                    position: try MCPArgumentDecoder.optionalPosition(object),
+                    target: try MCPArgumentDecoder.relativeTextTarget(object),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -234,7 +235,8 @@ public final class BearMCPServer: Sendable {
                 AddFileRequest(
                     noteID: try requiredNoteSelector(object),
                     filePath: try requiredString(object, "file_path"),
-                    position: try MCPArgumentDecoder.position(object, default: configuration.defaultInsertPosition.asInsertPosition),
+                    position: try MCPArgumentDecoder.optionalPosition(object),
+                    target: try MCPArgumentDecoder.relativeTextTarget(object),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -593,15 +595,16 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text at the top or bottom of one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
+                        "description": .string("Optional insertion position used only when no `target` is provided. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
+                    "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
@@ -641,15 +644,16 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)`; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional file insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
+                        "description": .string("Optional file insertion position used only when no `target` is provided. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
+                    "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
@@ -894,6 +898,30 @@ private enum ToolCatalog {
         .object([
             "type": .string("string"),
             "description": .string("Required note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+        ])
+    }
+
+    private static func relativeTargetProperty() -> Value {
+        .object([
+            "type": .string("object"),
+            "description": .string("Optional relative insertion target. Use this instead of `position` when the user wants content inserted before or after a matching heading or exact editable-content string."),
+            "properties": .object([
+                "text": .object([
+                    "type": .string("string"),
+                    "description": .string("Required target text. For `target_kind: heading`, provide the visible heading text without needing to include Markdown `#` markers. For `target_kind: string`, pass the exact editable-content string to match."),
+                ]),
+                "target_kind": .object([
+                    "type": .string("string"),
+                    "enum": .array([.string("heading"), .string("string")]),
+                    "description": .string("Optional target kind. Omitted defaults to `string`. Use `heading` for heading-title matching inside editable content."),
+                ]),
+                "placement": .object([
+                    "type": .string("string"),
+                    "enum": .array([.string("before"), .string("after")]),
+                    "description": .string("Required relative placement for the insertion target."),
+                ]),
+            ]),
+            "required": .array([.string("text"), .string("placement")]),
         ])
     }
 

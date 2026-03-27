@@ -165,6 +165,80 @@ func addFilesFallBackToDirectAddFileWhenNoteDoesNotMatchActiveTemplate() async t
     #expect(await transport.replaceCalls.isEmpty)
 }
 
+@Test
+func addFilesUseAnchorFlowForRelativeHeadingTargetOnPlainNote() async throws {
+    let note = makeAddFileSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "## Tasks\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let readStore = MutableAddFileReadStore(note: note)
+    let transport = AddFileRecordingWriteTransport(readStore: readStore)
+    let service = BearService(
+        configuration: makeAddFileConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceAddFileTests")
+    )
+
+    let fileURL = try temporaryAddFileURL(named: "example.txt", contents: "payload")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    _ = try await service.addFiles([
+        AddFileRequest(
+            noteID: "note-1",
+            filePath: fileURL.path,
+            target: RelativeTextTarget(text: "Tasks", targetKind: .heading, placement: .after),
+            presentation: BearPresentationOptions(),
+            expectedVersion: 3
+        ),
+    ])
+
+    let addFileRequest = try #require(await transport.addFileRequests.first)
+    #expect(addFileRequest.header?.hasPrefix("BEAR_MCP_ATTACHMENT_") == true)
+    #expect(addFileRequest.position == .top)
+    let replaceCalls = await transport.replaceCalls
+    #expect(replaceCalls.count == 2)
+    #expect(replaceCalls[1].fullText == "# Inbox\n\n## Tasks\n[file:example.txt]\n\nLine 1")
+}
+
+@Test
+func addFilesRejectAmbiguousRelativeStringTargetBeforeWriting() async throws {
+    let note = makeAddFileSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1\n\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let readStore = MutableAddFileReadStore(note: note)
+    let transport = AddFileRecordingWriteTransport(readStore: readStore)
+    let service = BearService(
+        configuration: makeAddFileConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceAddFileTests")
+    )
+
+    let fileURL = try temporaryAddFileURL(named: "example.txt", contents: "payload")
+    defer { try? FileManager.default.removeItem(at: fileURL) }
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.addFiles([
+            AddFileRequest(
+                noteID: "note-1",
+                filePath: fileURL.path,
+                target: RelativeTextTarget(text: "Line 1", placement: .after),
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    #expect(await transport.addFileRequests.isEmpty)
+    #expect(await transport.replaceCalls.isEmpty)
+}
+
 private func makeAddFileConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -373,7 +447,7 @@ private actor AddFileRecordingWriteTransport: BearWriteTransport {
             noteID: request.noteID,
             filename: URL(fileURLWithPath: request.filePath).lastPathComponent,
             header: request.header,
-            position: request.position
+            position: request.position ?? .bottom
         )
         return MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil)
     }

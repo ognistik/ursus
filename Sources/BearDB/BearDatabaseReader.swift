@@ -3,6 +3,11 @@ import Foundation
 import GRDB
 
 public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
+    private enum ReadRetry {
+        static let maxAttempts = 5
+        static let delayBetweenAttempts: TimeInterval = 0.05
+    }
+
     private let databaseQueue: DatabaseQueue
 
     public init(databaseURL: URL) throws {
@@ -156,47 +161,51 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             arguments.append(tagDescendantPattern(for: normalizedUnderTag.lowercased()))
         }
 
-        return try databaseQueue.read { db in
-            try TagRow.fetchAll(
-                db,
-                sql: """
-                SELECT
-                    t.ZTITLE AS title,
-                    t.ZUNIQUEIDENTIFIER AS identifier,
-                    COUNT(DISTINCT n.Z_PK) AS noteCount
-                FROM ZSFNOTETAG t
-                JOIN Z_5TAGS nt ON nt.Z_13TAGS = t.Z_PK
-                JOIN ZSFNOTE n ON n.Z_PK = nt.Z_5NOTES
-                WHERE \(conditions.joined(separator: "\n                    AND "))
-                GROUP BY t.Z_PK
-                ORDER BY LOWER(t.ZTITLE) ASC
-                """,
-                arguments: StatementArguments(arguments) ?? StatementArguments()
-            )
-            .map(\.summary)
+        return try withRetryableRead {
+            try databaseQueue.read { db in
+                try TagRow.fetchAll(
+                    db,
+                    sql: """
+                    SELECT
+                        t.ZTITLE AS title,
+                        t.ZUNIQUEIDENTIFIER AS identifier,
+                        COUNT(DISTINCT n.Z_PK) AS noteCount
+                    FROM ZSFNOTETAG t
+                    JOIN Z_5TAGS nt ON nt.Z_13TAGS = t.Z_PK
+                    JOIN ZSFNOTE n ON n.Z_PK = nt.Z_5NOTES
+                    WHERE \(conditions.joined(separator: "\n                    AND "))
+                    GROUP BY t.Z_PK
+                    ORDER BY LOWER(t.ZTITLE) ASC
+                    """,
+                    arguments: StatementArguments(arguments) ?? StatementArguments()
+                )
+                .map(\.summary)
+            }
         }
     }
 
     public func attachments(noteID: String) throws -> [NoteAttachment] {
-        try databaseQueue.read { db in
-            try AttachmentRow.fetchAll(
-                db,
-                sql: """
-                SELECT
-                    f.ZUNIQUEIDENTIFIER AS attachmentID,
-                    f.ZFILENAME AS filename,
-                    f.ZNORMALIZEDFILEEXTENSION AS fileExtension,
-                    f.ZSEARCHTEXT AS searchText
-                FROM ZSFNOTEFILE f
-                JOIN ZSFNOTE n ON n.Z_PK = f.ZNOTE
-                WHERE n.ZUNIQUEIDENTIFIER = ?
-                    AND n.ZPERMANENTLYDELETED = 0
-                    AND f.ZPERMANENTLYDELETED = 0
-                ORDER BY f.ZINSERTIONDATE ASC, f.ZUNIQUEIDENTIFIER ASC
-                """,
-                arguments: [noteID]
-            )
-            .map(\.attachment)
+        try withRetryableRead {
+            try databaseQueue.read { db in
+                try AttachmentRow.fetchAll(
+                    db,
+                    sql: """
+                    SELECT
+                        f.ZUNIQUEIDENTIFIER AS attachmentID,
+                        f.ZFILENAME AS filename,
+                        f.ZNORMALIZEDFILEEXTENSION AS fileExtension,
+                        f.ZSEARCHTEXT AS searchText
+                    FROM ZSFNOTEFILE f
+                    JOIN ZSFNOTE n ON n.Z_PK = f.ZNOTE
+                    WHERE n.ZUNIQUEIDENTIFIER = ?
+                        AND n.ZPERMANENTLYDELETED = 0
+                        AND f.ZPERMANENTLYDELETED = 0
+                    ORDER BY f.ZINSERTIONDATE ASC, f.ZUNIQUEIDENTIFIER ASC
+                    """,
+                    arguments: [noteID]
+                )
+                .map(\.attachment)
+            }
         }
     }
 
@@ -619,13 +628,15 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         sql: String,
         arguments: [DatabaseValueConvertible]
     ) throws -> [BearNote] {
-        try databaseQueue.read { db in
-            try NoteRow.fetchAll(
-                db,
-                sql: sql,
-                arguments: StatementArguments(arguments) ?? StatementArguments()
-            )
-            .map(\.note)
+        try withRetryableRead {
+            try databaseQueue.read { db in
+                try NoteRow.fetchAll(
+                    db,
+                    sql: sql,
+                    arguments: StatementArguments(arguments) ?? StatementArguments()
+                )
+                .map(\.note)
+            }
         }
     }
 
@@ -642,16 +653,52 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         arguments: [DatabaseValueConvertible],
         limit: Int
     ) throws -> DiscoveryNoteBatch {
-        let items = try databaseQueue.read { db in
-            try NoteRow.fetchAll(
-                db,
-                sql: sql,
-                arguments: StatementArguments(arguments) ?? StatementArguments()
-            )
-            .map(\.rankedNote)
+        let items = try withRetryableRead {
+            try databaseQueue.read { db in
+                try NoteRow.fetchAll(
+                    db,
+                    sql: sql,
+                    arguments: StatementArguments(arguments) ?? StatementArguments()
+                )
+                .map(\.rankedNote)
+            }
         }
         let hasMore = items.count > limit
         return DiscoveryNoteBatch(items: Array(items.prefix(limit)), hasMore: hasMore)
+    }
+
+    private func withRetryableRead<T>(_ operation: () throws -> T) throws -> T {
+        var attempt = 1
+        while true {
+            do {
+                return try operation()
+            } catch let error as DatabaseError {
+                guard Self.isRetryableReadLock(error), attempt < ReadRetry.maxAttempts else {
+                    throw error
+                }
+
+                BearDebugLog.append(
+                    "db.read retrying after transient sqlite lock code=\(error.resultCode.rawValue) attempt=\(attempt) message=\(error.message ?? "unknown")"
+                )
+                Thread.sleep(forTimeInterval: ReadRetry.delayBetweenAttempts)
+                attempt += 1
+            }
+        }
+    }
+
+    private static func isRetryableReadLock(_ error: DatabaseError) -> Bool {
+        switch error.resultCode {
+        case .SQLITE_BUSY,
+             .SQLITE_LOCKED,
+             .SQLITE_BUSY_RECOVERY,
+             .SQLITE_BUSY_SNAPSHOT,
+             .SQLITE_BUSY_TIMEOUT,
+             .SQLITE_LOCKED_SHAREDCACHE,
+             .SQLITE_LOCKED_VTAB:
+            true
+        default:
+            false
+        }
     }
 }
 

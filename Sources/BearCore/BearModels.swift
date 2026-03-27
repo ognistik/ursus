@@ -712,6 +712,32 @@ public enum InsertPosition: String, Codable, Hashable, Sendable {
     case bottom
 }
 
+public enum RelativeTargetKind: String, Codable, Hashable, Sendable {
+    case heading
+    case string
+}
+
+public enum RelativeTargetPlacement: String, Codable, Hashable, Sendable {
+    case before
+    case after
+}
+
+public struct RelativeTextTarget: Codable, Hashable, Sendable {
+    public let text: String
+    public let targetKind: RelativeTargetKind
+    public let placement: RelativeTargetPlacement
+
+    public init(
+        text: String,
+        targetKind: RelativeTargetKind = .string,
+        placement: RelativeTargetPlacement
+    ) {
+        self.text = text
+        self.targetKind = targetKind
+        self.placement = placement
+    }
+}
+
 public enum ReplaceContentKind: String, Codable, Hashable, Sendable {
     case title
     case body
@@ -782,20 +808,23 @@ public struct CreateNoteRequest: Codable, Hashable, Sendable {
 public struct InsertTextRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let text: String
-    public let position: InsertPosition
+    public let position: InsertPosition?
+    public let target: RelativeTextTarget?
     public let presentation: BearPresentationOptions
     public let expectedVersion: Int?
 
     public init(
         noteID: String,
         text: String,
-        position: InsertPosition,
+        position: InsertPosition? = nil,
+        target: RelativeTextTarget? = nil,
         presentation: BearPresentationOptions,
         expectedVersion: Int?
     ) {
         self.noteID = noteID
         self.text = text
         self.position = position
+        self.target = target
         self.presentation = presentation
         self.expectedVersion = expectedVersion
     }
@@ -908,7 +937,8 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let filePath: String
     public let header: String?
-    public let position: InsertPosition
+    public let position: InsertPosition?
+    public let target: RelativeTextTarget?
     public let presentation: BearPresentationOptions
     public let expectedVersion: Int?
 
@@ -916,7 +946,8 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
         noteID: String,
         filePath: String,
         header: String? = nil,
-        position: InsertPosition,
+        position: InsertPosition? = nil,
+        target: RelativeTextTarget? = nil,
         presentation: BearPresentationOptions,
         expectedVersion: Int?
     ) {
@@ -924,6 +955,7 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
         self.filePath = filePath
         self.header = header
         self.position = position
+        self.target = target
         self.presentation = presentation
         self.expectedVersion = expectedVersion
     }

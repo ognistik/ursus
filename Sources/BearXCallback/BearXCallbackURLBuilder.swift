@@ -15,13 +15,17 @@ public struct BearXCallbackURLBuilder: Sendable {
     }
 
     public func insertTextURL(request: InsertTextRequest) throws -> URL {
-        try makeURL(
+        guard let position = request.position else {
+            throw BearError.invalidInput("Direct Bear insert-text transport requires a concrete top/bottom position.")
+        }
+
+        return try makeURL(
             action: "add-text",
             queryItems: [
                 URLQueryItem(name: "id", value: request.noteID),
                 URLQueryItem(name: "text", value: request.text),
-                URLQueryItem(name: "mode", value: request.position == .top ? "prepend" : "append"),
-                URLQueryItem(name: "new_line", value: request.position == .bottom ? "yes" : nil),
+                URLQueryItem(name: "mode", value: position == .top ? "prepend" : "append"),
+                URLQueryItem(name: "new_line", value: position == .bottom ? "yes" : nil),
             ] + presentationItems(request.presentation)
         )
     }
@@ -38,6 +42,10 @@ public struct BearXCallbackURLBuilder: Sendable {
     }
 
     public func addFileURL(request: AddFileRequest) throws -> URL {
+        guard let position = request.position else {
+            throw BearError.invalidInput("Direct Bear add-file transport requires a concrete top/bottom position.")
+        }
+
         let fileURL = URL(fileURLWithPath: request.filePath)
         let fileData: Data
 
@@ -56,7 +64,7 @@ public struct BearXCallbackURLBuilder: Sendable {
                 URLQueryItem(name: "file", value: fileData.base64EncodedString()),
                 URLQueryItem(name: "filename", value: fileURL.lastPathComponent),
                 URLQueryItem(name: "header", value: request.header),
-                URLQueryItem(name: "mode", value: request.position == .top ? "prepend" : "append"),
+                URLQueryItem(name: "mode", value: position == .top ? "prepend" : "append"),
             ] + presentationItems(request.presentation)
         )
     }
