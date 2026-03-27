@@ -29,11 +29,16 @@ public enum BearText {
     }
 
     public static func composeRawText(title: String, body: String) -> String {
+        composeRawText(title: title, body: body, separator: "\n\n")
+    }
+
+    public static func composeRawText(title: String, body: String, separator: String) -> String {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedBody.isEmpty {
             return "# \(title)"
         }
 
-        return "# \(title)\n\n\(trimmedBody)"
+        let effectiveSeparator = separator.isEmpty ? "\n\n" : separator
+        return "# \(title)\(effectiveSeparator)\(trimmedBody)"
     }
 }

@@ -111,6 +111,33 @@ func getNotesStillMatchesTemplateWhenEffectiveTagsIncludeImplicitParentTags() as
 }
 
 @Test
+func getNotesStillMatchesTemplateWhenTerminalContentIsEmpty() async throws {
+    let note = makeFetchedSourceNote(
+        id: "note-empty-content",
+        title: "Inbox",
+        body: "---\n#0-inbox\n---",
+        rawText: "# Inbox\n---\n#0-inbox\n---",
+        tags: ["0-inbox"],
+        archived: false
+    )
+    let readStore = GetNotesReadStore(noteByID: ["note-empty-content": note])
+    let service = BearService(
+        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: GetNotesSilentWriteTransport(),
+        logger: Logger(label: "BearServiceGetNotesTests")
+    )
+
+    let notes = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try service.getNotes(selectors: ["note-empty-content"], location: .notes)
+    }
+
+    let fetched = try #require(notes.first)
+    #expect(fetched.content == "")
+    #expect(fetched.tags == ["0-inbox"])
+}
+
+@Test
 func getNotesReturnsEncryptedFlagOnlyForEncryptedNotes() throws {
     let note = makeFetchedSourceNote(
         id: "secret",

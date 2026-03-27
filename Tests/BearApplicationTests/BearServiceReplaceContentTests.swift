@@ -73,6 +73,41 @@ func replaceContentTitleRerendersTemplateWithNewTitle() async throws {
 }
 
 @Test
+func replaceContentEmptyTemplatedBodyPreservesExistingSingleNewlineTitleSeparator() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "---\n#0-inbox\n---\nLine 1",
+        rawText: "# Inbox\n---\n#0-inbox\n---\nLine 1",
+        tags: ["0-inbox"]
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: true),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        _ = try await service.replaceContent([
+            ReplaceContentRequest(
+                noteID: "note-1",
+                kind: .body,
+                oldString: nil,
+                occurrence: nil,
+                newString: "",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n---\n#0-inbox\n---")
+}
+
+@Test
 func replaceContentStringTouchesEditableContentButNotTitle() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",

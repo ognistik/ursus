@@ -240,7 +240,7 @@ public final class BearService: @unchecked Sendable {
                 literalTags: templateMatch.literalTags,
                 template: noteTemplate
             )
-            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+            let updatedRawText = self.composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
 
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
@@ -310,7 +310,7 @@ public final class BearService: @unchecked Sendable {
                 literalTags: templateMatch.literalTags,
                 template: noteTemplate
             )
-            let anchoredRawText = BearText.composeRawText(title: note.title, body: anchoredBody)
+            let anchoredRawText = self.composeRawTextPreservingStyle(for: note, title: note.title, body: anchoredBody)
 
             let anchorReceipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
@@ -353,7 +353,7 @@ public final class BearService: @unchecked Sendable {
                 literalTags: latestMatch.literalTags,
                 template: noteTemplate
             )
-            let cleanedRawText = BearText.composeRawText(title: latestNote.title, body: cleanedBody)
+            let cleanedRawText = self.composeRawTextPreservingStyle(for: latestNote, title: latestNote.title, body: cleanedBody)
 
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
@@ -817,10 +817,10 @@ public final class BearService: @unchecked Sendable {
                 literalTags: templateMatch.literalTags,
                 template: template
             )
-            return BearText.composeRawText(title: newTitle, body: updatedBody)
+            return composeRawTextPreservingStyle(for: note, title: newTitle, body: updatedBody)
         }
 
-        return BearText.composeRawText(title: newTitle, body: plan.content)
+        return composeRawTextPreservingStyle(for: note, title: newTitle, body: plan.content)
     }
 
     private func rawTextByReplacingEditableContent(
@@ -841,7 +841,7 @@ public final class BearService: @unchecked Sendable {
             updatedBody = newContent
         }
 
-        return BearText.composeRawText(title: note.title, body: updatedBody)
+        return composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
     }
 
     private func replacedContent(
@@ -1061,12 +1061,18 @@ public final class BearService: @unchecked Sendable {
         }
 
         let utf16Body = body as NSString
-        let content = utf16Body.substring(with: match.range(at: descriptor.contentCaptureIndex))
+        let contentRange = match.range(at: descriptor.contentCaptureIndex)
+        let content = contentRange.location == NSNotFound
+            ? ""
+            : utf16Body.substring(with: contentRange)
         let literalTags: [String]
         if let tagsCaptureIndex = descriptor.tagsCaptureIndex {
-            literalTags = BearTag.extractNormalizedNames(
-                from: utf16Body.substring(with: match.range(at: tagsCaptureIndex))
-            )
+            let tagsRange = match.range(at: tagsCaptureIndex)
+            literalTags = tagsRange.location == NSNotFound
+                ? []
+                : BearTag.extractNormalizedNames(
+                    from: utf16Body.substring(with: tagsRange)
+                )
         } else {
             literalTags = []
         }
@@ -1135,6 +1141,32 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
+    private func composeRawTextPreservingStyle(for note: BearNote, title: String, body: String) -> String {
+        BearText.composeRawText(
+            title: title,
+            body: body,
+            separator: preservedTitleBodySeparator(for: note)
+        )
+    }
+
+    private func preservedTitleBodySeparator(for note: BearNote) -> String {
+        let normalizedRawText = normalizedLineEndings(note.rawText)
+        let titleLine = "# \(note.title)"
+
+        guard normalizedRawText.hasPrefix(titleLine) else {
+            return "\n\n"
+        }
+
+        let separatorStart = normalizedRawText.index(normalizedRawText.startIndex, offsetBy: titleLine.count)
+        var cursor = separatorStart
+        while cursor < normalizedRawText.endIndex, normalizedRawText[cursor] == "\n" {
+            cursor = normalizedRawText.index(after: cursor)
+        }
+
+        let separator = String(normalizedRawText[separatorStart..<cursor])
+        return separator.isEmpty ? "\n\n" : separator
+    }
+
     private func noteTagMutationOutcome(
         note: BearNote,
         requestTags: [String],
@@ -1189,7 +1221,7 @@ public final class BearService: @unchecked Sendable {
                 updatedBody = rawBodyByAddingTags(addedTags, to: canonicalBody)
             }
 
-            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+            let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
                 addedTags: addedTags,
@@ -1226,7 +1258,7 @@ public final class BearService: @unchecked Sendable {
 
             let updatedBody = rawBodyByRemovingTags(removableKeys, from: canonicalBody)
 
-            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+            let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
                 addedTags: [],
@@ -1379,6 +1411,7 @@ public final class BearService: @unchecked Sendable {
         let nsTemplate = normalizedTemplate as NSString
         let fullRange = NSRange(location: 0, length: nsTemplate.length)
         let matches = placeholderRegex.matches(in: normalizedTemplate, options: [], range: fullRange)
+        let lastMatchUpperBound = matches.last.map { $0.range.location + $0.range.length }
 
         var pattern = "(?s)\\A"
         var cursor = 0
@@ -1388,21 +1421,32 @@ public final class BearService: @unchecked Sendable {
 
         for match in matches {
             let literal = nsTemplate.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
-            pattern += NSRegularExpression.escapedPattern(for: literal)
-
             let placeholder = nsTemplate.substring(with: match.range)
             switch placeholder {
             case "{{title}}":
+                pattern += NSRegularExpression.escapedPattern(for: literal)
                 pattern += NSRegularExpression.escapedPattern(for: title)
             case "{{content}}":
                 contentCaptureIndex = captureIndex
-                pattern += "(.*?)"
+                let isTerminalContentPlaceholder = lastMatchUpperBound == nsTemplate.length
+                    && match.range.location + match.range.length == nsTemplate.length
+
+                if isTerminalContentPlaceholder, literal.hasSuffix("\n") {
+                    let literalWithoutTrailingNewline = String(literal.dropLast())
+                    pattern += NSRegularExpression.escapedPattern(for: literalWithoutTrailingNewline)
+                    pattern += "(?:\\n(.*?))?"
+                } else {
+                    pattern += NSRegularExpression.escapedPattern(for: literal)
+                    pattern += "(.*?)"
+                }
                 captureIndex += 1
             case "{{tags}}":
+                pattern += NSRegularExpression.escapedPattern(for: literal)
                 tagsCaptureIndex = captureIndex
                 pattern += "(.*?)"
                 captureIndex += 1
             default:
+                pattern += NSRegularExpression.escapedPattern(for: literal)
                 break
             }
 
