@@ -234,7 +234,12 @@ public final class BearService: @unchecked Sendable {
                 to: templateMatch.content,
                 position: request.position
             )
-            let updatedBody = templateMatch.prefix + updatedContent + templateMatch.suffix
+            let updatedBody = self.renderedTemplateBody(
+                title: note.title,
+                content: updatedContent,
+                literalTags: templateMatch.literalTags,
+                template: noteTemplate
+            )
             let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
 
             return try await self.writeTransport.replaceAll(
@@ -299,7 +304,12 @@ public final class BearService: @unchecked Sendable {
                 to: templateMatch.content,
                 position: request.position
             )
-            let anchoredBody = templateMatch.prefix + anchoredContent + templateMatch.suffix
+            let anchoredBody = self.renderedTemplateBody(
+                title: note.title,
+                content: anchoredContent,
+                literalTags: templateMatch.literalTags,
+                template: noteTemplate
+            )
             let anchoredRawText = BearText.composeRawText(title: note.title, body: anchoredBody)
 
             let anchorReceipt = try await self.writeTransport.replaceAll(
@@ -337,7 +347,12 @@ public final class BearService: @unchecked Sendable {
             }
 
             let cleanedContent = try self.removingAttachmentAnchor(anchor.markdown, from: latestMatch.content)
-            let cleanedBody = latestMatch.prefix + cleanedContent + latestMatch.suffix
+            let cleanedBody = self.renderedTemplateBody(
+                title: latestNote.title,
+                content: cleanedContent,
+                literalTags: latestMatch.literalTags,
+                template: noteTemplate
+            )
             let cleanedRawText = BearText.composeRawText(title: latestNote.title, body: cleanedBody)
 
             return try await self.writeTransport.replaceAll(
@@ -374,6 +389,111 @@ public final class BearService: @unchecked Sendable {
                     newName: try self.normalizedTagName(request.newName, fieldName: "new_name"),
                     showWindow: request.showWindow
                 )
+            )
+        }
+    }
+
+    public func deleteTags(_ requests: [DeleteTagRequest]) async throws -> [TagMutationReceipt] {
+        try await mutateEach(requests) { request in
+            try await self.writeTransport.deleteTag(
+                DeleteTagRequest(
+                    name: try self.normalizedTagName(request.name, fieldName: "name"),
+                    showWindow: request.showWindow
+                )
+            )
+        }
+    }
+
+    public func addTags(_ requests: [NoteTagsRequest]) async throws -> [NoteTagMutationReceipt] {
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
+            let note = try self.resolveNoteSelector(request.noteID)
+            if let expected = request.expectedVersion, note.revision.version != expected {
+                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
+            }
+
+            let outcome = try self.noteTagMutationOutcome(
+                note: note,
+                requestTags: request.tags,
+                template: noteTemplate,
+                mode: .add
+            )
+
+            guard let updatedRawText = outcome.updatedRawText else {
+                return NoteTagMutationReceipt(
+                    noteID: note.ref.identifier,
+                    title: note.title,
+                    status: "unchanged",
+                    modifiedAt: note.revision.modifiedAt,
+                    addedTags: outcome.addedTags,
+                    removedTags: outcome.removedTags,
+                    skippedTags: outcome.skippedTags
+                )
+            }
+
+            try await self.captureBackupIfNeeded(for: note, reason: .updateTags)
+            let receipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: updatedRawText,
+                presentation: request.presentation
+            )
+
+            return NoteTagMutationReceipt(
+                noteID: note.ref.identifier,
+                title: receipt.title ?? note.title,
+                status: receipt.status,
+                modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                addedTags: outcome.addedTags,
+                removedTags: outcome.removedTags,
+                skippedTags: outcome.skippedTags
+            )
+        }
+    }
+
+    public func removeTags(_ requests: [NoteTagsRequest]) async throws -> [NoteTagMutationReceipt] {
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
+            let note = try self.resolveNoteSelector(request.noteID)
+            if let expected = request.expectedVersion, note.revision.version != expected {
+                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
+            }
+
+            let outcome = try self.noteTagMutationOutcome(
+                note: note,
+                requestTags: request.tags,
+                template: noteTemplate,
+                mode: .remove
+            )
+
+            guard let updatedRawText = outcome.updatedRawText else {
+                return NoteTagMutationReceipt(
+                    noteID: note.ref.identifier,
+                    title: note.title,
+                    status: "unchanged",
+                    modifiedAt: note.revision.modifiedAt,
+                    addedTags: outcome.addedTags,
+                    removedTags: outcome.removedTags,
+                    skippedTags: outcome.skippedTags
+                )
+            }
+
+            try await self.captureBackupIfNeeded(for: note, reason: .updateTags)
+            let receipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: updatedRawText,
+                presentation: request.presentation
+            )
+
+            return NoteTagMutationReceipt(
+                noteID: note.ref.identifier,
+                title: receipt.title ?? note.title,
+                status: receipt.status,
+                modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                addedTags: outcome.addedTags,
+                removedTags: outcome.removedTags,
+                skippedTags: outcome.skippedTags
             )
         }
     }
@@ -459,7 +579,7 @@ public final class BearService: @unchecked Sendable {
             }
             return try rawTextByReplacingTitle(in: note, plan: plan, newTitle: newTitle, template: template)
         case .body:
-            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: request.newString)
+            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: request.newString, template: template)
         case .string:
             let oldString = try requiredReplaceString(request.oldString, noteID: request.noteID)
             let occurrence = try requiredReplaceOccurrence(request.occurrence, noteID: request.noteID)
@@ -470,7 +590,7 @@ public final class BearService: @unchecked Sendable {
                 newString: request.newString,
                 occurrence: occurrence
             )
-            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: updatedContent)
+            return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: updatedContent, template: template)
         }
     }
 
@@ -672,9 +792,11 @@ public final class BearService: @unchecked Sendable {
         newTitle: String,
         template: String?
     ) throws -> String {
-        if let template, plan.templateMatch != nil {
-            let updatedBody = TemplateRenderer.renderDocument(
-                context: TemplateContext(title: newTitle, content: plan.content, tags: note.tags),
+        if let template, let templateMatch = plan.templateMatch {
+            let updatedBody = renderedTemplateBody(
+                title: newTitle,
+                content: plan.content,
+                literalTags: templateMatch.literalTags,
                 template: template
             )
             return BearText.composeRawText(title: newTitle, body: updatedBody)
@@ -686,11 +808,17 @@ public final class BearService: @unchecked Sendable {
     private func rawTextByReplacingEditableContent(
         in note: BearNote,
         plan: ReplaceContentPlan,
-        newContent: String
+        newContent: String,
+        template: String?
     ) -> String {
         let updatedBody: String
-        if let templateMatch = plan.templateMatch {
-            updatedBody = templateMatch.prefix + newContent + templateMatch.suffix
+        if let template, let templateMatch = plan.templateMatch {
+            updatedBody = renderedTemplateBody(
+                title: note.title,
+                content: newContent,
+                literalTags: templateMatch.literalTags,
+                template: template
+            )
         } else {
             updatedBody = newContent
         }
@@ -904,33 +1032,31 @@ public final class BearService: @unchecked Sendable {
             return nil
         }
 
-        let marker = "__BEAR_MCP_CONTENT_SENTINEL__"
-        guard template.components(separatedBy: "{{content}}").count == 2 else {
+        guard let descriptor = templatePattern(for: template, title: note.title) else {
             return nil
         }
 
-        let rendered = TemplateRenderer.renderDocument(
-            context: TemplateContext(title: note.title, content: marker, tags: note.tags),
-            template: template
-        )
-        guard let range = rendered.range(of: marker) else {
-            return nil
-        }
-
-        let prefix = normalizedLineEndings(String(rendered[..<range.lowerBound]))
-        let suffix = normalizedLineEndings(String(rendered[range.upperBound...]))
         let body = normalizedLineEndings(normalizedBody ?? canonicalBody(for: note))
-
-        guard body.hasPrefix(prefix), body.hasSuffix(suffix) else {
+        let matchRange = NSRange(location: 0, length: body.utf16.count)
+        guard let match = descriptor.regex.firstMatch(in: body, options: [], range: matchRange) else {
             return nil
         }
 
-        let start = body.index(body.startIndex, offsetBy: prefix.count)
-        let end = body.index(body.endIndex, offsetBy: -suffix.count)
+        let utf16Body = body as NSString
+        let content = utf16Body.substring(with: match.range(at: descriptor.contentCaptureIndex))
+        let literalTags: [String]
+        if let tagsCaptureIndex = descriptor.tagsCaptureIndex {
+            literalTags = BearTag.extractNormalizedNames(
+                from: utf16Body.substring(with: match.range(at: tagsCaptureIndex))
+            )
+        } else {
+            literalTags = []
+        }
+
         return TemplateBodyMatch(
-            prefix: prefix,
-            content: String(body[start..<end]),
-            suffix: suffix
+            content: content,
+            literalTags: literalTags,
+            hasTagPlaceholder: descriptor.tagsCaptureIndex != nil
         )
     }
 
@@ -977,6 +1103,323 @@ public final class BearService: @unchecked Sendable {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func renderedTemplateBody(
+        title: String,
+        content: String,
+        literalTags: [String],
+        template: String?
+    ) -> String {
+        TemplateRenderer.renderDocument(
+            context: TemplateContext(title: title, content: content, tags: literalTags),
+            template: template
+        )
+    }
+
+    private func noteTagMutationOutcome(
+        note: BearNote,
+        requestTags: [String],
+        template: String?,
+        mode: NoteTagMutationMode
+    ) throws -> NoteTagMutationOutcome {
+        let requestedTags = normalizedTags(requestTags)
+        guard !requestedTags.isEmpty else {
+            throw BearError.invalidInput("Each tag mutation operation requires at least one non-empty tag.")
+        }
+
+        let effectiveKeys = Set(note.tags.map(BearTag.deduplicationKey))
+        let templateMatch = templateBodyMatch(for: note, template: template)
+        let literalTags = templateMatch?.hasTagPlaceholder == true
+            ? templateMatch?.literalTags ?? []
+            : BearTag.extractNormalizedNames(from: canonicalBody(for: note))
+        let literalKeys = Set(literalTags.map(BearTag.deduplicationKey))
+
+        switch mode {
+        case .add:
+            var addedTags: [String] = []
+            var skippedTags: [String] = []
+
+            for tag in requestedTags {
+                let key = BearTag.deduplicationKey(tag)
+                if literalKeys.contains(key) || effectiveKeys.contains(key) {
+                    skippedTags.append(tag)
+                } else {
+                    addedTags.append(tag)
+                }
+            }
+
+            guard !addedTags.isEmpty else {
+                return NoteTagMutationOutcome(
+                    updatedRawText: nil,
+                    addedTags: [],
+                    removedTags: [],
+                    skippedTags: skippedTags
+                )
+            }
+
+            let updatedBody: String
+            if let template, let templateMatch, templateMatch.hasTagPlaceholder {
+                updatedBody = renderedTemplateBody(
+                    title: note.title,
+                    content: templateMatch.content,
+                    literalTags: literalTags + addedTags,
+                    template: template
+                )
+            } else {
+                updatedBody = rawBodyByAddingTags(addedTags, to: canonicalBody(for: note))
+            }
+
+            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+            return NoteTagMutationOutcome(
+                updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+                addedTags: addedTags,
+                removedTags: [],
+                skippedTags: skippedTags
+            )
+
+        case .remove:
+            var removedTags: [String] = []
+            var skippedTags: [String] = []
+            let removableKeys = Set(requestedTags.map(BearTag.deduplicationKey))
+
+            for tag in requestedTags {
+                let key = BearTag.deduplicationKey(tag)
+                if literalKeys.contains(key) {
+                    removedTags.append(tag)
+                } else if effectiveKeys.contains(key) {
+                    skippedTags.append(tag)
+                } else {
+                    skippedTags.append(tag)
+                }
+            }
+
+            guard !removedTags.isEmpty else {
+                return NoteTagMutationOutcome(
+                    updatedRawText: nil,
+                    addedTags: [],
+                    removedTags: [],
+                    skippedTags: skippedTags
+                )
+            }
+
+            let updatedBody: String
+            if let template, let templateMatch, templateMatch.hasTagPlaceholder {
+                let updatedLiteralTags = literalTags.filter { tag in
+                    removableKeys.contains(BearTag.deduplicationKey(tag)) == false
+                }
+                updatedBody = renderedTemplateBody(
+                    title: note.title,
+                    content: templateMatch.content,
+                    literalTags: updatedLiteralTags,
+                    template: template
+                )
+            } else {
+                updatedBody = rawBodyByRemovingTags(removableKeys, from: canonicalBody(for: note))
+            }
+
+            let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
+            return NoteTagMutationOutcome(
+                updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+                addedTags: [],
+                removedTags: removedTags,
+                skippedTags: skippedTags
+            )
+        }
+    }
+
+    private func rawBodyByAddingTags(_ tagsToAdd: [String], to body: String) -> String {
+        let normalizedBody = normalizedLineEndings(body)
+
+        if let cluster = firstTagCluster(in: normalizedBody) {
+            let updatedLine = TemplateRenderer.renderTags(cluster.tags + tagsToAdd)
+            return replacingLines(
+                in: normalizedBody,
+                lineRange: cluster.lineRange,
+                with: updatedLine.isEmpty ? [] : [updatedLine]
+            )
+        }
+
+        let renderedTags = TemplateRenderer.renderTags(tagsToAdd)
+        guard !renderedTags.isEmpty else {
+            return normalizedBody
+        }
+
+        return joinedContent(
+            normalizedBody.trimmingCharacters(in: .whitespacesAndNewlines),
+            renderedTags
+        )
+    }
+
+    private func rawBodyByRemovingTags(_ removableKeys: Set<String>, from body: String) -> String {
+        let normalizedBody = normalizedLineEndings(body)
+        let removableTokens = BearTag.extractTokens(from: normalizedBody)
+            .filter { removableKeys.contains(BearTag.deduplicationKey($0.normalizedName)) }
+
+        guard !removableTokens.isEmpty else {
+            return normalizedBody
+        }
+
+        let mutable = NSMutableString(string: normalizedBody)
+        for token in removableTokens.sorted(by: { $0.utf16Range.lowerBound > $1.utf16Range.lowerBound }) {
+            let range = NSRange(location: token.utf16Range.lowerBound, length: token.utf16Range.count)
+            mutable.replaceCharacters(in: range, with: "")
+        }
+
+        return cleanedTagEditedText(mutable as String)
+    }
+
+    private func firstTagCluster(in text: String) -> TagCluster? {
+        let lines = normalizedLineEndings(text).components(separatedBy: "\n")
+        var lineIndex = 0
+
+        while lineIndex < lines.count {
+            let line = lines[lineIndex]
+            guard isTagOnlyLine(line) else {
+                lineIndex += 1
+                continue
+            }
+
+            let start = lineIndex
+            var tags: [String] = []
+            while lineIndex < lines.count, isTagOnlyLine(lines[lineIndex]) {
+                tags += BearTag.extractNormalizedNames(from: lines[lineIndex])
+                lineIndex += 1
+            }
+
+            return TagCluster(lineRange: start..<lineIndex, tags: normalizedTags(tags))
+        }
+
+        return nil
+    }
+
+    private func isTagOnlyLine(_ line: String) -> Bool {
+        let tokens = BearTag.extractTokens(from: line)
+        guard !tokens.isEmpty else {
+            return false
+        }
+
+        let stripped = removingAllTagTokens(from: line)
+        return stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func removingAllTagTokens(from text: String) -> String {
+        let mutable = NSMutableString(string: text)
+        for token in BearTag.extractTokens(from: text).sorted(by: { $0.utf16Range.lowerBound > $1.utf16Range.lowerBound }) {
+            let range = NSRange(location: token.utf16Range.lowerBound, length: token.utf16Range.count)
+            mutable.replaceCharacters(in: range, with: "")
+        }
+        return mutable as String
+    }
+
+    private func replacingLines(in text: String, lineRange: Range<Int>, with replacementLines: [String]) -> String {
+        var lines = normalizedLineEndings(text).components(separatedBy: "\n")
+        lines.replaceSubrange(lineRange, with: replacementLines)
+        return lines.joined(separator: "\n")
+    }
+
+    private func cleanedTagEditedText(_ text: String) -> String {
+        let lines = normalizedLineEndings(text)
+            .components(separatedBy: "\n")
+            .map { line in
+                line
+                    .replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+                    .trimmingCharacters(in: .whitespaces)
+            }
+
+        var collapsed: [String] = []
+        var previousWasBlank = false
+
+        for line in lines {
+            if line.isEmpty {
+                guard !previousWasBlank else {
+                    continue
+                }
+                previousWasBlank = true
+                collapsed.append("")
+            } else {
+                previousWasBlank = false
+                collapsed.append(line)
+            }
+        }
+
+        while collapsed.first?.isEmpty == true {
+            collapsed.removeFirst()
+        }
+        while collapsed.last?.isEmpty == true {
+            collapsed.removeLast()
+        }
+
+        return collapsed.joined(separator: "\n")
+    }
+
+    private func templatePattern(for template: String, title: String) -> TemplatePattern? {
+        let normalizedTemplate = normalizedLineEndings(template)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let contentMatches = normalizedTemplate.components(separatedBy: "{{content}}").count - 1
+        let tagsMatches = normalizedTemplate.components(separatedBy: "{{tags}}").count - 1
+
+        guard contentMatches == 1, tagsMatches <= 1 else {
+            return nil
+        }
+
+        let placeholderPattern = #"\{\{title\}\}|\{\{content\}\}|\{\{tags\}\}"#
+        guard let placeholderRegex = try? NSRegularExpression(pattern: placeholderPattern) else {
+            return nil
+        }
+
+        let nsTemplate = normalizedTemplate as NSString
+        let fullRange = NSRange(location: 0, length: nsTemplate.length)
+        let matches = placeholderRegex.matches(in: normalizedTemplate, options: [], range: fullRange)
+
+        var pattern = "(?s)\\A"
+        var cursor = 0
+        var captureIndex = 1
+        var contentCaptureIndex: Int?
+        var tagsCaptureIndex: Int?
+
+        for match in matches {
+            let literal = nsTemplate.substring(with: NSRange(location: cursor, length: match.range.location - cursor))
+            pattern += NSRegularExpression.escapedPattern(for: literal)
+
+            let placeholder = nsTemplate.substring(with: match.range)
+            switch placeholder {
+            case "{{title}}":
+                pattern += NSRegularExpression.escapedPattern(for: title)
+            case "{{content}}":
+                contentCaptureIndex = captureIndex
+                pattern += "(.*?)"
+                captureIndex += 1
+            case "{{tags}}":
+                tagsCaptureIndex = captureIndex
+                pattern += "(.*?)"
+                captureIndex += 1
+            default:
+                break
+            }
+
+            cursor = match.range.location + match.range.length
+        }
+
+        if cursor < nsTemplate.length {
+            pattern += NSRegularExpression.escapedPattern(
+                for: nsTemplate.substring(with: NSRange(location: cursor, length: nsTemplate.length - cursor))
+            )
+        }
+        pattern += "\\z"
+
+        guard
+            let regex = try? NSRegularExpression(pattern: pattern),
+            let contentCaptureIndex
+        else {
+            return nil
+        }
+
+        return TemplatePattern(
+            regex: regex,
+            contentCaptureIndex: contentCaptureIndex,
+            tagsCaptureIndex: tagsCaptureIndex
+        )
     }
 
     private func joinedContent(_ leading: String, _ trailing: String) -> String {
@@ -1037,9 +1480,9 @@ public final class BearService: @unchecked Sendable {
     }
 
     private struct TemplateBodyMatch {
-        let prefix: String
         let content: String
-        let suffix: String
+        let literalTags: [String]
+        let hasTagPlaceholder: Bool
     }
 
     private struct ReplaceContentPlan {
@@ -1050,6 +1493,29 @@ public final class BearService: @unchecked Sendable {
     private struct AttachmentAnchor {
         let title: String
         let markdown: String
+    }
+
+    private struct TagCluster {
+        let lineRange: Range<Int>
+        let tags: [String]
+    }
+
+    private struct TemplatePattern {
+        let regex: NSRegularExpression
+        let contentCaptureIndex: Int
+        let tagsCaptureIndex: Int?
+    }
+
+    private struct NoteTagMutationOutcome {
+        let updatedRawText: String?
+        let addedTags: [String]
+        let removedTags: [String]
+        let skippedTags: [String]
+    }
+
+    private enum NoteTagMutationMode {
+        case add
+        case remove
     }
 
     private func noteMatchesLocation(_ note: BearNote, location: BearNoteLocation) -> Bool {

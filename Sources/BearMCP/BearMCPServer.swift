@@ -108,6 +108,49 @@ public final class BearMCPServer: Sendable {
             }
             return try jsonResult(try await service.renameTags(requests))
 
+        case "bear_delete_tags":
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                DeleteTagRequest(
+                    name: try requiredString(object, "name"),
+                    showWindow: try MCPArgumentDecoder.optionalBool(object, "show_window")
+                )
+            }
+            return try jsonResult(try await service.deleteTags(requests))
+
+        case "bear_add_tags":
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                NoteTagsRequest(
+                    noteID: try requiredNoteSelector(object),
+                    tags: MCPArgumentDecoder.stringArray(object, "tags"),
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
+                    expectedVersion: object["expected_version"]?.intValue
+                )
+            }
+            return try jsonResult(try await service.addTags(requests))
+
+        case "bear_remove_tags":
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                NoteTagsRequest(
+                    noteID: try requiredNoteSelector(object),
+                    tags: MCPArgumentDecoder.stringArray(object, "tags"),
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
+                    expectedVersion: object["expected_version"]?.intValue
+                )
+            }
+            return try jsonResult(try await service.removeTags(requests))
+
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
                 openNote: configuration.createOpensNoteByDefault,
@@ -431,19 +474,66 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_rename_tags",
-                description: "Rename one or more Bear tags. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
+                description: "Rename one or more Bear tags across the entire Bear app. This is a global tag rename, not a single-note edit. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
                 operationProperties: [
                     "name": .object([
                         "type": .string("string"),
-                        "description": .string("Existing tag name to rename."),
+                        "description": .string("Existing canonical tag name to rename across Bear."),
                     ]),
                     "new_name": .object([
                         "type": .string("string"),
-                        "description": .string("Replacement tag name."),
+                        "description": .string("Replacement canonical tag name to apply across Bear."),
                     ]),
                     "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the rename."),
                 ],
                 required: ["name", "new_name"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_delete_tags",
+                description: "Delete one or more Bear tags across the entire Bear app. This removes the tag globally rather than only from one note. Use `bear_list_tags` first to confirm the exact canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the delete.",
+                operationProperties: [
+                    "name": .object([
+                        "type": .string("string"),
+                        "description": .string("Existing canonical tag name to delete across Bear."),
+                    ]),
+                    "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the delete."),
+                ],
+                required: ["name"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_add_tags",
+                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Use `bear_get_notes` first when the exact current literal tags are uncertain. If the active template matches and contains `{{tags}}`, tags are updated there; otherwise the server appends to an existing tag-only cluster when found, or adds one tag line at the end of the note body. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                operationProperties: [
+                    "note": noteSelectorProperty(),
+                    "tags": .object([
+                        "type": .string("array"),
+                        "items": .object(["type": .string("string")]),
+                        "description": .string("Required tags to add to this one note. Inputs may be wrapped or unwrapped; tags are normalized before writing."),
+                    ]),
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after adding tags."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note", "tags"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_remove_tags",
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Use `bear_get_notes` first when the exact current literal tags are uncertain. If the active template matches and contains `{{tags}}`, tags are removed from that slot; otherwise literal tag tokens are removed from the note body and whitespace is cleaned up. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                operationProperties: [
+                    "note": noteSelectorProperty(),
+                    "tags": .object([
+                        "type": .string("array"),
+                        "items": .object(["type": .string("string")]),
+                        "description": .string("Required tags to remove from this one note only. Inputs may be wrapped or unwrapped; tags are normalized before matching."),
+                    ]),
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after removing tags."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note", "tags"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(

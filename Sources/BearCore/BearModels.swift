@@ -727,6 +727,7 @@ public enum BackupReason: String, Codable, Hashable, Sendable {
     case insertText = "insert_text"
     case replaceContent = "replace_content"
     case addFile = "add_file"
+    case updateTags = "update_tags"
     case restore = "restore"
 }
 
@@ -857,6 +858,35 @@ public struct RenameTagRequest: Codable, Hashable, Sendable {
     }
 }
 
+public struct DeleteTagRequest: Codable, Hashable, Sendable {
+    public let name: String
+    public let showWindow: Bool?
+
+    public init(name: String, showWindow: Bool?) {
+        self.name = name
+        self.showWindow = showWindow
+    }
+}
+
+public struct NoteTagsRequest: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let tags: [String]
+    public let presentation: BearPresentationOptions
+    public let expectedVersion: Int?
+
+    public init(
+        noteID: String,
+        tags: [String],
+        presentation: BearPresentationOptions,
+        expectedVersion: Int?
+    ) {
+        self.noteID = noteID
+        self.tags = tags
+        self.presentation = presentation
+        self.expectedVersion = expectedVersion
+    }
+}
+
 public struct AddFileRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let filePath: String
@@ -947,6 +977,34 @@ public struct TagMutationReceipt: Codable, Hashable, Sendable {
         self.tag = tag
         self.newTag = newTag
         self.status = status
+    }
+}
+
+public struct NoteTagMutationReceipt: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let title: String?
+    public let status: String
+    public let modifiedAt: Date?
+    public let addedTags: [String]
+    public let removedTags: [String]
+    public let skippedTags: [String]
+
+    public init(
+        noteID: String,
+        title: String?,
+        status: String,
+        modifiedAt: Date?,
+        addedTags: [String],
+        removedTags: [String],
+        skippedTags: [String]
+    ) {
+        self.noteID = noteID
+        self.title = title
+        self.status = status
+        self.modifiedAt = modifiedAt
+        self.addedTags = addedTags
+        self.removedTags = removedTags
+        self.skippedTags = skippedTags
     }
 }
 

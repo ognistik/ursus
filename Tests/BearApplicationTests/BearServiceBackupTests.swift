@@ -314,6 +314,10 @@ private actor BackupServiceWriteTransport: BearWriteTransport {
         TagMutationReceipt(tag: request.name, newTag: request.newName, status: "renamed")
     }
 
+    func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt {
+        TagMutationReceipt(tag: request.name, newTag: nil, status: "deleted")
+    }
+
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
     }

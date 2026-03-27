@@ -52,6 +52,19 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
 
+    let addTags = try #require(tool(named: "bear_add_tags", in: tools))
+    #expect(addTags.description?.contains("specific Bear notes") == true)
+    #expect(propertyDescription(named: "note", in: addTags)?.contains("exact case-insensitive title across notes and archive") == true)
+    #expect(propertyDescription(named: "new_window", in: addTags)?.contains("Current omission default when the note is opened: `false`") == true)
+
+    let removeTags = try #require(tool(named: "bear_remove_tags", in: tools))
+    #expect(removeTags.description?.contains("without deleting the tag globally") == true)
+    #expect(propertyDescription(named: "tags", in: removeTags)?.contains("remove from this one note only") == true)
+
+    let deleteTags = try #require(tool(named: "bear_delete_tags", in: tools))
+    #expect(deleteTags.description?.contains("entire Bear app") == true)
+    #expect(propertyDescription(named: "name", in: deleteTags)?.contains("delete across Bear") == true)
+
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
     #expect(listBackups.description?.contains("Use this before `bear_restore_notes`") == true)
     #expect(propertyDescription(named: "limit", in: listBackups)?.contains("Omitted uses `7`") == true)

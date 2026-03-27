@@ -46,3 +46,17 @@ func bearTextComposesRawText() {
     let raw = BearText.composeRawText(title: "Example", body: "Body line")
     #expect(raw == "# Example\n\nBody line")
 }
+
+@Test
+func bearTagExtractsWrappedBareAndSpacedLiteralTags() {
+    let tokens = BearTag.extractTokens(
+        from: "#codexsinglewrapped# and #codex single wrapped# and #codexsingleplain and #parent/subtag"
+    )
+
+    #expect(tokens.map(\.normalizedName) == [
+        "codexsinglewrapped",
+        "codex single wrapped",
+        "codexsingleplain",
+        "parent/subtag",
+    ])
+}

@@ -23,6 +23,7 @@ public protocol BearWriteTransport: Sendable {
     func open(_ request: OpenNoteRequest) async throws -> MutationReceipt
     func openTag(_ request: OpenTagRequest) async throws -> TagMutationReceipt
     func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt
+    func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt
 }
 

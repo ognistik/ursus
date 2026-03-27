@@ -45,6 +45,28 @@ func renameTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
     #expect(receipt.newTag == "done")
 }
 
+@Test
+func deleteTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
+    let transport = TagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeTagMutationConfiguration(),
+        readStore: TagMutationReadStore(),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceTagMutationTests")
+    )
+
+    let receipts = try await service.deleteTags([
+        DeleteTagRequest(name: " #obsolete project# ", showWindow: nil),
+    ])
+
+    let request = try #require(await transport.deletedTags.first)
+    let receipt = try #require(receipts.first)
+    #expect(request.name == "obsolete project")
+    #expect(request.showWindow == nil)
+    #expect(receipt.tag == "obsolete project")
+    #expect(receipt.status == "deleted")
+}
+
 private func makeTagMutationConfiguration() -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -77,6 +99,7 @@ private struct TagMutationReadStore: BearReadStore {
 private actor TagRecordingWriteTransport: BearWriteTransport {
     private(set) var openedTags: [OpenTagRequest] = []
     private(set) var renamedTags: [RenameTagRequest] = []
+    private(set) var deletedTags: [DeleteTagRequest] = []
 
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)
@@ -106,6 +129,11 @@ private actor TagRecordingWriteTransport: BearWriteTransport {
     func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
         renamedTags.append(request)
         return TagMutationReceipt(tag: request.name, newTag: request.newName, status: "renamed")
+    }
+
+    func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt {
+        deletedTags.append(request)
+        return TagMutationReceipt(tag: request.name, newTag: nil, status: "deleted")
     }
 
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {

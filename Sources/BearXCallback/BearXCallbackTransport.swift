@@ -144,6 +144,19 @@ public actor BearXCallbackTransport: BearWriteTransport {
         )
     }
 
+    public func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt {
+        let url = try builder.deleteTagURL(request: request)
+        BearDebugLog.append("xcallback.delete-tag url=\(url.absoluteString)")
+        try await open(url: url, activates: false)
+
+        let deleted = try await waitForTagDeletion(tag: request.name)
+        return TagMutationReceipt(
+            tag: request.name,
+            newTag: nil,
+            status: deleted ? "deleted" : "submitted"
+        )
+    }
+
     public func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         let previous = try readStore.note(id: noteID)
         let url = try builder.archiveURL(noteID: noteID, showWindow: showWindow)
@@ -232,6 +245,19 @@ public actor BearXCallbackTransport: BearWriteTransport {
         }
 
         return renamed ?? false
+    }
+
+    private func waitForTagDeletion(tag: String) async throws -> Bool {
+        let key = BearTag.deduplicationKey(tag)
+
+        let deleted = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
+            let notesTags = try self.readStore.listTags(ListTagsQuery(location: .notes, query: nil, underTag: nil))
+            let archiveTags = try self.readStore.listTags(ListTagsQuery(location: .archive, query: nil, underTag: nil))
+            let allKeys = Set((notesTags + archiveTags).map { BearTag.deduplicationKey($0.name) })
+            return allKeys.contains(key) ? nil : true
+        }
+
+        return deleted ?? false
     }
 
     private func poll<T>(

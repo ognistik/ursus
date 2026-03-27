@@ -95,6 +95,21 @@ public struct BearXCallbackURLBuilder: Sendable {
         )
     }
 
+    public func deleteTagURL(request: DeleteTagRequest) throws -> URL {
+        var queryItems: [URLQueryItem] = [
+            URLQueryItem(name: "name", value: request.name),
+        ]
+
+        if let showWindow = request.showWindow {
+            queryItems.append(URLQueryItem(name: "show_window", value: yesNo(showWindow)))
+        }
+
+        return try makeURL(
+            action: "delete-tag",
+            queryItems: queryItems
+        )
+    }
+
     public func archiveURL(noteID: String, showWindow: Bool) throws -> URL {
         try makeURL(
             action: "archive",

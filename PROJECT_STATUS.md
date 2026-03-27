@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-25, the repo contains a working initial scaffold.
+As of 2026-03-26, the repo contains a working initial scaffold plus note-tag mutation support.
 
 Implemented:
 
@@ -132,6 +132,9 @@ Implemented MCP tool names:
 - `bear_delete_backups`
 - `bear_open_tag`
 - `bear_rename_tags`
+- `bear_delete_tags`
+- `bear_add_tags`
+- `bear_remove_tags`
 - `bear_create_notes`
 - `bear_insert_text`
 - `bear_replace_content`
@@ -186,6 +189,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
+- Bear's DB tag list remains the effective/discovery view, which may include implicit parent tags for subtags. Template matching and note-tag mutations now separately parse literal tag tokens from note text so DB-expanded parent tags do not poison template-aware reads or writes.
 - Discovery limits and snippet lengths are config-driven defaults with per-operation overrides and server-side hard caps, and the live default/cap values are injected into MCP property descriptions at startup.
 - Snippets are template-aware when the current template can be matched back to the stored note body; otherwise they fall back to the parsed note body.
 - Attachment snippets are built from `ZSFNOTEFILE.ZSEARCHTEXT` in attachment insertion order and truncated with the same configured snippet limit.
@@ -211,11 +215,14 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
+- Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
+- Template-aware note-tag mutations now update the literal `{{tags}}` slot when the current note matches the active template. Non-templated note-tag mutations remove literal tag tokens from the body with whitespace cleanup, and add tags by extending an existing tag-only cluster when found or appending one canonical tag line at the end of the note body otherwise.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and preserves active template boundaries when possible by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In the template-aware path, Bear's header-targeted add-file call always uses `prepend`; top/bottom placement is determined by whether the temporary anchor is inserted at the top or bottom of the content region.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
+- Delete tags use Bear delete-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
 - Open uses Bear open-note.
 - Archive uses Bear archive.
 
@@ -224,7 +231,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Mutations return compact receipts by design.
 - Create currently uses best-effort note discovery by title and recent modification time.
 - Other mutations try to verify completion by polling Bear's DB for concrete note-state changes such as version, modified timestamp, raw text, and attachment-count deltas rather than relying on version bumps alone.
-- Tag rename uses best-effort verification by polling tag lists across both notes and archive locations.
+- Tag rename and delete use best-effort verification by polling tag lists across both notes and archive locations.
 
 ## Known Gaps / Risks
 

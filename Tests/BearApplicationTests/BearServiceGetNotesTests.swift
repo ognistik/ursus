@@ -85,6 +85,32 @@ func getNotesUsesTemplateStrippedCanonicalContentAndReturnsAttachments() async t
 }
 
 @Test
+func getNotesStillMatchesTemplateWhenEffectiveTagsIncludeImplicitParentTags() async throws {
+    let note = makeFetchedSourceNote(
+        id: "note-implicit-parent",
+        title: "Inbox",
+        body: "---\n#0-inbox #parent/subtag\n---\nLine 1",
+        tags: ["0-inbox", "parent", "parent/subtag"],
+        archived: false
+    )
+    let readStore = GetNotesReadStore(noteByID: ["note-implicit-parent": note])
+    let service = BearService(
+        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: GetNotesSilentWriteTransport(),
+        logger: Logger(label: "BearServiceGetNotesTests")
+    )
+
+    let notes = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try service.getNotes(selectors: ["note-implicit-parent"], location: .notes)
+    }
+
+    let fetched = try #require(notes.first)
+    #expect(fetched.content == "Line 1")
+    #expect(fetched.tags == ["0-inbox", "parent", "parent/subtag"])
+}
+
+@Test
 func getNotesReturnsEncryptedFlagOnlyForEncryptedNotes() throws {
     let note = makeFetchedSourceNote(
         id: "secret",
@@ -314,6 +340,10 @@ private struct GetNotesSilentWriteTransport: BearWriteTransport {
 
     func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt {
         TagMutationReceipt(tag: request.name, newTag: request.newName, status: "renamed")
+    }
+
+    func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt {
+        TagMutationReceipt(tag: request.name, newTag: nil, status: "deleted")
     }
 
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
