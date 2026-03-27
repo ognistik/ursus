@@ -7,8 +7,7 @@ func configurationDecodesTokenKeyAndNormalizesWhitespace() throws {
     let data = Data(
         """
         {
-          "token" : "  secret-token  ",
-          "selectedNoteHelperPath" : "  ~/Applications/xcall.app  "
+          "token" : "  secret-token  "
         }
         """.utf8
     )
@@ -16,8 +15,6 @@ func configurationDecodesTokenKeyAndNormalizesWhitespace() throws {
     let configuration = try JSONDecoder().decode(BearConfiguration.self, from: data)
 
     #expect(configuration.token == "secret-token")
-    #expect(configuration.selectedNoteHelperPath?.hasSuffix("/Applications/xcall.app") == true)
-    #expect(configuration.selectedNoteTargetingEnabled == true)
 }
 
 @Test
@@ -41,5 +38,4 @@ func configurationEncodingIncludesNullTokenPlaceholder() throws {
     let text = try #require(String(data: data, encoding: .utf8))
 
     #expect(text.contains("\"token\" : null"))
-    #expect(text.contains("\"selectedNoteHelperPath\" : null"))
 }

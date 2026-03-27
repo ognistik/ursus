@@ -1,25 +1,29 @@
 import Foundation
 
 public enum BearSelectedNoteHelperLocator {
-    public static func executableURL(
-        forConfiguredPath configuredPath: String,
+    public static let appName = "Bear MCP Helper.app"
+
+    public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
+        standardAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) })
+    }
+
+    public static func installedExecutableURL(
         fileManager: FileManager = .default
     ) throws -> URL {
-        let configuredURL = URL(fileURLWithPath: NSString(string: configuredPath).expandingTildeInPath, isDirectory: false)
-
-        if configuredURL.pathExtension.lowercased() == "app" {
-            return try bundleExecutableURL(bundleURL: configuredURL, fileManager: fileManager)
+        guard let bundleURL = installedAppBundleURL(fileManager: fileManager) else {
+            throw BearError.configuration(
+                "Selected-note targeting requires `\(appName)` to be installed in `/Applications` or `~/Applications`."
+            )
         }
 
-        guard fileManager.fileExists(atPath: configuredURL.path) else {
-            throw BearError.configuration("Selected-note helper was not found at `\(configuredURL.path)`.")
-        }
+        return try executableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
+    }
 
-        guard fileManager.isExecutableFile(atPath: configuredURL.path) else {
-            throw BearError.configuration("Selected-note helper at `\(configuredURL.path)` is not executable.")
-        }
-
-        return configuredURL
+    public static func executableURL(
+        forAppBundleURL bundleURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> URL {
+        try bundleExecutableURL(bundleURL: bundleURL, fileManager: fileManager)
     }
 
     private static func bundleExecutableURL(
@@ -54,5 +58,15 @@ public enum BearSelectedNoteHelperLocator {
         }
 
         return executableURL
+    }
+
+    private static var standardAppBundleURLs: [URL] {
+        let systemApplications = URL(fileURLWithPath: "/Applications", isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
+        let userApplications = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Applications", isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
+
+        return [systemApplications, userApplications]
     }
 }

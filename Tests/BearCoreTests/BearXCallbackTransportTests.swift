@@ -207,7 +207,13 @@ func resolveSelectedNoteIDInvokesConfiguredHelperAndParsesIdentifier() async thr
     let transport = BearXCallbackTransport(
         readStore: StaticReadStore(note: nil, tags: []),
         selectedNoteResolveTimeout: .seconds(1),
-        selectedNoteHelperPath: helperURL.path
+        selectedNoteResolver: { url, timeout in
+            try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
+                executableURL: helperURL,
+                bearURL: url,
+                timeout: timeout
+            )
+        }
     )
 
     let resolved = try await transport.resolveSelectedNoteID(token: "top-secret-token")
@@ -234,7 +240,13 @@ func resolveSelectedNoteIDSurfacesSelectedNoteHelperJSONError() async {
     let transport = BearXCallbackTransport(
         readStore: StaticReadStore(note: nil, tags: []),
         selectedNoteResolveTimeout: .seconds(1),
-        selectedNoteHelperPath: helperURL.path
+        selectedNoteResolver: { url, timeout in
+            try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
+                executableURL: helperURL,
+                bearURL: url,
+                timeout: timeout
+            )
+        }
     )
 
     do {
@@ -270,7 +282,13 @@ func resolveSelectedNoteIDTimesOutWhenSelectedNoteHelperStalls() async {
     let transport = BearXCallbackTransport(
         readStore: StaticReadStore(note: nil, tags: []),
         selectedNoteResolveTimeout: .milliseconds(50),
-        selectedNoteHelperPath: helperURL.path
+        selectedNoteResolver: { url, timeout in
+            try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
+                executableURL: helperURL,
+                bearURL: url,
+                timeout: timeout
+            )
+        }
     )
 
     do {

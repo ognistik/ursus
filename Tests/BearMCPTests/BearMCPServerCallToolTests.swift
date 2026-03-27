@@ -321,8 +321,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
         backupRetentionDays: 30,
-        token: "secret-token",
-        selectedNoteHelperPath: "/Applications/xcall.app"
+        token: "secret-token"
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(
@@ -408,8 +407,7 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
         backupRetentionDays: 30,
-        token: "secret-token",
-        selectedNoteHelperPath: "/Applications/xcall.app"
+        token: "secret-token"
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(

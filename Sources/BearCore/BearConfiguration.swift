@@ -35,7 +35,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var maxSnippetLength: Int
     public var backupRetentionDays: Int
     public var token: String?
-    public var selectedNoteHelperPath: String?
 
     public init(
         databasePath: String,
@@ -52,8 +51,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength: Int,
         maxSnippetLength: Int,
         backupRetentionDays: Int,
-        token: String? = nil,
-        selectedNoteHelperPath: String? = nil
+        token: String? = nil
     ) {
         self.databasePath = databasePath
         self.activeTags = activeTags
@@ -70,7 +68,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.maxSnippetLength = maxSnippetLength
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.token = Self.normalizedToken(token)
-        self.selectedNoteHelperPath = Self.normalizedPath(selectedNoteHelperPath)
     }
 
     public static var `default`: BearConfiguration {
@@ -89,13 +86,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: 280,
             maxSnippetLength: 1_000,
             backupRetentionDays: 30,
-            token: nil,
-            selectedNoteHelperPath: nil
+            token: nil
         )
-    }
-
-    public var selectedNoteTargetingEnabled: Bool {
-        token != nil && selectedNoteHelperPath != nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -114,7 +106,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case maxSnippetLength
         case backupRetentionDays
         case token
-        case selectedNoteHelperPath
     }
 
     public init(from decoder: Decoder) throws {
@@ -135,7 +126,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
-        selectedNoteHelperPath = Self.normalizedPath(try container.decodeIfPresent(String.self, forKey: .selectedNoteHelperPath))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -158,11 +148,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             try container.encode(token, forKey: .token)
         } else {
             try container.encodeNil(forKey: .token)
-        }
-        if let selectedNoteHelperPath {
-            try container.encode(selectedNoteHelperPath, forKey: .selectedNoteHelperPath)
-        } else {
-            try container.encodeNil(forKey: .selectedNoteHelperPath)
         }
     }
 
@@ -191,12 +176,4 @@ private extension BearConfiguration {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    static func normalizedPath(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : NSString(string: trimmed).expandingTildeInPath
-    }
 }

@@ -12,6 +12,10 @@ let package = Package(
             name: "bear-mcp",
             targets: ["BearMCPCLI"]
         ),
+        .executable(
+            name: "bear-mcp-helper",
+            targets: ["BearSelectedNoteHelper"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.9.0"),
@@ -60,6 +64,9 @@ let package = Package(
                 "BearMCP",
                 .product(name: "Logging", package: "swift-log"),
             ]
+        ),
+        .executableTarget(
+            name: "BearSelectedNoteHelper"
         ),
         .testTarget(
             name: "BearCoreTests",

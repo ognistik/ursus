@@ -111,6 +111,7 @@ Implemented:
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
 - optional xcall-compatible helper integration for selected-note resolution through Bear's token-backed `open-note?selected=yes` flow
+- first-party selected-note helper source scaffold plus local `.app` bundling script
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - doctor/config support for optional selected-note helper path validation
@@ -162,7 +163,9 @@ Primary files:
 - `Sources/BearXCallback/BearXCallbackTransport.swift`
 - `Sources/BearMCP/BearMCPServer.swift`
 - `Sources/BearMCPCLI/main.swift`
+- `Sources/BearSelectedNoteHelper/main.swift`
 - `docs/ARCHITECTURE.md`
+- `docs/SELECTED_NOTE_HELPER.md`
 
 ## Current Runtime Paths
 
@@ -194,7 +197,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_find_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
-- When both `token` and `selectedNoteHelperPath` are configured in `~/.config/bear-mcp/config.json`, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note once per tool call through an xcall-compatible helper, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline.
+- When `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note once per tool call through the separately installed `Bear MCP Helper.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline.
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
@@ -253,7 +256,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Keychain-backed token storage is not wired yet; the Bear API token currently lives in config and is used for optional selected-note resolution only.
-- The repo now supports xcall-compatible selected-note helpers via `selectedNoteHelperPath`, but it does not yet ship a first-party signed helper binary.
+- The repo now includes a first-party helper app scaffold and standard-location detection for `/Applications` plus `~/Applications`, but it does not yet ship a first-party signed helper release artifact.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.

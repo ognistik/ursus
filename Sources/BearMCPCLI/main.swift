@@ -54,10 +54,7 @@ struct BearMCPMain {
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
-        let writeTransport = BearXCallbackTransport(
-            readStore: databaseReader,
-            selectedNoteHelperPath: configuration.selectedNoteHelperPath
-        )
+        let writeTransport = BearXCallbackTransport(readStore: databaseReader)
         let backupStore = BearBackupFileStore(retentionDays: configuration.backupRetentionDays)
         let service = BearService(
             configuration: configuration,

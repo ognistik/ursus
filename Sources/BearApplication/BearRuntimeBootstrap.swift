@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) hasToken=\(configuration.token != nil) hasSelectedNoteHelper=\(configuration.selectedNoteHelperPath != nil) selectedNoteTargetingEnabled=\(configuration.selectedNoteTargetingEnabled)"
+            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) hasToken=\(configuration.token != nil)"
         )
         return configuration
     }
@@ -76,19 +76,19 @@ public enum BearRuntimeBootstrap {
         do {
             let configuration = try loadConfiguration(fileManager: fileManager)
             lines.append("selected-note-token: \(configuration.token == nil ? "not configured" : "configured")")
-            if let helperPath = configuration.selectedNoteHelperPath {
+            if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL(fileManager: fileManager) {
                 do {
                     let executableURL = try BearSelectedNoteHelperLocator.executableURL(
-                        forConfiguredPath: helperPath,
+                        forAppBundleURL: helperBundleURL,
                         fileManager: fileManager
                     )
-                    lines.append("selected-note-helper: \(helperPath) [ok -> \(executableURL.path)]")
+                    lines.append("selected-note-helper: \(helperBundleURL.path) [ok -> \(executableURL.path)]")
                 } catch {
                     let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-                    lines.append("selected-note-helper: \(helperPath) [invalid: \(message)]")
+                    lines.append("selected-note-helper: \(helperBundleURL.path) [invalid: \(message)]")
                 }
             } else {
-                lines.append("selected-note-helper: not configured [optional]")
+                lines.append("selected-note-helper: not detected [install `\(BearSelectedNoteHelperLocator.appName)` in `/Applications` or `~/Applications`]")
             }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)

@@ -428,8 +428,8 @@ public final class BearMCPServer: Sendable {
         }
 
         if selected {
-            guard configuration.selectedNoteTargetingEnabled else {
-                throw BearError.invalidInput("Selected-note targeting requires both a configured Bear API token and `selectedNoteHelperPath`.")
+            guard configuration.token != nil else {
+                throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
             }
             return .selected
         }
@@ -1033,7 +1033,7 @@ private enum ToolCatalog {
     }
 
     private static func supportsSelectedNote(_ configuration: BearConfiguration) -> Bool {
-        configuration.selectedNoteTargetingEnabled
+        configuration.token != nil
     }
 
     private static func selectedNoteDescriptionSuffix(_ configuration: BearConfiguration) -> String {
