@@ -50,7 +50,9 @@ func deleteTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
     let transport = TagRecordingWriteTransport()
     let service = BearService(
         configuration: makeTagMutationConfiguration(),
-        readStore: TagMutationReadStore(),
+        readStore: TagMutationReadStore(notesTags: [
+            TagSummary(name: "obsolete project", identifier: "tag-1", noteCount: 1),
+        ]),
         writeTransport: transport,
         logger: Logger(label: "BearServiceTagMutationTests")
     )
@@ -64,6 +66,51 @@ func deleteTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
     #expect(request.name == "obsolete project")
     #expect(request.showWindow == nil)
     #expect(receipt.tag == "obsolete project")
+    #expect(receipt.status == "deleted")
+}
+
+@Test
+func deleteTagsReturnsNotFoundWithoutCallingTransportWhenTagDoesNotExist() async throws {
+    let transport = TagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeTagMutationConfiguration(),
+        readStore: TagMutationReadStore(),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceTagMutationTests")
+    )
+
+    let receipts = try await service.deleteTags([
+        DeleteTagRequest(name: " #missing tag# ", showWindow: nil),
+    ])
+
+    let receipt = try #require(receipts.first)
+    let deletedTags = await transport.deletedTags
+    #expect(deletedTags.isEmpty)
+    #expect(receipt.tag == "missing tag")
+    #expect(receipt.status == "not_found")
+}
+
+@Test
+func deleteTagsStillDeletesTagThatExistsOnlyInArchive() async throws {
+    let transport = TagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeTagMutationConfiguration(),
+        readStore: TagMutationReadStore(
+            archiveTags: [TagSummary(name: "archived-only", identifier: "tag-2", noteCount: 1)]
+        ),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceTagMutationTests")
+    )
+
+    let receipts = try await service.deleteTags([
+        DeleteTagRequest(name: " archived-only ", showWindow: false),
+    ])
+
+    let request = try #require(await transport.deletedTags.first)
+    let receipt = try #require(receipts.first)
+    #expect(request.name == "archived-only")
+    #expect(request.showWindow == false)
+    #expect(receipt.tag == "archived-only")
     #expect(receipt.status == "deleted")
 }
 
@@ -87,12 +134,29 @@ private func makeTagMutationConfiguration() -> BearConfiguration {
 }
 
 private struct TagMutationReadStore: BearReadStore {
+    let notesTags: [TagSummary]
+    let archiveTags: [TagSummary]
+
+    init(
+        notesTags: [TagSummary] = [],
+        archiveTags: [TagSummary] = []
+    ) {
+        self.notesTags = notesTags
+        self.archiveTags = archiveTags
+    }
+
     func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch { DiscoveryNoteBatch(notes: [], hasMore: false) }
 
     func note(id: String) throws -> BearNote? { nil }
     func notes(withIDs ids: [String]) throws -> [BearNote] { [] }
 
-    func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
+    func listTags(_ query: ListTagsQuery) throws -> [TagSummary] {
+        let source = query.location == .archive ? archiveTags : notesTags
+        guard let query = query.query?.lowercased(), !query.isEmpty else {
+            return source
+        }
+        return source.filter { $0.name.lowercased().contains(query) }
+    }
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }
 

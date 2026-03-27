@@ -395,9 +395,14 @@ public final class BearService: @unchecked Sendable {
 
     public func deleteTags(_ requests: [DeleteTagRequest]) async throws -> [TagMutationReceipt] {
         try await mutateEach(requests) { request in
-            try await self.writeTransport.deleteTag(
+            let normalizedName = try self.normalizedTagName(request.name, fieldName: "name")
+            guard let existingTag = try self.exactTag(named: normalizedName) else {
+                return TagMutationReceipt(tag: normalizedName, newTag: nil, status: "not_found")
+            }
+
+            return try await self.writeTransport.deleteTag(
                 DeleteTagRequest(
-                    name: try self.normalizedTagName(request.name, fieldName: "name"),
+                    name: existingTag.name,
                     showWindow: request.showWindow
                 )
             )
@@ -592,6 +597,19 @@ public final class BearService: @unchecked Sendable {
             )
             return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: updatedContent, template: template)
         }
+    }
+
+    private func exactTag(named normalizedName: String) throws -> TagSummary? {
+        for location in [BearNoteLocation.notes, .archive] {
+            let matches = try readStore.listTags(
+                ListTagsQuery(location: location, query: normalizedName, underTag: nil)
+            )
+            if let match = matches.first(where: { BearTag.normalizedName($0.name) == normalizedName }) {
+                return match
+            }
+        }
+
+        return nil
     }
 
     private func loadNote(id: String) throws -> BearNote {
