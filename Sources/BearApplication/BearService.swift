@@ -1147,10 +1147,11 @@ public final class BearService: @unchecked Sendable {
         }
 
         let effectiveKeys = Set(note.tags.map(BearTag.deduplicationKey))
-        let templateMatch = templateBodyMatch(for: note, template: template)
+        let canonicalBody = canonicalBody(for: note)
+        let templateMatch = templateBodyMatch(for: note, template: template, normalizedBody: canonicalBody)
         let literalTags = templateMatch?.hasTagPlaceholder == true
             ? templateMatch?.literalTags ?? []
-            : BearTag.extractNormalizedNames(from: canonicalBody(for: note))
+            : BearTag.extractNormalizedNames(from: canonicalBody)
         let literalKeys = Set(literalTags.map(BearTag.deduplicationKey))
 
         switch mode {
@@ -1185,7 +1186,7 @@ public final class BearService: @unchecked Sendable {
                     template: template
                 )
             } else {
-                updatedBody = rawBodyByAddingTags(addedTags, to: canonicalBody(for: note))
+                updatedBody = rawBodyByAddingTags(addedTags, to: canonicalBody)
             }
 
             let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
@@ -1200,10 +1201,12 @@ public final class BearService: @unchecked Sendable {
             var removedTags: [String] = []
             var skippedTags: [String] = []
             let removableKeys = Set(requestedTags.map(BearTag.deduplicationKey))
+            let removableLiteralTags = BearTag.extractNormalizedNames(from: canonicalBody)
+            let removableLiteralKeys = Set(removableLiteralTags.map(BearTag.deduplicationKey))
 
             for tag in requestedTags {
                 let key = BearTag.deduplicationKey(tag)
-                if literalKeys.contains(key) {
+                if removableLiteralKeys.contains(key) {
                     removedTags.append(tag)
                 } else if effectiveKeys.contains(key) {
                     skippedTags.append(tag)
@@ -1221,20 +1224,7 @@ public final class BearService: @unchecked Sendable {
                 )
             }
 
-            let updatedBody: String
-            if let template, let templateMatch, templateMatch.hasTagPlaceholder {
-                let updatedLiteralTags = literalTags.filter { tag in
-                    removableKeys.contains(BearTag.deduplicationKey(tag)) == false
-                }
-                updatedBody = renderedTemplateBody(
-                    title: note.title,
-                    content: templateMatch.content,
-                    literalTags: updatedLiteralTags,
-                    template: template
-                )
-            } else {
-                updatedBody = rawBodyByRemovingTags(removableKeys, from: canonicalBody(for: note))
-            }
+            let updatedBody = rawBodyByRemovingTags(removableKeys, from: canonicalBody)
 
             let updatedRawText = BearText.composeRawText(title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
@@ -1584,7 +1574,12 @@ public final class BearService: @unchecked Sendable {
 
     private func normalizedListTagsQuery(_ query: String?) -> String? {
         let trimmed = query?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        let normalized = BearTag.normalizedName(trimmed)
+        return normalized.isEmpty ? trimmed : normalized
     }
 
     private func normalizedUnderTag(_ underTag: String?) -> String? {

@@ -355,7 +355,7 @@ func listTagsNormalizesOptionalFiltersBeforeQuerying() throws {
 
     _ = try service.listTags(
         location: .archive,
-        query: "  Work  ",
+        query: "  #Work#  ",
         underTag: " #projects/workflows/# "
     )
 

@@ -200,7 +200,7 @@ public final class BearMCPServer: Sendable {
                     kind: try MCPArgumentDecoder.replaceContentKind(object),
                     oldString: object["old_string"]?.stringValue,
                     occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
-                    newString: try requiredString(object, "new_string"),
+                    newString: try requiredPresentString(object, "new_string"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -274,6 +274,13 @@ public final class BearMCPServer: Sendable {
 
     private func requiredString(_ object: [String: Value], _ key: String) throws -> String {
         guard let value = object[key]?.stringValue, !value.isEmpty else {
+            throw BearError.invalidInput("Missing required string argument '\(key)'.")
+        }
+        return value
+    }
+
+    private func requiredPresentString(_ object: [String: Value], _ key: String) throws -> String {
+        guard let value = object[key]?.stringValue else {
             throw BearError.invalidInput("Missing required string argument '\(key)'.")
         }
         return value
@@ -411,7 +418,7 @@ private enum ToolCatalog {
                         ]),
                         "query": .object([
                             "type": .string("string"),
-                            "description": .string("Optional case-insensitive substring filter for tag names."),
+                            "description": .string("Optional case-insensitive substring filter for tag names. Wrapped or unwrapped tag text is normalized before searching."),
                         ]),
                         "under_tag": .object([
                             "type": .string("string"),
@@ -521,7 +528,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Use `bear_get_notes` first when the exact current literal tags are uncertain. If the active template matches and contains `{{tags}}`, tags are removed from that slot; otherwise literal tag tokens are removed from the note body and whitespace is cleaned up. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Use `bear_get_notes` first when the exact current literal tags are uncertain. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "tags": .object([
@@ -595,7 +602,7 @@ private enum ToolCatalog {
                     ]),
                     "new_string": .object([
                         "type": .string("string"),
-                        "description": .string("Required replacement text. For `kind: title`, this is the full new title. For `kind: body`, this is the full new editable content. For `kind: string`, this is the replacement text."),
+                        "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full new editable content and may be empty to remove it. For `kind: string`, this is the replacement text and may be empty to remove matched content."),
                     ]),
                     "expected_version": .object(["type": .string("integer")]),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),

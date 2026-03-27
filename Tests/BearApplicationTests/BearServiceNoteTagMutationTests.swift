@@ -75,6 +75,52 @@ func removeTagsUsesTemplateTagSlotAndDoesNotTreatImplicitParentAsLiteral() async
 }
 
 @Test
+func removeTagsFromTemplateMatchedNoteAlsoRemovesLiteralTagsInsideContent() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        ---
+        #0-inbox #project-x
+        ---
+        Body has #project-x and #keep-tag.
+        """,
+        tags: ["0-inbox", "project-x", "keep-tag"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.removeTags([
+            NoteTagsRequest(
+                noteID: "note-1",
+                tags: ["project-x"],
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+
+    ---
+    #0-inbox
+    ---
+    Body has and #keep-tag.
+    """)
+    #expect(receipt.removedTags == ["project-x"])
+    #expect(receipt.skippedTags.isEmpty)
+}
+
+@Test
 func removeTagsFromRawBodyRemovesLiteralTokensAndCleansWhitespace() async throws {
     let note = makeNoteTagSourceNote(
         id: "note-1",
