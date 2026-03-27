@@ -1209,17 +1209,14 @@ public final class BearService: @unchecked Sendable {
                 )
             }
 
-            let updatedBody: String
-            if let template, let templateMatch, templateMatch.hasTagPlaceholder {
-                updatedBody = renderedTemplateBody(
-                    title: note.title,
-                    content: templateMatch.content,
-                    literalTags: literalTags + addedTags,
-                    template: template
-                )
-            } else {
-                updatedBody = rawBodyByAddingTags(addedTags, to: canonicalBody)
-            }
+            let updatedBody = try bodyByAddingTags(
+                addedTags,
+                to: note,
+                canonicalBody: canonicalBody,
+                template: template,
+                templateMatch: templateMatch,
+                templateLiteralTags: literalTags
+            )
 
             let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
@@ -1268,26 +1265,98 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    private func rawBodyByAddingTags(_ tagsToAdd: [String], to body: String) -> String {
-        let normalizedBody = normalizedLineEndings(body)
+    private func bodyByAddingTags(
+        _ tagsToAdd: [String],
+        to note: BearNote,
+        canonicalBody: String,
+        template: String?,
+        templateMatch: TemplateBodyMatch?,
+        templateLiteralTags: [String]
+    ) throws -> String {
+        if let templateMatch {
+            guard templateMatch.hasTagPlaceholder else {
+                throw invalidTagTemplateError(missingFile: false)
+            }
 
-        if let cluster = firstTagCluster(in: normalizedBody) {
-            let updatedLine = TemplateRenderer.renderTags(cluster.tags + tagsToAdd)
-            return replacingLines(
-                in: normalizedBody,
-                lineRange: cluster.lineRange,
-                with: updatedLine.isEmpty ? [] : [updatedLine]
+            guard let template else {
+                throw invalidTagTemplateError(missingFile: true)
+            }
+
+            return renderedTemplateBody(
+                title: note.title,
+                content: templateMatch.content,
+                literalTags: templateLiteralTags + tagsToAdd,
+                template: template
             )
         }
 
-        let renderedTags = TemplateRenderer.renderTags(tagsToAdd)
+        let normalizedBody = normalizedLineEndings(canonicalBody)
+        if let cluster = firstTagCluster(in: normalizedBody) {
+            return bodyByExtendingTagCluster(cluster, in: normalizedBody, with: tagsToAdd)
+        }
+
+        if configuration.templateManagementEnabled {
+            let template = try requiredTagTemplateForNonTemplatedAdd(loadedTemplate: template, noteTitle: note.title)
+            return renderedTemplateBody(
+                title: note.title,
+                content: normalizedBody,
+                literalTags: tagsToAdd,
+                template: template
+            )
+        }
+
+        return rawBodyByInsertingTagLine(
+            TemplateRenderer.renderTags(tagsToAdd),
+            into: normalizedBody,
+            position: configuration.defaultInsertPosition.asInsertPosition
+        )
+    }
+
+    private func bodyByExtendingTagCluster(_ cluster: TagCluster, in body: String, with tagsToAdd: [String]) -> String {
+        let updatedLine = TemplateRenderer.renderTags(cluster.tags + tagsToAdd)
+        return replacingLines(
+            in: body,
+            lineRange: cluster.lineRange,
+            with: updatedLine.isEmpty ? [] : [updatedLine]
+        )
+    }
+
+    private func rawBodyByInsertingTagLine(_ renderedTags: String, into body: String, position: InsertPosition) -> String {
+        let normalizedBody = normalizedLineEndings(body)
         guard !renderedTags.isEmpty else {
             return normalizedBody
         }
 
-        return joinedContent(
-            normalizedBody.trimmingCharacters(in: .whitespacesAndNewlines),
-            renderedTags
+        let trimmedBody = normalizedBody.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch position {
+        case .top:
+            return joinedContent(renderedTags, trimmedBody)
+        case .bottom:
+            return joinedContent(trimmedBody, renderedTags)
+        }
+    }
+
+    private func requiredTagTemplateForNonTemplatedAdd(loadedTemplate: String?, noteTitle: String) throws -> String {
+        guard let template = loadedTemplate else {
+            throw invalidTagTemplateError(missingFile: true)
+        }
+
+        guard let descriptor = templatePattern(for: template, title: noteTitle), descriptor.tagsCaptureIndex != nil else {
+            throw invalidTagTemplateError(missingFile: false)
+        }
+
+        return template
+    }
+
+    private func invalidTagTemplateError(missingFile: Bool) -> BearError {
+        if missingFile {
+            return BearError.configuration(
+                "Template management is enabled, but ~/.config/bear-mcp/template.md is missing. Restore a template with a `{{tags}}` slot before adding tags to this note."
+            )
+        }
+
+        return BearError.configuration(
+            "Template management is enabled, but ~/.config/bear-mcp/template.md does not provide a valid `{{tags}}` slot. Fix the template before adding tags to this note."
         )
     }
 

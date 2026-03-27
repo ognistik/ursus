@@ -511,7 +511,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Use `bear_get_notes` first when the exact current literal tags are uncertain. If the active template matches and contains `{{tags}}`, tags are updated there; otherwise the server appends to an existing tag-only cluster when found, or adds one tag line at the end of the note body. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Use `bear_get_notes` first when the exact current literal tags are uncertain. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "tags": .object([

@@ -3,14 +3,18 @@ import Foundation
 
 private let sharedTemplateFileLock = AsyncLock()
 
-func withTemporaryNoteTemplate<T: Sendable>(_ template: String, operation: @Sendable () async throws -> T) async throws -> T {
+func withTemporaryNoteTemplate<T: Sendable>(_ template: String?, operation: @Sendable () async throws -> T) async throws -> T {
     try await sharedTemplateFileLock.withLock {
         let templateURL = BearPaths.noteTemplateURL
         let fileManager = FileManager.default
         let originalTemplate = fileManager.fileExists(atPath: templateURL.path) ? try String(contentsOf: templateURL) : nil
 
         try fileManager.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
-        try template.write(to: templateURL, atomically: true, encoding: .utf8)
+        if let template {
+            try template.write(to: templateURL, atomically: true, encoding: .utf8)
+        } else if fileManager.fileExists(atPath: templateURL.path) {
+            try fileManager.removeItem(at: templateURL)
+        }
         defer {
             if let originalTemplate {
                 try? originalTemplate.write(to: templateURL, atomically: true, encoding: .utf8)
