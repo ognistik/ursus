@@ -37,7 +37,9 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(insert.description?.contains("`new_window` uses `false` when the note is opened") == true)
     #expect(insert.description?.contains("`note` accepts a selector matched as exact note id first") == true)
     #expect(propertyDescription(named: "note", in: insert)?.contains("exact case-insensitive title across notes and archive") == true)
+    #expect(propertyDescription(named: "note", in: insert)?.contains("Do not call `bear_get_notes` only to resolve this selector") == true)
     #expect(propertyDescription(named: "position", in: insert)?.contains("Omitted uses the current session default `top`") == true)
+    #expect(propertyDescription(named: "expected_version", in: insert)?.contains("Omit unless the user explicitly asks for concurrency protection") == true)
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
     #expect(addFiles.description?.contains("`position` uses `top`") == true)
@@ -49,16 +51,21 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
 
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
+    #expect(replace.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
+    #expect(propertyDescription(named: "expected_version", in: replace)?.contains("current `version`") == true)
 
     let addTags = try #require(tool(named: "bear_add_tags", in: tools))
     #expect(addTags.description?.contains("specific Bear notes") == true)
+    #expect(addTags.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
     #expect(propertyDescription(named: "note", in: addTags)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "new_window", in: addTags)?.contains("Current omission default when the note is opened: `false`") == true)
+    #expect(propertyDescription(named: "expected_version", in: addTags)?.contains("fresh version from an earlier read") == true)
 
     let removeTags = try #require(tool(named: "bear_remove_tags", in: tools))
     #expect(removeTags.description?.contains("without deleting the tag globally") == true)
+    #expect(removeTags.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
     #expect(propertyDescription(named: "tags", in: removeTags)?.contains("remove from this one note only") == true)
 
     let applyTemplate = try #require(tool(named: "bear_apply_template", in: tools))

@@ -404,7 +404,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -527,7 +527,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Use `bear_get_notes` first when the exact current literal tags are uncertain. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "tags": .object([
@@ -535,7 +535,7 @@ private enum ToolCatalog {
                         "items": .object(["type": .string("string")]),
                         "description": .string("Required tags to add to this one note. Inputs may be wrapped or unwrapped; tags are normalized before writing."),
                     ]),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after adding tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -544,7 +544,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Use `bear_get_notes` first when the exact current literal tags are uncertain. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "tags": .object([
@@ -552,7 +552,7 @@ private enum ToolCatalog {
                         "items": .object(["type": .string("string")]),
                         "description": .string("Required tags to remove from this one note only. Inputs may be wrapped or unwrapped; tags are normalized before matching."),
                     ]),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after removing tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -564,7 +564,7 @@ private enum ToolCatalog {
                 description: "Apply the active Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the active template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after applying the template."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -602,7 +602,7 @@ private enum ToolCatalog {
                         "enum": .array([.string("top"), .string("bottom")]),
                         "description": .string("Optional insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -611,7 +611,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
                     "note": noteSelectorProperty(),
                     "kind": .object([
@@ -632,7 +632,7 @@ private enum ToolCatalog {
                         "type": .string("string"),
                         "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full new editable content and may be empty to remove it. For `kind: string`, this is the replacement text and may be empty to remove matched content."),
                     ]),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -650,7 +650,7 @@ private enum ToolCatalog {
                         "enum": .array([.string("top"), .string("bottom")]),
                         "description": .string("Optional file insertion position. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
                     ]),
-                    "expected_version": .object(["type": .string("integer")]),
+                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
@@ -893,7 +893,14 @@ private enum ToolCatalog {
     private static func noteSelectorProperty() -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("Required note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
+            "description": .string("Required note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+        ])
+    }
+
+    private static func expectedVersionProperty() -> Value {
+        .object([
+            "type": .string("integer"),
+            "description": .string("Optional optimistic concurrency guard using the note's current `version`. Omit unless the user explicitly asks for concurrency protection or you already have a fresh version from an earlier read."),
         ])
     }
 
