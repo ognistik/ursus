@@ -137,6 +137,7 @@ Implemented MCP tool names:
 - `bear_delete_tags`
 - `bear_add_tags`
 - `bear_remove_tags`
+- `bear_apply_template`
 - `bear_create_notes`
 - `bear_insert_text`
 - `bear_replace_content`
@@ -213,12 +214,13 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
-- Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
+- Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_apply_template`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - Insert now tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
 - Template-aware note-tag mutations now treat the active template as the highest-priority tag placement when a note matches it and the template contains `{{tags}}`. If no template match exists, add-tags extends the first raw tag-only cluster when found; otherwise it applies the active template to the note when template management is enabled or inserts one canonical tag line at the configured default position when template management is disabled. When template management requires that fallback template application and `template.md` is missing or lacks a valid `{{tags}}` slot, add-tags now fails clearly so the template can be fixed before continuing.
+- `bear_apply_template` is an explicit batched normalization tool. It always loads the active `template.md`, even when template management is disabled for other flows, migrates all tag-only clusters from editable content into the template `{{tags}}` slot, preserves inline prose hashtags, de-duplicates tags in first-seen order, cleans whitespace after cluster removal, and re-renders the full note through Bear's full replacement path. Missing or invalid `template.md` files now fail clearly for this tool.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Background note mutations now always serialize `open_note=no` and `show_window=no` when the effective presentation keeps the note closed, even if the client omitted `open_note` and the closed state came from defaults.
 - x-callback debug traces now log the outgoing action plus a redacted query summary so `open_note`, `show_window`, `new_window`, `mode`, and similar flags can be inspected without dumping full note text or base64 file payloads.

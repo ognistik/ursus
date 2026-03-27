@@ -728,6 +728,7 @@ public enum BackupReason: String, Codable, Hashable, Sendable {
     case replaceContent = "replace_content"
     case addFile = "add_file"
     case updateTags = "update_tags"
+    case applyTemplate = "apply_template"
     case restore = "restore"
 }
 
@@ -887,6 +888,22 @@ public struct NoteTagsRequest: Codable, Hashable, Sendable {
     }
 }
 
+public struct ApplyTemplateRequest: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let presentation: BearPresentationOptions
+    public let expectedVersion: Int?
+
+    public init(
+        noteID: String,
+        presentation: BearPresentationOptions,
+        expectedVersion: Int?
+    ) {
+        self.noteID = noteID
+        self.presentation = presentation
+        self.expectedVersion = expectedVersion
+    }
+}
+
 public struct AddFileRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let filePath: String
@@ -1005,6 +1022,28 @@ public struct NoteTagMutationReceipt: Codable, Hashable, Sendable {
         self.addedTags = addedTags
         self.removedTags = removedTags
         self.skippedTags = skippedTags
+    }
+}
+
+public struct ApplyTemplateReceipt: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let title: String?
+    public let status: String
+    public let modifiedAt: Date?
+    public let appliedTags: [String]
+
+    public init(
+        noteID: String,
+        title: String?,
+        status: String,
+        modifiedAt: Date?,
+        appliedTags: [String]
+    ) {
+        self.noteID = noteID
+        self.title = title
+        self.status = status
+        self.modifiedAt = modifiedAt
+        self.appliedTags = appliedTags
     }
 }
 

@@ -503,6 +503,45 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    public func applyTemplate(_ requests: [ApplyTemplateRequest]) async throws -> [ApplyTemplateReceipt] {
+        let loadedTemplate = try loadTemplateFileIfPresent(at: BearPaths.noteTemplateURL)
+
+        return try await mutateEach(requests) { request in
+            let note = try self.resolveNoteSelector(request.noteID)
+            if let expected = request.expectedVersion, note.revision.version != expected {
+                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
+            }
+
+            let template = try self.requiredApplyTemplate(loadedTemplate: loadedTemplate, noteTitle: note.title)
+            let outcome = try self.applyTemplateOutcome(note: note, template: template)
+
+            guard let updatedRawText = outcome.updatedRawText else {
+                return ApplyTemplateReceipt(
+                    noteID: note.ref.identifier,
+                    title: note.title,
+                    status: "unchanged",
+                    modifiedAt: note.revision.modifiedAt,
+                    appliedTags: outcome.appliedTags
+                )
+            }
+
+            try await self.captureBackupIfNeeded(for: note, reason: .applyTemplate)
+            let receipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: updatedRawText,
+                presentation: request.presentation
+            )
+
+            return ApplyTemplateReceipt(
+                noteID: note.ref.identifier,
+                title: receipt.title ?? note.title,
+                status: "applied",
+                modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                appliedTags: outcome.appliedTags
+            )
+        }
+    }
+
     public func archiveNotes(_ noteSelectors: [String]) async throws -> [MutationReceipt] {
         try await mutateEach(noteSelectors) { noteSelector in
             let note = try self.resolveNoteSelector(noteSelector)
@@ -704,6 +743,10 @@ public final class BearService: @unchecked Sendable {
         guard configuration.templateManagementEnabled else {
             return nil
         }
+        return try loadTemplateFileIfPresent(at: url)
+    }
+
+    private func loadTemplateFileIfPresent(at url: URL) throws -> String? {
         guard FileManager.default.fileExists(atPath: url.path) else {
             return nil
         }
@@ -1312,6 +1355,31 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
+    private func applyTemplateOutcome(note: BearNote, template: String) throws -> ApplyTemplateOutcome {
+        let canonicalBody = canonicalBody(for: note)
+        let templateMatch = templateBodyMatch(for: note, template: template, normalizedBody: canonicalBody)
+        let editableContent = templateMatch?.content ?? canonicalBody
+        let normalizedContent = normalizedLineEndings(editableContent)
+        let migratedClusters = allTagClusters(in: normalizedContent)
+        let mergedTags = mergedTemplateTags(
+            existingTags: templateMatch?.literalTags ?? [],
+            migratedClusters: migratedClusters
+        )
+        let cleanedContent = removingTagClusters(migratedClusters, from: normalizedContent)
+        let updatedBody = renderedTemplateBody(
+            title: note.title,
+            content: cleanedContent,
+            literalTags: mergedTags,
+            template: template
+        )
+        let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+
+        return ApplyTemplateOutcome(
+            updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+            appliedTags: mergedTags
+        )
+    }
+
     private func bodyByExtendingTagCluster(_ cluster: TagCluster, in body: String, with tagsToAdd: [String]) -> String {
         let updatedLine = TemplateRenderer.renderTags(cluster.tags + tagsToAdd)
         return replacingLines(
@@ -1348,6 +1416,22 @@ public final class BearService: @unchecked Sendable {
         return template
     }
 
+    private func requiredApplyTemplate(loadedTemplate: String?, noteTitle: String) throws -> String {
+        guard let template = loadedTemplate else {
+            throw BearError.configuration(
+                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md, but the file is missing. Restore the active template before applying it to notes."
+            )
+        }
+
+        guard let descriptor = templatePattern(for: template, title: noteTitle), descriptor.tagsCaptureIndex != nil else {
+            throw BearError.configuration(
+                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md to provide valid `{{content}}` and `{{tags}}` slots. Fix the template before applying it to notes."
+            )
+        }
+
+        return template
+    }
+
     private func invalidTagTemplateError(missingFile: Bool) -> BearError {
         if missingFile {
             return BearError.configuration(
@@ -1379,8 +1463,13 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func firstTagCluster(in text: String) -> TagCluster? {
+        allTagClusters(in: text).first
+    }
+
+    private func allTagClusters(in text: String) -> [TagCluster] {
         let lines = normalizedLineEndings(text).components(separatedBy: "\n")
         var lineIndex = 0
+        var clusters: [TagCluster] = []
 
         while lineIndex < lines.count {
             let line = lines[lineIndex]
@@ -1396,10 +1485,10 @@ public final class BearService: @unchecked Sendable {
                 lineIndex += 1
             }
 
-            return TagCluster(lineRange: start..<lineIndex, tags: normalizedTags(tags))
+            clusters.append(TagCluster(lineRange: start..<lineIndex, tags: normalizedTags(tags)))
         }
 
-        return nil
+        return clusters
     }
 
     private func isTagOnlyLine(_ line: String) -> Bool {
@@ -1425,6 +1514,34 @@ public final class BearService: @unchecked Sendable {
         var lines = normalizedLineEndings(text).components(separatedBy: "\n")
         lines.replaceSubrange(lineRange, with: replacementLines)
         return lines.joined(separator: "\n")
+    }
+
+    private func removingTagClusters(_ clusters: [TagCluster], from text: String) -> String {
+        guard !clusters.isEmpty else {
+            return cleanedTagEditedText(text)
+        }
+
+        var lines = normalizedLineEndings(text).components(separatedBy: "\n")
+        for cluster in clusters.sorted(by: { $0.lineRange.lowerBound > $1.lineRange.lowerBound }) {
+            lines.removeSubrange(cluster.lineRange)
+        }
+        return cleanedTagEditedText(lines.joined(separator: "\n"))
+    }
+
+    private func mergedTemplateTags(existingTags: [String], migratedClusters: [TagCluster]) -> [String] {
+        var seen: Set<String> = []
+        var merged: [String] = []
+
+        for tag in existingTags + migratedClusters.flatMap(\.tags) {
+            let key = BearTag.deduplicationKey(tag)
+            guard !seen.contains(key) else {
+                continue
+            }
+            seen.insert(key)
+            merged.append(tag)
+        }
+
+        return merged
     }
 
     private func cleanedTagEditedText(_ text: String) -> String {
@@ -1632,6 +1749,11 @@ public final class BearService: @unchecked Sendable {
         let addedTags: [String]
         let removedTags: [String]
         let skippedTags: [String]
+    }
+
+    private struct ApplyTemplateOutcome {
+        let updatedRawText: String?
+        let appliedTags: [String]
     }
 
     private enum NoteTagMutationMode {

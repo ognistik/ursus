@@ -103,6 +103,99 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
     try? serverToClientWrite.close()
 }
 
+@Test(.timeLimit(.minutes(1)))
+func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(
+            version: 3,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: "Test Note",
+        body: "Body line\n\n#project-x",
+        rawText: "# Test Note\n\nBody line\n\n#project-x",
+        tags: ["project-x"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        activeTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsActiveTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        logger: Logger(label: "BearMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await withTemporaryMCPNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+            try await server.start(transport: serverTransport)
+            _ = try await client.connect(transport: clientTransport)
+
+            let result = try await client.callTool(
+                name: "bear_apply_template",
+                arguments: [
+                    "operations": .array([
+                        .object([
+                            "note": .string("Test Note"),
+                        ]),
+                    ]),
+                ]
+            )
+
+            #expect(result.isError != true)
+
+            let replaceCall = try #require(await writeTransport.replaceCalls.first)
+            #expect(replaceCall.noteID == "note-1")
+            #expect(replaceCall.fullText == "# Test Note\n\n---\n#project-x\n---\nBody line")
+            #expect(replaceCall.presentation.openNote == false)
+            #expect(replaceCall.presentation.openNoteOverride == nil)
+            #expect(replaceCall.presentation.newWindow == true)
+            #expect(replaceCall.presentation.newWindowOverride == nil)
+        }
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
 private struct MCPToolReadStore: BearReadStore {
     let note: BearNote
 
@@ -120,6 +213,7 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     struct ReplaceCall: Sendable {
         let noteID: String
         let fullText: String
+        let presentation: BearPresentationOptions
     }
 
     private(set) var replaceCalls: [ReplaceCall] = []
@@ -133,7 +227,7 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     }
 
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
-        replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText))
+        replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText, presentation: presentation))
         return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil)
     }
 
@@ -159,5 +253,63 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
 
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
+    }
+}
+
+private let mcpTemplateFileLock = MCPTestAsyncLock()
+
+private func withTemporaryMCPNoteTemplate<T: Sendable>(_ template: String?, operation: @Sendable () async throws -> T) async throws -> T {
+    try await mcpTemplateFileLock.withLock {
+        let templateURL = BearPaths.noteTemplateURL
+        let fileManager = FileManager.default
+        let originalTemplate = fileManager.fileExists(atPath: templateURL.path) ? try String(contentsOf: templateURL) : nil
+
+        try fileManager.createDirectory(at: BearPaths.configDirectoryURL, withIntermediateDirectories: true)
+        if let template {
+            try template.write(to: templateURL, atomically: true, encoding: .utf8)
+        } else if fileManager.fileExists(atPath: templateURL.path) {
+            try fileManager.removeItem(at: templateURL)
+        }
+        defer {
+            if let originalTemplate {
+                try? originalTemplate.write(to: templateURL, atomically: true, encoding: .utf8)
+            } else {
+                try? fileManager.removeItem(at: templateURL)
+            }
+        }
+
+        return try await operation()
+    }
+}
+
+private actor MCPTestAsyncLock {
+    private var locked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func withLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async rethrows -> T {
+        await acquire()
+        defer { release() }
+        return try await operation()
+    }
+
+    private func acquire() async {
+        guard locked else {
+            locked = true
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    private func release() {
+        guard !waiters.isEmpty else {
+            locked = false
+            return
+        }
+
+        let continuation = waiters.removeFirst()
+        continuation.resume()
     }
 }

@@ -151,6 +151,22 @@ public final class BearMCPServer: Sendable {
             }
             return try jsonResult(try await service.removeTags(requests))
 
+        case "bear_apply_template":
+            let defaults = BearPresentationOptions(
+                openNote: false,
+                newWindow: configuration.openUsesNewWindowByDefault,
+                showWindow: true,
+                edit: configuration.openNoteInEditModeByDefault
+            )
+            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+                ApplyTemplateRequest(
+                    noteID: try requiredNoteSelector(object),
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
+                    expectedVersion: object["expected_version"]?.intValue
+                )
+            }
+            return try jsonResult(try await service.applyTemplate(requests))
+
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
                 openNote: configuration.createOpensNoteByDefault,
@@ -541,6 +557,18 @@ private enum ToolCatalog {
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
                 ],
                 required: ["note", "tags"],
+                presentationProperties: [:]
+            ),
+            batchedMutationTool(
+                name: "bear_apply_template",
+                description: "Apply the active Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the active template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                operationProperties: [
+                    "note": noteSelectorProperty(),
+                    "expected_version": .object(["type": .string("integer")]),
+                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after applying the template."),
+                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                ],
+                required: ["note"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(

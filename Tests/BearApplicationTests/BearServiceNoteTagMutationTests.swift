@@ -529,6 +529,292 @@ func removeTagsHandlesLiveStyleTemplateBodyFromBearDB() async throws {
     #expect(receipt.skippedTags == ["codex-live-parent"])
 }
 
+@Test
+func applyTemplateMigratesAllTagOnlyClustersPreservesInlineTagsAndCleansWhitespace() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        Intro #inline-tag stays.
+
+        #project-x
+        #deep work#
+
+        Middle paragraph.
+
+        #project-x
+        #review
+
+        End with #keep-inline.
+        """,
+        tags: ["project-x", "deep work", "review", "inline-tag stays.", "keep-inline"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+
+    ---
+    #project-x #deep work# #review
+    ---
+    Intro #inline-tag stays.
+
+    Middle paragraph.
+
+    End with #keep-inline.
+    """)
+    #expect(receipt.status == "applied")
+    #expect(receipt.appliedTags == ["project-x", "deep work", "review"])
+}
+
+@Test
+func applyTemplateMergesExistingTemplateTagsBeforeMigratedClusters() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        ---
+        #0-inbox #project-x
+        ---
+        Body line.
+
+        #project-x
+        #review
+        """,
+        tags: ["0-inbox", "project-x", "review"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+
+    ---
+    #0-inbox #project-x #review
+    ---
+    Body line.
+    """)
+    #expect(receipt.appliedTags == ["0-inbox", "project-x", "review"])
+}
+
+@Test
+func applyTemplateAppliesTemplateEvenWhenNoteHasNoTags() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: []
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+
+    ---
+
+    ---
+    Line 1
+    """)
+    #expect(receipt.appliedTags.isEmpty)
+    #expect(receipt.status == "applied")
+}
+
+@Test
+func applyTemplateReturnsUnchangedWhenNoteIsAlreadyNormalized() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        ---
+        #0-inbox #project-x
+        ---
+        Line 1
+        """,
+        tags: ["0-inbox", "project-x"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let receipt = try #require(receipts.first)
+    #expect(await transport.replaceCalls.isEmpty)
+    #expect(receipt.status == "unchanged")
+    #expect(receipt.appliedTags == ["0-inbox", "project-x"])
+}
+
+@Test
+func applyTemplateUsesTemplateFileEvenWhenTemplateManagementIsDisabled() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Body line\n\n#project-x",
+        tags: ["project-x"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    _ = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions(),
+                expectedVersion: 3
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+
+    ---
+    #project-x
+    ---
+    Body line
+    """)
+}
+
+@Test
+func applyTemplateFailsClearlyWhenTemplateIsMissing() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: []
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    do {
+        try await withTemporaryNoteTemplate(nil) {
+            _ = try await service.applyTemplate([
+                ApplyTemplateRequest(
+                    noteID: "note-1",
+                    presentation: BearPresentationOptions(),
+                    expectedVersion: 3
+                ),
+            ])
+        }
+        Issue.record("Expected applyTemplate to fail when template.md is missing.")
+    } catch let error as BearError {
+        #expect(error.errorDescription?.contains("bear_apply_template") == true)
+        #expect(error.errorDescription?.contains("template.md") == true)
+    }
+
+    #expect(await transport.replaceCalls.isEmpty)
+}
+
+@Test
+func applyTemplateFailsClearlyWhenTemplateLacksTagsSlot() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: []
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    do {
+        try await withTemporaryNoteTemplate("{{content}}\n") {
+            _ = try await service.applyTemplate([
+                ApplyTemplateRequest(
+                    noteID: "note-1",
+                    presentation: BearPresentationOptions(),
+                    expectedVersion: 3
+                ),
+            ])
+        }
+        Issue.record("Expected applyTemplate to fail when template lacks a tags slot.")
+    } catch let error as BearError {
+        #expect(error.errorDescription?.contains("valid `{{content}}` and `{{tags}}` slots") == true)
+    }
+
+    #expect(await transport.replaceCalls.isEmpty)
+}
+
 private func makeNoteTagConfiguration(
     templateManagementEnabled: Bool = true,
     defaultInsertPosition: BearConfiguration.InsertDefault = .bottom

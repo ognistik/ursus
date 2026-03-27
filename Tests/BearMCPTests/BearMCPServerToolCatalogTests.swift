@@ -61,6 +61,12 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(removeTags.description?.contains("without deleting the tag globally") == true)
     #expect(propertyDescription(named: "tags", in: removeTags)?.contains("remove from this one note only") == true)
 
+    let applyTemplate = try #require(tool(named: "bear_apply_template", in: tools))
+    #expect(applyTemplate.description?.contains("normalize tag-only clusters into the template `{{tags}}` slot") == true)
+    #expect(applyTemplate.description?.contains("preserves inline prose hashtags") == true)
+    #expect(propertyDescription(named: "note", in: applyTemplate)?.contains("exact case-insensitive title across notes and archive") == true)
+    #expect(propertyDescription(named: "new_window", in: applyTemplate)?.contains("Current omission default when the note is opened: `false`") == true)
+
     let deleteTags = try #require(tool(named: "bear_delete_tags", in: tools))
     #expect(deleteTags.description?.contains("entire Bear app") == true)
     #expect(propertyDescription(named: "name", in: deleteTags)?.contains("delete across Bear") == true)
