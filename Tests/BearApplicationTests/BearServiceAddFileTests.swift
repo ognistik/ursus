@@ -423,6 +423,10 @@ private actor AddFileRecordingWriteTransport: BearWriteTransport {
     private(set) var replaceCalls: [ReplaceCall] = []
     private(set) var addFileRequests: [AddFileRequest] = []
 
+    func resolveSelectedNoteID(token _: String) async throws -> String {
+        "selected-note"
+    }
+
     init(readStore: MutableAddFileReadStore) {
         self.readStore = readStore
     }

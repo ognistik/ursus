@@ -192,6 +192,10 @@ private actor RecordingWriteTransport: BearWriteTransport {
     private(set) var openedTags: [OpenTagRequest] = []
     private(set) var renamedTags: [RenameTagRequest] = []
 
+    func resolveSelectedNoteID(token _: String) async throws -> String {
+        "selected-note"
+    }
+
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         createdRequests.append(request)
         return MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)

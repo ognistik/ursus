@@ -136,6 +136,38 @@ public final class BearService: @unchecked Sendable {
         return ListBackupsBatchResult(results: results)
     }
 
+    public func resolveSelectedNoteID() async throws -> String {
+        guard let token = configuration.token else {
+            throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+        }
+
+        return try await writeTransport.resolveSelectedNoteID(token: token)
+    }
+
+    public func resolveNoteTargets(_ targets: [NoteTarget]) async throws -> [String] {
+        var resolvedSelectedNoteID: String?
+        var resolvedTargets: [String] = []
+        resolvedTargets.reserveCapacity(targets.count)
+
+        for target in targets {
+            switch target {
+            case .selector(let selector):
+                resolvedTargets.append(selector)
+            case .selected:
+                if let resolvedSelectedNoteID {
+                    resolvedTargets.append(resolvedSelectedNoteID)
+                    continue
+                }
+
+                let noteID = try await resolveSelectedNoteID()
+                resolvedSelectedNoteID = noteID
+                resolvedTargets.append(noteID)
+            }
+        }
+
+        return resolvedTargets
+    }
+
     public func getNotes(selectors: [String], location: BearNoteLocation) throws -> [BearFetchedNote] {
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
         let trimmedSelectors = selectors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }

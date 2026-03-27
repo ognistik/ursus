@@ -7,14 +7,17 @@ public actor BearXCallbackTransport: BearWriteTransport {
     private let builder: BearXCallbackURLBuilder
     private let readStore: BearReadStore
     private let urlOpener: @Sendable (URL, Bool) async throws -> Void
+    private let selectedNoteResolveTimeout: Duration
 
     public init(
         builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
         readStore: BearReadStore,
-        urlOpener: (@Sendable (URL) async throws -> Void)? = nil
+        urlOpener: (@Sendable (URL) async throws -> Void)? = nil,
+        selectedNoteResolveTimeout: Duration = .seconds(4)
     ) {
         self.builder = builder
         self.readStore = readStore
+        self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
         if let urlOpener {
             self.urlOpener = { url, _ in
                 try await urlOpener(url)
@@ -27,11 +30,25 @@ public actor BearXCallbackTransport: BearWriteTransport {
     public init(
         builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
         readStore: BearReadStore,
-        urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void
+        urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void,
+        selectedNoteResolveTimeout: Duration = .seconds(4)
     ) {
         self.builder = builder
         self.readStore = readStore
         self.urlOpener = urlOpenerWithActivation
+        self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
+    }
+
+    public func resolveSelectedNoteID(token: String) async throws -> String {
+        let callbackSession = try BearSelectedNoteCallbackSession()
+        let callbackTarget = try await callbackSession.start()
+        let url = try builder.resolveSelectedNoteURL(
+            token: token,
+            successURL: callbackTarget.successURL,
+            errorURL: callbackTarget.errorURL
+        )
+        try await openAndLog(action: "resolve-selected-note", url: url, activates: false)
+        return try await callbackSession.waitForResult(timeout: selectedNoteResolveTimeout)
     }
 
     public func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
@@ -176,17 +193,19 @@ public actor BearXCallbackTransport: BearWriteTransport {
         try await open(url: url, activates: activates)
     }
 
-    private func debugDescription(for url: URL) -> String {
+    func debugDescription(for url: URL) -> String {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return "url=\(url.absoluteString)"
         }
 
         let base = "\(components.scheme ?? "bear")://\(components.host ?? "x-callback-url")\(components.path)"
-        let query = (components.queryItems ?? []).map { item in
+        let query: String = (components.queryItems ?? []).map { item -> String in
             let value = item.value ?? ""
             switch item.name {
             case "text", "file":
                 return "\(item.name)=<redacted length=\(value.count)>"
+            case "token", "x-success", "x-error", "state":
+                return "\(item.name)=<redacted>"
             default:
                 return "\(item.name)=\(value)"
             }
@@ -206,7 +225,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             NSWorkspace.shared.open(url, configuration: configuration) { _, error in
                 if let error {
-                    continuation.resume(throwing: BearError.xCallback("Bear did not accept URL: \(url.absoluteString). \(error.localizedDescription)"))
+                    continuation.resume(throwing: BearError.xCallback("Bear did not accept the x-callback action. \(error.localizedDescription)"))
                 } else {
                     continuation.resume()
                 }

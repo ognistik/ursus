@@ -16,6 +16,7 @@ public extension BearReadStore {
 }
 
 public protocol BearWriteTransport: Sendable {
+    func resolveSelectedNoteID(token: String) async throws -> String
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt
     func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt

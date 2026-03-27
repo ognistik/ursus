@@ -34,6 +34,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var defaultSnippetLength: Int
     public var maxSnippetLength: Int
     public var backupRetentionDays: Int
+    public var token: String?
 
     public init(
         databasePath: String,
@@ -49,7 +50,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxDiscoveryLimit: Int,
         defaultSnippetLength: Int,
         maxSnippetLength: Int,
-        backupRetentionDays: Int
+        backupRetentionDays: Int,
+        token: String? = nil
     ) {
         self.databasePath = databasePath
         self.activeTags = activeTags
@@ -65,6 +67,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.defaultSnippetLength = defaultSnippetLength
         self.maxSnippetLength = maxSnippetLength
         self.backupRetentionDays = max(0, backupRetentionDays)
+        self.token = Self.normalizedToken(token)
     }
 
     public static var `default`: BearConfiguration {
@@ -82,7 +85,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxDiscoveryLimit: 100,
             defaultSnippetLength: 280,
             maxSnippetLength: 1_000,
-            backupRetentionDays: 30
+            backupRetentionDays: 30,
+            token: nil
         )
     }
 
@@ -101,6 +105,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case defaultSnippetLength
         case maxSnippetLength
         case backupRetentionDays
+        case token
     }
 
     public init(from decoder: Decoder) throws {
@@ -120,6 +125,30 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280
         maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
+        token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(databasePath, forKey: .databasePath)
+        try container.encode(activeTags, forKey: .activeTags)
+        try container.encode(defaultInsertPosition, forKey: .defaultInsertPosition)
+        try container.encode(templateManagementEnabled, forKey: .templateManagementEnabled)
+        try container.encode(openNoteInEditModeByDefault, forKey: .openNoteInEditModeByDefault)
+        try container.encode(createOpensNoteByDefault, forKey: .createOpensNoteByDefault)
+        try container.encode(openUsesNewWindowByDefault, forKey: .openUsesNewWindowByDefault)
+        try container.encode(createAddsActiveTagsByDefault, forKey: .createAddsActiveTagsByDefault)
+        try container.encode(tagsMergeMode, forKey: .tagsMergeMode)
+        try container.encode(defaultDiscoveryLimit, forKey: .defaultDiscoveryLimit)
+        try container.encode(maxDiscoveryLimit, forKey: .maxDiscoveryLimit)
+        try container.encode(defaultSnippetLength, forKey: .defaultSnippetLength)
+        try container.encode(maxSnippetLength, forKey: .maxSnippetLength)
+        try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
+        if let token {
+            try container.encode(token, forKey: .token)
+        } else {
+            try container.encodeNil(forKey: .token)
+        }
     }
 
     public static func load(from url: URL = BearPaths.configFileURL) throws -> BearConfiguration {
@@ -134,5 +163,16 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 private extension JSONDecoder {
     func outputFormattingIfAvailable() {
         // Intentionally empty. Keeps a symmetric helper shape with JSONEncoder setup.
+    }
+}
+
+private extension BearConfiguration {
+    static func normalizedToken(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }

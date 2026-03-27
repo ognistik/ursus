@@ -18,7 +18,8 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
       "activeTags" : [
         "inbox",
         "next"
-      ]
+      ],
+      "token" : "secret-token"
     }
     """.write(to: configFileURL, atomically: true, encoding: .utf8)
     defer {
@@ -43,9 +44,11 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     #expect(updatedOnDisk.defaultSnippetLength == BearConfiguration.default.defaultSnippetLength)
     #expect(updatedOnDisk.maxSnippetLength == BearConfiguration.default.maxSnippetLength)
     #expect(updatedOnDisk.backupRetentionDays == BearConfiguration.default.backupRetentionDays)
+    #expect(updatedOnDisk.token == "secret-token")
     #expect(updatedText.contains("\"defaultDiscoveryLimit\""))
     #expect(updatedText.contains("\"maxSnippetLength\""))
     #expect(updatedText.contains("\"backupRetentionDays\""))
+    #expect(updatedText.contains("\"token\" : \"secret-token\""))
     #expect(updatedText.contains("\"databasePath\" : \"/tmp/custom.sqlite\""))
     #expect(!updatedText.contains("\\/"))
     #expect(fileManager.fileExists(atPath: templateURL.path))

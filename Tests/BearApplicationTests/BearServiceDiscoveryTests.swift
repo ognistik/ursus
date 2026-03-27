@@ -463,6 +463,10 @@ private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {
 }
 
 private struct SilentWriteTransport: BearWriteTransport {
+    func resolveSelectedNoteID(token _: String) async throws -> String {
+        "selected-note"
+    }
+
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)
     }

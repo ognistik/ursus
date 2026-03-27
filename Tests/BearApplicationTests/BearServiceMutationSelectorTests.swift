@@ -151,7 +151,53 @@ func mutationSelectorsRejectAmbiguousTitleMatches() async throws {
     #expect(await transport.openRequests.isEmpty)
 }
 
-private func makeMutationSelectorConfiguration() -> BearConfiguration {
+@Test
+func resolveNoteTargetsResolvesSelectedNoteOnlyOncePerBatch() async throws {
+    let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Body")
+    let transport = MutationSelectorRecordingWriteTransport(selectedNoteID: "selected-note")
+    let service = BearService(
+        configuration: makeMutationSelectorConfiguration(token: "secret-token"),
+        readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceMutationSelectorTests")
+    )
+
+    let resolved = try await service.resolveNoteTargets([
+        .selected,
+        .selector("Inbox"),
+        .selected,
+    ])
+
+    #expect(resolved == ["selected-note", "Inbox", "selected-note"])
+    #expect(await transport.selectedNoteResolutionCount == 1)
+}
+
+@Test
+func resolveSelectedNoteIDRequiresConfiguredToken() async {
+    let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Body")
+    let transport = MutationSelectorRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeMutationSelectorConfiguration(),
+        readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceMutationSelectorTests")
+    )
+
+    do {
+        _ = try await service.resolveSelectedNoteID()
+        Issue.record("Expected missing-token error.")
+    } catch let error as BearError {
+        guard case .invalidInput(let message) = error else {
+            Issue.record("Expected invalid-input error, got \(error).")
+            return
+        }
+        #expect(message.contains("configured Bear API token"))
+    } catch {
+        Issue.record("Expected BearError.invalidInput, got \(error).")
+    }
+}
+
+private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
         activeTags: ["0-inbox"],
@@ -166,7 +212,8 @@ private func makeMutationSelectorConfiguration() -> BearConfiguration {
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
-        backupRetentionDays: 30
+        backupRetentionDays: 30,
+        token: token
     )
 }
 
@@ -231,6 +278,17 @@ private actor MutationSelectorRecordingWriteTransport: BearWriteTransport {
     private(set) var addFileRequests: [AddFileRequest] = []
     private(set) var openRequests: [OpenNoteRequest] = []
     private(set) var archivedNoteIDs: [String] = []
+    private(set) var selectedNoteResolutionCount = 0
+    private let selectedNoteID: String
+
+    init(selectedNoteID: String = "selected-note") {
+        self.selectedNoteID = selectedNoteID
+    }
+
+    func resolveSelectedNoteID(token _: String) async throws -> String {
+        selectedNoteResolutionCount += 1
+        return selectedNoteID
+    }
 
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)

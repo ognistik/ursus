@@ -341,6 +341,10 @@ private struct TitleLookupKey: Hashable {
 }
 
 private struct GetNotesSilentWriteTransport: BearWriteTransport {
+    func resolveSelectedNoteID(token _: String) async throws -> String {
+        "selected-note"
+    }
+
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)
     }

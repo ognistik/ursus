@@ -690,6 +690,11 @@ public struct DeleteBackupRequest: Codable, Hashable, Sendable {
     }
 }
 
+public enum NoteTarget: Hashable, Sendable {
+    case selector(String)
+    case selected
+}
+
 public struct TagSummary: Codable, Hashable, Sendable {
     public let name: String
     public let identifier: String?

@@ -163,6 +163,29 @@ func openTagURLUsesSingleTagNameOnly() throws {
 }
 
 @Test
+func resolveSelectedNoteURLUsesSelectedModeTokenAndCallbacks() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.resolveSelectedNoteURL(
+        token: "secret-token",
+        successURL: URL(string: "http://127.0.0.1:8080/success?state=abc")!,
+        errorURL: URL(string: "http://127.0.0.1:8080/error?state=abc")!
+    )
+
+    let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+    let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+
+    #expect(components.path == "/open-note")
+    #expect(items["selected"] == "yes")
+    #expect(items["token"] == "secret-token")
+    #expect(items["x-success"]?.contains("127.0.0.1:8080/success") == true)
+    #expect(items["x-error"]?.contains("127.0.0.1:8080/error") == true)
+    #expect(items["show_window"] == "no")
+    #expect(items["open_note"] == "no")
+}
+
+@Test
 func renameTagURLOmitsShowWindowWhenNotRequested() throws {
     let builder = BearXCallbackURLBuilder()
     let url = try builder.renameTagURL(

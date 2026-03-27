@@ -78,6 +78,29 @@ public struct BearXCallbackURLBuilder: Sendable {
         )
     }
 
+    public func resolveSelectedNoteURL(
+        token: String,
+        successURL: URL,
+        errorURL: URL
+    ) throws -> URL {
+        try makeURL(
+            action: "open-note",
+            queryItems: [
+                URLQueryItem(name: "selected", value: yesNo(true)),
+                URLQueryItem(name: "token", value: token),
+                URLQueryItem(name: "x-success", value: successURL.absoluteString),
+                URLQueryItem(name: "x-error", value: errorURL.absoluteString),
+            ] + presentationItems(
+                BearPresentationOptions(
+                    openNote: false,
+                    newWindow: false,
+                    showWindow: false,
+                    edit: false
+                )
+            )
+        )
+    }
+
     public func openTagURL(request: OpenTagRequest) throws -> URL {
         try makeURL(
             action: "open-tag",

@@ -102,6 +102,7 @@ Implemented:
 - real Bear DB reader against the installed Bear schema
 - transient SQLite busy/locked retry handling on normal Bear DB reads
 - config/bootstrap path helpers
+- optional Bear API token support in config
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
 - stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
@@ -109,6 +110,7 @@ Implemented:
 - application service layer
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
+- localhost callback listener for selected-note resolution through Bear's token-backed `open-note?selected=yes` flow
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - MCP server/tool registration
@@ -191,6 +193,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_find_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
+- When `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools now expose `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note once per tool call, captures Bear's callback `identifier`, and then reuses that note id through the existing read/write pipeline.
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
@@ -219,6 +222,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
 - Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_apply_template`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
+- `bear_get_notes`, `bear_list_backups`, `bear_delete_backups`, `bear_add_tags`, `bear_remove_tags`, `bear_apply_template`, `bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_open_notes`, `bear_archive_notes`, and `bear_restore_notes` now also support selected-note targeting when the Bear API token is configured.
 - Insert now supports both top/bottom placement and relative-target placement. Without a relative target, it tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`. With a relative target, the service resolves one heading-title or exact editable-content string match and writes the updated note through `replace_all`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
@@ -227,6 +231,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Background note mutations now always serialize `open_note=no` and `show_window=no` when the effective presentation keeps the note closed, even if the client omitted `open_note` and the closed state came from defaults.
 - x-callback debug traces now log the outgoing action plus a redacted query summary so `open_note`, `show_window`, `new_window`, `mode`, and similar flags can be inspected without dumping full note text or base64 file payloads.
+- Selected-note callback resolution also redacts token and callback URL/query data in debug traces, and transport error messages no longer echo full token-bearing URLs.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and supports both top/bottom placement and relative-target placement. For template-aware top/bottom placement, it preserves active template boundaries by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. For relative-target placement, it uses the same anchor orchestration for both templated and non-templated notes after resolving one heading-title or exact editable-content string match. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In every anchor-managed path, Bear's header-targeted add-file call uses `prepend`; final placement is determined by where the temporary anchor is inserted in editable content.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
@@ -246,7 +251,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
-- Token/keychain-backed x-callback actions are not wired yet.
+- Keychain-backed token storage is not wired yet; the Bear API token currently lives in config and is used for selected-note resolution only.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.

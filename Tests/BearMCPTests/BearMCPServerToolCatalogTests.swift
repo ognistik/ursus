@@ -19,7 +19,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         maxDiscoveryLimit: 25,
         defaultSnippetLength: 90,
         maxSnippetLength: 180,
-        backupRetentionDays: 30
+        backupRetentionDays: 30,
+        token: "secret-token"
     )
 
     let tools = BearMCPServer.toolCatalog(configuration: configuration)
@@ -36,6 +37,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(insert.description?.contains("`position` uses `top`") == true)
     #expect(insert.description?.contains("`new_window` uses `false` when the note is opened") == true)
     #expect(insert.description?.contains("`note` accepts a selector matched as exact note id first") == true)
+    #expect(propertyDescription(named: "note", in: insert)?.contains("Use exactly one of `note` or `selected: true`") == true)
+    #expect(propertyDescription(named: "selected", in: insert)?.contains("currently selected Bear note") == true)
     #expect(propertyDescription(named: "note", in: insert)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "note", in: insert)?.contains("Do not call `bear_get_notes` only to resolve this selector") == true)
     #expect(propertyDescription(named: "position", in: insert)?.contains("Omitted uses the current session default `top`") == true)
@@ -83,14 +86,24 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
     #expect(listBackups.description?.contains("Use this before `bear_restore_notes`") == true)
     #expect(propertyDescription(named: "limit", in: listBackups)?.contains("Omitted uses `7`") == true)
+    #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
 
     let deleteBackups = try #require(tool(named: "bear_delete_backups", in: tools))
     #expect(deleteBackups.description?.contains("Provide `snapshot_id` to delete one exact backup") == true)
     #expect(propertyDescription(named: "delete_all", in: deleteBackups)?.contains("remove all saved backups for that note") == true)
+    #expect(propertyDescription(named: "selected", in: deleteBackups)?.contains("currently selected Bear note") == true)
 
     let restore = try #require(tool(named: "bear_restore_notes", in: tools))
     #expect(restore.description?.contains("If `snapshot_id` is omitted, the most recent backup") == true)
     #expect(propertyDescription(named: "snapshot_id", in: restore)?.contains("most recent snapshot") == true)
+
+    let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
+    #expect(getNotes.description?.contains("selected: true") == true)
+    #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
+
+    let archiveNotes = try #require(tool(named: "bear_archive_notes", in: tools))
+    #expect(archiveNotes.description?.contains("selected: true") == true)
+    #expect(propertyDescription(named: "selected", inTopLevelTool: archiveNotes)?.contains("currently selected Bear note") == true)
 }
 
 @Test
@@ -109,7 +122,8 @@ func toolCatalogInjectsDiscoveryDefaultsAndActiveTags() throws {
         maxDiscoveryLimit: 44,
         defaultSnippetLength: 120,
         maxSnippetLength: 360,
-        backupRetentionDays: 30
+        backupRetentionDays: 30,
+        token: nil
     )
 
     let tools = BearMCPServer.toolCatalog(configuration: configuration)
@@ -124,6 +138,12 @@ func toolCatalogInjectsDiscoveryDefaultsAndActiveTags() throws {
     let active = try #require(tool(named: "bear_find_notes_by_active_tags", in: tools))
     #expect(active.description?.contains("Current active tags: `0-inbox`, `deep work`") == true)
     #expect(propertyDescription(named: "match", in: active)?.contains("`0-inbox`, `deep work`") == true)
+
+    let insert = try #require(tool(named: "bear_insert_text", in: tools))
+    #expect(propertyDescription(named: "selected", in: insert) == nil)
+
+    let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
+    #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes) == nil)
 }
 
 private func tool(named name: String, in tools: [Tool]) -> Tool? {
@@ -138,6 +158,18 @@ private func propertyDescription(named name: String, in tool: Tool) -> String? {
         let items = operations["items"]?.objectValue,
         let itemProperties = items["properties"]?.objectValue,
         let property = itemProperties[name]?.objectValue
+    else {
+        return nil
+    }
+
+    return property["description"]?.stringValue
+}
+
+private func propertyDescription(named name: String, inTopLevelTool tool: Tool) -> String? {
+    guard
+        let schema = tool.inputSchema.objectValue,
+        let properties = schema["properties"]?.objectValue,
+        let property = properties[name]?.objectValue
     else {
         return nil
     }

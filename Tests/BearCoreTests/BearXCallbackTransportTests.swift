@@ -1,7 +1,8 @@
 import BearCore
-import BearXCallback
+@testable import BearXCallback
 import Foundation
 import GRDB
+import Network
 import Testing
 
 @Test
@@ -177,6 +178,96 @@ func addFileTreatsAttachmentCountChangeAsUpdatedEvenWhenNoteMetadataStaysTheSame
     #expect(receipt.status == "updated")
 }
 
+@Test
+func resolveSelectedNoteIDUsesCallbackIdentifierAndStaysBackgrounded() async throws {
+    let opener = ActivationRecordingOpener()
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: nil, tags: []),
+        urlOpenerWithActivation: { url, activates in
+            try await opener.record(url: url, activates: activates)
+            try await invokeCallback(for: url, endpoint: "x-success", extraQueryItems: [
+                URLQueryItem(name: "identifier", value: "selected-note"),
+            ])
+        },
+        selectedNoteResolveTimeout: .seconds(1)
+    )
+
+    let resolved = try await transport.resolveSelectedNoteID(token: "top-secret-token")
+
+    #expect(resolved == "selected-note")
+    #expect(await opener.activations == [false])
+}
+
+@Test
+func resolveSelectedNoteIDSurfacesCallbackError() async {
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: nil, tags: []),
+        urlOpener: { url in
+            try await invokeCallback(for: url, endpoint: "x-error", extraQueryItems: [
+                URLQueryItem(name: "errorMessage", value: "No selected note"),
+            ])
+        },
+        selectedNoteResolveTimeout: .seconds(1)
+    )
+
+    do {
+        _ = try await transport.resolveSelectedNoteID(token: "top-secret-token")
+        Issue.record("Expected selected-note callback failure.")
+    } catch let error as BearError {
+        guard case .xCallback(let message) = error else {
+            Issue.record("Expected x-callback error, got \(error).")
+            return
+        }
+        #expect(message.contains("No selected note"))
+    } catch {
+        Issue.record("Expected BearError.xCallback, got \(error).")
+    }
+}
+
+@Test
+func resolveSelectedNoteIDTimesOutWhenBearDoesNotCallBack() async {
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: nil, tags: []),
+        urlOpener: { _ in },
+        selectedNoteResolveTimeout: .milliseconds(50)
+    )
+
+    do {
+        _ = try await transport.resolveSelectedNoteID(token: "top-secret-token")
+        Issue.record("Expected selected-note timeout.")
+    } catch let error as BearError {
+        guard case .xCallback(let message) = error else {
+            Issue.record("Expected timeout x-callback error, got \(error).")
+            return
+        }
+        #expect(message.contains("Timed out"))
+    } catch {
+        Issue.record("Expected BearError.xCallback, got \(error).")
+    }
+}
+
+@Test
+func debugDescriptionRedactsSelectedNoteTokenAndCallbackURLs() async throws {
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: nil, tags: []),
+        urlOpener: { _ in }
+    )
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.resolveSelectedNoteURL(
+        token: "top-secret-token",
+        successURL: URL(string: "http://127.0.0.1:8080/success?state=abc")!,
+        errorURL: URL(string: "http://127.0.0.1:8080/error?state=abc")!
+    )
+
+    let description = await transport.debugDescription(for: url)
+
+    #expect(description.contains("token=<redacted>"))
+    #expect(description.contains("x-success=<redacted>"))
+    #expect(description.contains("x-error=<redacted>"))
+    #expect(!description.contains("top-secret-token"))
+    #expect(!description.contains("127.0.0.1:8080"))
+}
+
 private final class LockThenCreateReadStore: @unchecked Sendable, BearReadStore {
     private var didThrowLock = false
 
@@ -345,4 +436,86 @@ private func makeNote(
         trashed: false,
         encrypted: false
     )
+}
+
+private func invokeCallback(for bearURL: URL, endpoint: String, extraQueryItems: [URLQueryItem]) async throws {
+    let components = try #require(URLComponents(url: bearURL, resolvingAgainstBaseURL: false))
+    let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+    let callbackTarget = try #require(items[endpoint])
+    var callbackComponents = try #require(URLComponents(url: URL(string: callbackTarget)!, resolvingAgainstBaseURL: false))
+    callbackComponents.queryItems = (callbackComponents.queryItems ?? []) + extraQueryItems
+    let callbackURL = try #require(callbackComponents.url)
+    try await sendHTTPGet(to: callbackURL)
+}
+
+private func sendHTTPGet(to url: URL) async throws {
+    let host = try #require(url.host)
+    let port = try #require(url.port)
+    let endpointPort = try #require(NWEndpoint.Port(rawValue: UInt16(port)))
+    let path = url.path + (url.query.map { "?\($0)" } ?? "")
+
+    try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        let connection = NWConnection(host: NWEndpoint.Host(host), port: endpointPort, using: .tcp)
+        let queue = DispatchQueue(label: "bear-mcp.transport-tests.callback")
+        let completion = CallbackRequestCompletion(connection: connection, continuation: continuation)
+
+        connection.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                let request = "GET \(path) HTTP/1.1\r\nHost: \(host)\r\nConnection: close\r\n\r\n"
+                connection.send(content: Data(request.utf8), completion: .contentProcessed { error in
+                    if let error {
+                        completion.finish(.failure(error))
+                        return
+                    }
+
+                    connection.receive(minimumIncompleteLength: 1, maximumLength: 4_096) { _, _, _, error in
+                        if let error {
+                            completion.finish(.failure(error))
+                        } else {
+                            completion.finish(.success(()))
+                        }
+                    }
+                })
+
+            case .failed(let error):
+                completion.finish(.failure(error))
+
+            case .cancelled:
+                completion.finish(.success(()))
+
+            default:
+                break
+            }
+        }
+
+        connection.start(queue: queue)
+    }
+}
+
+private final class CallbackRequestCompletion: @unchecked Sendable {
+    private let connection: NWConnection
+    private let continuation: CheckedContinuation<Void, Error>
+    private let lock = NSLock()
+    private var resumed = false
+
+    init(connection: NWConnection, continuation: CheckedContinuation<Void, Error>) {
+        self.connection = connection
+        self.continuation = continuation
+    }
+
+    func finish(_ result: Result<Void, Error>) {
+        lock.lock()
+        guard !resumed else {
+            lock.unlock()
+            return
+        }
+        resumed = true
+        lock.unlock()
+
+        connection.cancel()
+        continuation.resume(with: result)
+    }
 }

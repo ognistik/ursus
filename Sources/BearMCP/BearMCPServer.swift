@@ -55,7 +55,7 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try service.findNotes(operations))
 
         case "bear_get_notes":
-            let selectors = MCPArgumentDecoder.stringArray(params.arguments, "notes")
+            let selectors = try await resolvedRequiredNoteSelectors(params.arguments)
             let location = try MCPArgumentDecoder.location(params.arguments)
             let notes = try service.getNotes(selectors: selectors, location: location)
             return try jsonResult(notes)
@@ -75,19 +75,23 @@ public final class BearMCPServer: Sendable {
             return try jsonResult(try service.findNotesByActiveTags(operations))
 
         case "bear_list_backups":
-            let operations = try requiredObjectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedOptionalNoteSelectors(operationObjects)
+            let operations = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 ListBackupsOperation(
                     id: MCPArgumentDecoder.optionalString(object, "id"),
-                    noteID: MCPArgumentDecoder.optionalString(object, "note"),
+                    noteID: resolvedNoteSelector,
                     limit: MCPArgumentDecoder.optionalInt(object, "limit")
                 )
             }
             return try jsonResult(try await service.listBackups(operations))
 
         case "bear_delete_backups":
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedOptionalNoteSelectors(operationObjects)
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 DeleteBackupRequest(
-                    noteID: MCPArgumentDecoder.optionalString(object, "note"),
+                    noteID: resolvedNoteSelector,
                     snapshotID: MCPArgumentDecoder.optionalString(object, "snapshot_id"),
                     deleteAll: try MCPArgumentDecoder.optionalBool(object, "delete_all") ?? false
                 )
@@ -124,9 +128,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 NoteTagsRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     tags: MCPArgumentDecoder.stringArray(object, "tags"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
@@ -141,9 +147,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 NoteTagsRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     tags: MCPArgumentDecoder.stringArray(object, "tags"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
@@ -158,9 +166,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 ApplyTemplateRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -192,9 +202,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 InsertTextRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     text: try requiredString(object, "text"),
                     position: try MCPArgumentDecoder.optionalPosition(object),
                     target: try MCPArgumentDecoder.relativeTextTarget(object),
@@ -211,9 +223,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 ReplaceContentRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     kind: try MCPArgumentDecoder.replaceContentKind(object),
                     oldString: object["old_string"]?.stringValue,
                     occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
@@ -231,9 +245,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 AddFileRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     filePath: try requiredString(object, "file_path"),
                     position: try MCPArgumentDecoder.optionalPosition(object),
                     target: try MCPArgumentDecoder.relativeTextTarget(object),
@@ -250,16 +266,18 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 OpenNoteRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.openNotes(requests))
 
         case "bear_archive_notes":
-            let noteSelectors = try requiredNoteSelectors(params.arguments)
+            let noteSelectors = try await resolvedRequiredNoteSelectors(params.arguments)
             return try jsonResult(try await service.archiveNotes(noteSelectors))
 
         case "bear_restore_notes":
@@ -269,9 +287,11 @@ public final class BearMCPServer: Sendable {
                 showWindow: true,
                 edit: configuration.openNoteInEditModeByDefault
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
+            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 RestoreBackupRequest(
-                    noteID: try requiredNoteSelector(object),
+                    noteID: resolvedNoteSelector,
                     snapshotID: MCPArgumentDecoder.optionalString(object, "snapshot_id"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
@@ -304,30 +324,6 @@ public final class BearMCPServer: Sendable {
         return value
     }
 
-    private func requiredNoteSelector(_ object: [String: Value]) throws -> String {
-        if let value = object["note"]?.stringValue, !value.isEmpty {
-            return value
-        }
-        if let value = object["note_id"]?.stringValue, !value.isEmpty {
-            return value
-        }
-        throw BearError.invalidInput("Missing required string argument 'note'.")
-    }
-
-    private func requiredNoteSelectors(_ arguments: [String: Value]?) throws -> [String] {
-        let selectors = MCPArgumentDecoder.stringArray(arguments, "notes")
-        if !selectors.isEmpty {
-            return selectors
-        }
-
-        let legacySelectors = MCPArgumentDecoder.stringArray(arguments, "note_ids")
-        if !legacySelectors.isEmpty {
-            return legacySelectors
-        }
-
-        throw BearError.invalidInput("Missing required array argument 'notes'.")
-    }
-
     private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
         let values = MCPArgumentDecoder.objectArray(arguments, key)
         guard !values.isEmpty else {
@@ -358,6 +354,91 @@ public final class BearMCPServer: Sendable {
             snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
             cursor: MCPArgumentDecoder.optionalString(object, "cursor")
         )
+    }
+
+    private func resolvedRequiredNoteSelectors(_ arguments: [String: Value]?) async throws -> [String] {
+        try await service.resolveNoteTargets(requiredNoteTargets(arguments))
+    }
+
+    private func resolvedRequiredNoteSelectors(_ objects: [[String: Value]]) async throws -> [String] {
+        let noteTargets = try objects.map(requiredNoteTarget)
+        return try await service.resolveNoteTargets(noteTargets)
+    }
+
+    private func resolvedOptionalNoteSelectors(_ objects: [[String: Value]]) async throws -> [String?] {
+        let noteTargets = try objects.map(optionalNoteTarget)
+        let concreteTargets = noteTargets.compactMap { $0 }
+        let resolvedTargets = try await service.resolveNoteTargets(concreteTargets)
+
+        var iterator = resolvedTargets.makeIterator()
+        return noteTargets.map { target in
+            guard target != nil else {
+                return nil
+            }
+
+            return iterator.next()
+        }
+    }
+
+    private func requiredNoteTargets(_ arguments: [String: Value]?) throws -> [NoteTarget] {
+        let selected = try MCPArgumentDecoder.optionalBool(arguments, "selected") ?? false
+        let selectors = MCPArgumentDecoder.stringArray(arguments, "notes")
+        let legacySelectors = MCPArgumentDecoder.stringArray(arguments, "note_ids")
+        let allSelectors = selectors.isEmpty ? legacySelectors : selectors
+
+        if selected && !allSelectors.isEmpty {
+            throw BearError.invalidInput("`notes` and `selected` are mutually exclusive.")
+        }
+
+        if selected {
+            return [.selected]
+        }
+
+        guard !allSelectors.isEmpty else {
+            throw BearError.invalidInput("Missing required array argument 'notes'.")
+        }
+
+        return allSelectors.map(NoteTarget.selector)
+    }
+
+    private func requiredNoteTarget(_ object: [String: Value]) throws -> NoteTarget {
+        guard let noteTarget = try optionalNoteTarget(object) else {
+            throw BearError.invalidInput("Provide exactly one of `note` or `selected: true`.")
+        }
+
+        return noteTarget
+    }
+
+    private func optionalNoteTarget(_ object: [String: Value]) throws -> NoteTarget? {
+        let note = object["note"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let legacyNoteID = object["note_id"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedSelector: String? = {
+            if let note, !note.isEmpty {
+                return note
+            }
+            if let legacyNoteID, !legacyNoteID.isEmpty {
+                return legacyNoteID
+            }
+            return nil
+        }()
+        let selected = try MCPArgumentDecoder.optionalBool(object, "selected") ?? false
+
+        if selected && normalizedSelector != nil {
+            throw BearError.invalidInput("`note` and `selected` are mutually exclusive.")
+        }
+
+        if selected {
+            guard configuration.token != nil else {
+                throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+            }
+            return .selected
+        }
+
+        guard let normalizedSelector else {
+            return nil
+        }
+
+        return .selector(normalizedSelector)
     }
 
     private func decodeFindNotesByTagOperation(_ object: [String: Value]) throws -> FindNotesByTagOperation {
@@ -406,21 +487,11 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles. Omit location unless the user explicitly asks for archived notes.",
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(configuration)) Omit location unless the user explicitly asks for archived notes.",
                 inputSchema: .object([
                     "type": .string("object"),
-                    "properties": .object([
-                        "notes": .object([
-                            "type": .string("array"),
-                            "items": .object(["type": .string("string")]),
-                        ]),
-                        "location": .object([
-                            "type": .string("string"),
-                            "enum": .array([.string("notes"), .string("archive")]),
-                            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
-                        ]),
-                    ]),
-                    "required": .array([.string("notes")]),
+                    "properties": .object(getNotesInputProperties(configuration: configuration)),
+                    "required": .array(getNotesRequiredFields(configuration: configuration).map(Value.string)),
                 ])
             ),
             Tool(
@@ -467,10 +538,7 @@ private enum ToolCatalog {
                 name: "bear_delete_backups",
                 description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
                 operationProperties: [
-                    "note": .object([
-                        "type": .string("string"),
-                        "description": .string("Optional note selector. Use with `delete_all: true` to remove all saved backups for one note. Matched as exact note id first, then exact case-insensitive title across notes and archive."),
-                    ]),
+                    "note": optionalNoteSelectorProperty(configuration: configuration, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Optional exact backup snapshot identifier to delete."),
@@ -479,7 +547,13 @@ private enum ToolCatalog {
                         "type": .string("boolean"),
                         "description": .string("Optional. Set `true` with `note` to remove all saved backups for that note. Omit unless the user explicitly wants a bulk delete."),
                     ]),
-                ],
+                ].merging(
+                    selectedNoteOperationProperty(
+                        configuration: configuration,
+                        description: "Optional alternative to `note`. Use with `delete_all: true` to remove all saved backups for the currently selected Bear note."
+                    ),
+                    uniquingKeysWith: { current, _ in current }
+                ),
                 required: [],
                 presentationProperties: [:]
             ),
@@ -531,7 +605,7 @@ private enum ToolCatalog {
                 name: "bear_add_tags",
                 description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
@@ -540,15 +614,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after adding tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note", "tags"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
                 description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
@@ -557,20 +631,20 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after removing tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note", "tags"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
                 description: "Apply the active Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the active template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after applying the template."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
@@ -597,7 +671,7 @@ private enum ToolCatalog {
                 name: "bear_insert_text",
                 description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -608,15 +682,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note", "text"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration, trailing: ["text"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
                 description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
@@ -638,15 +712,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note", "kind", "new_string"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration, trailing: ["kind", "new_string"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_add_files",
                 description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -657,48 +731,42 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note", "file_path"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration, trailing: ["file_path"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_open_notes",
                 description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration),
                 presentationProperties: [:]
             ),
             Tool(
                 name: "bear_archive_notes",
-                description: "Archive one or more Bear notes. `notes` accepts selectors matched as exact note ids first, then exact case-insensitive titles; ambiguous title matches must be disambiguated with the note id.",
+                description: "Archive one or more Bear notes. `notes` accepts selectors matched as exact note ids first, then exact case-insensitive titles; ambiguous title matches must be disambiguated with the note id.\(selectedNoteDescriptionSuffix(configuration))",
                 inputSchema: .object([
                     "type": .string("object"),
-                    "properties": .object([
-                        "notes": .object([
-                            "type": .string("array"),
-                            "items": .object(["type": .string("string")]),
-                            "description": .string("Required note selectors. Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
-                        ]),
-                    ]),
-                    "required": .array([.string("notes")]),
+                    "properties": .object(archiveNotesInputProperties(configuration: configuration)),
+                    "required": .array(archiveNotesRequiredFields(configuration: configuration).map(Value.string)),
                 ])
             ),
             batchedMutationTool(
                 name: "bear_restore_notes",
                 description: "Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(),
+                    "note": noteSelectorProperty(configuration: configuration),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Optional backup snapshot identifier. Omit to restore the most recent snapshot for the selected note."),
                     ]),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after restoring."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ],
-                required: ["note"],
+                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(configuration: configuration),
                 presentationProperties: [:]
             ),
         ]
@@ -822,17 +890,23 @@ private enum ToolCatalog {
     }
 
     private static func backupListOperationProperties(configuration: BearConfiguration) -> [String: Value] {
-        [
+        var properties: [String: Value] = [
             "id": .object(["type": .string("string")]),
-            "note": .object([
-                "type": .string("string"),
-                "description": .string("Optional note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If omitted, recent backups across notes are returned."),
-            ]),
+            "note": optionalNoteSelectorProperty(configuration: configuration, descriptionPrefix: "Optional note selector."),
             "limit": .object([
                 "type": .string("integer"),
                 "description": .string("Optional number of backup summaries to return. Omit unless the user explicitly asks for a different limit. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
             ]),
         ]
+
+        if supportsSelectedNote(configuration) {
+            properties["selected"] = selectedNoteProperty(
+                configuration: configuration,
+                description: "Optional alternative to `note`. Use `true` to list backups for the currently selected Bear note."
+            )
+        }
+
+        return properties
     }
 
     private static func discoveryOperationProperties(
@@ -894,11 +968,33 @@ private enum ToolCatalog {
         ])
     }
 
-    private static func noteSelectorProperty() -> Value {
+    private static func noteSelectorProperty(configuration: BearConfiguration) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("Required note selector. Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+            "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
+    }
+
+    private static func optionalNoteSelectorProperty(configuration: BearConfiguration, descriptionPrefix: String) -> Value {
+        .object([
+            "type": .string("string"),
+            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(configuration) ? " Use exactly one of `note` or `selected: true`. " : " ")Matched as exact note id first, then exact case-insensitive title across notes and archive."),
+        ])
+    }
+
+    private static func selectedNoteProperty(configuration: BearConfiguration, description: String? = nil) -> Value {
+        return .object([
+            "type": .string("boolean"),
+            "description": .string(description ?? "Optional alternative to `note`. Set `true` to target the currently selected Bear note. Omit unless the user explicitly wants the selected note."),
+        ])
+    }
+
+    private static func selectedNoteOperationProperty(configuration: BearConfiguration, description: String? = nil) -> [String: Value] {
+        guard supportsSelectedNote(configuration) else {
+            return [:]
+        }
+
+        return ["selected": selectedNoteProperty(configuration: configuration, description: description)]
     }
 
     private static func relativeTargetProperty() -> Value {
@@ -934,6 +1030,73 @@ private enum ToolCatalog {
 
     private static func formattedBool(_ value: Bool) -> String {
         value ? "`true`" : "`false`"
+    }
+
+    private static func supportsSelectedNote(_ configuration: BearConfiguration) -> Bool {
+        configuration.token != nil
+    }
+
+    private static func selectedNoteDescriptionSuffix(_ configuration: BearConfiguration) -> String {
+        guard supportsSelectedNote(configuration) else {
+            return ""
+        }
+
+        return " As an alternative to explicit selectors, pass `selected: true` to target the currently selected Bear note."
+    }
+
+    private static func requiredNoteFields(configuration: BearConfiguration, trailing: [String] = []) -> [String] {
+        supportsSelectedNote(configuration) ? trailing : ["note"] + trailing
+    }
+
+    private static func getNotesInputProperties(configuration: BearConfiguration) -> [String: Value] {
+        var properties: [String: Value] = [
+            "notes": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+                "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "")Selectors are matched as exact note ids first, then exact case-insensitive titles."),
+            ]),
+            "location": .object([
+                "type": .string("string"),
+                "enum": .array([.string("notes"), .string("archive")]),
+                "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
+            ]),
+        ]
+
+        if supportsSelectedNote(configuration) {
+            properties["selected"] = selectedNoteProperty(
+                configuration: configuration,
+                description: "Optional alternative to `notes`. Set `true` to fetch the currently selected Bear note."
+            )
+        }
+
+        return properties
+    }
+
+    private static func getNotesRequiredFields(configuration: BearConfiguration) -> [String] {
+        supportsSelectedNote(configuration) ? [] : ["notes"]
+    }
+
+    private static func archiveNotesInputProperties(configuration: BearConfiguration) -> [String: Value] {
+        var properties: [String: Value] = [
+            "notes": .object([
+                "type": .string("array"),
+                "items": .object(["type": .string("string")]),
+                "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "Required note selectors. ")Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
+            ]),
+        ]
+
+        if supportsSelectedNote(configuration) {
+            properties["selected"] = selectedNoteProperty(
+                configuration: configuration,
+                description: "Optional alternative to `notes`. Set `true` to archive the currently selected Bear note."
+            )
+        }
+
+        return properties
+    }
+
+    private static func archiveNotesRequiredFields(configuration: BearConfiguration) -> [String] {
+        supportsSelectedNote(configuration) ? [] : ["notes"]
     }
 
     private static func formattedTagList(_ tags: [String]) -> String {
