@@ -141,6 +141,10 @@ public final class BearService: @unchecked Sendable {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }
 
+        guard configuration.selectedNoteHelperPath != nil else {
+            throw BearError.invalidInput("Selected-note targeting requires a configured `selectedNoteHelperPath`.")
+        }
+
         return try await writeTransport.resolveSelectedNoteID(token: token)
     }
 

@@ -8,16 +8,22 @@ public actor BearXCallbackTransport: BearWriteTransport {
     private let readStore: BearReadStore
     private let urlOpener: @Sendable (URL, Bool) async throws -> Void
     private let selectedNoteResolveTimeout: Duration
+    private let selectedNoteHelperPath: String?
+    private let selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)?
 
     public init(
         builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
         readStore: BearReadStore,
         urlOpener: (@Sendable (URL) async throws -> Void)? = nil,
-        selectedNoteResolveTimeout: Duration = .seconds(4)
+        selectedNoteResolveTimeout: Duration = .seconds(4),
+        selectedNoteHelperPath: String? = nil,
+        selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil
     ) {
         self.builder = builder
         self.readStore = readStore
         self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
+        self.selectedNoteHelperPath = selectedNoteHelperPath
+        self.selectedNoteResolver = selectedNoteResolver
         if let urlOpener {
             self.urlOpener = { url, _ in
                 try await urlOpener(url)
@@ -31,24 +37,35 @@ public actor BearXCallbackTransport: BearWriteTransport {
         builder: BearXCallbackURLBuilder = BearXCallbackURLBuilder(),
         readStore: BearReadStore,
         urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void,
-        selectedNoteResolveTimeout: Duration = .seconds(4)
+        selectedNoteResolveTimeout: Duration = .seconds(4),
+        selectedNoteHelperPath: String? = nil,
+        selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil
     ) {
         self.builder = builder
         self.readStore = readStore
         self.urlOpener = urlOpenerWithActivation
         self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
+        self.selectedNoteHelperPath = selectedNoteHelperPath
+        self.selectedNoteResolver = selectedNoteResolver
     }
 
     public func resolveSelectedNoteID(token: String) async throws -> String {
-        let callbackSession = try BearSelectedNoteCallbackSession()
-        let callbackTarget = try await callbackSession.start()
-        let url = try builder.resolveSelectedNoteURL(
-            token: token,
-            successURL: callbackTarget.successURL,
-            errorURL: callbackTarget.errorURL
+        let url = try builder.resolveSelectedNoteURL(token: token)
+        BearDebugLog.append("xcallback.resolve-selected-note helperConfigured=\(selectedNoteHelperPath != nil) \(debugDescription(for: url))")
+
+        if let selectedNoteResolver {
+            return try await selectedNoteResolver(url, selectedNoteResolveTimeout)
+        }
+
+        guard let selectedNoteHelperPath else {
+            throw BearError.configuration("Selected-note targeting requires a configured `selectedNoteHelperPath`.")
+        }
+
+        return try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
+            helperPath: selectedNoteHelperPath,
+            bearURL: url,
+            timeout: selectedNoteResolveTimeout
         )
-        try await openAndLog(action: "resolve-selected-note", url: url, activates: false)
-        return try await callbackSession.waitForResult(timeout: selectedNoteResolveTimeout)
     }
 
     public func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {

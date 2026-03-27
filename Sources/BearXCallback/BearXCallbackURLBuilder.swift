@@ -78,6 +78,23 @@ public struct BearXCallbackURLBuilder: Sendable {
         )
     }
 
+    public func resolveSelectedNoteURL(token: String) throws -> URL {
+        try makeURL(
+            action: "open-note",
+            queryItems: [
+                URLQueryItem(name: "selected", value: yesNo(true)),
+                URLQueryItem(name: "token", value: token),
+            ] + presentationItems(
+                BearPresentationOptions(
+                    openNote: false,
+                    newWindow: false,
+                    showWindow: false,
+                    edit: false
+                )
+            )
+        )
+    }
+
     public func resolveSelectedNoteURL(
         token: String,
         successURL: URL,

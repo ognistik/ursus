@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) hasToken=\(configuration.token != nil)"
+            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) hasToken=\(configuration.token != nil) hasSelectedNoteHelper=\(configuration.selectedNoteHelperPath != nil) selectedNoteTargetingEnabled=\(configuration.selectedNoteTargetingEnabled)"
         )
         return configuration
     }
@@ -63,7 +63,7 @@ public enum BearRuntimeBootstrap {
     public static func doctorReport(logger: Logger) -> String {
         let fileManager = FileManager.default
 
-        let lines = [
+        var lines = [
             "config: \(BearPaths.configFileURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.configFileURL.path)))]",
             "note-template: \(BearPaths.noteTemplateURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path)))]",
             "backups-index: \(BearPaths.backupsIndexURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.backupsIndexURL.path)))]",
@@ -72,6 +72,28 @@ public enum BearRuntimeBootstrap {
             "debug-log: \(BearPaths.debugLogURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.debugLogURL.path)))]",
             "bear-db: \(BearPaths.defaultBearDatabaseURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.defaultBearDatabaseURL.path)))]",
         ]
+
+        do {
+            let configuration = try loadConfiguration(fileManager: fileManager)
+            lines.append("selected-note-token: \(configuration.token == nil ? "not configured" : "configured")")
+            if let helperPath = configuration.selectedNoteHelperPath {
+                do {
+                    let executableURL = try BearSelectedNoteHelperLocator.executableURL(
+                        forConfiguredPath: helperPath,
+                        fileManager: fileManager
+                    )
+                    lines.append("selected-note-helper: \(helperPath) [ok -> \(executableURL.path)]")
+                } catch {
+                    let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+                    lines.append("selected-note-helper: \(helperPath) [invalid: \(message)]")
+                }
+            } else {
+                lines.append("selected-note-helper: not configured [optional]")
+            }
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            lines.append("config-load: failed [\(message)]")
+        }
 
         logger.info("Generated bear-mcp doctor report.")
         return lines.joined(separator: "\n")

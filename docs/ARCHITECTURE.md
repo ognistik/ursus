@@ -33,7 +33,7 @@
 - `from` and `to` are inclusive bounds, so filtering to one named period can use the same phrase on both sides when needed.
 - Full note fetches expose a single canonical `content` field derived from normalized raw markdown, strip template wrapper noise when the current template matches, and return attachment metadata plus Bear's extracted attachment search text separately instead of duplicating `body` and `rawText`. The exposed note `version` is backed by Bear's SQLite row revision field (`Z_OPT`) so optimistic mutation guards can observe real note changes.
 - Note-targeting mutation tools accept selector-style note inputs at the MCP surface. Each selector resolves as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id. MCP descriptions explicitly steer clients away from calling `bear_get_notes` only to resolve those selectors.
-- When a Bear API `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools also accept `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note once per tool call through Bear's token-backed `open-note?selected=yes` callback flow, captures the returned note identifier, and then reuses that concrete note id through the existing DB-backed read and write pipeline.
+- When both a Bear API `token` and `selectedNoteHelperPath` are configured in `~/.config/bear-mcp/config.json`, note-selector tools also accept `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note once per tool call through Bear's token-backed `open-note?selected=yes` flow plus an external xcall-compatible helper, captures the returned note identifier, and then reuses that concrete note id through the existing DB-backed read and write pipeline.
 - Mutation tools that expose `expected_version` treat it as an optional optimistic-concurrency guard. Clients should omit it unless the user explicitly wants concurrency protection or a fresh note `version` is already available from an earlier read.
 - `bear_replace_content` computes the final full note markdown locally from protected edit intents, then writes with Bear's `replace_all` mode.
 - `bear_replace_content` is template-aware: title edits rebuild the note with the new title, body edits replace only editable content, and surgical string replacement is limited to editable content rather than full raw note markdown.
@@ -50,7 +50,7 @@
 - Insert/add-file default position now comes from config when `position` is omitted, and the live default is injected into the corresponding MCP property descriptions at startup.
 - Bear's `add-file` transport is built from local file contents: the server reads the requested path, base64-encodes the payload for Bear's documented `file` parameter, and can optionally target a specific note header during backend-managed attachment placement.
 - Bear x-callback URLs use an action-aware activation policy: UI-navigation actions such as `bear_open_tag`, `bear_open_notes`, and mutation requests that resolve to `open_note=yes` foreground Bear, while background mutations explicitly send `open_note=no` plus `show_window=no` and keep Bear unfocused.
-- Debug traces log the outgoing x-callback action plus a query summary that keeps behavioral flags visible while redacting large `text` and `file` payload values. Token-backed selected-note resolution also redacts `token`, `x-success`, `x-error`, and callback-state values.
+- Debug traces log the outgoing x-callback action plus a query summary that keeps behavioral flags visible while redacting large `text` and `file` payload values. Token-backed selected-note resolution also redacts helper-bound callback URL/query values so token-bearing URLs do not leak into logs.
 - `bear-mcp mcp` still prefers a shared runtime lock for stale-process detection and predictable diagnostics, but it falls back to temp per-launch locks when Codex opens additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
 - Batch inputs are supported at the MCP layer with `operations: []`.
@@ -62,7 +62,8 @@
 
 ## Current limits
 
-- Token-backed x-callback actions are now used for selected-note resolution only; broader token-backed Bear actions remain unexposed.
+- Token-backed x-callback actions are now used for optional helper-backed selected-note resolution only; broader token-backed Bear actions remain unexposed.
+- The CLI remains the primary product. Selected-note targeting is intentionally modeled as an advanced optional workflow that depends on a separately installed helper app or executable referenced through `selectedNoteHelperPath`.
 - Create receipts use best-effort note discovery by title and recent modification time.
 - Backup restore is designed primarily for note-text rollback. Attachment-related restore remains best-effort because replaying saved raw markdown cannot perfectly reverse every attachment-side mutation Bear may have performed.
 - Tag rename and delete use best-effort verification by polling tag lists across both normal and archived note locations after Bear accepts the x-callback.

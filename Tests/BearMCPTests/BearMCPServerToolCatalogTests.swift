@@ -20,7 +20,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         defaultSnippetLength: 90,
         maxSnippetLength: 180,
         backupRetentionDays: 30,
-        token: "secret-token"
+        token: "secret-token",
+        selectedNoteHelperPath: "/Applications/xcall.app"
     )
 
     let tools = BearMCPServer.toolCatalog(configuration: configuration)

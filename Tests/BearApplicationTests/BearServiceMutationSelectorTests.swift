@@ -156,7 +156,10 @@ func resolveNoteTargetsResolvesSelectedNoteOnlyOncePerBatch() async throws {
     let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Body")
     let transport = MutationSelectorRecordingWriteTransport(selectedNoteID: "selected-note")
     let service = BearService(
-        configuration: makeMutationSelectorConfiguration(token: "secret-token"),
+        configuration: makeMutationSelectorConfiguration(
+            token: "secret-token",
+            selectedNoteHelperPath: "/Applications/xcall.app"
+        ),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]]),
         writeTransport: transport,
         logger: Logger(label: "BearServiceMutationSelectorTests")
@@ -197,7 +200,35 @@ func resolveSelectedNoteIDRequiresConfiguredToken() async {
     }
 }
 
-private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConfiguration {
+@Test
+func resolveSelectedNoteIDRequiresConfiguredHelperPath() async {
+    let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Body")
+    let transport = MutationSelectorRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeMutationSelectorConfiguration(token: "secret-token"),
+        readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceMutationSelectorTests")
+    )
+
+    do {
+        _ = try await service.resolveSelectedNoteID()
+        Issue.record("Expected missing-helper error.")
+    } catch let error as BearError {
+        guard case .invalidInput(let message) = error else {
+            Issue.record("Expected invalid-input error, got \(error).")
+            return
+        }
+        #expect(message.contains("selectedNoteHelperPath"))
+    } catch {
+        Issue.record("Expected BearError.invalidInput, got \(error).")
+    }
+}
+
+private func makeMutationSelectorConfiguration(
+    token: String? = nil,
+    selectedNoteHelperPath: String? = nil
+) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
         activeTags: ["0-inbox"],
@@ -213,7 +244,8 @@ private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConf
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
         backupRetentionDays: 30,
-        token: token
+        token: token,
+        selectedNoteHelperPath: selectedNoteHelperPath
     )
 }
 
