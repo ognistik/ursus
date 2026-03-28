@@ -20,7 +20,9 @@ As of 2026-03-28:
 - Phase 1 has started in the repo: selected-note callback-host behavior now lives in shared package code at `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`.
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
 - The standalone helper app is still the active runtime path for selected-note callbacks today.
-- The unified macOS app target, `bearmcp://` scheme, app-hosted callback flow, and Keychain token storage are still pending.
+- Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
+- Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
+- The app-hosted callback flow and Keychain token storage are still pending.
 
 ## Decisions Locked In
 
@@ -583,6 +585,10 @@ Goal:
 
 - create `Bear MCP.app` as a real bundle using the existing package code
 
+Status:
+
+- Landed on 2026-03-28. The repo now includes a minimal Xcode app target, local app build script, `bearmcp://` registration, and diagnostics/settings shell views while the separate helper remains the active callback runtime.
+
 Tasks:
 
 - add Xcode app target
@@ -593,7 +599,7 @@ Tasks:
 
 Deliverable:
 
-- signed local app build that launches and can render diagnostics
+- local app build that launches and can render diagnostics, with signing still deferred to release packaging
 
 ## Phase 3: Re-route selected-note callback flow through the app
 

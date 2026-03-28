@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phase 1 of the app-unification plan started by extracting the selected-note callback host into shared package code.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1 and 2 of the app-unification plan now landed: the selected-note callback host lives in shared package code, and a minimal native `Bear MCP.app` target now exists alongside the CLI/runtime package.
 
 Implemented:
 
@@ -113,6 +113,10 @@ Implemented:
 - optional xcall-compatible helper integration for selected-note resolution through Bear's token-backed `open-note?selected=yes` flow
 - shared selected-note callback-host runtime in `BearXCallback`, ready to be hosted by the future unified app bundle
 - first-party selected-note helper executable/app shell plus local `.app` bundling script
+- minimal `Bear MCP.app` Xcode target that links shared package code through a local package product
+- app bundle registration for `bearmcp://`
+- app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
+- local app build script for unsigned development bundles
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - doctor/config support for optional selected-note helper path validation
@@ -126,6 +130,7 @@ Verified locally:
 - `swift build`
 - `swift test`
 - `swift run bear-mcp doctor`
+- `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
 
 ## Current Tool Surface
 
@@ -157,7 +162,12 @@ Implemented MCP tool names:
 Primary files:
 
 - `Package.swift`
+- `BearMCPApp.xcodeproj`
+- `App/BearMCPApp/BearMCPApp.swift`
+- `App/BearMCPApp/BearMCPDashboardView.swift`
+- `App/BearMCPApp/BearMCPAppModel.swift`
 - `Sources/BearDB/BearDatabaseReader.swift`
+- `Sources/BearApplication/BearAppSupport.swift`
 - `Sources/BearApplication/BearService.swift`
 - `Sources/BearApplication/BearBackupFileStore.swift`
 - `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`
@@ -168,6 +178,8 @@ Primary files:
 - `Sources/BearSelectedNoteHelper/main.swift`
 - `docs/ARCHITECTURE.md`
 - `docs/SELECTED_NOTE_HELPER.md`
+- `Support/app/Info.plist`
+- `Support/scripts/build-bear-mcp-app.sh`
 
 ## Current Runtime Paths
 

@@ -2,7 +2,7 @@
 
 `bear-mcp` keeps selected-note targeting optional.
 
-The main CLI server remains the primary product. Advanced users who want `selected: true` can install a small companion helper app in `/Applications` or `~/Applications`.
+The main CLI server remains the primary MCP runtime. The repo now also includes a minimal `Bear MCP.app` bundle for Phase 2 of app unification, but advanced users who want `selected: true` still need the companion helper app in `/Applications` or `~/Applications` until Phase 3 reroutes callback handling through the main app.
 
 This helper is now a transition host for shared callback logic, not the long-term product center. The callback runtime itself lives in package code so a future unified `Bear MCP.app` can reuse the same contract.
 

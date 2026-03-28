@@ -1,0 +1,258 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BEA0000A2F00000100000001 /* BearApplication in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000A2F00000100000002 /* BearApplication */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		BEA0000A2F00000100000003 /* Bear MCP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Bear MCP.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		BEA0000A2F00000100000004 /* BearMCPApp */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App/BearMCPApp;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		BEA0000A2F00000100000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BEA0000A2F00000100000001 /* BearApplication in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		BEA0000A2F00000100000006 = {
+			isa = PBXGroup;
+			children = (
+				BEA0000A2F00000100000004 /* BearMCPApp */,
+				BEA0000A2F00000100000007 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		BEA0000A2F00000100000007 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				BEA0000A2F00000100000003 /* Bear MCP.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		BEA0000A2F00000100000008 /* Bear MCP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Bear MCP" */;
+			buildPhases = (
+				BEA0000A2F0000010000000A /* Sources */,
+				BEA0000A2F00000100000005 /* Frameworks */,
+				BEA0000A2F0000010000000B /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BEA0000A2F00000100000004 /* BearMCPApp */,
+			);
+			name = "Bear MCP";
+			packageProductDependencies = (
+				BEA0000A2F00000100000002 /* BearApplication */,
+			);
+			productName = "Bear MCP";
+			productReference = BEA0000A2F00000100000003 /* Bear MCP.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		BEA0000A2F0000010000000C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					BEA0000A2F00000100000008 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+				};
+			};
+			buildConfigurationList = BEA0000A2F0000010000000D /* Build configuration list for PBXProject "BearMCPApp" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = BEA0000A2F00000100000006;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = BEA0000A2F00000100000007 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				BEA0000A2F00000100000008 /* Bear MCP */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		BEA0000A2F0000010000000B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		BEA0000A2F0000010000000A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		BEA0000A2F0000010000000F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BEA0000A2F00000100000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		BEA0000A2F00000100000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Support/app/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ognistik.bear-mcp;
+				PRODUCT_NAME = "Bear MCP";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		BEA0000A2F00000100000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Support/app/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ognistik.bear-mcp;
+				PRODUCT_NAME = "Bear MCP";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BEA0000A2F0000010000000D /* Build configuration list for PBXProject "BearMCPApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BEA0000A2F0000010000000F /* Debug */,
+				BEA0000A2F00000100000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Bear MCP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BEA0000A2F00000100000011 /* Debug */,
+				BEA0000A2F00000100000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		BEA0000A2F00000100000002 /* BearApplication */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */;
+			productName = BearApplication;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = BEA0000A2F0000010000000C /* Project object */;
+}

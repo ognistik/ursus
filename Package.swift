@@ -8,6 +8,10 @@ let package = Package(
         .macOS(.v14),
     ],
     products: [
+        .library(
+            name: "BearApplication",
+            targets: ["BearApplication"]
+        ),
         .executable(
             name: "bear-mcp",
             targets: ["BearMCPCLI"]

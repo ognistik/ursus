@@ -10,6 +10,7 @@
 - `BearApplication`: orchestration, mutation planning, optimistic-write guards, and bootstrap files.
 - `BearMCP`: MCP tool registration and argument decoding.
 - `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, and `paths`.
+- `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI and registers `bearmcp://`.
 
 ## Current v1 shape
 
@@ -59,6 +60,7 @@
 - `bear-mcp --update-config` rewrites the config file in the latest canonical shape, preserving existing values and filling in any missing keys.
 - Runtime artifacts are kept out of the config folder: durable backups live under `~/Library/Application Support/bear-mcp/Backups`, the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, temp-directory fallback locks are used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
 - The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
+- Phase 2 of the app-unification plan is now present in the repo as a minimal Xcode app target and local build script. The GUI currently stays in a control-center role only: callback scheme registration exists, but selected-note callback routing still goes through the separate helper app until Phase 3.
 
 ## Current limits
 

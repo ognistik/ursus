@@ -2,7 +2,7 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
-The helper app is still the current install-time callback host, but its runtime behavior now lives in shared package code. That means these testing steps validate the callback contract that the future unified app is expected to keep.
+The helper app is still the current install-time callback host, but its runtime behavior now lives in shared package code. Phase 2 also adds a separate `Bear MCP.app` bundle for diagnostics/settings scaffolding and `bearmcp://` registration, but the steps below still validate the active selected-note callback contract that Phase 3 is expected to migrate into the main app.
 
 ## Local build outputs
 

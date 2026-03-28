@@ -61,46 +61,11 @@ public enum BearRuntimeBootstrap {
     }
 
     public static func doctorReport(logger: Logger) -> String {
-        let fileManager = FileManager.default
-
-        var lines = [
-            "config: \(BearPaths.configFileURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.configFileURL.path)))]",
-            "note-template: \(BearPaths.noteTemplateURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path)))]",
-            "backups-index: \(BearPaths.backupsIndexURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.backupsIndexURL.path)))]",
-            "process-lock-primary: \(BearPaths.processLockURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.processLockURL.path)))]",
-            "process-lock-fallback: \(BearPaths.fallbackProcessLockURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.fallbackProcessLockURL.path)))]",
-            "debug-log: \(BearPaths.debugLogURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.debugLogURL.path)))]",
-            "bear-db: \(BearPaths.defaultBearDatabaseURL.path) [\(status(fileManager.fileExists(atPath: BearPaths.defaultBearDatabaseURL.path)))]",
-        ]
-
-        do {
-            let configuration = try loadConfiguration(fileManager: fileManager)
-            lines.append("selected-note-token: \(configuration.token == nil ? "not configured" : "configured")")
-            if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL(fileManager: fileManager) {
-                do {
-                    let executableURL = try BearSelectedNoteHelperLocator.executableURL(
-                        forAppBundleURL: helperBundleURL,
-                        fileManager: fileManager
-                    )
-                    lines.append("selected-note-helper: \(helperBundleURL.path) [ok -> \(executableURL.path)]")
-                } catch {
-                    let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-                    lines.append("selected-note-helper: \(helperBundleURL.path) [invalid: \(message)]")
-                }
-            } else {
-                lines.append("selected-note-helper: not detected [install `\(BearSelectedNoteHelperLocator.appName)` in `/Applications` or `~/Applications`]")
-            }
-        } catch {
-            let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-            lines.append("config-load: failed [\(message)]")
-        }
+        let snapshot = BearAppSupport.loadDashboardSnapshot()
+        let lines = snapshot.diagnostics.map(\.renderedLine)
 
         logger.info("Generated bear-mcp doctor report.")
         return lines.joined(separator: "\n")
-    }
-
-    private static func status(_ exists: Bool) -> String {
-        exists ? "ok" : "missing"
     }
 
     private static func writeConfiguration(_ configuration: BearConfiguration, to url: URL) throws {
