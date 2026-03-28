@@ -10,6 +10,16 @@ public struct BearBundledCLIInstallReceipt: Codable, Hashable, Sendable {
     }
 }
 
+public struct BearCLICommandLinkReceipt: Codable, Hashable, Sendable {
+    public let sourcePath: String
+    public let destinationPath: String
+
+    public init(sourcePath: String, destinationPath: String) {
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+    }
+}
+
 public enum BearMCPCLILocator {
     public static let executableName = "bear-mcp"
     public static let bundledRelativePath = "Contents/Resources/bin/\(executableName)"
@@ -18,12 +28,20 @@ public enum BearMCPCLILocator {
         BearPaths.bundledCLIExecutableURL
     }
 
+    public static var userCommandInstallURL: URL {
+        BearPaths.userCLIExecutableURL
+    }
+
     public static var appManagedInstallGuidance: String {
         "Use `\(BearMCPAppLocator.appName)` to install the bundled CLI to `\(appManagedInstallURL.path)`. MCP hosts should point to that stable path, not to transient SwiftPM build outputs."
     }
 
     public static var bundledExecutableGuidance: String {
         "Build or reinstall `\(BearMCPAppLocator.appName)` so it contains `\(bundledRelativePath)`."
+    }
+
+    public static var userCommandInstallGuidance: String {
+        "Install the app-managed CLI first, then create a shell command link at `\(userCommandInstallURL.path)` so `bear-mcp` is easy to run from Terminal."
     }
 
     public static func bundledExecutableURL(
@@ -64,6 +82,35 @@ public enum BearMCPCLILocator {
         }
 
         return destinationURL
+    }
+
+    @discardableResult
+    public static func installUserCommandLink(
+        fileManager: FileManager = .default,
+        sourceURL: URL = appManagedInstallURL,
+        destinationURL: URL = userCommandInstallURL
+    ) throws -> BearCLICommandLinkReceipt {
+        let sourceExecutableURL = try installedExecutableURL(
+            fileManager: fileManager,
+            destinationURL: sourceURL
+        )
+        let destinationDirectoryURL = destinationURL.deletingLastPathComponent()
+        try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
+
+        if fileManager.fileExists(atPath: destinationURL.path)
+            || (try? fileManager.destinationOfSymbolicLink(atPath: destinationURL.path)) != nil {
+            try fileManager.removeItem(at: destinationURL)
+        }
+
+        try fileManager.createSymbolicLink(
+            at: destinationURL,
+            withDestinationURL: sourceExecutableURL
+        )
+
+        return BearCLICommandLinkReceipt(
+            sourcePath: sourceExecutableURL.path,
+            destinationPath: destinationURL.path
+        )
     }
 
     @discardableResult

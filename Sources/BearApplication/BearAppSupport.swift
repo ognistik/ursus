@@ -49,6 +49,10 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let processLockPath: String
     public let fallbackProcessLockPath: String
     public let debugLogPath: String
+    public let terminalCLIPath: String
+    public let terminalCLIStatus: BearDoctorCheckStatus
+    public let terminalCLIStatusTitle: String
+    public let terminalCLIStatusDetail: String
     public let databasePath: String
     public let activeTags: [String]
     public let defaultInsertPosition: String
@@ -63,12 +67,76 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let defaultSnippetLength: Int
     public let maxSnippetLength: Int
     public let backupRetentionDays: Int
+    public let disabledTools: [BearToolName]
     public let selectedNoteTokenConfigured: Bool
     public let selectedNoteTokenStoredInKeychain: Bool
     public let selectedNoteLegacyConfigTokenDetected: Bool
     public let selectedNoteTokenStorageDescription: String
     public let selectedNoteTokenStatusDetail: String?
+    public let toolToggles: [BearAppToolToggleSnapshot]
     public let hostAppSetups: [BearHostAppSetupSnapshot]
+}
+
+public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiable {
+    public let tool: BearToolName
+    public let title: String
+    public let summary: String
+    public let category: BearToolCategory
+    public let enabled: Bool
+
+    public var id: String { tool.rawValue }
+}
+
+public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
+    public let databasePath: String
+    public let activeTags: [String]
+    public let defaultInsertPosition: BearConfiguration.InsertDefault
+    public let templateManagementEnabled: Bool
+    public let openNoteInEditModeByDefault: Bool
+    public let createOpensNoteByDefault: Bool
+    public let openUsesNewWindowByDefault: Bool
+    public let createAddsActiveTagsByDefault: Bool
+    public let tagsMergeMode: BearConfiguration.TagsMergeMode
+    public let defaultDiscoveryLimit: Int
+    public let maxDiscoveryLimit: Int
+    public let defaultSnippetLength: Int
+    public let maxSnippetLength: Int
+    public let backupRetentionDays: Int
+    public let disabledTools: [BearToolName]
+
+    public init(
+        databasePath: String,
+        activeTags: [String],
+        defaultInsertPosition: BearConfiguration.InsertDefault,
+        templateManagementEnabled: Bool,
+        openNoteInEditModeByDefault: Bool,
+        createOpensNoteByDefault: Bool,
+        openUsesNewWindowByDefault: Bool,
+        createAddsActiveTagsByDefault: Bool,
+        tagsMergeMode: BearConfiguration.TagsMergeMode,
+        defaultDiscoveryLimit: Int,
+        maxDiscoveryLimit: Int,
+        defaultSnippetLength: Int,
+        maxSnippetLength: Int,
+        backupRetentionDays: Int,
+        disabledTools: [BearToolName]
+    ) {
+        self.databasePath = databasePath
+        self.activeTags = activeTags
+        self.defaultInsertPosition = defaultInsertPosition
+        self.templateManagementEnabled = templateManagementEnabled
+        self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
+        self.createOpensNoteByDefault = createOpensNoteByDefault
+        self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
+        self.createAddsActiveTagsByDefault = createAddsActiveTagsByDefault
+        self.tagsMergeMode = tagsMergeMode
+        self.defaultDiscoveryLimit = defaultDiscoveryLimit
+        self.maxDiscoveryLimit = maxDiscoveryLimit
+        self.defaultSnippetLength = defaultSnippetLength
+        self.maxSnippetLength = maxSnippetLength
+        self.backupRetentionDays = backupRetentionDays
+        self.disabledTools = BearConfiguration.normalizedDisabledTools(disabledTools)
+    }
 }
 
 public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
@@ -88,6 +156,7 @@ public enum BearAppSupport {
         allowSecureTokenStatusRead: Bool = false,
         currentAppBundleURL: URL? = nil,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
@@ -104,6 +173,7 @@ public enum BearAppSupport {
                 tokenStore: tokenStore,
                 allowSecureTokenStatusRead: allowSecureTokenStatusRead,
                 appManagedCLIURL: appManagedCLIURL,
+                terminalCLIURL: terminalCLIURL,
                 homeDirectoryURL: homeDirectoryURL
             )
 
@@ -114,6 +184,7 @@ public enum BearAppSupport {
                     configuration: settings,
                     currentAppBundleURL: currentAppBundleURL,
                     appManagedCLIURL: appManagedCLIURL,
+                    terminalCLIURL: terminalCLIURL,
                     homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
@@ -134,6 +205,7 @@ public enum BearAppSupport {
                     configLoadError: message,
                     currentAppBundleURL: currentAppBundleURL,
                     appManagedCLIURL: appManagedCLIURL,
+                    terminalCLIURL: terminalCLIURL,
                     homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
@@ -155,6 +227,7 @@ public enum BearAppSupport {
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         allowSecureTokenStatusRead: Bool = false,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) throws -> BearAppSettingsSnapshot {
         var configuration = try BearRuntimeBootstrap.loadConfiguration(
@@ -183,6 +256,12 @@ public enum BearAppSupport {
             )
         }
 
+        let terminalCLIStatus = terminalCLIStatus(
+            fileManager: fileManager,
+            terminalCLIURL: terminalCLIURL,
+            appManagedCLIURL: appManagedCLIURL
+        )
+
         return BearAppSettingsSnapshot(
             configDirectoryPath: configDirectoryURL.path,
             configFilePath: configFileURL.path,
@@ -193,6 +272,10 @@ public enum BearAppSupport {
             processLockPath: BearPaths.processLockURL.path,
             fallbackProcessLockPath: BearPaths.fallbackProcessLockURL.path,
             debugLogPath: BearPaths.debugLogURL.path,
+            terminalCLIPath: terminalCLIURL.path,
+            terminalCLIStatus: terminalCLIStatus.status,
+            terminalCLIStatusTitle: terminalCLIStatus.title,
+            terminalCLIStatusDetail: terminalCLIStatus.detail,
             databasePath: configuration.databasePath,
             activeTags: configuration.activeTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
@@ -207,11 +290,13 @@ public enum BearAppSupport {
             defaultSnippetLength: configuration.defaultSnippetLength,
             maxSnippetLength: configuration.maxSnippetLength,
             backupRetentionDays: configuration.backupRetentionDays,
+            disabledTools: configuration.disabledTools,
             selectedNoteTokenConfigured: tokenStatus.isConfigured,
             selectedNoteTokenStoredInKeychain: tokenStatus.keychainTokenPresent,
             selectedNoteLegacyConfigTokenDetected: tokenStatus.legacyConfigTokenPresent,
             selectedNoteTokenStorageDescription: tokenStorageDescription(for: tokenStatus),
             selectedNoteTokenStatusDetail: tokenStatusDetail(for: tokenStatus),
+            toolToggles: toolToggles(for: configuration),
             hostAppSetups: BearHostAppSupport.loadSetups(
                 fileManager: fileManager,
                 appManagedCLIURL: appManagedCLIURL,
@@ -277,6 +362,72 @@ public enum BearAppSupport {
             fromAppBundleURL: appBundleURL,
             fileManager: fileManager,
             destinationURL: destinationURL
+        )
+    }
+
+    @discardableResult
+    public static func installTerminalCLI(
+        fileManager: FileManager = .default,
+        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL
+    ) throws -> BearCLICommandLinkReceipt {
+        try BearMCPCLILocator.installUserCommandLink(
+            fileManager: fileManager,
+            sourceURL: appManagedCLIURL,
+            destinationURL: terminalCLIURL
+        )
+    }
+
+    public static func saveConfigurationDraft(
+        _ draft: BearAppConfigurationDraft,
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws {
+        let currentConfiguration = try BearRuntimeBootstrap.loadConfiguration(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        let normalizedDatabasePath = draft.databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedDatabasePath.isEmpty else {
+            throw BearError.invalidInput("Database path cannot be empty.")
+        }
+
+        let defaultDiscoveryLimit = max(1, draft.defaultDiscoveryLimit)
+        let maxDiscoveryLimit = max(defaultDiscoveryLimit, draft.maxDiscoveryLimit)
+        let defaultSnippetLength = max(1, draft.defaultSnippetLength)
+        let maxSnippetLength = max(defaultSnippetLength, draft.maxSnippetLength)
+        let normalizedActiveTags = normalizedActiveTags(draft.activeTags)
+
+        let updatedConfiguration = BearConfiguration(
+            databasePath: normalizedDatabasePath,
+            activeTags: normalizedActiveTags,
+            defaultInsertPosition: draft.defaultInsertPosition,
+            templateManagementEnabled: draft.templateManagementEnabled,
+            openNoteInEditModeByDefault: draft.openNoteInEditModeByDefault,
+            createOpensNoteByDefault: draft.createOpensNoteByDefault,
+            openUsesNewWindowByDefault: draft.openUsesNewWindowByDefault,
+            createAddsActiveTagsByDefault: draft.createAddsActiveTagsByDefault,
+            tagsMergeMode: draft.tagsMergeMode,
+            defaultDiscoveryLimit: defaultDiscoveryLimit,
+            maxDiscoveryLimit: maxDiscoveryLimit,
+            defaultSnippetLength: defaultSnippetLength,
+            maxSnippetLength: maxSnippetLength,
+            backupRetentionDays: max(0, draft.backupRetentionDays),
+            disabledTools: draft.disabledTools,
+            selectedNoteTokenStoredInKeychain: currentConfiguration.selectedNoteTokenStoredInKeychain,
+            token: currentConfiguration.token
+        )
+
+        try BearRuntimeBootstrap.saveConfiguration(
+            updatedConfiguration,
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
         )
     }
 
@@ -384,6 +535,7 @@ public enum BearAppSupport {
         configLoadError: String? = nil,
         currentAppBundleURL: URL? = nil,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
@@ -492,6 +644,20 @@ public enum BearAppSupport {
                 )
             )
         }
+
+        let shellCLIStatus = terminalCLIStatus(
+            fileManager: fileManager,
+            terminalCLIURL: terminalCLIURL,
+            appManagedCLIURL: appManagedCLIURL
+        )
+        checks.append(
+            BearDoctorCheck(
+                key: "terminal-cli",
+                value: terminalCLIURL.path,
+                status: shellCLIStatus.status,
+                detail: shellCLIStatus.detail
+            )
+        )
 
         checks.append(
             contentsOf: BearHostAppSupport.diagnostics(
@@ -621,6 +787,98 @@ public enum BearAppSupport {
         }
 
         return status.keychainAccessError
+    }
+
+    private static func toolToggles(for configuration: BearConfiguration) -> [BearAppToolToggleSnapshot] {
+        BearToolName.allCases.map { tool in
+            BearAppToolToggleSnapshot(
+                tool: tool,
+                title: tool.title,
+                summary: tool.summary,
+                category: tool.category,
+                enabled: configuration.isToolEnabled(tool)
+            )
+        }
+    }
+
+    private static func normalizedActiveTags(_ activeTags: [String]) -> [String] {
+        var seen: Set<String> = []
+        var normalized: [String] = []
+
+        for tag in activeTags {
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else {
+                continue
+            }
+
+            seen.insert(trimmed)
+            normalized.append(trimmed)
+        }
+
+        return normalized
+    }
+
+    private static func terminalCLIStatus(
+        fileManager: FileManager,
+        terminalCLIURL: URL,
+        appManagedCLIURL: URL
+    ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
+        guard
+            fileManager.fileExists(atPath: appManagedCLIURL.path),
+            fileManager.isExecutableFile(atPath: appManagedCLIURL.path)
+        else {
+            return (
+                .missing,
+                "App-managed CLI missing",
+                "Install or refresh the app-managed CLI first, then create the terminal command link."
+            )
+        }
+
+        guard
+            fileManager.fileExists(atPath: terminalCLIURL.path)
+                || (try? fileManager.destinationOfSymbolicLink(atPath: terminalCLIURL.path)) != nil
+        else {
+            return (
+                .missing,
+                "Not installed in Terminal",
+                "Create a symlink at `\(terminalCLIURL.path)` if you want to run `bear-mcp` directly from Terminal."
+            )
+        }
+
+        do {
+            let destination = try fileManager.destinationOfSymbolicLink(atPath: terminalCLIURL.path)
+            let resolvedDestination = URL(fileURLWithPath: destination, relativeTo: terminalCLIURL.deletingLastPathComponent())
+                .standardizedFileURL
+            let expectedDestination = appManagedCLIURL.standardizedFileURL
+
+            guard resolvedDestination == expectedDestination else {
+                return (
+                    .invalid,
+                    "Needs refresh",
+                    "The terminal command link points at `\(resolvedDestination.path)` instead of `\(expectedDestination.path)`."
+                )
+            }
+
+            return (
+                .ok,
+                "Installed",
+                "Terminal users can run `\(terminalCLIURL.path)` directly. If `~/bin` is not on PATH yet, add it in your shell profile."
+            )
+        } catch {
+            if fileManager.isExecutableFile(atPath: terminalCLIURL.path) {
+                return (
+                    .invalid,
+                    "Needs refresh",
+                    "A regular file already exists at `\(terminalCLIURL.path)`. Replace it with a symlink to the app-managed CLI."
+                )
+            }
+
+            return (
+                .invalid,
+                "Invalid link",
+                "The terminal command entry at `\(terminalCLIURL.path)` could not be read as a symlink."
+            )
+        }
     }
 
     private static func localizedMessage(for error: Error) -> String {

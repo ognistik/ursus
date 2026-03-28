@@ -72,10 +72,74 @@ enum BearHostAppSupport {
         homeDirectoryURL: URL
     ) -> [HostAppResult] {
         [
+            genericLocalHostResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL),
             codexResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL, homeDirectoryURL: homeDirectoryURL),
             claudeDesktopResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL, homeDirectoryURL: homeDirectoryURL),
             chatGPTResult(),
         ]
+    }
+
+    private static func genericLocalHostResult(
+        fileManager: FileManager,
+        appManagedCLIURL: URL
+    ) -> HostAppResult {
+        let cliPath = appManagedCLIURL.path
+        let snippet = """
+        {
+          "type": "stdio",
+          "command": "\(cliPath)",
+          "args": ["mcp"]
+        }
+        """
+        let checks = [
+            "Install or refresh the stable CLI copy at \(cliPath) from Bear MCP.app.",
+            "In any local stdio MCP host, point `command` at that path and set `args` to `[\"mcp\"]`.",
+            "Restart the host app after saving so it reloads the Bear server definition.",
+        ]
+
+        if fileManager.fileExists(atPath: cliPath), fileManager.isExecutableFile(atPath: cliPath) {
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "generic-local-stdio",
+                    appName: "Any Local MCP Host",
+                    status: .ok,
+                    statusTitle: "Ready",
+                    detail: "Use the stable app-managed CLI path below with any local stdio MCP host, not just Codex or Claude Desktop.",
+                    snippetTitle: "Generic stdio example",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "Host apps name their fields differently, but the important values are the executable path plus `args = [\"mcp\"]`.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-local-stdio",
+                    value: cliPath,
+                    status: .ok,
+                    detail: "stable generic CLI target for any local stdio MCP host"
+                )
+            )
+        }
+
+        return HostAppResult(
+            setup: BearHostAppSetupSnapshot(
+                id: "generic-local-stdio",
+                appName: "Any Local MCP Host",
+                status: .missing,
+                statusTitle: "CLI not installed yet",
+                detail: "Install the stable app-managed CLI first, then reuse the same command path in any local stdio MCP host.",
+                snippetTitle: "Generic stdio example",
+                snippetLanguage: "json",
+                snippet: snippet,
+                mergeNote: "Bear MCP.app should stay host-agnostic here: copy the command and args into whichever local MCP host you use.",
+                checks: checks
+            ),
+            doctorCheck: BearDoctorCheck(
+                key: "host-local-stdio",
+                value: cliPath,
+                status: .missing,
+                detail: "install the app-managed CLI before wiring it into local MCP hosts"
+            )
+        )
     }
 
     private static func codexResult(

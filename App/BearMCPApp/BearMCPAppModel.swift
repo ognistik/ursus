@@ -20,8 +20,26 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var cliStatusError: String?
     @Published private(set) var hostSetupStatusMessage: String?
     @Published private(set) var hostSetupStatusError: String?
+    @Published private(set) var configurationStatusMessage: String?
+    @Published private(set) var configurationStatusError: String?
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var storedTokenHasBeenExplicitlyLoaded = false
+
+    @Published var databasePathDraft = ""
+    @Published var activeTagsDraft = ""
+    @Published var defaultInsertPositionDraft: BearConfiguration.InsertDefault = .bottom
+    @Published var templateManagementEnabledDraft = true
+    @Published var openNoteInEditModeByDefaultDraft = true
+    @Published var createOpensNoteByDefaultDraft = true
+    @Published var openUsesNewWindowByDefaultDraft = true
+    @Published var createAddsActiveTagsByDefaultDraft = true
+    @Published var tagsMergeModeDraft: BearConfiguration.TagsMergeMode = .append
+    @Published var defaultDiscoveryLimitDraft = 20
+    @Published var maxDiscoveryLimitDraft = 100
+    @Published var defaultSnippetLengthDraft = 280
+    @Published var maxSnippetLengthDraft = 1_000
+    @Published var backupRetentionDaysDraft = 30
+    @Published private var disabledToolsDraft: Set<BearToolName> = []
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -37,12 +55,14 @@ final class BearMCPAppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        applyDraft(from: dashboard.settings)
     }
 
     func reload() {
         dashboard = BearAppSupport.loadDashboardSnapshot(
             currentAppBundleURL: Bundle.main.bundleURL
         )
+        applyDraft(from: dashboard.settings)
     }
 
     func saveSelectedNoteToken() {
@@ -94,8 +114,40 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
-    func recordIncomingCallback(_ url: URL) {
-        lastIncomingCallbackURL = url
+    func saveConfiguration() {
+        do {
+            try BearAppSupport.saveConfigurationDraft(
+                BearAppConfigurationDraft(
+                    databasePath: databasePathDraft,
+                    activeTags: parsedActiveTags,
+                    defaultInsertPosition: defaultInsertPositionDraft,
+                    templateManagementEnabled: templateManagementEnabledDraft,
+                    openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
+                    createOpensNoteByDefault: createOpensNoteByDefaultDraft,
+                    openUsesNewWindowByDefault: openUsesNewWindowByDefaultDraft,
+                    createAddsActiveTagsByDefault: createAddsActiveTagsByDefaultDraft,
+                    tagsMergeMode: tagsMergeModeDraft,
+                    defaultDiscoveryLimit: defaultDiscoveryLimitDraft,
+                    maxDiscoveryLimit: maxDiscoveryLimitDraft,
+                    defaultSnippetLength: defaultSnippetLengthDraft,
+                    maxSnippetLength: maxSnippetLengthDraft,
+                    backupRetentionDays: backupRetentionDaysDraft,
+                    disabledTools: Array(disabledToolsDraft)
+                )
+            )
+            configurationStatusMessage = "Configuration saved to \(BearPaths.configFileURL.path)."
+            configurationStatusError = nil
+            reload()
+        } catch {
+            configurationStatusMessage = nil
+            configurationStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func revertConfigurationDraft() {
+        applyDraft(from: dashboard.settings)
+        configurationStatusMessage = "Draft reset to the current saved configuration."
+        configurationStatusError = nil
     }
 
     func installBundledCLI() {
@@ -110,8 +162,28 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
+    func installTerminalCLI() {
+        do {
+            let receipt = try BearAppSupport.installTerminalCLI()
+            cliStatusMessage = "Terminal command installed at \(receipt.destinationPath) -> \(receipt.sourcePath)"
+            cliStatusError = nil
+            reload()
+        } catch {
+            cliStatusMessage = nil
+            cliStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func recordIncomingCallback(_ url: URL) {
+        lastIncomingCallbackURL = url
+    }
+
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    func openFile(path: String) {
+        NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
     func copyInstalledCLIPath() {
@@ -120,6 +192,15 @@ final class BearMCPAppModel: ObservableObject {
         pasteboard.clearContents()
         pasteboard.setString(path, forType: .string)
         cliStatusMessage = "Copied CLI path: \(path)"
+        cliStatusError = nil
+    }
+
+    func copyTerminalCLIPath() {
+        let path = terminalCLIPath
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(path, forType: .string)
+        cliStatusMessage = "Copied terminal CLI path: \(path)"
         cliStatusError = nil
     }
 
@@ -160,6 +241,18 @@ final class BearMCPAppModel: ObservableObject {
             storedSelectedNoteToken = nil
             storedTokenHasBeenExplicitlyLoaded = false
             tokenStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func isToolEnabledInDraft(_ tool: BearToolName) -> Bool {
+        !disabledToolsDraft.contains(tool)
+    }
+
+    func setToolEnabledInDraft(_ tool: BearToolName, enabled: Bool) {
+        if enabled {
+            disabledToolsDraft.remove(tool)
+        } else {
+            disabledToolsDraft.insert(tool)
         }
     }
 
@@ -205,6 +298,39 @@ final class BearMCPAppModel: ObservableObject {
 
     var installedCLIPath: String {
         dashboard.settings?.appManagedCLIPath ?? BearMCPCLILocator.appManagedInstallURL.path
+    }
+
+    var terminalCLIPath: String {
+        dashboard.settings?.terminalCLIPath ?? BearMCPCLILocator.userCommandInstallURL.path
+    }
+
+    private var parsedActiveTags: [String] {
+        activeTagsDraft
+            .split(whereSeparator: { $0 == "," || $0 == "\n" })
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func applyDraft(from settings: BearAppSettingsSnapshot?) {
+        guard let settings else {
+            return
+        }
+
+        databasePathDraft = settings.databasePath
+        activeTagsDraft = settings.activeTags.joined(separator: ", ")
+        defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
+        templateManagementEnabledDraft = settings.templateManagementEnabled
+        openNoteInEditModeByDefaultDraft = settings.openNoteInEditModeByDefault
+        createOpensNoteByDefaultDraft = settings.createOpensNoteByDefault
+        openUsesNewWindowByDefaultDraft = settings.openUsesNewWindowByDefault
+        createAddsActiveTagsByDefaultDraft = settings.createAddsActiveTagsByDefault
+        tagsMergeModeDraft = BearConfiguration.TagsMergeMode(rawValue: settings.tagsMergeMode) ?? .append
+        defaultDiscoveryLimitDraft = settings.defaultDiscoveryLimit
+        maxDiscoveryLimitDraft = settings.maxDiscoveryLimit
+        defaultSnippetLengthDraft = settings.defaultSnippetLength
+        maxSnippetLengthDraft = settings.maxSnippetLength
+        backupRetentionDaysDraft = settings.backupRetentionDays
+        disabledToolsDraft = Set(settings.disabledTools)
     }
 
     private func localizedMessage(for error: Error) -> String {

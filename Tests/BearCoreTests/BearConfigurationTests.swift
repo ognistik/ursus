@@ -62,8 +62,30 @@ func configurationEncodingIncludesNullTokenPlaceholder() throws {
     let data = try BearJSON.makeEncoder().encode(BearConfiguration.default)
     let text = try #require(String(data: data, encoding: .utf8))
 
+    #expect(text.contains("\"disabledTools\" : ["))
     #expect(text.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
     #expect(text.contains("\"token\" : null"))
+}
+
+@Test
+func configurationDecodesAndNormalizesDisabledTools() throws {
+    let data = Data(
+        """
+        {
+          "disabledTools" : [
+            "bear_add_tags",
+            "bear_find_notes",
+            "bear_add_tags"
+          ]
+        }
+        """.utf8
+    )
+
+    let configuration = try JSONDecoder().decode(BearConfiguration.self, from: data)
+
+    #expect(configuration.disabledTools == [.addTags, .findNotes])
+    #expect(configuration.isToolEnabled(.getNotes))
+    #expect(!configuration.isToolEnabled(.addTags))
 }
 
 @Test

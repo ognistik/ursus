@@ -58,6 +58,10 @@ public final class BearMCPServer: Sendable {
     }
 
     private func handleToolCall(_ params: CallTool.Parameters) async throws -> CallTool.Result {
+        if let toolName = BearToolName(rawValue: params.name), !configuration.isToolEnabled(toolName) {
+            throw BearError.invalidInput("Bear tool '\(params.name)' is disabled in config.json.")
+        }
+
         switch params.name {
         case "bear_find_notes":
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesOperation)
@@ -487,7 +491,13 @@ public final class BearMCPServer: Sendable {
         ToolCatalog.makeTools(
             configuration: configuration,
             selectedNoteSupported: selectedNoteTokenConfigured ?? (configuration.token != nil)
-        )
+        ).filter { tool in
+            guard let toolName = BearToolName(rawValue: tool.name) else {
+                return true
+            }
+
+            return configuration.isToolEnabled(toolName)
+        }
     }
 }
 

@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the first meaningful Phase 5 slice now landed as well: the local app build now embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app dashboard can install or refresh that bundled CLI to a stable user path for MCP hosts, doctor/settings now call out whether the installed app bundle and app-managed CLI copy are actually present, and the app now ships host-specific onboarding guidance plus copyable config snippets for Codex and Claude Desktop while explicitly marking ChatGPT as a separate remote-only MCP path. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts, it can also create a one-click terminal symlink at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command link, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -126,9 +126,14 @@ Implemented:
 - local app build script now embedding the `bear-mcp` CLI at `Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - shared bundled-CLI locator/install support for the app-managed host-facing CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 - app settings actions for install/refresh, copy, and reveal of the app-managed CLI path
+- terminal CLI install support through a stable `~/bin/bear-mcp` symlink that points at the app-managed CLI copy
 - doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
+- doctor/dashboard diagnostics for the terminal CLI link at `~/bin/bear-mcp`
+- generic local-stdio host guidance in the app/dashboard so local MCP setup is documented independently of any one host app
 - shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
+- editable app configuration UI for core defaults, discovery limits, active tags, and tool availability
+- config-backed tool enable/disable support that filters the live MCP tool catalog and rejects direct calls to disabled tools
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
@@ -146,6 +151,7 @@ Verified locally:
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
 - confirmed the local Debug app bundle now contains `.build/BearMCPApp/Build/Products/Debug/Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - confirmed `swift run bear-mcp doctor` now reports `bundled-cli` and `app-managed-cli` separately, and will flag an older installed app bundle that has not yet been refreshed with the embedded CLI
+- confirmed `swift run bear-mcp doctor` now reports `terminal-cli` and `host-local-stdio` alongside the host-specific checks
 - refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and confirmed the app-managed CLI now reports `bundled-cli` plus `app-managed-cli` as healthy while describing the selected-note token as `Managed in Keychain` without a routine secure read
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was not running, resolving the selected note through the installed app path with `callbackAppInstalled=true`
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was already open in dashboard mode, resolving the selected note through the running app with `host=app reason=preferred-app-running reuseExistingInstance=true`

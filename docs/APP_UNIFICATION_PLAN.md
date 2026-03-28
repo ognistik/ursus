@@ -24,11 +24,13 @@ As of 2026-03-28:
 - Phase 4 has now started in the repo: selected-note token lookup prefers Keychain, the CLI still falls back to legacy `config.token`, diagnostics now report whether the token is coming from Keychain or legacy config, `Bear MCP.app` now has a first token-management UI for save/import/remove flows, and the preferred app-installed selected-note path now injects the managed token inside the app so ordinary CLI startup does not need to probe Keychain.
 - Routine doctor/dashboard status loading now relies on the non-secret Keychain hint by default instead of eagerly reading Keychain, so normal diagnostics do not trigger authorization prompts unless the user explicitly opens token-management actions that need the secret.
 - Phase 5 has now started in the repo: the local app build now embeds `bear-mcp` inside `Bear MCP.app`, the dashboard can install or refresh that bundled CLI to `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and doctor/app diagnostics now distinguish between the bundled app copy and the stable host-facing CLI path.
-- The next onboarding slice has now started as part of that app-centered Phase 5 work: the dashboard/settings surface now includes host-specific guided checks and copyable snippets for Codex and Claude Desktop, and it explicitly treats ChatGPT as a remote-only MCP path rather than a local stdio target.
+- The onboarding slice has now widened into a more host-agnostic Phase 5 direction: the dashboard/settings surface still includes host-specific guided checks for common apps, but it now also includes generic local-stdio guidance that is not tied to Codex or Claude Desktop.
+- Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, active tags, and tool availability.
+- Tool availability can now be controlled from config/app UI, and the live MCP tool catalog filters out disabled tools.
+- The app can now create a one-click terminal symlink at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
-- Broader settings editing is still pending; the new app editing flow is now token-focused, CLI-exposure-focused, and host-onboarding-focused.
 
 ## Decisions Locked In
 
@@ -37,8 +39,10 @@ These decisions should be treated as the working product direction unless explic
 - The project remains a local macOS MCP server for Bear.
 - The CLI remains the MCP execution/runtime layer for stdio/headless use.
 - The app becomes the control center for install, config editing, token setup, diagnostics, and optional advanced features.
+- Host guidance should stay generic-first, with app-specific snippets treated as convenience layers rather than hard-coded product assumptions.
 - Basic MCP usage must not require the GUI to be manually open.
 - Config stays JSON-based for now.
+- Product-level tool enable/disable belongs in config/app state, not only in host-app UX.
 - The Bear token should move out of JSON config and into Keychain.
 - The callback URL scheme should be simplified from `bearmcphelper://` to `bearmcp://`.
 - The separate helper app should be absorbed into the main app bundle.
@@ -129,6 +133,9 @@ The desired architecture is:
   - diagnostics
   - update checks
   - CLI installation/exposure
+- The app should expose both:
+  - a stable host-facing CLI path for MCP hosts
+  - an optional terminal-friendly symlink for direct shell usage
 - The CLI remains a separate executable binary inside the product, used by MCP clients for stdio operation.
 - The app does not become the stdio MCP server.
 

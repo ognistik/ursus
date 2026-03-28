@@ -247,10 +247,16 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
         templateURL: templateURL,
         tokenStore: TestSelectedNoteTokenStore(),
         appManagedCLIURL: appManagedCLIURL,
+        terminalCLIURL: tempRoot.appendingPathComponent("bin", isDirectory: true).appendingPathComponent("bear-mcp", isDirectory: false),
         homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
     )
+
+    let genericSetup = try #require(hostSetup(named: "generic-local-stdio", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(genericSetup.status == .ok)
+    #expect(genericSetup.statusTitle == "Ready")
+    #expect(genericSetup.snippet?.contains(appManagedCLIURL.path) == true)
 
     let codexSetup = try #require(hostSetup(named: "codex", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(codexSetup.status == .ok)
@@ -281,6 +287,121 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     let chatGPTDiagnostic = try #require(diagnostic(named: "host-chatgpt", in: dashboard.diagnostics))
     #expect(chatGPTDiagnostic.status == .notConfigured)
     #expect(chatGPTDiagnostic.value == "remote MCP only")
+
+    let genericDiagnostic = try #require(diagnostic(named: "host-local-stdio", in: dashboard.diagnostics))
+    #expect(genericDiagnostic.status == .ok)
+    #expect(genericDiagnostic.value == appManagedCLIURL.path)
+}
+
+@Test
+func dashboardSnapshotReportsTerminalCLILinkStatus() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let terminalCLIURL = tempRoot
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: terminalCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    try fileManager.createSymbolicLink(at: terminalCLIURL, withDestinationURL: appManagedCLIURL)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        appManagedCLIURL: appManagedCLIURL,
+        terminalCLIURL: terminalCLIURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(dashboard.settings?.terminalCLIPath == terminalCLIURL.path)
+    #expect(dashboard.settings?.terminalCLIStatus == .ok)
+    #expect(dashboard.settings?.terminalCLIStatusTitle == "Installed")
+    let terminalDiagnostic = try #require(diagnostic(named: "terminal-cli", in: dashboard.diagnostics))
+    #expect(terminalDiagnostic.status == .ok)
+    #expect(terminalDiagnostic.value == terminalCLIURL.path)
+}
+
+@Test
+func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.saveConfigurationDraft(
+        BearAppConfigurationDraft(
+            databasePath: "/tmp/updated.sqlite",
+            activeTags: ["0-inbox", "next", "0-inbox"],
+            defaultInsertPosition: .top,
+            templateManagementEnabled: false,
+            openNoteInEditModeByDefault: false,
+            createOpensNoteByDefault: false,
+            openUsesNewWindowByDefault: false,
+            createAddsActiveTagsByDefault: false,
+            tagsMergeMode: .replace,
+            defaultDiscoveryLimit: 5,
+            maxDiscoveryLimit: 25,
+            defaultSnippetLength: 50,
+            maxSnippetLength: 200,
+            backupRetentionDays: 7,
+            disabledTools: [.addTags, .findNotes, .addTags]
+        ),
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(configuration.databasePath == "/tmp/updated.sqlite")
+    #expect(configuration.activeTags == ["0-inbox", "next"])
+    #expect(configuration.defaultInsertPosition == .top)
+    #expect(configuration.templateManagementEnabled == false)
+    #expect(configuration.openNoteInEditModeByDefault == false)
+    #expect(configuration.createOpensNoteByDefault == false)
+    #expect(configuration.openUsesNewWindowByDefault == false)
+    #expect(configuration.createAddsActiveTagsByDefault == false)
+    #expect(configuration.tagsMergeMode == .replace)
+    #expect(configuration.defaultDiscoveryLimit == 5)
+    #expect(configuration.maxDiscoveryLimit == 25)
+    #expect(configuration.defaultSnippetLength == 50)
+    #expect(configuration.maxSnippetLength == 200)
+    #expect(configuration.backupRetentionDays == 7)
+    #expect(configuration.disabledTools == [.addTags, .findNotes])
 }
 
 @Test

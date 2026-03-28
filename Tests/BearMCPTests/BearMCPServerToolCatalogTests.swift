@@ -176,6 +176,18 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
 }
 
+@Test
+func toolCatalogOmitsDisabledToolsFromConfiguration() {
+    let configuration = BearConfiguration.default.updatingDisabledTools([.addTags, .deleteTags, .findNotes])
+
+    let tools = BearMCPServer.toolCatalog(configuration: configuration)
+
+    #expect(tool(named: "bear_add_tags", in: tools) == nil)
+    #expect(tool(named: "bear_delete_tags", in: tools) == nil)
+    #expect(tool(named: "bear_find_notes", in: tools) == nil)
+    #expect(tool(named: "bear_get_notes", in: tools) != nil)
+}
+
 private func tool(named name: String, in tools: [Tool]) -> Tool? {
     tools.first(where: { $0.name == name })
 }
