@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, and the standalone helper remains available only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, and the first user-facing Phase 4 Keychain slice now implemented: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, the standalone helper remains available only as a narrow fallback when the preferred app is missing, and the app can now save/import/remove the Bear API token without sending users to Keychain Access manually.
 
 Implemented:
 
@@ -102,7 +102,7 @@ Implemented:
 - real Bear DB reader against the installed Bear schema
 - transient SQLite busy/locked retry handling on normal Bear DB reads
 - config/bootstrap path helpers
-- optional Bear API token support in config
+- shared selected-note token resolution that prefers Keychain and falls back to legacy config
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
 - stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
@@ -118,6 +118,7 @@ Implemented:
 - headless callback-host mode in `Bear MCP.app` that preserves the response-file JSON contract used by the CLI
 - running-app selected-note request routing that lets an already-open dashboard instance of `Bear MCP.app` start an in-process callback session and keep running afterward
 - app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
+- app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
 - local app build script for unsigned development bundles
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
@@ -279,8 +280,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
-- Keychain-backed token storage is not wired yet; the Bear API token currently lives in config and is used for optional selected-note resolution only.
-- The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, and standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, but it does not yet ship signed release artifacts or Phase 4 Keychain-backed token storage.
+- Keychain-backed token storage is now wired for selected-note resolution, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
+- The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, and the first Phase 4 Keychain-backed token-management slice, but it does not yet ship signed release artifacts or a broader editable settings UI beyond token management.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
@@ -310,7 +311,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 ## Recommended Next Steps
 
-1. Add keychain token support and any token-dependent Bear actions that are worth exposing.
-2. Improve create-result identification so note IDs are returned more reliably.
-3. Decide whether runtime paths should stay `bear-mcp` or migrate to `bear-inbox`.
-4. Add README/install docs now that the create/write path has been validated live.
+1. Extend the app from token-only editing to broader JSON-backed settings editing where it clearly improves UX.
+2. Decide whether to auto-migrate or auto-clean legacy `config.token` in more cases now that the app can manage the Keychain copy directly.
+3. Improve create-result identification so note IDs are returned more reliably.
+4. Decide whether runtime paths should stay `bear-mcp` or migrate to `bear-inbox`.
+5. Add README/install docs now that the app path and token-management flow are clearer.

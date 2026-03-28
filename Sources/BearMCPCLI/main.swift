@@ -51,6 +51,8 @@ struct BearMCPMain {
     private static func runMCP(logger: Logger, processLock: BearProcessLock) async throws {
         logger.info("bear-mcp acquired process lock at \(processLock.lockURL.path)")
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
+        let tokenStore = BearKeychainSelectedNoteTokenStore()
+        let tokenStatus = BearSelectedNoteTokenResolver.status(configuration: configuration, tokenStore: tokenStore)
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
@@ -61,10 +63,15 @@ struct BearMCPMain {
             readStore: databaseReader,
             writeTransport: writeTransport,
             backupStore: backupStore,
+            tokenStore: tokenStore,
             logger: logger
         )
 
-        let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+        let server = await BearMCPServer(
+            service: service,
+            configuration: configuration,
+            selectedNoteTokenConfigured: tokenStatus.isConfigured
+        ).makeServer()
         try await server.start(transport: StdioTransport())
         let originalParentPID = getppid()
         let shutdownReason = await waitForShutdownTrigger(server: server, originalParentPID: originalParentPID)

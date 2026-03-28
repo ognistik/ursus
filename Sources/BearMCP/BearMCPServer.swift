@@ -6,10 +6,16 @@ import MCP
 public final class BearMCPServer: Sendable {
     private let service: BearService
     private let configuration: BearConfiguration
+    private let selectedNoteTokenConfigured: Bool
 
-    public init(service: BearService, configuration: BearConfiguration) {
+    public init(
+        service: BearService,
+        configuration: BearConfiguration,
+        selectedNoteTokenConfigured: Bool? = nil
+    ) {
         self.service = service
         self.configuration = configuration
+        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? (configuration.token != nil)
     }
 
     public func makeServer() async -> Server {
@@ -36,7 +42,10 @@ public final class BearMCPServer: Sendable {
         }
 
         await server.withMethodHandler(ListTools.self) { _ in
-            .init(tools: Self.toolCatalog(configuration: self.configuration))
+            .init(tools: Self.toolCatalog(
+                configuration: self.configuration,
+                selectedNoteTokenConfigured: self.selectedNoteTokenConfigured
+            ))
         }
 
         await server.withMethodHandler(CallTool.self) { params in
@@ -428,7 +437,7 @@ public final class BearMCPServer: Sendable {
         }
 
         if selected {
-            guard configuration.token != nil else {
+            guard selectedNoteTokenConfigured else {
                 throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
             }
             return .selected
@@ -471,13 +480,19 @@ public final class BearMCPServer: Sendable {
         return String(describing: error)
     }
 
-    static func toolCatalog(configuration: BearConfiguration) -> [Tool] {
-        ToolCatalog.makeTools(configuration: configuration)
+    static func toolCatalog(
+        configuration: BearConfiguration,
+        selectedNoteTokenConfigured: Bool? = nil
+    ) -> [Tool] {
+        ToolCatalog.makeTools(
+            configuration: configuration,
+            selectedNoteSupported: selectedNoteTokenConfigured ?? (configuration.token != nil)
+        )
     }
 }
 
 private enum ToolCatalog {
-    static func makeTools(configuration: BearConfiguration) -> [Tool] {
+    static func makeTools(configuration: BearConfiguration, selectedNoteSupported: Bool) -> [Tool] {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
@@ -487,11 +502,11 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(configuration)) Omit location unless the user explicitly asks for archived notes.",
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported)) Omit location unless the user explicitly asks for archived notes.",
                 inputSchema: .object([
                     "type": .string("object"),
-                    "properties": .object(getNotesInputProperties(configuration: configuration)),
-                    "required": .array(getNotesRequiredFields(configuration: configuration).map(Value.string)),
+                    "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
+                    "required": .array(getNotesRequiredFields(selectedNoteSupported: selectedNoteSupported).map(Value.string)),
                 ])
             ),
             Tool(
@@ -531,14 +546,14 @@ private enum ToolCatalog {
             batchedDiscoveryTool(
                 name: "bear_list_backups",
                 description: "List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `limit` unless the user explicitly asks for a different number of snapshots. `note` is optional; omit it to list recent backups across notes.",
-                operationProperties: backupListOperationProperties(configuration: configuration),
+                operationProperties: backupListOperationProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported),
                 required: []
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
                 description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
                 operationProperties: [
-                    "note": optionalNoteSelectorProperty(configuration: configuration, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
+                    "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Optional exact backup snapshot identifier to delete."),
@@ -549,7 +564,7 @@ private enum ToolCatalog {
                     ]),
                 ].merging(
                     selectedNoteOperationProperty(
-                        configuration: configuration,
+                        selectedNoteSupported: selectedNoteSupported,
                         description: "Optional alternative to `note`. Use with `delete_all: true` to remove all saved backups for the currently selected Bear note."
                     ),
                     uniquingKeysWith: { current, _ in current }
@@ -605,7 +620,7 @@ private enum ToolCatalog {
                 name: "bear_add_tags",
                 description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
@@ -614,15 +629,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after adding tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration, trailing: ["tags"]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
                 description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
@@ -631,20 +646,20 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after removing tags."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration, trailing: ["tags"]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
                 description: "Apply the active Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the active template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after applying the template."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
@@ -671,7 +686,7 @@ private enum ToolCatalog {
                 name: "bear_insert_text",
                 description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -682,15 +697,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration, trailing: ["text"]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["text"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
                 description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
@@ -712,15 +727,15 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration, trailing: ["kind", "new_string"]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["kind", "new_string"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_add_files",
                 description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
@@ -731,42 +746,42 @@ private enum ToolCatalog {
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration, trailing: ["file_path"]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["file_path"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_open_notes",
                 description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
             ),
             Tool(
                 name: "bear_archive_notes",
-                description: "Archive one or more Bear notes. `notes` accepts selectors matched as exact note ids first, then exact case-insensitive titles; ambiguous title matches must be disambiguated with the note id.\(selectedNoteDescriptionSuffix(configuration))",
+                description: "Archive one or more Bear notes. `notes` accepts selectors matched as exact note ids first, then exact case-insensitive titles; ambiguous title matches must be disambiguated with the note id.\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
-                    "properties": .object(archiveNotesInputProperties(configuration: configuration)),
-                    "required": .array(archiveNotesRequiredFields(configuration: configuration).map(Value.string)),
+                    "properties": .object(archiveNotesInputProperties(selectedNoteSupported: selectedNoteSupported)),
+                    "required": .array(archiveNotesRequiredFields(selectedNoteSupported: selectedNoteSupported).map(Value.string)),
                 ])
             ),
             batchedMutationTool(
                 name: "bear_restore_notes",
                 description: "Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
                 operationProperties: [
-                    "note": noteSelectorProperty(configuration: configuration),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Optional backup snapshot identifier. Omit to restore the most recent snapshot for the selected note."),
                     ]),
                     "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after restoring."),
                     "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
-                ].merging(selectedNoteOperationProperty(configuration: configuration), uniquingKeysWith: { current, _ in current }),
-                required: requiredNoteFields(configuration: configuration),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
             ),
         ]
@@ -889,19 +904,19 @@ private enum ToolCatalog {
         ], configuration: configuration)
     }
 
-    private static func backupListOperationProperties(configuration: BearConfiguration) -> [String: Value] {
+    private static func backupListOperationProperties(configuration: BearConfiguration, selectedNoteSupported: Bool) -> [String: Value] {
         var properties: [String: Value] = [
             "id": .object(["type": .string("string")]),
-            "note": optionalNoteSelectorProperty(configuration: configuration, descriptionPrefix: "Optional note selector."),
+            "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector."),
             "limit": .object([
                 "type": .string("integer"),
                 "description": .string("Optional number of backup summaries to return. Omit unless the user explicitly asks for a different limit. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
             ]),
         ]
 
-        if supportsSelectedNote(configuration) {
+        if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
-                configuration: configuration,
+                selectedNoteSupported: selectedNoteSupported,
                 description: "Optional alternative to `note`. Use `true` to list backups for the currently selected Bear note."
             )
         }
@@ -968,33 +983,33 @@ private enum ToolCatalog {
         ])
     }
 
-    private static func noteSelectorProperty(configuration: BearConfiguration) -> Value {
+    private static func noteSelectorProperty(selectedNoteSupported: Bool) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+            "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
     }
 
-    private static func optionalNoteSelectorProperty(configuration: BearConfiguration, descriptionPrefix: String) -> Value {
+    private static func optionalNoteSelectorProperty(configuration: BearConfiguration, selectedNoteSupported: Bool, descriptionPrefix: String) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(configuration) ? " Use exactly one of `note` or `selected: true`. " : " ")Matched as exact note id first, then exact case-insensitive title across notes and archive."),
+            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(selectedNoteSupported) ? " Use exactly one of `note` or `selected: true`. " : " ")Matched as exact note id first, then exact case-insensitive title across notes and archive."),
         ])
     }
 
-    private static func selectedNoteProperty(configuration: BearConfiguration, description: String? = nil) -> Value {
+    private static func selectedNoteProperty(selectedNoteSupported: Bool, description: String? = nil) -> Value {
         return .object([
             "type": .string("boolean"),
             "description": .string(description ?? "Optional alternative to `note`. Set `true` to target the currently selected Bear note. Omit unless the user explicitly wants the selected note."),
         ])
     }
 
-    private static func selectedNoteOperationProperty(configuration: BearConfiguration, description: String? = nil) -> [String: Value] {
-        guard supportsSelectedNote(configuration) else {
+    private static func selectedNoteOperationProperty(selectedNoteSupported: Bool, description: String? = nil) -> [String: Value] {
+        guard supportsSelectedNote(selectedNoteSupported) else {
             return [:]
         }
 
-        return ["selected": selectedNoteProperty(configuration: configuration, description: description)]
+        return ["selected": selectedNoteProperty(selectedNoteSupported: selectedNoteSupported, description: description)]
     }
 
     private static func relativeTargetProperty() -> Value {
@@ -1032,28 +1047,28 @@ private enum ToolCatalog {
         value ? "`true`" : "`false`"
     }
 
-    private static func supportsSelectedNote(_ configuration: BearConfiguration) -> Bool {
-        configuration.token != nil
+    private static func supportsSelectedNote(_ selectedNoteSupported: Bool) -> Bool {
+        selectedNoteSupported
     }
 
-    private static func selectedNoteDescriptionSuffix(_ configuration: BearConfiguration) -> String {
-        guard supportsSelectedNote(configuration) else {
+    private static func selectedNoteDescriptionSuffix(_ selectedNoteSupported: Bool) -> String {
+        guard supportsSelectedNote(selectedNoteSupported) else {
             return ""
         }
 
         return " As an alternative to explicit selectors, pass `selected: true` to target the currently selected Bear note."
     }
 
-    private static func requiredNoteFields(configuration: BearConfiguration, trailing: [String] = []) -> [String] {
-        supportsSelectedNote(configuration) ? trailing : ["note"] + trailing
+    private static func requiredNoteFields(selectedNoteSupported: Bool, trailing: [String] = []) -> [String] {
+        supportsSelectedNote(selectedNoteSupported) ? trailing : ["note"] + trailing
     }
 
-    private static func getNotesInputProperties(configuration: BearConfiguration) -> [String: Value] {
+    private static func getNotesInputProperties(configuration: BearConfiguration, selectedNoteSupported: Bool) -> [String: Value] {
         var properties: [String: Value] = [
             "notes": .object([
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
-                "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "")Selectors are matched as exact note ids first, then exact case-insensitive titles."),
+                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "")Selectors are matched as exact note ids first, then exact case-insensitive titles."),
             ]),
             "location": .object([
                 "type": .string("string"),
@@ -1062,9 +1077,9 @@ private enum ToolCatalog {
             ]),
         ]
 
-        if supportsSelectedNote(configuration) {
+        if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
-                configuration: configuration,
+                selectedNoteSupported: selectedNoteSupported,
                 description: "Optional alternative to `notes`. Set `true` to fetch the currently selected Bear note."
             )
         }
@@ -1072,22 +1087,22 @@ private enum ToolCatalog {
         return properties
     }
 
-    private static func getNotesRequiredFields(configuration: BearConfiguration) -> [String] {
-        supportsSelectedNote(configuration) ? [] : ["notes"]
+    private static func getNotesRequiredFields(selectedNoteSupported: Bool) -> [String] {
+        supportsSelectedNote(selectedNoteSupported) ? [] : ["notes"]
     }
 
-    private static func archiveNotesInputProperties(configuration: BearConfiguration) -> [String: Value] {
+    private static func archiveNotesInputProperties(selectedNoteSupported: Bool) -> [String: Value] {
         var properties: [String: Value] = [
             "notes": .object([
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
-                "description": .string("\(supportsSelectedNote(configuration) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "Required note selectors. ")Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
+                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "Required note selectors. ")Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
             ]),
         ]
 
-        if supportsSelectedNote(configuration) {
+        if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
-                configuration: configuration,
+                selectedNoteSupported: selectedNoteSupported,
                 description: "Optional alternative to `notes`. Set `true` to archive the currently selected Bear note."
             )
         }
@@ -1095,8 +1110,8 @@ private enum ToolCatalog {
         return properties
     }
 
-    private static func archiveNotesRequiredFields(configuration: BearConfiguration) -> [String] {
-        supportsSelectedNote(configuration) ? [] : ["notes"]
+    private static func archiveNotesRequiredFields(selectedNoteSupported: Bool) -> [String] {
+        supportsSelectedNote(selectedNoteSupported) ? [] : ["notes"]
     }
 
     private static func formattedTagList(_ tags: [String]) -> String {

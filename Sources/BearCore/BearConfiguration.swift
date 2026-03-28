@@ -90,6 +90,26 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         )
     }
 
+    public func updatingToken(_ token: String?) -> BearConfiguration {
+        BearConfiguration(
+            databasePath: databasePath,
+            activeTags: activeTags,
+            defaultInsertPosition: defaultInsertPosition,
+            templateManagementEnabled: templateManagementEnabled,
+            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
+            createOpensNoteByDefault: createOpensNoteByDefault,
+            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
+            createAddsActiveTagsByDefault: createAddsActiveTagsByDefault,
+            tagsMergeMode: tagsMergeMode,
+            defaultDiscoveryLimit: defaultDiscoveryLimit,
+            maxDiscoveryLimit: maxDiscoveryLimit,
+            defaultSnippetLength: defaultSnippetLength,
+            maxSnippetLength: maxSnippetLength,
+            backupRetentionDays: backupRetentionDays,
+            token: token
+        )
+    }
+
     private enum CodingKeys: String, CodingKey {
         case databasePath
         case activeTags

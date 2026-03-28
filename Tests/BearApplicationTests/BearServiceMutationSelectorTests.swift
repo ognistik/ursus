@@ -4,6 +4,12 @@ import Foundation
 import Logging
 import Testing
 
+private final class EmptySelectedNoteTokenStore: BearSelectedNoteTokenStore, @unchecked Sendable {
+    func readToken() throws -> String? { nil }
+    func saveToken(_ token: String) throws {}
+    func removeToken() throws {}
+}
+
 @Test
 func replaceContentResolvesExactCaseInsensitiveTitleSelector() async throws {
     let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Line 1")
@@ -45,6 +51,7 @@ func replaceContentTitleCanAddTitleToTitlelessNote() async throws {
         configuration: makeMutationSelectorConfiguration(),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
         writeTransport: transport,
+        tokenStore: EmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceMutationSelectorTests")
     )
 
@@ -180,6 +187,7 @@ func resolveSelectedNoteIDRequiresConfiguredToken() async {
         configuration: makeMutationSelectorConfiguration(),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
         writeTransport: transport,
+        tokenStore: EmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceMutationSelectorTests")
     )
 

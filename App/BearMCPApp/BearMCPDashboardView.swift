@@ -144,6 +144,7 @@ struct BearMCPSettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if let settings = model.dashboard.settings {
                     pathSection(settings)
+                    tokenSection(settings)
                     configSection(settings)
                     notesSection
                 } else {
@@ -189,7 +190,7 @@ struct BearMCPSettingsView: View {
                 settingsRow("Create Opens Note by Default", yesNo(settings.createOpensNoteByDefault))
                 settingsRow("Open Uses New Window by Default", yesNo(settings.openUsesNewWindowByDefault))
                 settingsRow("Create Adds Active Tags by Default", yesNo(settings.createAddsActiveTagsByDefault))
-                settingsRow("Selected-Note Token", settings.selectedNoteTokenConfigured ? "Configured in config.json" : "Not configured")
+                settingsRow("Selected-Note Token", settings.selectedNoteTokenStorageDescription)
                 settingsRow("Discovery Limit", "\(settings.defaultDiscoveryLimit) default / \(settings.maxDiscoveryLimit) max")
                 settingsRow("Snippet Length", "\(settings.defaultSnippetLength) default / \(settings.maxSnippetLength) max")
                 settingsRow("Backup Retention", "\(settings.backupRetentionDays) days")
@@ -197,9 +198,87 @@ struct BearMCPSettingsView: View {
         }
     }
 
+    private func tokenSection(_ settings: BearAppSettingsSnapshot) -> some View {
+        GroupBox("Bear Token") {
+            VStack(alignment: .leading, spacing: 12) {
+                settingsRow("Current Status", settings.selectedNoteTokenStorageDescription)
+
+                if let detail = settings.selectedNoteTokenStatusDetail {
+                    Text(detail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                if settings.selectedNoteTokenConfigured, let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Stored Token")
+                            .font(.headline)
+
+                        HStack(spacing: 10) {
+                            if model.revealsStoredToken {
+                                Text(displayedToken)
+                                    .font(.body.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            } else {
+                                Text(displayedToken)
+                                    .font(.body.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
+                                model.revealsStoredToken.toggle()
+                            }
+                            .buttonStyle(.borderless)
+                        }
+                    }
+                }
+
+                SecureField(settings.selectedNoteTokenConfigured ? "Paste a new Bear API token to replace the current one" : "Paste Bear API token", text: $model.tokenDraft)
+                    .textFieldStyle(.roundedBorder)
+
+                Text("Save stores the token in macOS Keychain, so users do not need to open Keychain Access or keep the secret in config.json.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 10) {
+                    Button("Save to Keychain") {
+                        model.saveSelectedNoteToken()
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    if settings.selectedNoteLegacyConfigTokenDetected && !settings.selectedNoteTokenStoredInKeychain {
+                        Button("Import from config.json") {
+                            model.importSelectedNoteTokenFromConfig()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button("Remove Token", role: .destructive) {
+                        model.removeSelectedNoteToken()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!settings.selectedNoteTokenConfigured && !settings.selectedNoteLegacyConfigTokenDetected)
+                }
+
+                if let message = model.tokenStatusMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                }
+
+                if let error = model.tokenStatusError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
     private var notesSection: some View {
-        GroupBox("Phase 3 Scope") {
-            Text("This app still acts as a diagnostics/settings shell for normal use, but it can now also host the selected-note callback flow in headless mode. The CLI stdio runtime contract stays unchanged, and the standalone helper remains a temporary fallback until end-to-end verification is complete.")
+        GroupBox("Phase 4 Direction") {
+            Text("`Bear MCP.app` is becoming the friendly place to manage the Bear API token. The CLI still runs headlessly, but token entry, import, update, and removal should happen here instead of in Keychain Access or plaintext config.")
                 .foregroundStyle(.secondary)
         }
     }

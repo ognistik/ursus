@@ -146,6 +146,36 @@ func toolCatalogInjectsDiscoveryDefaultsAndActiveTags() throws {
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes) == nil)
 }
 
+@Test
+func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() throws {
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        activeTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsActiveTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        token: nil
+    )
+
+    let tools = BearMCPServer.toolCatalog(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    )
+
+    let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
+    #expect(getNotes.description?.contains("selected: true") == true)
+    #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
+}
+
 private func tool(named name: String, in tools: [Tool]) -> Tool? {
     tools.first(where: { $0.name == name })
 }

@@ -9,6 +9,11 @@ final class BearMCPAppModel: ObservableObject {
 
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot()
     @Published private(set) var lastIncomingCallbackURL: URL?
+    @Published var tokenDraft = ""
+    @Published var revealsStoredToken = false
+    @Published private(set) var tokenStatusMessage: String?
+    @Published private(set) var tokenStatusError: String?
+    @Published private(set) var storedSelectedNoteToken: String?
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -23,10 +28,56 @@ final class BearMCPAppModel: ObservableObject {
                 self?.recordIncomingCallback(url)
             }
             .store(in: &cancellables)
+
+        refreshStoredSelectedNoteToken()
     }
 
     func reload() {
         dashboard = BearAppSupport.loadDashboardSnapshot()
+        refreshStoredSelectedNoteToken()
+    }
+
+    func saveSelectedNoteToken() {
+        do {
+            try BearAppSupport.saveSelectedNoteToken(tokenDraft)
+            tokenDraft = ""
+            revealsStoredToken = false
+            tokenStatusMessage = "Token saved in Keychain. Any legacy config copy was cleaned up."
+            tokenStatusError = nil
+            reload()
+        } catch {
+            tokenStatusMessage = nil
+            tokenStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func importSelectedNoteTokenFromConfig() {
+        do {
+            let imported = try BearAppSupport.importSelectedNoteTokenFromConfig()
+            revealsStoredToken = false
+            tokenStatusMessage = imported
+                ? "Token imported into Keychain and removed from config.json."
+                : "No legacy config token was found to import."
+            tokenStatusError = nil
+            reload()
+        } catch {
+            tokenStatusMessage = nil
+            tokenStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func removeSelectedNoteToken() {
+        do {
+            try BearAppSupport.removeSelectedNoteToken()
+            tokenDraft = ""
+            revealsStoredToken = false
+            tokenStatusMessage = "Token removed. Keychain and any legacy config copy are now cleared."
+            tokenStatusError = nil
+            reload()
+        } catch {
+            tokenStatusMessage = nil
+            tokenStatusError = localizedMessage(for: error)
+        }
     }
 
     func recordIncomingCallback(_ url: URL) {
@@ -63,6 +114,28 @@ final class BearMCPAppModel: ObservableObject {
         return urlTypes
             .flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
             .sorted()
+    }
+
+    var maskedStoredSelectedNoteToken: String? {
+        guard let storedSelectedNoteToken else {
+            return nil
+        }
+
+        return String(repeating: "*", count: max(8, storedSelectedNoteToken.count))
+    }
+
+    private func refreshStoredSelectedNoteToken() {
+        do {
+            storedSelectedNoteToken = try BearAppSupport.loadResolvedSelectedNoteToken()?.value
+            tokenStatusError = nil
+        } catch {
+            storedSelectedNoteToken = nil
+            tokenStatusError = localizedMessage(for: error)
+        }
+    }
+
+    private func localizedMessage(for error: Error) -> String {
+        (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 }
 
