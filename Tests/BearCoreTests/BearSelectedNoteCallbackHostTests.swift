@@ -84,6 +84,27 @@ func callbackHostRewritesCallbackURLsAndPersistsSuccessPayload() throws {
 }
 
 @Test
+func appRequestRoundTripsBetweenAppURLAndCommandLineArguments() throws {
+    let request = BearSelectedNoteAppRequest(
+        requestURL: URL(string: "bear://x-callback-url/open-note?selected=yes&token=top-secret-token")!,
+        activateApp: false,
+        responseFileURL: URL(fileURLWithPath: "/tmp/selected-note.json"),
+        timeoutSeconds: 4
+    )
+
+    let parsed = try BearSelectedNoteAppRequest(url: request.url)
+
+    #expect(parsed == request)
+    #expect(request.commandLineArguments == [
+        "Bear MCP",
+        "-url", "bear://x-callback-url/open-note?selected=yes&token=top-secret-token",
+        "-activateApp", "NO",
+        "-responseFile", "/tmp/selected-note.json",
+        "-timeoutSeconds", "4.0",
+    ])
+}
+
+@Test
 @MainActor
 func callbackHostCanHandleDirectAppCallbackURLs() throws {
     let recorder = CallbackHostRecorder()

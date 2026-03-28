@@ -20,8 +20,8 @@ As of 2026-03-28:
 - Phase 1 has started in the repo: selected-note callback-host behavior now lives in shared package code at `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`.
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
-- Phase 3 has now landed incrementally in the repo: selected-note resolution prefers launching `Bear MCP.app` in a headless callback-host mode that preserves the CLI response-file contract and uses `bearmcp://` for callbacks.
-- The standalone helper app remains available as a temporary legacy fallback while the app-hosted route is verified, particularly when the full app is already running.
+- Phase 3 has now landed incrementally in the repo: selected-note resolution prefers `Bear MCP.app`, preserves the CLI response-file contract, uses `bearmcp://` for callbacks, and now reuses an already-running dashboard instance instead of requiring the app to quit first.
+- The standalone helper app remains available as a narrow legacy fallback when the preferred app is not installed.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
 - Keychain token storage is still pending.
 
@@ -103,12 +103,13 @@ See:
 Current selected-note resolution works like this:
 
 1. CLI builds a Bear `open-note?selected=yes&token=...` x-callback URL.
-2. CLI launches a separate helper app.
-3. The helper app rewrites `x-success` and `x-error` to its own registered URL scheme.
-4. Bear calls back into the helper app.
-5. The helper app writes JSON back to the CLI and exits.
+2. If `Bear MCP.app` is not running, the CLI launches it in headless callback-host mode with the existing response-file contract.
+3. If `Bear MCP.app` is already running in dashboard mode, the CLI sends it a `bearmcp://x-callback-url/start-selected-note-host?...` request so the live app instance can start an in-process callback session.
+4. The app-hosted callback session rewrites `x-success` and `x-error` to `bearmcp://`.
+5. Bear calls back into `Bear MCP.app`.
+6. The app writes JSON back to the CLI and either exits its headless instance or returns to dashboard mode.
 
-The existing helper path works in real usage and should be preserved conceptually during the transition.
+The legacy helper path still exists as a narrow fallback when `Bear MCP.app` is not installed.
 
 ## Target Product Shape
 
@@ -610,7 +611,7 @@ Goal:
 
 Status:
 
-- Landed incrementally on 2026-03-28 and manually validated end-to-end the same day against the real Bear app. The CLI now prefers `Bear MCP.app` as the callback host and preserves the response-file JSON contract, while the legacy helper remains available as a temporary fallback for the current case where the full app is already open and cannot yet be relaunched in headless callback mode.
+- Landed incrementally on 2026-03-28 and manually validated end-to-end the same day against the real Bear app. The CLI now prefers `Bear MCP.app` as the callback host, preserves the response-file JSON contract, and can reuse an already-running dashboard instance through a `bearmcp://` start-request flow. The legacy helper remains available only as a narrow fallback when the preferred app is not installed.
 
 Tasks:
 
@@ -618,10 +619,11 @@ Tasks:
 - change callback scheme to `bearmcp://`
 - preserve response-file JSON contract
 - verify selected-note resolution works exactly like today
+- support selected-note callback handling inside an already-running dashboard instance without relaunching the app
 
 Deliverable:
 
-- preferred selected-note callback path now runs through `Bear MCP.app`, with helper retirement narrowed to the current already-running-app edge case rather than broad end-to-end verification risk
+- preferred selected-note callback path now runs through `Bear MCP.app` for both app-launch and already-running-app flows, with helper fallback narrowed to the preferred-app-missing case
 
 ## Phase 4: Move token storage to Keychain
 

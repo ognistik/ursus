@@ -9,21 +9,13 @@ enum BearSelectedNoteHelperRunner {
     ) async throws -> String {
         if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
             if await isApplicationRunning(appBundleURL: appBundleURL) {
-                if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
-                    BearDebugLog.append(
-                        "xcallback.resolve-selected-note host=helper reason=preferred-app-running appPath=\(appBundleURL.path) helperPath=\(helperBundleURL.path)"
-                    )
-                    return try await resolveSelectedNoteID(
-                        appBundleURL: helperBundleURL,
-                        appName: BearSelectedNoteHelperLocator.appName,
-                        bearURL: bearURL,
-                        timeout: timeout,
-                        terminateRunningInstancesBeforeLaunch: true
-                    )
-                }
-
-                throw BearError.configuration(
-                    "Selected-note targeting prefers `\(BearMCPAppLocator.appName)`, but it is already running and cannot yet be relaunched in headless callback mode. Quit the app or install `\(BearSelectedNoteHelperLocator.appName)` as a temporary fallback."
+                BearDebugLog.append(
+                    "xcallback.resolve-selected-note host=app reason=preferred-app-running reuseExistingInstance=true appPath=\(appBundleURL.path)"
+                )
+                return try await resolveSelectedNoteIDInRunningApp(
+                    appBundleURL: appBundleURL,
+                    bearURL: bearURL,
+                    timeout: timeout
                 )
             }
 
@@ -172,6 +164,87 @@ enum BearSelectedNoteHelperRunner {
                     result: .failure(
                         BearError.configuration(
                             "Failed to launch `\(appName)`. \(error.localizedDescription)"
+                        )
+                    )
+                )
+            }
+        }
+    }
+
+    private static func resolveSelectedNoteIDInRunningApp(
+        appBundleURL: URL,
+        bearURL: URL,
+        timeout: Duration
+    ) async throws -> String {
+        let responseFileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: false)
+            .appendingPathExtension("json")
+        defer {
+            try? FileManager.default.removeItem(at: responseFileURL)
+        }
+
+        let appRequest = BearSelectedNoteAppRequest(
+            requestURL: bearURL,
+            activateApp: false,
+            responseFileURL: responseFileURL
+        )
+
+        try await runRunningAppOpenCommand(
+            appBundleURL: appBundleURL,
+            appRequest: appRequest
+        )
+
+        let result = try await waitForResponseFile(responseFileURL, timeout: timeout)
+        let payload = try parseJSONPayload(result)
+
+        if let identifier = payload["identifier"] ?? payload["id"], !identifier.isEmpty {
+            return identifier
+        }
+
+        let message = payload["errorMessage"]
+            ?? payload["error"]
+            ?? payload["internal_error"]
+            ?? "Selected-note callback host failed without returning a note identifier."
+        throw BearError.xCallback(message)
+    }
+
+    private static func runRunningAppOpenCommand(
+        appBundleURL: URL,
+        appRequest: BearSelectedNoteAppRequest
+    ) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open", isDirectory: false)
+        process.arguments = [
+            "-g",
+            "-a", appBundleURL.path,
+            appRequest.url.absoluteString,
+        ]
+
+        try await withCheckedThrowingContinuation { continuation in
+            let completion = ProcessLaunchCompletion()
+            process.terminationHandler = { process in
+                if process.terminationStatus == 0 {
+                    completion.finish(continuation: continuation, result: .success(()))
+                } else {
+                    completion.finish(
+                        continuation: continuation,
+                        result: .failure(
+                            BearError.configuration(
+                                "Failed to send the selected-note callback request to the running `\(BearMCPAppLocator.appName)` instance."
+                            )
+                        )
+                    )
+                }
+            }
+
+            do {
+                try process.run()
+            } catch {
+                completion.finish(
+                    continuation: continuation,
+                    result: .failure(
+                        BearError.configuration(
+                            "Failed to contact the running `\(BearMCPAppLocator.appName)` instance. \(error.localizedDescription)"
                         )
                     )
                 )

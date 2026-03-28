@@ -11,15 +11,29 @@ public enum BearMCPAppLaunchMode: Sendable {
 public final class BearSelectedNoteAppHost {
     public let launchMode: BearMCPAppLaunchMode
 
-    private let callbackHost: BearSelectedNoteCallbackHost?
+    private let callbackHostFactory: (@escaping @MainActor @Sendable () -> Void) -> BearSelectedNoteCallbackHost
+    private var callbackHost: BearSelectedNoteCallbackHost?
 
     public init(
         arguments: [String] = CommandLine.arguments,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        callbackHostFactory: @escaping (@escaping @MainActor @Sendable () -> Void) -> BearSelectedNoteCallbackHost = {
+            completion in
+            BearSelectedNoteCallbackHost(
+                callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
+                terminator: {
+                    Task { @MainActor in
+                        completion()
+                    }
+                }
+            )
+        }
     ) {
+        self.callbackHostFactory = callbackHostFactory
+
         if Self.shouldRunHeadless(arguments: arguments, userDefaults: userDefaults) {
             launchMode = .selectedNoteCallbackHost
-            callbackHost = BearSelectedNoteCallbackHost(callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme)
+            callbackHost = makeHeadlessCallbackHost()
         } else {
             launchMode = .dashboard
             callbackHost = nil
@@ -58,12 +72,73 @@ public final class BearSelectedNoteAppHost {
 
     @discardableResult
     public func handleIncomingURL(_ url: URL) -> Bool {
+        if BearSelectedNoteAppRequest.matches(url) {
+            do {
+                let request = try BearSelectedNoteAppRequest(url: url)
+                startCallbackHostIfNeeded(with: request)
+            } catch {
+                writeFailureResponse(for: url, message: error.localizedDescription)
+            }
+            return true
+        }
+
         guard let callbackHost else {
             return false
         }
 
         callbackHost.handleCallbackURL(url)
         return true
+    }
+
+    private func startCallbackHostIfNeeded(with request: BearSelectedNoteAppRequest) {
+        guard launchMode == .dashboard else {
+            callbackHost?.start(arguments: request.commandLineArguments)
+            return
+        }
+
+        guard callbackHost == nil else {
+            writeFailureResponse(
+                for: request,
+                message: "Selected-note callback host is already resolving another request."
+            )
+            return
+        }
+
+        let host = makeDashboardCallbackHost()
+        callbackHost = host
+        host.start(arguments: request.commandLineArguments)
+    }
+
+    private func makeHeadlessCallbackHost() -> BearSelectedNoteCallbackHost {
+        callbackHostFactory {
+            NSApp.terminate(nil)
+        }
+    }
+
+    private func makeDashboardCallbackHost() -> BearSelectedNoteCallbackHost {
+        callbackHostFactory { [weak self] in
+            self?.callbackHost = nil
+        }
+    }
+
+    private func writeFailureResponse(for url: URL, message: String) {
+        guard let request = try? BearSelectedNoteAppRequest(url: url) else {
+            return
+        }
+
+        writeFailureResponse(for: request, message: message)
+    }
+
+    private func writeFailureResponse(for request: BearSelectedNoteAppRequest, message: String) {
+        guard let responseFileURL = request.responseFileURL else {
+            return
+        }
+
+        let data = (try? JSONSerialization.data(
+            withJSONObject: ["errorMessage": message],
+            options: [.prettyPrinted, .sortedKeys]
+        )) ?? Data("{\"errorMessage\":\"\(message)\"}\n".utf8)
+        try? data.write(to: responseFileURL, options: .atomic)
     }
 
     nonisolated private static func argumentDictionary(arguments: [String]) -> [String: String] {

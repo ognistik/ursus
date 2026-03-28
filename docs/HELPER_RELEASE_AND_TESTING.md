@@ -2,7 +2,7 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
-Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, and that app-hosted route has been manually validated end-to-end against the real Bear app. The helper app remains available as a practical fallback for the current case where `Bear MCP.app` is already open and cannot yet be relaunched in headless callback mode. Its runtime behavior still lives in shared package code.
+Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, and that app-hosted route has been manually validated end-to-end against the real Bear app for both app-launch and already-running-app flows. The helper app remains available only as a narrow fallback when `Bear MCP.app` is not installed. Its runtime behavior still lives in shared package code.
 
 ## Local build outputs
 
@@ -34,13 +34,15 @@ CONFIGURATION=release Support/scripts/build-selected-note-helper-app.sh
 
 ## Local install for testing
 
-Recommended local test path:
+Recommended local test path for the legacy helper only:
 
 1. Build the app bundle with `Support/scripts/build-selected-note-helper-app.sh`.
 2. Move or copy `.build/debug/Bear MCP Helper.app` into `/Applications` or `~/Applications`.
 3. Launch it once manually with Finder or `open "/Applications/Bear MCP Helper.app"` so Launch Services registers the callback scheme cleanly.
 4. Put your Bear API token in `~/.config/bear-mcp/config.json`.
 5. Run `swift run bear-mcp doctor` and confirm the helper shows as detected and valid.
+
+For the preferred path, install `Bear MCP.app` instead and verify selected-note MCP calls with the app both closed and already open in dashboard mode.
 
 ## Manual behavior checks
 
@@ -72,7 +74,7 @@ My recommendation is:
 - keep the helper install location simple: `/Applications` or `~/Applications`
 - later, consider a dedicated Homebrew cask for `Bear MCP Helper`
 
-That keeps the release simple while you validate the helper-hosted callback path in the real world. It should be treated as a transition release strategy until the unified app bundle exists.
+That keeps the release simple while you preserve a narrow compatibility fallback. It should be treated as a transition release strategy until the helper can be retired completely.
 
 ## Why not fully automate install yet
 
