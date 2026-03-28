@@ -33,9 +33,15 @@ private final class TestSelectedNoteTokenStore: BearSelectedNoteTokenStore, @unc
 func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
@@ -60,6 +66,8 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
         configFileURL: configFileURL,
         templateURL: templateURL,
         tokenStore: TestSelectedNoteTokenStore(),
+        appManagedCLIURL: appManagedCLIURL,
+        homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
     )
@@ -69,7 +77,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.databasePath == "/tmp/bear.sqlite")
     #expect(dashboard.settings?.activeTags == ["0-inbox", "next"])
     #expect(dashboard.settings?.createAddsActiveTagsByDefault == false)
-    #expect(dashboard.settings?.appManagedCLIPath.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp") == true)
+    #expect(dashboard.settings?.appManagedCLIPath == appManagedCLIURL.path)
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == false)
     #expect(dashboard.settings?.selectedNoteLegacyConfigTokenDetected == true)
@@ -79,7 +87,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(bundledCLIDiagnostic.detail == BearMCPCLILocator.bundledExecutableGuidance)
     let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
     #expect(appManagedCLIDiagnostic.status == .missing)
-    #expect(appManagedCLIDiagnostic.value.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp"))
+    #expect(appManagedCLIDiagnostic.value == appManagedCLIURL.path)
     #expect(appManagedCLIDiagnostic.detail == BearMCPCLILocator.appManagedInstallGuidance)
     #expect(dashboard.diagnostics.contains(where: {
         $0.key == "selected-note-token"
@@ -178,6 +186,166 @@ func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throw
     #expect(helperFallbackDiagnostic.status == .ok)
     #expect(helperFallbackDiagnostic.value == helperBundleURL.path)
     #expect(helperFallbackDiagnostic.detail == "helper fallback; detected install location -> \(helperBundleURL.path)/Contents/MacOS/bear-mcp-helper")
+}
+
+@Test
+func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let codexConfigURL = homeDirectoryURL
+        .appendingPathComponent(".codex", isDirectory: true)
+        .appendingPathComponent("config.toml", isDirectory: false)
+    let claudeConfigURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Claude", isDirectory: true)
+        .appendingPathComponent("claude_desktop_config.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: claudeConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    try """
+    [mcp_servers.bear]
+    enabled = true
+    command = "\(appManagedCLIURL.path)"
+    args = ["mcp"]
+    """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
+    try """
+    {
+      "mcpServers": {
+        "bear": {
+          "type": "stdio",
+          "command": "\(appManagedCLIURL.path)",
+          "args": ["mcp"],
+          "env": {}
+        }
+      }
+    }
+    """.write(to: claudeConfigURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        appManagedCLIURL: appManagedCLIURL,
+        homeDirectoryURL: homeDirectoryURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    let codexSetup = try #require(hostSetup(named: "codex", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(codexSetup.status == .ok)
+    #expect(codexSetup.statusTitle == "Configured")
+    #expect(codexSetup.configPath == codexConfigURL.path)
+    #expect(codexSetup.snippet?.contains(appManagedCLIURL.path) == true)
+
+    let claudeSetup = try #require(hostSetup(named: "claude-desktop", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(claudeSetup.status == .ok)
+    #expect(claudeSetup.statusTitle == "Configured")
+    #expect(claudeSetup.configPath == claudeConfigURL.path)
+    #expect(claudeSetup.snippet?.contains("\"type\": \"stdio\"") == true)
+
+    let chatGPTSetup = try #require(hostSetup(named: "chatgpt", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(chatGPTSetup.status == .notConfigured)
+    #expect(chatGPTSetup.statusTitle == "Remote MCP only")
+    #expect(chatGPTSetup.snippet == nil)
+    #expect(chatGPTSetup.detail.contains("remote MCP servers"))
+
+    let codexDiagnostic = try #require(diagnostic(named: "host-codex", in: dashboard.diagnostics))
+    #expect(codexDiagnostic.status == .ok)
+    #expect(codexDiagnostic.value == codexConfigURL.path)
+
+    let claudeDiagnostic = try #require(diagnostic(named: "host-claude-desktop", in: dashboard.diagnostics))
+    #expect(claudeDiagnostic.status == .ok)
+    #expect(claudeDiagnostic.value == claudeConfigURL.path)
+
+    let chatGPTDiagnostic = try #require(diagnostic(named: "host-chatgpt", in: dashboard.diagnostics))
+    #expect(chatGPTDiagnostic.status == .notConfigured)
+    #expect(chatGPTDiagnostic.value == "remote MCP only")
+}
+
+@Test
+func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let codexConfigURL = homeDirectoryURL
+        .appendingPathComponent(".codex", isDirectory: true)
+        .appendingPathComponent("config.toml", isDirectory: false)
+    let claudeConfigURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Claude", isDirectory: true)
+        .appendingPathComponent("claude_desktop_config.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: claudeConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try """
+    [mcp_servers.bear]
+    enabled = true
+    command = "/tmp/old-bear-mcp"
+    args = ["mcp"]
+    """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
+    try "{ invalid json".write(to: claudeConfigURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        appManagedCLIURL: appManagedCLIURL,
+        homeDirectoryURL: homeDirectoryURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    let codexSetup = try #require(hostSetup(named: "codex", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(codexSetup.status == .invalid)
+    #expect(codexSetup.detail.contains("stable app-managed CLI path"))
+
+    let claudeSetup = try #require(hostSetup(named: "claude-desktop", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(claudeSetup.status == .invalid)
+    #expect(claudeSetup.detail.contains("could not be parsed as JSON"))
+
+    let codexDiagnostic = try #require(diagnostic(named: "host-codex", in: dashboard.diagnostics))
+    #expect(codexDiagnostic.status == .invalid)
+
+    let claudeDiagnostic = try #require(diagnostic(named: "host-claude-desktop", in: dashboard.diagnostics))
+    #expect(claudeDiagnostic.status == .invalid)
 }
 
 @Test
@@ -559,6 +727,10 @@ private func parseAppHostPayload(_ data: Data) throws -> [String: String] {
 
 private func diagnostic(named key: String, in diagnostics: [BearDoctorCheck]) -> BearDoctorCheck? {
     diagnostics.first(where: { $0.key == key })
+}
+
+private func hostSetup(named id: String, in setups: [BearHostAppSetupSnapshot]) -> BearHostAppSetupSnapshot? {
+    setups.first(where: { $0.id == id })
 }
 
 private struct AppHostCallbackSnapshot {

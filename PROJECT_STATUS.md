@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the first meaningful Phase 5 slice now landed as well: the local app build now embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app dashboard can install or refresh that bundled CLI to a stable user path for MCP hosts, and doctor/settings now call out whether the installed app bundle and app-managed CLI copy are actually present. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the first meaningful Phase 5 slice now landed as well: the local app build now embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app dashboard can install or refresh that bundled CLI to a stable user path for MCP hosts, doctor/settings now call out whether the installed app bundle and app-managed CLI copy are actually present, and the app now ships host-specific onboarding guidance plus copyable config snippets for Codex and Claude Desktop while explicitly marking ChatGPT as a separate remote-only MCP path. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -127,6 +127,8 @@ Implemented:
 - shared bundled-CLI locator/install support for the app-managed host-facing CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 - app settings actions for install/refresh, copy, and reveal of the app-managed CLI path
 - doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
+- shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
+- app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
@@ -189,6 +191,7 @@ Primary files:
 - `Sources/BearApplication/BearBackupFileStore.swift`
 - `Sources/BearCore/BearMCPCLILocator.swift`
 - `Sources/BearCore/BearMCPAppLocator.swift`
+- `Sources/BearApplication/BearHostAppSupport.swift`
 - `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`
 - `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
 - `Sources/BearXCallback/BearXCallbackTransport.swift`

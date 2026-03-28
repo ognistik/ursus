@@ -18,6 +18,8 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var tokenStatusError: String?
     @Published private(set) var cliStatusMessage: String?
     @Published private(set) var cliStatusError: String?
+    @Published private(set) var hostSetupStatusMessage: String?
+    @Published private(set) var hostSetupStatusError: String?
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var storedTokenHasBeenExplicitlyLoaded = false
 
@@ -119,6 +121,34 @@ final class BearMCPAppModel: ObservableObject {
         pasteboard.setString(path, forType: .string)
         cliStatusMessage = "Copied CLI path: \(path)"
         cliStatusError = nil
+    }
+
+    func copyHostSetupSnippet(_ setup: BearHostAppSetupSnapshot) {
+        guard let snippet = setup.snippet else {
+            hostSetupStatusMessage = nil
+            hostSetupStatusError = "No local snippet is available for \(setup.appName)."
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(snippet, forType: .string)
+        hostSetupStatusMessage = "Copied \(setup.appName) setup snippet."
+        hostSetupStatusError = nil
+    }
+
+    func copyHostConfigPath(_ setup: BearHostAppSetupSnapshot) {
+        guard let configPath = setup.configPath else {
+            hostSetupStatusMessage = nil
+            hostSetupStatusError = "No local config path is tracked for \(setup.appName)."
+            return
+        }
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(configPath, forType: .string)
+        hostSetupStatusMessage = "Copied \(setup.appName) config path: \(configPath)"
+        hostSetupStatusError = nil
     }
 
     func loadStoredSelectedNoteToken() {

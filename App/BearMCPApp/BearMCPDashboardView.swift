@@ -146,6 +146,7 @@ struct BearMCPSettingsView: View {
                 if let settings = model.dashboard.settings {
                     pathSection(settings)
                     cliSection(settings)
+                    hostAppsSection(settings)
                     tokenSection(settings)
                     configSection(settings)
                     notesSection(settings)
@@ -231,6 +232,120 @@ struct BearMCPSettingsView: View {
                 }
 
                 if let error = model.cliStatusError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+            }
+        }
+    }
+
+    private func hostAppsSection(_ settings: BearAppSettingsSnapshot) -> some View {
+        GroupBox("Host Apps") {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Use these guided checks and snippets to keep host apps pointed at the stable app-managed CLI path instead of a repo-local `.build` binary.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                ForEach(settings.hostAppSetups) { setup in
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text(setup.appName)
+                                .font(.headline)
+                            Spacer(minLength: 12)
+                            Text(setup.statusTitle)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(statusColor(for: setup.status).opacity(0.14))
+                                .foregroundStyle(statusColor(for: setup.status))
+                                .clipShape(Capsule())
+                        }
+
+                        if let configPath = setup.configPath {
+                            settingsRow("Config Path", configPath)
+                        }
+
+                        Text(setup.detail)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        if let mergeNote = setup.mergeNote {
+                            Text(mergeNote)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        HStack(spacing: 10) {
+                            if setup.snippet != nil {
+                                Button("Copy Snippet") {
+                                    model.copyHostSetupSnippet(setup)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+
+                            if setup.configPath != nil {
+                                Button("Copy Config Path") {
+                                    model.copyHostConfigPath(setup)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Reveal Config") {
+                                    if let configPath = setup.configPath {
+                                        model.reveal(path: configPath)
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+
+                        if let snippet = setup.snippet {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(setup.snippetTitle ?? "Setup Snippet")
+                                    .font(.headline)
+                                Text(snippet)
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(Color.secondary.opacity(0.08))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+
+                        if !setup.checks.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Guided Checks")
+                                    .font(.headline)
+
+                                ForEach(setup.checks, id: \.self) { check in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "checklist")
+                                            .foregroundStyle(.secondary)
+                                            .padding(.top, 2)
+                                        Text(check)
+                                            .font(.callout)
+                                            .foregroundStyle(.secondary)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.secondary.opacity(0.05))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+
+                if let message = model.hostSetupStatusMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                }
+
+                if let error = model.hostSetupStatusError {
                     Text(error)
                         .font(.callout)
                         .foregroundStyle(.red)
@@ -385,5 +500,16 @@ struct BearMCPSettingsView: View {
 
     private func yesNo(_ value: Bool) -> String {
         value ? "Yes" : "No"
+    }
+
+    private func statusColor(for status: BearDoctorCheckStatus) -> Color {
+        switch status {
+        case .ok, .configured:
+            return .green
+        case .missing, .notConfigured:
+            return .orange
+        case .invalid, .failed:
+            return .red
+        }
     }
 }

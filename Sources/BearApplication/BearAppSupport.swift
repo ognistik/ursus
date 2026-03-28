@@ -68,6 +68,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let selectedNoteLegacyConfigTokenDetected: Bool
     public let selectedNoteTokenStorageDescription: String
     public let selectedNoteTokenStatusDetail: String?
+    public let hostAppSetups: [BearHostAppSetupSnapshot]
 }
 
 public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
@@ -87,6 +88,7 @@ public enum BearAppSupport {
         allowSecureTokenStatusRead: Bool = false,
         currentAppBundleURL: URL? = nil,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
@@ -101,7 +103,8 @@ public enum BearAppSupport {
                 templateURL: templateURL,
                 tokenStore: tokenStore,
                 allowSecureTokenStatusRead: allowSecureTokenStatusRead,
-                appManagedCLIURL: appManagedCLIURL
+                appManagedCLIURL: appManagedCLIURL,
+                homeDirectoryURL: homeDirectoryURL
             )
 
             return BearAppDashboardSnapshot(
@@ -111,6 +114,7 @@ public enum BearAppSupport {
                     configuration: settings,
                     currentAppBundleURL: currentAppBundleURL,
                     appManagedCLIURL: appManagedCLIURL,
+                    homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
                     callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
@@ -130,6 +134,7 @@ public enum BearAppSupport {
                     configLoadError: message,
                     currentAppBundleURL: currentAppBundleURL,
                     appManagedCLIURL: appManagedCLIURL,
+                    homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
                     callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
@@ -149,7 +154,8 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         allowSecureTokenStatusRead: Bool = false,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL
+        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) throws -> BearAppSettingsSnapshot {
         var configuration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
@@ -205,7 +211,12 @@ public enum BearAppSupport {
             selectedNoteTokenStoredInKeychain: tokenStatus.keychainTokenPresent,
             selectedNoteLegacyConfigTokenDetected: tokenStatus.legacyConfigTokenPresent,
             selectedNoteTokenStorageDescription: tokenStorageDescription(for: tokenStatus),
-            selectedNoteTokenStatusDetail: tokenStatusDetail(for: tokenStatus)
+            selectedNoteTokenStatusDetail: tokenStatusDetail(for: tokenStatus),
+            hostAppSetups: BearHostAppSupport.loadSetups(
+                fileManager: fileManager,
+                appManagedCLIURL: appManagedCLIURL,
+                homeDirectoryURL: homeDirectoryURL
+            )
         )
     }
 
@@ -373,6 +384,7 @@ public enum BearAppSupport {
         configLoadError: String? = nil,
         currentAppBundleURL: URL? = nil,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
@@ -480,6 +492,14 @@ public enum BearAppSupport {
                 )
             )
         }
+
+        checks.append(
+            contentsOf: BearHostAppSupport.diagnostics(
+                fileManager: fileManager,
+                appManagedCLIURL: appManagedCLIURL,
+                homeDirectoryURL: homeDirectoryURL
+            )
+        )
 
         if let configuration {
             checks.append(
