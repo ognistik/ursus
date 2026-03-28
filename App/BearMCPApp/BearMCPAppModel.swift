@@ -5,8 +5,25 @@ import Foundation
 
 @MainActor
 final class BearMCPAppModel: ObservableObject {
+    let runsHeadlessCallbackHost: Bool
+
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot()
     @Published private(set) var lastIncomingCallbackURL: URL?
+
+    private var cancellables: Set<AnyCancellable> = []
+
+    init(
+        runsHeadlessCallbackHost: Bool = BearSelectedNoteAppHost.shouldRunHeadless()
+    ) {
+        self.runsHeadlessCallbackHost = runsHeadlessCallbackHost
+
+        NotificationCenter.default.publisher(for: .bearMCPDidReceiveIncomingCallbackURL)
+            .compactMap { $0.object as? URL }
+            .sink { [weak self] url in
+                self?.recordIncomingCallback(url)
+            }
+            .store(in: &cancellables)
+    }
 
     func reload() {
         dashboard = BearAppSupport.loadDashboardSnapshot()
@@ -47,4 +64,8 @@ final class BearMCPAppModel: ObservableObject {
             .flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
             .sorted()
     }
+}
+
+extension Notification.Name {
+    static let bearMCPDidReceiveIncomingCallbackURL = Notification.Name("bear-mcp.did-receive-incoming-callback-url")
 }

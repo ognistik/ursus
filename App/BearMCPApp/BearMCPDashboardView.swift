@@ -60,11 +60,11 @@ private struct BearMCPDiagnosticsView: View {
                 )
                 if let url = model.lastIncomingCallbackURL {
                     labeledRow("Last Incoming URL", url.absoluteString)
-                    Text("Phase 2 only registers the app callback scheme. The working selected-note flow still stays on the separate helper app for now.")
+                    Text("`bearmcp://` is now wired for the Phase 3 selected-note callback flow. During verification, the legacy helper remains available as a fallback path.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("`bearmcp://` is registered on the app bundle, but callback handling is intentionally passive in Phase 2 while the helper-based selected-note flow remains the active runtime path.")
+                    Text("`bearmcp://` is registered on the app bundle and can now host the selected-note callback flow in a hidden app launch. The legacy helper is retained only as a low-risk fallback during verification.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -198,8 +198,8 @@ struct BearMCPSettingsView: View {
     }
 
     private var notesSection: some View {
-        GroupBox("Phase 2 Scope") {
-            Text("This app currently exposes diagnostics and a settings shell. The CLI runtime contract and the helper-based selected-note callback flow stay unchanged until Phase 3.")
+        GroupBox("Phase 3 Scope") {
+            Text("This app still acts as a diagnostics/settings shell for normal use, but it can now also host the selected-note callback flow in headless mode. The CLI stdio runtime contract stays unchanged, and the standalone helper remains a temporary fallback until end-to-end verification is complete.")
                 .foregroundStyle(.secondary)
         }
     }

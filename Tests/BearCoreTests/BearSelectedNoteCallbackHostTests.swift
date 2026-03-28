@@ -85,6 +85,74 @@ func callbackHostRewritesCallbackURLsAndPersistsSuccessPayload() throws {
 
 @Test
 @MainActor
+func callbackHostCanHandleDirectAppCallbackURLs() throws {
+    let recorder = CallbackHostRecorder()
+    let responseFileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: false)
+        .appendingPathExtension("json")
+    defer { try? FileManager.default.removeItem(at: responseFileURL) }
+
+    let host = BearSelectedNoteCallbackHost(
+        callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
+        outputWriter: { data, channel in
+            recorder.recordOutput(data, channel: channel)
+        },
+        urlOpener: { url, activateApp, completion in
+            recorder.recordOpen(url: url, activateApp: activateApp)
+            completion(nil)
+        },
+        terminator: {
+            recorder.recordTermination()
+        }
+    )
+
+    host.start(
+        arguments: [
+            "Bear MCP",
+            "-url", "bear://x-callback-url/open-note?selected=yes&token=top-secret-token",
+            "-activateApp", "NO",
+            "-responseFile", responseFileURL.path,
+        ]
+    )
+
+    let started = recorder.snapshot()
+    guard let openedURL = started.openedURL,
+          let openedComponents = URLComponents(url: openedURL, resolvingAgainstBaseURL: false),
+          let successValue = openedComponents.queryItems?.first(where: { $0.name == "x-success" })?.value
+    else {
+        Issue.record("Expected app callback host to rewrite the Bear request with a success callback URL.")
+        return
+    }
+
+    #expect(successValue.hasPrefix("bearmcp://x-callback-url/handle-success?state="))
+
+    guard var callbackComponents = URLComponents(string: successValue) else {
+        Issue.record("Expected app success callback URL to parse cleanly.")
+        return
+    }
+    callbackComponents.queryItems = (callbackComponents.queryItems ?? []) + [
+        URLQueryItem(name: "identifier", value: "selected-note"),
+    ]
+    guard let callbackURL = callbackComponents.url else {
+        Issue.record("Expected app success callback URL to remain valid after adding an identifier.")
+        return
+    }
+
+    host.handleCallbackURL(callbackURL)
+
+    let finished = recorder.snapshot()
+    #expect(host.exitCode == 0)
+    #expect(finished.terminatedCount == 1)
+    #expect(finished.stdout.contains("selected-note"))
+    #expect(finished.stderr.isEmpty)
+
+    let responseData = try Data(contentsOf: responseFileURL)
+    let payload = try parsePayload(responseData)
+    #expect(payload["identifier"] == "selected-note")
+}
+
+@Test
+@MainActor
 func callbackHostReportsInvalidInvocationWithoutLaunchingBear() {
     let recorder = CallbackHostRecorder()
     let host = BearSelectedNoteCallbackHost(

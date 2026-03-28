@@ -8,7 +8,9 @@ public enum BearSelectedNoteCallbackOutputChannel {
 
 @MainActor
 public final class BearSelectedNoteCallbackHost {
-    public static let defaultCallbackScheme = "bearmcphelper"
+    public static let appCallbackScheme = "bearmcp"
+    public static let helperCallbackScheme = "bearmcphelper"
+    public static let defaultCallbackScheme = helperCallbackScheme
     public static let defaultTimeoutSeconds: TimeInterval = 8
 
     public private(set) var exitCode: Int32 = 1
@@ -59,10 +61,22 @@ public final class BearSelectedNoteCallbackHost {
 
         guard
             let rawURL = event.paramDescriptor(forKeyword: AEKeyword(keyDirectObject))?.stringValue,
-            let url = URL(string: rawURL),
-            let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let url = URL(string: rawURL)
         else {
-            finishWithError(message: "Selected-note helper received a malformed callback URL.")
+            finishWithError(message: "Selected-note callback host received a malformed callback URL.")
+            return
+        }
+
+        handleCallbackURL(url)
+    }
+
+    public func handleCallbackURL(_ url: URL) {
+        guard !completed else {
+            return
+        }
+
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            finishWithError(message: "Selected-note callback host received a malformed callback URL.")
             return
         }
 
@@ -70,14 +84,14 @@ public final class BearSelectedNoteCallbackHost {
         let payload = dictionary(from: components.queryItems ?? [])
 
         if let expectedStateToken, payload["state"] != expectedStateToken {
-            finishWithError(message: "Selected-note helper received a callback for a different request.")
+            finishWithError(message: "Selected-note callback host received a callback for a different request.")
             return
         }
 
         switch action {
         case "handle-success":
             guard payload["identifier"] != nil || payload["id"] != nil else {
-                finishWithError(message: "Selected-note helper callback did not include a note identifier.")
+                finishWithError(message: "Selected-note callback host did not receive a note identifier.")
                 return
             }
             finishSuccessfully(payload: payload)
@@ -85,7 +99,7 @@ public final class BearSelectedNoteCallbackHost {
             let message = payload["errorMessage"] ?? payload["error"] ?? "Bear did not return the selected note."
             finishWithPayload(["errorMessage": message], to: .stderr, exitCode: 1)
         default:
-            finishWithError(message: "Selected-note helper received an unrecognized callback path.")
+            finishWithError(message: "Selected-note callback host received an unrecognized callback path.")
         }
     }
 
@@ -177,7 +191,7 @@ public final class BearSelectedNoteCallbackHost {
             }
 
             Task { @MainActor in
-                self?.finishWithError(message: "Bear did not accept the selected-note helper request. \(error.localizedDescription)")
+                self?.finishWithError(message: "Bear did not accept the selected-note callback request. \(error.localizedDescription)")
             }
         }
     }
@@ -188,7 +202,7 @@ public final class BearSelectedNoteCallbackHost {
                 guard let self, !self.completed else {
                     return
                 }
-                self.finishWithError(message: "Selected-note helper timed out while waiting for Bear to call back.")
+                self.finishWithError(message: "Selected-note callback host timed out while waiting for Bear to call back.")
             }
         }
     }
@@ -217,7 +231,7 @@ public final class BearSelectedNoteCallbackHost {
         do {
             data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         } catch {
-            outputWriter(Data("{\"errorMessage\":\"Failed to encode selected-note helper response.\"}\n".utf8), channel)
+            outputWriter(Data("{\"errorMessage\":\"Failed to encode selected-note callback response.\"}\n".utf8), channel)
             terminator()
             return
         }

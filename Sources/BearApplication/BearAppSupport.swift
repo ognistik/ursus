@@ -78,6 +78,8 @@ public enum BearAppSupport {
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
+        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL
     ) -> BearAppDashboardSnapshot {
@@ -94,6 +96,8 @@ public enum BearAppSupport {
                 diagnostics: doctorChecks(
                     fileManager: fileManager,
                     configuration: settings,
+                    callbackAppBundleURLProvider: callbackAppBundleURLProvider,
+                    callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
                     helperBundleURLProvider: helperBundleURLProvider,
                     helperExecutableURLResolver: helperExecutableURLResolver
                 ),
@@ -108,6 +112,8 @@ public enum BearAppSupport {
                 diagnostics: doctorChecks(
                     fileManager: fileManager,
                     configLoadError: message,
+                    callbackAppBundleURLProvider: callbackAppBundleURLProvider,
+                    callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
                     helperBundleURLProvider: helperBundleURLProvider,
                     helperExecutableURLResolver: helperExecutableURLResolver
                 ),
@@ -161,6 +167,8 @@ public enum BearAppSupport {
         fileManager: FileManager = .default,
         configuration: BearAppSettingsSnapshot? = nil,
         configLoadError: String? = nil,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
+        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL
     ) -> [BearDoctorCheck] {
@@ -218,22 +226,22 @@ public enum BearAppSupport {
                 )
             )
 
-            if let helperBundleURL = helperBundleURLProvider(fileManager) {
+            if let callbackAppBundleURL = callbackAppBundleURLProvider(fileManager) {
                 do {
-                    let executableURL = try helperExecutableURLResolver(helperBundleURL, fileManager)
+                    let executableURL = try callbackAppExecutableURLResolver(callbackAppBundleURL, fileManager)
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-helper",
-                            value: helperBundleURL.path,
+                            key: "selected-note-callback-app",
+                            value: callbackAppBundleURL.path,
                             status: .ok,
-                            detail: "ok -> \(executableURL.path)"
+                            detail: "preferred host -> \(executableURL.path)"
                         )
                     )
                 } catch {
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-helper",
-                            value: helperBundleURL.path,
+                            key: "selected-note-callback-app",
+                            value: callbackAppBundleURL.path,
                             status: .invalid,
                             detail: "invalid: \(localizedMessage(for: error))"
                         )
@@ -242,12 +250,35 @@ public enum BearAppSupport {
             } else {
                 checks.append(
                     BearDoctorCheck(
-                        key: "selected-note-helper",
+                        key: "selected-note-callback-app",
                         value: "not detected",
                         status: .missing,
-                        detail: "install `\(BearSelectedNoteHelperLocator.appName)` in `/Applications` or `~/Applications`"
+                        detail: "install `\(BearMCPAppLocator.appName)` in `/Applications` or `~/Applications`"
                     )
                 )
+            }
+
+            if let helperBundleURL = helperBundleURLProvider(fileManager) {
+                do {
+                    let executableURL = try helperExecutableURLResolver(helperBundleURL, fileManager)
+                    checks.append(
+                        BearDoctorCheck(
+                            key: "selected-note-helper-fallback",
+                            value: helperBundleURL.path,
+                            status: .ok,
+                            detail: "legacy fallback -> \(executableURL.path)"
+                        )
+                    )
+                } catch {
+                    checks.append(
+                        BearDoctorCheck(
+                            key: "selected-note-helper-fallback",
+                            value: helperBundleURL.path,
+                            status: .invalid,
+                            detail: "invalid: \(localizedMessage(for: error))"
+                        )
+                    )
+                }
             }
         } else if let configLoadError {
             checks.append(

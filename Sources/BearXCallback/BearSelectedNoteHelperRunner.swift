@@ -7,26 +7,53 @@ enum BearSelectedNoteHelperRunner {
         bearURL: URL,
         timeout: Duration
     ) async throws -> String {
-        let appBundleURL = try {
-            guard let bundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() else {
+        if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
+            if await isApplicationRunning(appBundleURL: appBundleURL) {
+                if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
+                    return try await resolveSelectedNoteID(
+                        appBundleURL: helperBundleURL,
+                        appName: BearSelectedNoteHelperLocator.appName,
+                        bearURL: bearURL,
+                        timeout: timeout,
+                        terminateRunningInstancesBeforeLaunch: true
+                    )
+                }
+
                 throw BearError.configuration(
-                    "Selected-note targeting requires `\(BearSelectedNoteHelperLocator.appName)` to be installed in `/Applications` or `~/Applications`."
+                    "Selected-note targeting prefers `\(BearMCPAppLocator.appName)`, but it is already running and cannot yet be relaunched in headless callback mode. Quit the app or install `\(BearSelectedNoteHelperLocator.appName)` as a temporary fallback."
                 )
             }
-            return bundleURL
-        }()
 
-        return try await resolveSelectedNoteID(
-            appBundleURL: appBundleURL,
-            bearURL: bearURL,
-            timeout: timeout
+            return try await resolveSelectedNoteID(
+                appBundleURL: appBundleURL,
+                appName: BearMCPAppLocator.appName,
+                bearURL: bearURL,
+                timeout: timeout,
+                terminateRunningInstancesBeforeLaunch: false
+            )
+        }
+
+        if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
+            return try await resolveSelectedNoteID(
+                appBundleURL: helperBundleURL,
+                appName: BearSelectedNoteHelperLocator.appName,
+                bearURL: bearURL,
+                timeout: timeout,
+                terminateRunningInstancesBeforeLaunch: true
+            )
+        }
+
+        throw BearError.configuration(
+            "Selected-note targeting requires `\(BearMCPAppLocator.appName)` to be installed in `/Applications` or `~/Applications`. During Phase 3 verification, `\(BearSelectedNoteHelperLocator.appName)` can still be installed there as a legacy fallback."
         )
     }
 
     static func resolveSelectedNoteID(
         appBundleURL: URL,
+        appName: String = BearMCPAppLocator.appName,
         bearURL: URL,
-        timeout: Duration
+        timeout: Duration,
+        terminateRunningInstancesBeforeLaunch: Bool = false
     ) async throws -> String {
         let responseFileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: false)
@@ -37,8 +64,10 @@ enum BearSelectedNoteHelperRunner {
 
         try await runOpenCommand(
             appBundleURL: appBundleURL,
+            appName: appName,
             bearURL: bearURL,
-            responseFileURL: responseFileURL
+            responseFileURL: responseFileURL,
+            terminateRunningInstancesBeforeLaunch: terminateRunningInstancesBeforeLaunch
         )
 
         let result = try await waitForResponseFile(responseFileURL, timeout: timeout)
@@ -51,7 +80,7 @@ enum BearSelectedNoteHelperRunner {
         let message = payload["errorMessage"]
             ?? payload["error"]
             ?? payload["internal_error"]
-            ?? "Selected-note helper failed without returning a note identifier."
+            ?? "Selected-note callback host failed without returning a note identifier."
         throw BearError.xCallback(message)
     }
 
@@ -88,11 +117,15 @@ enum BearSelectedNoteHelperRunner {
 
     private static func runOpenCommand(
         appBundleURL: URL,
+        appName: String,
         bearURL: URL,
-        responseFileURL: URL
+        responseFileURL: URL,
+        terminateRunningInstancesBeforeLaunch: Bool
     ) async throws {
-        await MainActor.run {
-            terminateRunningHelperInstances(appBundleURL: appBundleURL)
+        if terminateRunningInstancesBeforeLaunch {
+            await MainActor.run {
+                terminateRunningInstances(appBundleURL: appBundleURL)
+            }
         }
 
         let process = Process()
@@ -115,7 +148,7 @@ enum BearSelectedNoteHelperRunner {
                         continuation: continuation,
                         result: .failure(
                             BearError.configuration(
-                                "Failed to launch `\(BearSelectedNoteHelperLocator.appName)` through Launch Services."
+                                "Failed to launch `\(appName)` through Launch Services."
                             )
                         )
                     )
@@ -129,7 +162,7 @@ enum BearSelectedNoteHelperRunner {
                     continuation: continuation,
                     result: .failure(
                         BearError.configuration(
-                            "Failed to launch `\(BearSelectedNoteHelperLocator.appName)`. \(error.localizedDescription)"
+                            "Failed to launch `\(appName)`. \(error.localizedDescription)"
                         )
                     )
                 )
@@ -138,7 +171,18 @@ enum BearSelectedNoteHelperRunner {
     }
 
     @MainActor
-    private static func terminateRunningHelperInstances(appBundleURL: URL) {
+    private static func isApplicationRunning(appBundleURL: URL) -> Bool {
+        guard let bundle = Bundle(url: appBundleURL),
+              let bundleIdentifier = bundle.bundleIdentifier
+        else {
+            return false
+        }
+
+        return !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
+    }
+
+    @MainActor
+    private static func terminateRunningInstances(appBundleURL: URL) {
         guard let bundle = Bundle(url: appBundleURL),
               let bundleIdentifier = bundle.bundleIdentifier
         else {
@@ -228,7 +272,7 @@ enum BearSelectedNoteHelperRunner {
             try await Task.sleep(for: .milliseconds(100))
         }
 
-        throw BearError.xCallback("Timed out while waiting for the selected-note helper to return a result.")
+        throw BearError.xCallback("Timed out while waiting for the selected-note callback host to return a result.")
     }
 
     private static func parseJSONPayload(_ data: Data) throws -> [String: String] {
@@ -238,7 +282,7 @@ enum BearSelectedNoteHelperRunner {
 
         let object = try JSONSerialization.jsonObject(with: data)
         guard let dictionary = object as? [String: Any] else {
-            throw BearError.xCallback("Selected-note helper returned an unexpected payload.")
+            throw BearError.xCallback("Selected-note callback host returned an unexpected payload.")
         }
 
         var parsed: [String: String] = [:]

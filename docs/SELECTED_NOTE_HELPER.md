@@ -1,10 +1,10 @@
-# Bear MCP Helper
+# Bear MCP Helper Fallback
 
 `bear-mcp` keeps selected-note targeting optional.
 
-The main CLI server remains the primary MCP runtime. The repo now also includes a minimal `Bear MCP.app` bundle for Phase 2 of app unification, but advanced users who want `selected: true` still need the companion helper app in `/Applications` or `~/Applications` until Phase 3 reroutes callback handling through the main app.
+The main CLI server remains the primary MCP runtime. Phase 3 now prefers `Bear MCP.app` as the selected-note callback host through `bearmcp://`, but the companion helper app can still be installed in `/Applications` or `~/Applications` as a low-risk fallback while the new path is being verified.
 
-This helper is now a transition host for shared callback logic, not the long-term product center. The callback runtime itself lives in package code so a future unified `Bear MCP.app` can reuse the same contract.
+This helper is a transition host for shared callback logic, not the long-term product center. The callback runtime itself lives in package code and is now used by both the main app and the helper shell.
 
 ## Why this exists
 
@@ -13,6 +13,7 @@ Bear's selected-note callback flow depends on a callback URL target. A real `.ap
 This repo now includes:
 
 - shared callback-host runtime in `BearXCallback`
+- a native `Bear MCP.app` bundle that registers `bearmcp://` and can run headless as the preferred callback host
 - a SwiftPM helper executable product: `bear-mcp-helper`
 - a bundling script that wraps that executable in a background `.app`
 - an app `Info.plist` that registers the `bearmcphelper://` callback scheme
@@ -47,10 +48,11 @@ Add your Bear API token to `~/.config/bear-mcp/config.json`:
 }
 ```
 
-Install `Bear MCP Helper.app` in `/Applications` or `~/Applications`, then run `bear-mcp doctor` to confirm it was detected.
+Install `Bear MCP.app` in `/Applications` or `~/Applications` for the preferred path. Install `Bear MCP Helper.app` only if you want to keep the legacy fallback available during Phase 3 verification. Then run `bear-mcp doctor` to confirm the callback host detection state.
 
 ## Current behavior
 
+- `Bear MCP.app` is now the preferred callback host and preserves the same response-file JSON contract the CLI already used with the helper
 - The helper accepts an xcall-compatible CLI shape: `-url ... -activateApp YES|NO`
 - The standalone executable is a thin AppKit shell around shared `BearSelectedNoteCallbackHost` logic in `BearXCallback`
 - It injects its own success/error callback URLs
@@ -60,4 +62,4 @@ Install `Bear MCP Helper.app` in `/Applications` or `~/Applications`, then run `
 
 ## Packaging later
 
-The current repo builds the helper app locally, but does not yet produce a signed/notarized release artifact automatically. That can be layered on later without changing the CLI-side config or callback contract, and the same callback-host runtime is intended to move into the future unified app bundle.
+The current repo still builds the helper app locally, but it does not yet produce signed/notarized release artifacts automatically. That can be layered on later without changing the CLI-side config or callback contract while the legacy fallback remains available.

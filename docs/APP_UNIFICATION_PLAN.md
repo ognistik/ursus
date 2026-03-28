@@ -19,10 +19,11 @@ As of 2026-03-28:
 
 - Phase 1 has started in the repo: selected-note callback-host behavior now lives in shared package code at `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`.
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
-- The standalone helper app is still the active runtime path for selected-note callbacks today.
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
+- Phase 3 has now landed incrementally in the repo: selected-note resolution prefers launching `Bear MCP.app` in a headless callback-host mode that preserves the CLI response-file contract and uses `bearmcp://` for callbacks.
+- The standalone helper app remains available as a temporary legacy fallback while the app-hosted route is verified, particularly when the full app is already running.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
-- The app-hosted callback flow and Keychain token storage are still pending.
+- Keychain token storage is still pending.
 
 ## Decisions Locked In
 
@@ -607,6 +608,10 @@ Goal:
 
 - make the main app replace the standalone helper for callback handling
 
+Status:
+
+- Landed incrementally on 2026-03-28. The CLI now prefers `Bear MCP.app` as the callback host and preserves the response-file JSON contract, while the legacy helper remains available as a temporary fallback until the new route is fully verified.
+
 Tasks:
 
 - update the runner code to launch the main app in headless callback mode
@@ -616,7 +621,7 @@ Tasks:
 
 Deliverable:
 
-- separate helper app no longer required
+- preferred selected-note callback path now runs through `Bear MCP.app`, with helper retirement deferred until end-to-end verification is complete
 
 ## Phase 4: Move token storage to Keychain
 

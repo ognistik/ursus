@@ -46,8 +46,9 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
     public func resolveSelectedNoteID(token: String) async throws -> String {
         let url = try builder.resolveSelectedNoteURL(token: token)
+        let callbackAppInstalled = BearMCPAppLocator.installedAppBundleURL() != nil
         let helperInstalled = BearSelectedNoteHelperLocator.installedAppBundleURL() != nil
-        BearDebugLog.append("xcallback.resolve-selected-note helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
+        BearDebugLog.append("xcallback.resolve-selected-note callbackAppInstalled=\(callbackAppInstalled) helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
 
         if let selectedNoteResolver {
             return try await selectedNoteResolver(url, selectedNoteResolveTimeout)

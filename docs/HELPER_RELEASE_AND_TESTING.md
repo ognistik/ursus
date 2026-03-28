@@ -2,7 +2,7 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
-The helper app is still the current install-time callback host, but its runtime behavior now lives in shared package code. Phase 2 also adds a separate `Bear MCP.app` bundle for diagnostics/settings scaffolding and `bearmcp://` registration, but the steps below still validate the active selected-note callback contract that Phase 3 is expected to migrate into the main app.
+Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, but the helper app remains available as a practical fallback while the new route is being verified. Its runtime behavior still lives in shared package code.
 
 ## Local build outputs
 
