@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and an incremental Phase 3 of the app-unification plan now landed: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, and the standalone helper remains available as a temporary fallback while the migration is being verified.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, and the standalone helper remains available as a temporary fallback mainly for the current case where the full app is already open and cannot yet be relaunched in headless callback mode.
 
 Implemented:
 
@@ -120,6 +120,7 @@ Implemented:
 - local app build script for unsigned development bundles
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
+- explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
 - doctor/config support for preferred app-host detection plus legacy helper fallback visibility
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
@@ -132,6 +133,7 @@ Verified locally:
 - `swift test`
 - `swift run bear-mcp doctor`
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app, resolving the selected note through the installed `Bear MCP.app` path with `callbackAppInstalled=true`
 
 ## Current Tool Surface
 

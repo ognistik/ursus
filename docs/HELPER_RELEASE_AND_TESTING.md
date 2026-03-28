@@ -2,7 +2,7 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
-Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, but the helper app remains available as a practical fallback while the new route is being verified. Its runtime behavior still lives in shared package code.
+Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, and that app-hosted route has been manually validated end-to-end against the real Bear app. The helper app remains available as a practical fallback for the current case where `Bear MCP.app` is already open and cannot yet be relaunched in headless callback mode. Its runtime behavior still lives in shared package code.
 
 ## Local build outputs
 

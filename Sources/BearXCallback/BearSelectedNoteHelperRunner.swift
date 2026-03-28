@@ -10,6 +10,9 @@ enum BearSelectedNoteHelperRunner {
         if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
             if await isApplicationRunning(appBundleURL: appBundleURL) {
                 if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
+                    BearDebugLog.append(
+                        "xcallback.resolve-selected-note host=helper reason=preferred-app-running appPath=\(appBundleURL.path) helperPath=\(helperBundleURL.path)"
+                    )
                     return try await resolveSelectedNoteID(
                         appBundleURL: helperBundleURL,
                         appName: BearSelectedNoteHelperLocator.appName,
@@ -24,6 +27,9 @@ enum BearSelectedNoteHelperRunner {
                 )
             }
 
+            BearDebugLog.append(
+                "xcallback.resolve-selected-note host=app appPath=\(appBundleURL.path)"
+            )
             return try await resolveSelectedNoteID(
                 appBundleURL: appBundleURL,
                 appName: BearMCPAppLocator.appName,
@@ -34,6 +40,9 @@ enum BearSelectedNoteHelperRunner {
         }
 
         if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
+            BearDebugLog.append(
+                "xcallback.resolve-selected-note host=helper reason=preferred-app-missing helperPath=\(helperBundleURL.path)"
+            )
             return try await resolveSelectedNoteID(
                 appBundleURL: helperBundleURL,
                 appName: BearSelectedNoteHelperLocator.appName,

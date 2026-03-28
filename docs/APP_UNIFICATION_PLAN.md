@@ -610,7 +610,7 @@ Goal:
 
 Status:
 
-- Landed incrementally on 2026-03-28. The CLI now prefers `Bear MCP.app` as the callback host and preserves the response-file JSON contract, while the legacy helper remains available as a temporary fallback until the new route is fully verified.
+- Landed incrementally on 2026-03-28 and manually validated end-to-end the same day against the real Bear app. The CLI now prefers `Bear MCP.app` as the callback host and preserves the response-file JSON contract, while the legacy helper remains available as a temporary fallback for the current case where the full app is already open and cannot yet be relaunched in headless callback mode.
 
 Tasks:
 
@@ -621,7 +621,7 @@ Tasks:
 
 Deliverable:
 
-- preferred selected-note callback path now runs through `Bear MCP.app`, with helper retirement deferred until end-to-end verification is complete
+- preferred selected-note callback path now runs through `Bear MCP.app`, with helper retirement narrowed to the current already-running-app edge case rather than broad end-to-end verification risk
 
 ## Phase 4: Move token storage to Keychain
 
