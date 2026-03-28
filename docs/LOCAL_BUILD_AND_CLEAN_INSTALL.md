@@ -102,6 +102,8 @@ The app can currently install:
 
 On a fresh install or after updating the app bundle, the dashboard overview now shows a proactive CLI attention card whenever either copy is missing or stale, with direct install/refresh actions.
 
+On a normal dashboard launch, `Bear MCP.app` now also auto-installs or refreshes the host-facing CLI copy at `~/Library/Application Support/bear-mcp/bin/bear-mcp` when the bundled CLI is available and the installed copy is missing or stale. The optional `~/bin/bear-mcp` Terminal command still stays manual.
+
 If you are testing from a clean start, remove both the Application Support directory and `~/bin/bear-mcp`.
 
 ## Notes About `--update-config`

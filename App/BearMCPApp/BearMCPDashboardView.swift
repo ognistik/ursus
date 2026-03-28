@@ -79,6 +79,9 @@ private struct BearMCPOverviewView: View {
                 Text("If you connect Bear MCP to Codex, Claude, or another local MCP app, only the host-facing CLI below is required. The Terminal command is optional.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                Text("Bear MCP keeps the host-facing CLI aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -150,7 +153,7 @@ private struct BearMCPOverviewView: View {
                 }
 
                 if let currentBundledCLIPath = model.currentBundledCLIPath {
-                    Text("This app can install the host CLI and the optional Terminal command from its bundled `bear-mcp` binary.")
+                    Text("This app installs the host CLI and the optional Terminal command from its bundled `bear-mcp` binary.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {

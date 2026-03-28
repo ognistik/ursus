@@ -106,6 +106,38 @@ public struct BearAppCLIMaintenancePrompt: Codable, Hashable, Sendable {
     }
 }
 
+public enum BearAppManagedCLIReconciliationStatus: String, Codable, Hashable, Sendable {
+    case unchanged
+    case installed
+    case refreshed
+    case unavailable
+}
+
+public struct BearAppManagedCLIReconciliationResult: Codable, Hashable, Sendable {
+    public let status: BearAppManagedCLIReconciliationStatus
+    public let sourcePath: String?
+    public let destinationPath: String?
+
+    public init(
+        status: BearAppManagedCLIReconciliationStatus,
+        sourcePath: String? = nil,
+        destinationPath: String? = nil
+    ) {
+        self.status = status
+        self.sourcePath = sourcePath
+        self.destinationPath = destinationPath
+    }
+
+    public var changed: Bool {
+        switch status {
+        case .installed, .refreshed:
+            return true
+        case .unchanged, .unavailable:
+            return false
+        }
+    }
+}
+
 public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiable {
     public let tool: BearToolName
     public let title: String
@@ -477,6 +509,75 @@ public enum BearAppSupport {
             fileManager: fileManager,
             sourceURL: appManagedCLIURL,
             destinationURL: terminalCLIURL
+        )
+    }
+
+    @discardableResult
+    public static func reconcileAppManagedCLIIfNeeded(
+        fromAppBundleURL appBundleURL: URL,
+        fileManager: FileManager = .default,
+        destinationURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
+    ) throws -> BearAppManagedCLIReconciliationResult {
+        let bundledCLIURL: URL
+        do {
+            bundledCLIURL = try bundledCLIExecutableURLResolver(appBundleURL, fileManager)
+        } catch {
+            return BearAppManagedCLIReconciliationResult(status: .unavailable)
+        }
+
+        let destinationPath = destinationURL.path
+        let destinationExists = fileManager.fileExists(atPath: destinationPath)
+
+        if !destinationExists || !fileManager.isExecutableFile(atPath: destinationPath) {
+            let receipt = try installBundledCLI(
+                fromAppBundleURL: appBundleURL,
+                fileManager: fileManager,
+                destinationURL: destinationURL
+            )
+
+            return BearAppManagedCLIReconciliationResult(
+                status: destinationExists ? .refreshed : .installed,
+                sourcePath: receipt.sourcePath,
+                destinationPath: receipt.destinationPath
+            )
+        }
+
+        let contentsMatch: Bool
+        do {
+            contentsMatch = try BearMCPCLILocator.executableContentsMatch(
+                sourceURL: bundledCLIURL,
+                destinationURL: destinationURL,
+                fileManager: fileManager
+            )
+        } catch {
+            let receipt = try installBundledCLI(
+                fromAppBundleURL: appBundleURL,
+                fileManager: fileManager,
+                destinationURL: destinationURL
+            )
+
+            return BearAppManagedCLIReconciliationResult(
+                status: .refreshed,
+                sourcePath: receipt.sourcePath,
+                destinationPath: receipt.destinationPath
+            )
+        }
+
+        guard !contentsMatch else {
+            return BearAppManagedCLIReconciliationResult(status: .unchanged)
+        }
+
+        let receipt = try installBundledCLI(
+            fromAppBundleURL: appBundleURL,
+            fileManager: fileManager,
+            destinationURL: destinationURL
+        )
+
+        return BearAppManagedCLIReconciliationResult(
+            status: .refreshed,
+            sourcePath: receipt.sourcePath,
+            destinationPath: receipt.destinationPath
         )
     }
 

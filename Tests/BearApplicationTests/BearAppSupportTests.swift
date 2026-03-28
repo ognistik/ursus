@@ -523,6 +523,118 @@ func dashboardSnapshotPromotesBothRefreshActionsWhenHostAndTerminalCLIAreStale()
 }
 
 @Test
+func reconcileAppManagedCLIInstallsMissingHostCLI() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let result = try BearAppSupport.reconcileAppManagedCLIIfNeeded(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        destinationURL: appManagedCLIURL
+    )
+
+    #expect(result.status == .installed)
+    #expect(result.sourcePath == bundledCLIURL.path)
+    #expect(result.destinationPath == appManagedCLIURL.path)
+    #expect(fileManager.fileExists(atPath: appManagedCLIURL.path))
+    #expect(fileManager.isExecutableFile(atPath: appManagedCLIURL.path))
+    #expect(try String(contentsOf: appManagedCLIURL, encoding: .utf8).contains("bundled"))
+}
+
+@Test
+func reconcileAppManagedCLIRefreshesStaleHostCLI() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "#!/bin/sh\necho stale\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let result = try BearAppSupport.reconcileAppManagedCLIIfNeeded(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        destinationURL: appManagedCLIURL
+    )
+
+    #expect(result.status == .refreshed)
+    #expect(result.sourcePath == bundledCLIURL.path)
+    #expect(result.destinationPath == appManagedCLIURL.path)
+    #expect(try String(contentsOf: appManagedCLIURL, encoding: .utf8).contains("bundled"))
+}
+
+@Test
+func reconcileAppManagedCLIReturnsUnchangedWhenHostCLIMatchesBundle() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try fileManager.copyItem(at: bundledCLIURL, to: appManagedCLIURL)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let result = try BearAppSupport.reconcileAppManagedCLIIfNeeded(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        destinationURL: appManagedCLIURL
+    )
+
+    #expect(result.status == .unchanged)
+    #expect(result.sourcePath == nil)
+    #expect(result.destinationPath == nil)
+}
+
+@Test
 func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

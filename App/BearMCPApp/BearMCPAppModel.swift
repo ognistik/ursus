@@ -59,6 +59,10 @@ final class BearMCPAppModel: ObservableObject {
             .store(in: &cancellables)
 
         applyDraft(from: dashboard.settings)
+
+        if !runsHeadlessCallbackHost {
+            reconcileAppManagedCLIAutomatically()
+        }
     }
 
     func reload() {
@@ -411,6 +415,34 @@ final class BearMCPAppModel: ObservableObject {
 
     private func localizedMessage(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+
+    private func reconcileAppManagedCLIAutomatically() {
+        do {
+            let result = try BearAppSupport.reconcileAppManagedCLIIfNeeded(
+                fromAppBundleURL: Bundle.main.bundleURL
+            )
+
+            guard result.changed else {
+                return
+            }
+
+            reload()
+
+            let destinationPath = result.destinationPath ?? installedCLIPath
+            switch result.status {
+            case .installed:
+                cliStatusMessage = "Host-facing CLI installed automatically at \(destinationPath)."
+            case .refreshed:
+                cliStatusMessage = "Host-facing CLI refreshed automatically at \(destinationPath)."
+            case .unchanged, .unavailable:
+                cliStatusMessage = nil
+            }
+            cliStatusError = nil
+        } catch {
+            cliStatusMessage = nil
+            cliStatusError = localizedMessage(for: error)
+        }
     }
 }
 
