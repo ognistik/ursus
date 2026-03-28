@@ -105,7 +105,7 @@ private struct BearMCPOverviewView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(model.currentBundledCLIPath == nil)
 
-                    Button("Install Terminal Command") {
+                    Button("Install Terminal CLI") {
                         model.installTerminalCLI()
                     }
                     .buttonStyle(.bordered)

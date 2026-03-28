@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 public struct BearBundledCLIInstallReceipt: Codable, Hashable, Sendable {
@@ -10,7 +11,7 @@ public struct BearBundledCLIInstallReceipt: Codable, Hashable, Sendable {
     }
 }
 
-public struct BearCLICommandLinkReceipt: Codable, Hashable, Sendable {
+public struct BearCLIExecutableInstallReceipt: Codable, Hashable, Sendable {
     public let sourcePath: String
     public let destinationPath: String
 
@@ -41,7 +42,7 @@ public enum BearMCPCLILocator {
     }
 
     public static var userCommandInstallGuidance: String {
-        "Install the app-managed CLI first, then create a shell command link at `\(userCommandInstallURL.path)` so `bear-mcp` is easy to run from Terminal."
+        "Install the app-managed CLI first, then copy a terminal-friendly executable to `\(userCommandInstallURL.path)` so `bear-mcp` is easy to run from Terminal."
     }
 
     public static func bundledExecutableURL(
@@ -85,31 +86,19 @@ public enum BearMCPCLILocator {
     }
 
     @discardableResult
-    public static func installUserCommandLink(
+    public static func installUserCommandExecutable(
         fileManager: FileManager = .default,
         sourceURL: URL = appManagedInstallURL,
         destinationURL: URL = userCommandInstallURL
-    ) throws -> BearCLICommandLinkReceipt {
+    ) throws -> BearCLIExecutableInstallReceipt {
         let sourceExecutableURL = try installedExecutableURL(
             fileManager: fileManager,
             destinationURL: sourceURL
         )
-        let destinationDirectoryURL = destinationURL.deletingLastPathComponent()
-        try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
-
-        if fileManager.fileExists(atPath: destinationURL.path)
-            || (try? fileManager.destinationOfSymbolicLink(atPath: destinationURL.path)) != nil {
-            try fileManager.removeItem(at: destinationURL)
-        }
-
-        try fileManager.createSymbolicLink(
-            at: destinationURL,
-            withDestinationURL: sourceExecutableURL
-        )
-
-        return BearCLICommandLinkReceipt(
-            sourcePath: sourceExecutableURL.path,
-            destinationPath: destinationURL.path
+        return try installExecutableCopy(
+            from: sourceExecutableURL,
+            fileManager: fileManager,
+            destinationURL: destinationURL
         )
     }
 
@@ -120,6 +109,45 @@ public enum BearMCPCLILocator {
         destinationURL: URL = appManagedInstallURL
     ) throws -> BearBundledCLIInstallReceipt {
         let sourceURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
+        let receipt = try installExecutableCopy(
+            from: sourceURL,
+            fileManager: fileManager,
+            destinationURL: destinationURL
+        )
+
+        return BearBundledCLIInstallReceipt(
+            sourcePath: receipt.sourcePath,
+            destinationPath: receipt.destinationPath
+        )
+    }
+
+    public static func executableContentsMatch(
+        sourceURL: URL,
+        destinationURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> Bool {
+        let sourceData = try Data(contentsOf: sourceURL)
+        let destinationData = try Data(contentsOf: destinationURL)
+        return sourceData == destinationData
+    }
+
+    public static func hasIndirectFilesystemEntry(
+        at url: URL,
+    ) -> Bool {
+        var status = stat()
+        guard lstat(url.path, &status) == 0 else {
+            return false
+        }
+
+        return (status.st_mode & S_IFMT) == S_IFLNK
+    }
+
+    @discardableResult
+    private static func installExecutableCopy(
+        from sourceURL: URL,
+        fileManager: FileManager,
+        destinationURL: URL
+    ) throws -> BearCLIExecutableInstallReceipt {
         let destinationDirectoryURL = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
 
@@ -135,11 +163,13 @@ public enum BearMCPCLILocator {
 
         if fileManager.fileExists(atPath: destinationURL.path) {
             try fileManager.removeItem(at: destinationURL)
+        } else if hasIndirectFilesystemEntry(at: destinationURL) {
+            try fileManager.removeItem(at: destinationURL)
         }
 
         try fileManager.moveItem(at: stagingURL, to: destinationURL)
 
-        return BearBundledCLIInstallReceipt(
+        return BearCLIExecutableInstallReceipt(
             sourcePath: sourceURL.path,
             destinationPath: destinationURL.path
         )

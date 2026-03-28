@@ -203,7 +203,7 @@ final class BearMCPAppModel: ObservableObject {
     func installTerminalCLI() {
         do {
             let receipt = try BearAppSupport.installTerminalCLI()
-            cliStatusMessage = "Terminal command installed at \(receipt.destinationPath) -> \(receipt.sourcePath)"
+            cliStatusMessage = "Terminal CLI installed at \(receipt.destinationPath) from \(receipt.sourcePath)"
             cliStatusError = nil
             reload()
         } catch {

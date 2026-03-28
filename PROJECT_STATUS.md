@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts, it can also create a one-click terminal symlink at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command link, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -126,9 +126,9 @@ Implemented:
 - local app build script now embedding the `bear-mcp` CLI at `Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - shared bundled-CLI locator/install support for the app-managed host-facing CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 - app settings actions for install/refresh, copy, and reveal of the app-managed CLI path
-- terminal CLI install support through a stable `~/bin/bear-mcp` symlink that points at the app-managed CLI copy
+- terminal CLI install support through a stable copied executable at `~/bin/bear-mcp`, sourced from the app-managed CLI copy
 - doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
-- doctor/dashboard diagnostics for the terminal CLI link at `~/bin/bear-mcp`
+- doctor/dashboard diagnostics for the terminal CLI copy at `~/bin/bear-mcp`, including refresh guidance for older terminal installs
 - generic local-stdio host guidance in the app/dashboard so local MCP setup is documented independently of any one host app
 - shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
@@ -309,7 +309,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Keychain-backed token storage is now wired for selected-note resolution, and the preferred app-installed path now keeps Keychain reads inside `Bear MCP.app`, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
 - The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, and the first Phase 4 Keychain-backed token-management slice, but it does not yet ship signed release artifacts or a broader editable settings UI beyond token management.
 - The current app UI is functionally ahead of its information architecture: it now exposes real editing/onboarding surfaces, but the Overview, Hosts, Configuration, and Token tabs still carry too much implementation detail and too much explicit save/setup ceremony for the intended polished app-first product.
-- Terminal CLI exposure is still partly framed around a symlink workflow. That works for now, but it is likely not the final professional installation story for an app-centered product.
+- Terminal CLI exposure now installs a copied executable at `~/bin/bear-mcp`, but broader first-run and post-update refresh automation is still pending.
 - Closing the main app window currently leaves the app running. That default macOS lifecycle behavior is now a UX mismatch for the current product because the app is not intended to provide background-only functionality.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
@@ -341,7 +341,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 ## Recommended Next Steps
 
 1. Continue simplifying the app UI now that auto-save is in place: reduce Overview clutter further, keep host guidance detected-only where possible, and trim low-value implementation details from primary views.
-2. Rework CLI installation so the app owns install/refresh of a predictable copied executable, with the current symlink-based terminal exposure treated as transitional rather than the final product story.
+2. Add lightweight first-run and post-update refresh prompts/checks so missing or stale CLI copies are repaired proactively from the app.
 3. Add direct user-facing CLI utility commands for selected-note workflows: `--new-note`, `--delete-note`, and `--apply-template`.
 4. Remove `--update-config` after the app owns config migration and CLI refresh/update flows cleanly enough that the flag no longer provides meaningful value.
 5. Clean up remaining runtime/config details as a coordinated compatibility pass: move debug logs into Application Support and plan any bundle-id / Keychain namespace migration together rather than piecemeal.

@@ -98,7 +98,7 @@ open "$HOME/Applications/Bear MCP.app"
 The app can currently install:
 
 - an app-managed CLI at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
-- a terminal command at `~/bin/bear-mcp`
+- a copied terminal CLI at `~/bin/bear-mcp`
 
 If you are testing from a clean start, remove both the Application Support directory and `~/bin/bear-mcp`.
 

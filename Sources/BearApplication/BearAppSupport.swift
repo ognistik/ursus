@@ -429,8 +429,8 @@ public enum BearAppSupport {
         fileManager: FileManager = .default,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
         terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL
-    ) throws -> BearCLICommandLinkReceipt {
-        try BearMCPCLILocator.installUserCommandLink(
+    ) throws -> BearCLIExecutableInstallReceipt {
+        try BearMCPCLILocator.installUserCommandExecutable(
             fileManager: fileManager,
             sourceURL: appManagedCLIURL,
             destinationURL: terminalCLIURL
@@ -792,15 +792,56 @@ public enum BearAppSupport {
 
         let appManagedCLIPath = appManagedCLIURL.path
         if fileManager.fileExists(atPath: appManagedCLIPath) {
-            checks.append(
-                BearDoctorCheck(
+            let appManagedCLIStatus: BearDoctorCheck
+
+            if !fileManager.isExecutableFile(atPath: appManagedCLIPath) {
+                appManagedCLIStatus = BearDoctorCheck(
                     key: "app-managed-cli",
                     value: appManagedCLIPath,
-                    status: fileManager.isExecutableFile(atPath: appManagedCLIPath) ? .ok : .invalid,
-                    detail: fileManager.isExecutableFile(atPath: appManagedCLIPath)
-                        ? "stable CLI path for MCP hosts"
-                        : "invalid: app-managed CLI is not executable"
+                    status: .invalid,
+                    detail: "invalid: app-managed CLI is not executable"
                 )
+            } else if let appBundleURLForBundledCLI {
+                do {
+                    let bundledCLIURL = try bundledCLIExecutableURLResolver(appBundleURLForBundledCLI, fileManager)
+                    if try BearMCPCLILocator.executableContentsMatch(
+                        sourceURL: bundledCLIURL,
+                        destinationURL: appManagedCLIURL,
+                        fileManager: fileManager
+                    ) {
+                        appManagedCLIStatus = BearDoctorCheck(
+                            key: "app-managed-cli",
+                            value: appManagedCLIPath,
+                            status: .ok,
+                            detail: "stable CLI path for MCP hosts"
+                        )
+                    } else {
+                        appManagedCLIStatus = BearDoctorCheck(
+                            key: "app-managed-cli",
+                            value: appManagedCLIPath,
+                            status: .invalid,
+                            detail: "needs refresh: installed CLI does not match the bundled CLI in \(appBundleURLForBundledCLI.path)"
+                        )
+                    }
+                } catch {
+                    appManagedCLIStatus = BearDoctorCheck(
+                        key: "app-managed-cli",
+                        value: appManagedCLIPath,
+                        status: .invalid,
+                        detail: "invalid: \(localizedMessage(for: error))"
+                    )
+                }
+            } else {
+                appManagedCLIStatus = BearDoctorCheck(
+                    key: "app-managed-cli",
+                    value: appManagedCLIPath,
+                    status: .ok,
+                    detail: "stable CLI path for MCP hosts"
+                )
+            }
+
+            checks.append(
+                appManagedCLIStatus
             )
         } else {
             checks.append(
@@ -998,55 +1039,61 @@ public enum BearAppSupport {
             return (
                 .missing,
                 "App-managed CLI missing",
-                "Install or refresh the app-managed CLI first, then create the terminal command link."
+                "Install or refresh the app-managed CLI first, then install the copied terminal CLI."
+            )
+        }
+
+        if BearMCPCLILocator.hasIndirectFilesystemEntry(at: terminalCLIURL) {
+            return (
+                .invalid,
+                "Needs refresh",
+                "The existing terminal install at `\(terminalCLIURL.path)` came from an older Bear MCP setup. Refresh it from Bear MCP.app so Terminal uses the current copied executable."
             )
         }
 
         guard
             fileManager.fileExists(atPath: terminalCLIURL.path)
-                || (try? fileManager.destinationOfSymbolicLink(atPath: terminalCLIURL.path)) != nil
         else {
             return (
                 .missing,
                 "Not installed in Terminal",
-                "Create a symlink at `\(terminalCLIURL.path)` if you want to run `bear-mcp` directly from Terminal."
+                "Install a copied terminal executable at `\(terminalCLIURL.path)` if you want to run `bear-mcp` directly from Terminal."
+            )
+        }
+
+        guard fileManager.isExecutableFile(atPath: terminalCLIURL.path) else {
+            return (
+                .invalid,
+                "Invalid executable",
+                "The terminal CLI at `\(terminalCLIURL.path)` exists but is not executable."
             )
         }
 
         do {
-            let destination = try fileManager.destinationOfSymbolicLink(atPath: terminalCLIURL.path)
-            let resolvedDestination = URL(fileURLWithPath: destination, relativeTo: terminalCLIURL.deletingLastPathComponent())
-                .standardizedFileURL
-            let expectedDestination = appManagedCLIURL.standardizedFileURL
-
-            guard resolvedDestination == expectedDestination else {
+            guard try BearMCPCLILocator.executableContentsMatch(
+                sourceURL: appManagedCLIURL,
+                destinationURL: terminalCLIURL,
+                fileManager: fileManager
+            ) else {
                 return (
                     .invalid,
                     "Needs refresh",
-                    "The terminal command link points at `\(resolvedDestination.path)` instead of `\(expectedDestination.path)`."
+                    "The terminal CLI copy at `\(terminalCLIURL.path)` does not match the current app-managed CLI at `\(appManagedCLIURL.path)`."
                 )
             }
-
-            return (
-                .ok,
-                "Installed",
-                "Terminal users can run `\(terminalCLIURL.path)` directly. If `~/bin` is not on PATH yet, add it in your shell profile."
-            )
         } catch {
-            if fileManager.isExecutableFile(atPath: terminalCLIURL.path) {
-                return (
-                    .invalid,
-                    "Needs refresh",
-                    "A regular file already exists at `\(terminalCLIURL.path)`. Replace it with a symlink to the app-managed CLI."
-                )
-            }
-
             return (
                 .invalid,
-                "Invalid link",
-                "The terminal command entry at `\(terminalCLIURL.path)` could not be read as a symlink."
+                "Needs refresh",
+                "The terminal CLI at `\(terminalCLIURL.path)` could not be validated: \(localizedMessage(for: error))"
             )
         }
+
+        return (
+            .ok,
+            "Installed",
+            "Terminal users can run `\(terminalCLIURL.path)` directly. Bear MCP.app manages it as a copied executable."
+        )
     }
 
     private static func localizedMessage(for error: Error) -> String {

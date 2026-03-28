@@ -294,7 +294,7 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
 }
 
 @Test
-func dashboardSnapshotReportsTerminalCLILinkStatus() throws {
+func dashboardSnapshotReportsCopiedTerminalCLIStatus() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -314,9 +314,10 @@ func dashboardSnapshotReportsTerminalCLILinkStatus() throws {
     try fileManager.createDirectory(at: terminalCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    try "#!/bin/sh\nexit 0\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho current\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
-    try fileManager.createSymbolicLink(at: terminalCLIURL, withDestinationURL: appManagedCLIURL)
+    try "#!/bin/sh\necho current\n".write(to: terminalCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: terminalCLIURL.path)
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -336,9 +337,111 @@ func dashboardSnapshotReportsTerminalCLILinkStatus() throws {
     #expect(dashboard.settings?.terminalCLIPath == terminalCLIURL.path)
     #expect(dashboard.settings?.terminalCLIStatus == .ok)
     #expect(dashboard.settings?.terminalCLIStatusTitle == "Installed")
+    #expect(dashboard.settings?.terminalCLIStatusDetail.contains("copied executable") == true)
     let terminalDiagnostic = try #require(diagnostic(named: "terminal-cli", in: dashboard.diagnostics))
     #expect(terminalDiagnostic.status == .ok)
     #expect(terminalDiagnostic.value == terminalCLIURL.path)
+}
+
+@Test
+func dashboardSnapshotFlagsOlderTerminalInstallForRefresh() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let terminalCLIURL = tempRoot
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: terminalCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho current\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    try fileManager.createSymbolicLink(at: terminalCLIURL, withDestinationURL: appManagedCLIURL)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        appManagedCLIURL: appManagedCLIURL,
+        terminalCLIURL: terminalCLIURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(dashboard.settings?.terminalCLIStatus == .invalid)
+    #expect(dashboard.settings?.terminalCLIStatusTitle == "Needs refresh")
+    #expect(dashboard.settings?.terminalCLIStatusDetail.contains("older Bear MCP setup") == true)
+}
+
+@Test
+func dashboardSnapshotFlagsStaleAppManagedCLIForRefresh() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "#!/bin/sh\necho stale\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        currentAppBundleURL: appBundleURL,
+        appManagedCLIURL: appManagedCLIURL,
+        bundledCLIExecutableURLResolver: { bundleURL, _ in
+            bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("bear-mcp", isDirectory: false)
+        },
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
+    #expect(appManagedCLIDiagnostic.status == .invalid)
+    #expect(appManagedCLIDiagnostic.detail?.contains("needs refresh") == true)
 }
 
 @Test

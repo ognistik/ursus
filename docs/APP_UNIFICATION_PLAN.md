@@ -27,7 +27,7 @@ As of 2026-03-28:
 - The onboarding slice has now widened into a more host-agnostic Phase 5 direction: the dashboard/settings surface still includes host-specific guided checks for common apps, but it now also includes generic local-stdio guidance that is not tied to Codex or Claude Desktop.
 - Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, inbox tags, and tool availability.
 - Tool availability can now be controlled from config/app UI, and the live MCP tool catalog filters out disabled tools.
-- The app can now create a one-click terminal symlink at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding.
+- The app can now install a copied terminal executable at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding, and older terminal installs are now treated as refreshable migration state rather than the preferred setup.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
@@ -135,7 +135,7 @@ The desired architecture is:
   - CLI installation/exposure
 - The app should expose both:
   - a stable host-facing CLI path for MCP hosts
-  - an optional terminal-friendly symlink for direct shell usage
+  - an optional terminal-friendly copied executable for direct shell usage
 - The CLI remains a separate executable binary inside the product, used by MCP clients for stdio operation.
 - The app does not become the stdio MCP server.
 
@@ -507,7 +507,7 @@ Preferred behavior:
 - treat the app-managed CLI copy as the source of truth
 - let the app install or refresh a direct executable copy at predictable user paths
 - avoid exposing long app-bundle-internal paths in onboarding snippets
-- treat symlink-based terminal exposure as transitional only, not the polished long-term default
+- treat copied terminal executables as the polished default, with any older terminal installs refreshed forward
 
 The app should also expose the absolute CLI path for users who want to point MCP clients at it directly.
 
@@ -528,7 +528,7 @@ Direction:
 
 Important note:
 
-- today’s symlink-based terminal install is acceptable as a transitional step, but the more polished target is an app-managed copied executable with a stable remembered path
+- the copied `~/bin/bear-mcp` install has now landed, but first-run and post-update refresh prompts for missing or stale copies are still pending
 
 ### 2. CLI surface should expand for direct user actions
 
@@ -774,6 +774,7 @@ Current repo status:
 - local `Support/scripts/build-bear-mcp-app.sh` now embeds `bear-mcp` at `Bear MCP.app/Contents/Resources/bin/bear-mcp`: done
 - app dashboard now has install/refresh, copy, and reveal controls for the stable CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`: done
 - doctor/dashboard now report `bundled-cli` and `app-managed-cli` separately, which makes stale installed app bundles obvious: done
+- terminal CLI installs at `~/bin/bear-mcp` now use a copied executable, and the app flags older terminal installs for refresh: done
 - app settings and doctor now surface host-specific onboarding state for Codex and Claude Desktop, with ChatGPT explicitly called out as remote-only for now: done
 - broader distribution/install polish around signed releases and automatic replacement of an older installed app bundle: still pending
 
