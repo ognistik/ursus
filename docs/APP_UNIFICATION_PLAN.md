@@ -1,0 +1,697 @@
+# Bear MCP App Unification Plan
+
+This document is the implementation plan for moving `bear-mcp` from:
+
+- `bear-mcp` CLI
+- plus a separate `Bear MCP Helper.app`
+
+to:
+
+- one canonical signed macOS app bundle
+- with the callback receiver built in
+- with the CLI still preserved as the headless MCP execution layer
+
+This plan is intentionally incremental. It is designed to preserve the working system and reduce product/design friction without rewriting the server.
+
+## Decisions Locked In
+
+These decisions should be treated as the working product direction unless explicitly changed later.
+
+- The project remains a local macOS MCP server for Bear.
+- The CLI remains the MCP execution/runtime layer for stdio/headless use.
+- The app becomes the control center for install, config editing, token setup, diagnostics, and optional advanced features.
+- Basic MCP usage must not require the GUI to be manually open.
+- Config stays JSON-based for now.
+- The Bear token should move out of JSON config and into Keychain.
+- The callback URL scheme should be simplified from `bearmcphelper://` to `bearmcp://`.
+- The separate helper app should be absorbed into the main app bundle.
+- The old direct-localhost callback experiment should not be treated as the primary path, because it was tried already and did not behave correctly in real use.
+- No XPC is required for the first app-centered architecture.
+- No Sparkle.
+- Updates should be GitHub-based and simple enough for a free/open-source project.
+- A Homebrew cask is a good distribution path, but the app itself may also check GitHub for updates directly.
+
+## Current Architecture Summary
+
+The current codebase already has a strong separation of responsibilities. The goal is to preserve that.
+
+### Swift package products
+
+- `bear-mcp` executable
+- `bear-mcp-helper` executable
+
+See:
+
+- `Package.swift`
+
+### Current layers
+
+- `BearCore`
+  - config types
+  - paths
+  - domain models
+  - process lock
+  - helper locator
+- `BearDB`
+  - read-only SQLite access
+- `BearXCallback`
+  - Bear URL construction
+  - Bear app launch
+  - selected-note helper launch
+- `BearApplication`
+  - orchestration
+  - template-aware mutation planning
+  - doctor/bootstrap
+  - backup store
+- `BearMCP`
+  - MCP tool registration
+  - argument decoding
+- `BearMCPCLI`
+  - command entrypoint
+  - `mcp`, `doctor`, `paths`, `--update-config`
+
+### Important current files
+
+- `Sources/BearMCPCLI/main.swift`
+- `Sources/BearApplication/BearRuntimeBootstrap.swift`
+- `Sources/BearApplication/BearService.swift`
+- `Sources/BearDB/BearDatabaseReader.swift`
+- `Sources/BearXCallback/BearXCallbackTransport.swift`
+- `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
+- `Sources/BearXCallback/BearSelectedNoteHelperRunner.swift`
+- `Sources/BearSelectedNoteHelper/main.swift`
+- `Sources/BearCore/BearConfiguration.swift`
+- `Sources/BearCore/BearPaths.swift`
+- `Sources/BearCore/BearSelectedNoteHelperLocator.swift`
+- `Support/helper/Info.plist`
+- `Support/scripts/build-selected-note-helper-app.sh`
+
+### Current callback flow
+
+Current selected-note resolution works like this:
+
+1. CLI builds a Bear `open-note?selected=yes&token=...` x-callback URL.
+2. CLI launches a separate helper app.
+3. The helper app rewrites `x-success` and `x-error` to its own registered URL scheme.
+4. Bear calls back into the helper app.
+5. The helper app writes JSON back to the CLI and exits.
+
+The existing helper path works in real usage and should be preserved conceptually during the transition.
+
+## Target Product Shape
+
+The desired architecture is:
+
+- `Bear MCP.app` is the canonical install artifact.
+- The app owns:
+  - callback URL handling
+  - onboarding
+  - settings/config editor
+  - token management
+  - diagnostics
+  - update checks
+  - CLI installation/exposure
+- The CLI remains a separate executable binary inside the product, used by MCP clients for stdio operation.
+- The app does not become the stdio MCP server.
+
+This means the product becomes app-centered, not app-only.
+
+## Recommended Architecture
+
+### 1. Keep the package layers
+
+Do not flatten or redesign the server.
+
+Keep:
+
+- `BearCore`
+- `BearDB`
+- `BearXCallback`
+- `BearApplication`
+- `BearMCP`
+- `BearMCPCLI`
+
+These are already the right long-term seams.
+
+### 2. Add a real app target
+
+Add a proper macOS app target in Xcode that links the Swift package code.
+
+Recommended shape:
+
+- keep `Package.swift` for libraries + CLI
+- add an Xcode project for the app bundle
+- the app target depends on local package products
+
+Why:
+
+- signing, notarization, archive/export, URL schemes, resources, and app bundling are all easier in a native app target than trying to force the whole product through SwiftPM-only packaging
+- this preserves the Swift package as the reusable/core implementation layer
+
+### 3. Replace the separate helper with an app-hosted callback mode
+
+Do not invent a whole new IPC system first.
+
+Instead, preserve the current helper contract:
+
+- CLI launches the app in a headless callback-host mode
+- CLI passes the Bear x-callback request and a response-file path
+- app receives Bear callback on `bearmcp://`
+- app writes JSON result to the response file
+- CLI waits for the file result exactly like today
+
+This is the lowest-risk migration because it keeps the already-proven control flow and only changes where that logic lives.
+
+### 4. Keep config JSON, move secrets out
+
+Short-term:
+
+- keep `~/.config/bear-mcp/config.json`
+- keep `template.md`
+- keep current config keys for compatibility
+
+Change:
+
+- move Bear token storage to Keychain
+- leave a compatibility migration path from `config.token`
+
+Recommended behavior:
+
+- app UI edits JSON-backed settings directly
+- app stores token in Keychain
+- CLI reads Keychain first
+- if Keychain is empty and `config.token` exists:
+  - use it
+  - optionally migrate it into Keychain
+  - then clear it from config on explicit save/update flow
+
+### 5. Keep update behavior simple
+
+Because this is a free/open-source project, avoid Sparkle and avoid building a complex self-patching updater.
+
+Recommended update model:
+
+- app checks GitHub Releases for the latest version
+- app compares latest available version vs current app version
+- app can auto-check on launch or on a periodic schedule if enabled in settings
+- app offers:
+  - `Check for Updates`
+  - optional automatic background check
+  - download latest release asset directly from GitHub
+
+Recommended release assets:
+
+- signed and notarized `.zip` or `.dmg` containing `Bear MCP.app`
+
+Important tradeoff:
+
+- fully automatic in-place app replacement is the part that usually becomes fragile without Sparkle
+- the low-complexity path is:
+  - auto-check
+  - show available version
+  - download
+  - guide/install via a controlled replacement flow
+
+If later you decide you truly want fully silent app replacement, that should be a separate phase and treated as extra complexity, not as day-one scope.
+
+### 6. Use a Homebrew cask, not a formula, for app distribution
+
+Recommended distribution:
+
+- GitHub Releases as canonical artifacts
+- Homebrew cask for discoverability/install convenience
+
+Why:
+
+- a cask matches a signed `.app` bundle
+- a formula is better for CLI-first distribution
+- the product is moving to app-first packaging
+
+The CLI can still be bundled inside the app and exposed for MCP clients.
+
+## What Stays in the CLI
+
+The CLI should keep responsibility for:
+
+- stdio MCP runtime
+- process lock management
+- parent-process shutdown logic
+- MCP tool registration
+- DB reads
+- x-callback write submission
+- note mutation verification/polling
+- headless diagnostics
+- config loading
+- Keychain token lookup
+
+Do not move these into the GUI unless there is a strong reason.
+
+## What Moves Into the App
+
+The app should own:
+
+- callback URL registration using `bearmcp://`
+- callback result handling
+- onboarding/setup flow
+- settings UI
+- config editing
+- token entry/removal
+- update checks
+- diagnostics UI
+- CLI installation/exposure
+
+Optional later additions:
+
+- log viewer
+- “copy MCP config snippet” helpers for host apps
+- guided install checks for Claude Desktop / ChatGPT / Codex / other MCP clients
+
+## CLI/App Communication Plan
+
+Do not start with XPC.
+
+### First implementation contract
+
+Use a simple app-launch + response-file contract:
+
+1. CLI creates a temporary response file path.
+2. CLI launches `Bear MCP.app` with arguments describing the callback request.
+3. App enters a headless callback-host mode.
+4. App launches the Bear x-callback URL.
+5. Bear calls `bearmcp://...`.
+6. App writes JSON result to the response file.
+7. CLI reads the file, parses it, and continues.
+
+This is basically the current helper protocol, but hosted by the main app.
+
+### Why not XPC now
+
+XPC would add:
+
+- another communication layer
+- another lifecycle surface
+- more signing/entitlement complexity
+- more debugging overhead
+
+For the current product goals, it is unnecessary.
+
+## Token Storage Plan
+
+### Target behavior
+
+- store the Bear API token in the user Keychain
+- do not keep it as the long-term source of truth in `config.json`
+
+### Recommended ownership split
+
+- app UI is the friendly editor for token entry/removal
+- core/token-access code is shared so CLI can read it headlessly
+
+### Migration behavior
+
+Phase 1:
+
+- add shared Keychain wrapper
+- CLI checks Keychain first
+- if missing, falls back to `config.token`
+
+Phase 2:
+
+- app offers “Import token from config” if found
+- after successful import, remove token from config during explicit save/update
+
+### Files likely involved
+
+- `Sources/BearCore/BearConfiguration.swift`
+- `Sources/BearApplication/BearRuntimeBootstrap.swift`
+- new shared Keychain helper file, likely in `BearCore` or `BearApplication`
+
+## Callback Handling Plan
+
+### Current source of truth
+
+The existing working behavior is in:
+
+- `Sources/BearSelectedNoteHelper/main.swift`
+- `Sources/BearXCallback/BearSelectedNoteHelperRunner.swift`
+
+### Target
+
+Move that logic into the main app bundle and rename the callback scheme to `bearmcp://`.
+
+### Important note
+
+There is also callback-related localhost listener code in:
+
+- `Sources/BearXCallback/BearSelectedNoteCallbackSession.swift`
+- `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
+
+That code should not be treated as the primary path for the unified product because it was previously not reliable in real use.
+
+Recommended action:
+
+- do not wire new architecture around it
+- once the app-hosted callback path is stable, either:
+  - remove it, or
+  - clearly mark it as unused experimental code
+
+This will reduce future confusion.
+
+## Config Management Plan
+
+### Keep
+
+- `~/.config/bear-mcp/config.json`
+- `~/.config/bear-mcp/template.md`
+
+### Change
+
+- app becomes the main editor for these files
+- CLI remains compatible with manual edits
+
+### UX recommendation
+
+The app settings UI can be intentionally simple:
+
+- a form for common fields
+- an “advanced JSON” editor/view if desired
+- template file open/reveal buttons
+
+You do not need a complicated settings architecture to ship this.
+
+## Diagnostics Plan
+
+Keep the existing doctor logic as the base.
+
+### Current doctor source
+
+- `Sources/BearApplication/BearRuntimeBootstrap.swift`
+
+### Evolve it into two surfaces
+
+- CLI:
+  - keep `bear-mcp doctor`
+- app:
+  - render the same checks in a diagnostics screen
+
+Add checks for:
+
+- app installed correctly
+- callback scheme registration
+- embedded CLI presence
+- CLI executable permissions
+- Bear DB readable
+- config readable
+- template present
+- Keychain token present
+- Bear app installed
+- selected-note callback round-trip health
+
+## Update Check Plan
+
+### Recommended minimum viable updater
+
+1. App setting: `Automatically check for updates`
+2. App reads current version from bundle metadata
+3. App fetches latest version metadata from GitHub Releases or a tiny version manifest in the repo
+4. App compares versions
+5. If newer version exists:
+   - show release notes
+   - offer download/open release page
+   - optionally download the release asset directly
+
+### Recommendation
+
+Start with:
+
+- auto-check
+- notify
+- download/open release asset
+
+Do not start with:
+
+- fully silent background self-replacement
+
+That keeps the updater small and maintainable.
+
+### Possible metadata sources
+
+Option A:
+
+- GitHub Releases API
+
+Option B:
+
+- a small `latest.json` file hosted from the repo or release assets
+
+Recommendation:
+
+- GitHub Releases API first, unless rate limiting or release metadata control becomes annoying
+
+## Packaging And Distribution Plan
+
+### Canonical artifact
+
+- signed + notarized `Bear MCP.app`
+
+### Release channel
+
+- GitHub Releases
+
+### Convenience install path
+
+- Homebrew cask
+
+### CLI exposure
+
+Recommended options:
+
+- app bundles the CLI binary internally
+- app offers an “Install CLI” action that copies/symlinks it to a stable user path
+
+Recommended stable path:
+
+- `~/Library/Application Support/bear-mcp/bin/bear-mcp`
+
+Optional convenience symlink:
+
+- `~/.local/bin/bear-mcp`
+
+The app should also expose the absolute CLI path for users who want to point MCP clients at it directly.
+
+## File-By-File Impact Map
+
+This section is intended to help a new conversation pick up implementation quickly.
+
+### Keep and reuse
+
+- `Sources/BearMCPCLI/main.swift`
+  - CLI stays the MCP runtime
+- `Sources/BearApplication/BearService.swift`
+  - no redesign required
+- `Sources/BearDB/BearDatabaseReader.swift`
+  - no redesign required
+- `Sources/BearMCP/BearMCPServer.swift`
+  - no redesign required
+- `Sources/BearXCallback/BearXCallbackTransport.swift`
+  - keep as write transport
+- `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
+  - keep Bear URL construction
+
+### Refactor soon
+
+- `Sources/BearSelectedNoteHelper/main.swift`
+  - extract callback-host logic into shared code
+  - stop treating it as a standalone product endpoint
+- `Sources/BearXCallback/BearSelectedNoteHelperRunner.swift`
+  - replace helper-app launching with main-app callback-host launching
+- `Sources/BearCore/BearSelectedNoteHelperLocator.swift`
+  - replace helper-specific locator with app bundle / embedded tool locator
+- `Support/helper/Info.plist`
+  - replace or supersede with the main app bundle Info.plist
+
+### Likely add
+
+- app target sources
+  - app entrypoint
+  - settings window
+  - diagnostics window/view
+  - update checker
+  - callback app delegate/router
+- shared token/keychain helper
+- shared callback-host service extracted from current helper main
+- shared CLI installer helper
+- shared release/update metadata helper
+
+### Likely clean up later
+
+- `Sources/BearXCallback/BearSelectedNoteCallbackSession.swift`
+  - remove or explicitly mark unused if the app-hosted callback scheme replaces it
+- `docs/SELECTED_NOTE_HELPER.md`
+  - rewrite as app-hosted callback documentation
+- `docs/HELPER_RELEASE_AND_TESTING.md`
+  - replace with unified app release/testing docs
+
+## Recommended Phases
+
+## Phase 0: Planning and cleanup docs
+
+Goal:
+
+- capture the target design clearly before implementation starts
+
+Tasks:
+
+- add this plan document
+- stop future threads from treating the separate helper as the long-term product shape
+- note that the localhost callback experiment is not the intended architecture
+
+## Phase 1: Extract callback-host logic
+
+Goal:
+
+- separate “callback-host behavior” from the standalone helper executable
+
+Tasks:
+
+- move helper request parsing, callback URL rewrite, response-file writing, and timeout behavior into shared code
+- keep the current helper product working while doing this
+- add tests around the shared callback-host logic
+
+Why first:
+
+- highest leverage
+- lowest risk
+- unlocks the main-app migration cleanly
+
+## Phase 2: Add the macOS app target
+
+Goal:
+
+- create `Bear MCP.app` as a real bundle using the existing package code
+
+Tasks:
+
+- add Xcode app target
+- register `bearmcp://`
+- create minimal app shell
+- add settings and diagnostics skeleton views
+- link shared package modules
+
+Deliverable:
+
+- signed local app build that launches and can render diagnostics
+
+## Phase 3: Re-route selected-note callback flow through the app
+
+Goal:
+
+- make the main app replace the standalone helper for callback handling
+
+Tasks:
+
+- update the runner code to launch the main app in headless callback mode
+- change callback scheme to `bearmcp://`
+- preserve response-file JSON contract
+- verify selected-note resolution works exactly like today
+
+Deliverable:
+
+- separate helper app no longer required
+
+## Phase 4: Move token storage to Keychain
+
+Goal:
+
+- remove plaintext token as the preferred storage source
+
+Tasks:
+
+- add shared Keychain wrapper
+- change CLI token lookup order to Keychain first, config fallback second
+- add token save/remove UI in the app
+- add optional migration from `config.token`
+
+Deliverable:
+
+- selected-note targeting works with token stored in Keychain
+
+## Phase 5: Bundle and expose the CLI from the app
+
+Goal:
+
+- make the app the canonical installation, while preserving a stable CLI path for MCP hosts
+
+Tasks:
+
+- embed the CLI binary in the app bundle or produce it alongside the app during build
+- add an app action to install/expose the CLI to a stable path
+- add diagnostics for CLI presence and permissions
+- document how host apps should point to the CLI
+
+Deliverable:
+
+- users can install one app and get a working CLI path from it
+
+## Phase 6: Add GitHub-based update checks
+
+Goal:
+
+- simple update checks without Sparkle
+
+Tasks:
+
+- implement release metadata fetch
+- compare versions
+- add settings toggle for automatic checks
+- add manual “Check for Updates”
+- add release notes / download UI
+
+Deliverable:
+
+- app can inform users of new versions and send them directly to the GitHub-hosted release asset
+
+## Phase 7: Release packaging and cleanup
+
+Goal:
+
+- ship a coherent public product
+
+Tasks:
+
+- sign and notarize app
+- publish GitHub release assets
+- add Homebrew cask
+- rewrite docs around the unified app-centered install
+- remove stale helper-only language
+- remove or clearly retire unused experimental callback code
+
+Deliverable:
+
+- first public release candidate
+
+## What Not To Do
+
+- do not rewrite the service layer
+- do not move MCP stdio serving into the GUI app
+- do not make basic CLI runtime depend on the app being visibly open
+- do not add XPC before the simple response-file contract is exhausted
+- do not switch config away from JSON yet
+- do not build a complicated updater before basic GitHub update checks exist
+- do not leave both the old helper path and the new app path half-active without clear ownership
+
+## Recommended Starting Task For The Next Implementation Thread
+
+If a new conversation is going to begin implementation, the best first task is:
+
+1. extract the current helper app runtime behavior into shared callback-host code
+2. keep the existing helper working during the extraction
+3. do not add the app target in the same patch unless the extraction lands cleanly
+
+That keeps risk low and creates the clean seam needed for everything else.
+
+## Suggested Prompt For The Next Conversation
+
+Use this as a starting point in a fresh implementation thread:
+
+> Read `PROJECT_STATUS.md` and `docs/APP_UNIFICATION_PLAN.md`. We are starting Phase 1 only. Do not add the macOS app target yet. Extract the selected-note helper runtime logic into shared code that can later be hosted by the main app, while preserving the current helper behavior and tests. Keep the CLI runtime unchanged for now. Avoid architecture rewrites. Update docs/tests as needed.
