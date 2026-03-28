@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive CLI attention cards that surface missing or stale installs with direct refresh actions on first load. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -129,6 +129,8 @@ Implemented:
 - terminal CLI install support through a stable copied executable at `~/bin/bear-mcp`, sourced from the app-managed CLI copy
 - doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
 - doctor/dashboard diagnostics for the terminal CLI copy at `~/bin/bear-mcp`, including refresh guidance for older terminal installs
+- shared app/dashboard CLI health snapshots that now expose host-facing CLI status alongside terminal CLI status
+- proactive dashboard CLI attention cards that surface install/refresh actions when the host-facing or terminal CLI copies need attention
 - generic local-stdio host guidance in the app/dashboard so local MCP setup is documented independently of any one host app
 - shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions

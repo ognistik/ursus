@@ -46,6 +46,9 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let backupsDirectoryPath: String
     public let backupsIndexPath: String
     public let appManagedCLIPath: String
+    public let appManagedCLIStatus: BearDoctorCheckStatus
+    public let appManagedCLIStatusTitle: String
+    public let appManagedCLIStatusDetail: String
     public let processLockPath: String
     public let fallbackProcessLockPath: String
     public let debugLogPath: String
@@ -53,6 +56,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let terminalCLIStatus: BearDoctorCheckStatus
     public let terminalCLIStatusTitle: String
     public let terminalCLIStatusDetail: String
+    public let cliMaintenancePrompt: BearAppCLIMaintenancePrompt?
     public let databasePath: String
     public let inboxTags: [String]
     public let defaultInsertPosition: String
@@ -75,6 +79,31 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let selectedNoteTokenStatusDetail: String?
     public let toolToggles: [BearAppToolToggleSnapshot]
     public let hostAppSetups: [BearHostAppSetupSnapshot]
+}
+
+public enum BearAppCLIMaintenanceAction: String, Codable, Hashable, Sendable, Identifiable {
+    case installAppManagedCLI
+    case refreshAppManagedCLI
+    case installTerminalCLI
+    case refreshTerminalCLI
+
+    public var id: String { rawValue }
+}
+
+public struct BearAppCLIMaintenancePrompt: Codable, Hashable, Sendable {
+    public let title: String
+    public let detail: String
+    public let actions: [BearAppCLIMaintenanceAction]
+
+    public init(
+        title: String,
+        detail: String,
+        actions: [BearAppCLIMaintenanceAction]
+    ) {
+        self.title = title
+        self.detail = detail
+        self.actions = actions
+    }
 }
 
 public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiable {
@@ -231,6 +260,7 @@ public enum BearAppSupport {
                 templateURL: templateURL,
                 tokenStore: tokenStore,
                 allowSecureTokenStatusRead: allowSecureTokenStatusRead,
+                currentAppBundleURL: currentAppBundleURL,
                 appManagedCLIURL: appManagedCLIURL,
                 terminalCLIURL: terminalCLIURL,
                 homeDirectoryURL: homeDirectoryURL
@@ -285,6 +315,7 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         allowSecureTokenStatusRead: Bool = false,
+        currentAppBundleURL: URL? = nil,
         appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
         terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
@@ -315,6 +346,11 @@ public enum BearAppSupport {
             )
         }
 
+        let appManagedCLIStatus = appManagedCLIStatus(
+            fileManager: fileManager,
+            appManagedCLIURL: appManagedCLIURL,
+            currentAppBundleURL: currentAppBundleURL
+        )
         let terminalCLIStatus = terminalCLIStatus(
             fileManager: fileManager,
             terminalCLIURL: terminalCLIURL,
@@ -328,6 +364,9 @@ public enum BearAppSupport {
             backupsDirectoryPath: BearPaths.backupsDirectoryURL.path,
             backupsIndexPath: BearPaths.backupsIndexURL.path,
             appManagedCLIPath: appManagedCLIURL.path,
+            appManagedCLIStatus: appManagedCLIStatus.status,
+            appManagedCLIStatusTitle: appManagedCLIStatus.title,
+            appManagedCLIStatusDetail: appManagedCLIStatus.detail,
             processLockPath: BearPaths.processLockURL.path,
             fallbackProcessLockPath: BearPaths.fallbackProcessLockURL.path,
             debugLogPath: BearPaths.debugLogURL.path,
@@ -335,6 +374,10 @@ public enum BearAppSupport {
             terminalCLIStatus: terminalCLIStatus.status,
             terminalCLIStatusTitle: terminalCLIStatus.title,
             terminalCLIStatusDetail: terminalCLIStatus.detail,
+            cliMaintenancePrompt: cliMaintenancePrompt(
+                appManagedCLIStatus: appManagedCLIStatus,
+                terminalCLIStatus: terminalCLIStatus
+            ),
             databasePath: configuration.databasePath,
             inboxTags: configuration.inboxTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
@@ -790,69 +833,20 @@ public enum BearAppSupport {
             )
         }
 
-        let appManagedCLIPath = appManagedCLIURL.path
-        if fileManager.fileExists(atPath: appManagedCLIPath) {
-            let appManagedCLIStatus: BearDoctorCheck
-
-            if !fileManager.isExecutableFile(atPath: appManagedCLIPath) {
-                appManagedCLIStatus = BearDoctorCheck(
-                    key: "app-managed-cli",
-                    value: appManagedCLIPath,
-                    status: .invalid,
-                    detail: "invalid: app-managed CLI is not executable"
-                )
-            } else if let appBundleURLForBundledCLI {
-                do {
-                    let bundledCLIURL = try bundledCLIExecutableURLResolver(appBundleURLForBundledCLI, fileManager)
-                    if try BearMCPCLILocator.executableContentsMatch(
-                        sourceURL: bundledCLIURL,
-                        destinationURL: appManagedCLIURL,
-                        fileManager: fileManager
-                    ) {
-                        appManagedCLIStatus = BearDoctorCheck(
-                            key: "app-managed-cli",
-                            value: appManagedCLIPath,
-                            status: .ok,
-                            detail: "stable CLI path for MCP hosts"
-                        )
-                    } else {
-                        appManagedCLIStatus = BearDoctorCheck(
-                            key: "app-managed-cli",
-                            value: appManagedCLIPath,
-                            status: .invalid,
-                            detail: "needs refresh: installed CLI does not match the bundled CLI in \(appBundleURLForBundledCLI.path)"
-                        )
-                    }
-                } catch {
-                    appManagedCLIStatus = BearDoctorCheck(
-                        key: "app-managed-cli",
-                        value: appManagedCLIPath,
-                        status: .invalid,
-                        detail: "invalid: \(localizedMessage(for: error))"
-                    )
-                }
-            } else {
-                appManagedCLIStatus = BearDoctorCheck(
-                    key: "app-managed-cli",
-                    value: appManagedCLIPath,
-                    status: .ok,
-                    detail: "stable CLI path for MCP hosts"
-                )
-            }
-
-            checks.append(
-                appManagedCLIStatus
+        let appManagedCLIStatus = appManagedCLIStatus(
+            fileManager: fileManager,
+            appManagedCLIURL: appManagedCLIURL,
+            currentAppBundleURL: appBundleURLForBundledCLI,
+            bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver
+        )
+        checks.append(
+            BearDoctorCheck(
+                key: "app-managed-cli",
+                value: appManagedCLIURL.path,
+                status: appManagedCLIStatus.status,
+                detail: appManagedCLIStatus.detail
             )
-        } else {
-            checks.append(
-                BearDoctorCheck(
-                    key: "app-managed-cli",
-                    value: appManagedCLIPath,
-                    status: .missing,
-                    detail: BearMCPCLILocator.appManagedInstallGuidance
-                )
-            )
-        }
+        )
 
         let shellCLIStatus = terminalCLIStatus(
             fileManager: fileManager,
@@ -1027,6 +1021,102 @@ public enum BearAppSupport {
         return normalized
     }
 
+    private static func appManagedCLIStatus(
+        fileManager: FileManager,
+        appManagedCLIURL: URL,
+        currentAppBundleURL: URL?,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
+    ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
+        let appManagedCLIPath = appManagedCLIURL.path
+
+        guard fileManager.fileExists(atPath: appManagedCLIPath) else {
+            return (
+                .missing,
+                "Not installed",
+                "Install the host CLI once so local MCP apps can launch Bear MCP from a stable path."
+            )
+        }
+
+        guard fileManager.isExecutableFile(atPath: appManagedCLIPath) else {
+            return (
+                .invalid,
+                "Invalid executable",
+                "The host CLI exists, but it is not executable. Refresh it from this app."
+            )
+        }
+
+        guard let currentAppBundleURL else {
+            return (
+                .ok,
+                "Installed",
+                "Local MCP apps should use this stable path."
+            )
+        }
+
+        do {
+            let bundledCLIURL = try bundledCLIExecutableURLResolver(currentAppBundleURL, fileManager)
+            guard try BearMCPCLILocator.executableContentsMatch(
+                sourceURL: bundledCLIURL,
+                destinationURL: appManagedCLIURL,
+                fileManager: fileManager
+            ) else {
+                return (
+                    .invalid,
+                    "Needs refresh",
+                    "This host CLI is older than the one bundled in the current app build. Refresh it from this app."
+                )
+            }
+        } catch {
+            return (
+                .invalid,
+                "Invalid bundled CLI",
+                "This app could not validate its bundled CLI. Rebuild or reinstall Bear MCP.app."
+            )
+        }
+
+        return (
+            .ok,
+            "Installed",
+            "Local MCP apps should use this stable path."
+        )
+    }
+
+    private static func cliMaintenancePrompt(
+        appManagedCLIStatus: (status: BearDoctorCheckStatus, title: String, detail: String),
+        terminalCLIStatus: (status: BearDoctorCheckStatus, title: String, detail: String)
+    ) -> BearAppCLIMaintenancePrompt? {
+        switch appManagedCLIStatus.status {
+        case .missing:
+            return BearAppCLIMaintenancePrompt(
+                title: "Install the host-facing CLI",
+                detail: appManagedCLIStatus.detail,
+                actions: [.installAppManagedCLI]
+            )
+        case .invalid:
+            var actions: [BearAppCLIMaintenanceAction] = [.refreshAppManagedCLI]
+            if terminalCLIStatus.status == .invalid {
+                actions.append(.refreshTerminalCLI)
+            }
+            return BearAppCLIMaintenancePrompt(
+                title: "Refresh the host-facing CLI",
+                detail: appManagedCLIStatus.detail,
+                actions: actions
+            )
+        case .ok, .configured, .notConfigured, .failed:
+            break
+        }
+
+        if terminalCLIStatus.status == .invalid {
+            return BearAppCLIMaintenancePrompt(
+                title: "Refresh the Terminal command",
+                detail: terminalCLIStatus.detail,
+                actions: [.refreshTerminalCLI]
+            )
+        }
+
+        return nil
+    }
+
     private static func terminalCLIStatus(
         fileManager: FileManager,
         terminalCLIURL: URL,
@@ -1038,8 +1128,8 @@ public enum BearAppSupport {
         else {
             return (
                 .missing,
-                "App-managed CLI missing",
-                "Install or refresh the app-managed CLI first, then install the copied terminal CLI."
+                "Host CLI required first",
+                "Install the host CLI first. The Terminal command is optional."
             )
         }
 
@@ -1047,7 +1137,7 @@ public enum BearAppSupport {
             return (
                 .invalid,
                 "Needs refresh",
-                "The existing terminal install at `\(terminalCLIURL.path)` came from an older Bear MCP setup. Refresh it from Bear MCP.app so Terminal uses the current copied executable."
+                "This Terminal command came from an older Bear MCP setup. Refresh it only if you use Bear MCP from Terminal."
             )
         }
 
@@ -1056,8 +1146,8 @@ public enum BearAppSupport {
         else {
             return (
                 .missing,
-                "Not installed in Terminal",
-                "Install a copied terminal executable at `\(terminalCLIURL.path)` if you want to run `bear-mcp` directly from Terminal."
+                "Optional",
+                "Install this only if you want to run `bear-mcp` directly from Terminal."
             )
         }
 
@@ -1065,7 +1155,7 @@ public enum BearAppSupport {
             return (
                 .invalid,
                 "Invalid executable",
-                "The terminal CLI at `\(terminalCLIURL.path)` exists but is not executable."
+                "This Terminal command exists, but it is not executable. Refresh it only if you use Bear MCP from Terminal."
             )
         }
 
@@ -1078,21 +1168,21 @@ public enum BearAppSupport {
                 return (
                     .invalid,
                     "Needs refresh",
-                    "The terminal CLI copy at `\(terminalCLIURL.path)` does not match the current app-managed CLI at `\(appManagedCLIURL.path)`."
+                    "This Terminal command is older than the current host CLI. Refresh it only if you use Bear MCP from Terminal."
                 )
             }
         } catch {
             return (
                 .invalid,
                 "Needs refresh",
-                "The terminal CLI at `\(terminalCLIURL.path)` could not be validated: \(localizedMessage(for: error))"
+                "This Terminal command could not be validated. Refresh it only if you use Bear MCP from Terminal."
             )
         }
 
         return (
             .ok,
             "Installed",
-            "Terminal users can run `\(terminalCLIURL.path)` directly. Bear MCP.app manages it as a copied executable."
+            "Optional copy for running `bear-mcp` directly from Terminal."
         )
     }
 

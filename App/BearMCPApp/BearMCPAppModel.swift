@@ -212,6 +212,15 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
+    func performCLIMaintenanceAction(_ action: BearAppCLIMaintenanceAction) {
+        switch action {
+        case .installAppManagedCLI, .refreshAppManagedCLI:
+            installBundledCLI()
+        case .installTerminalCLI, .refreshTerminalCLI:
+            installTerminalCLI()
+        }
+    }
+
     func recordIncomingCallback(_ url: URL) {
         lastIncomingCallbackURL = url
     }

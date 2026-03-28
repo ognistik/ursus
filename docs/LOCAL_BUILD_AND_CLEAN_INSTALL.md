@@ -100,6 +100,8 @@ The app can currently install:
 - an app-managed CLI at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 - a copied terminal CLI at `~/bin/bear-mcp`
 
+On a fresh install or after updating the app bundle, the dashboard overview now shows a proactive CLI attention card whenever either copy is missing or stale, with direct install/refresh actions.
+
 If you are testing from a clean start, remove both the Application Support directory and `~/bin/bear-mcp`.
 
 ## Notes About `--update-config`

@@ -78,6 +78,9 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.inboxTags == ["0-inbox", "next"])
     #expect(dashboard.settings?.createAddsInboxTagsByDefault == false)
     #expect(dashboard.settings?.appManagedCLIPath == appManagedCLIURL.path)
+    #expect(dashboard.settings?.appManagedCLIStatus == .missing)
+    #expect(dashboard.settings?.appManagedCLIStatusTitle == "Not installed")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [.installAppManagedCLI])
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == false)
     #expect(dashboard.settings?.selectedNoteLegacyConfigTokenDetected == true)
@@ -88,7 +91,8 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
     #expect(appManagedCLIDiagnostic.status == .missing)
     #expect(appManagedCLIDiagnostic.value == appManagedCLIURL.path)
-    #expect(appManagedCLIDiagnostic.detail == BearMCPCLILocator.appManagedInstallGuidance)
+    #expect(appManagedCLIDiagnostic.detail == "Install the host CLI once so local MCP apps can launch Bear MCP from a stable path.")
+    #expect(dashboard.settings?.appManagedCLIStatusDetail == "Install the host CLI once so local MCP apps can launch Bear MCP from a stable path.")
     #expect(dashboard.diagnostics.contains(where: {
         $0.key == "selected-note-token"
             && $0.value == "Legacy config.json fallback"
@@ -180,7 +184,11 @@ func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throw
     let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
     #expect(appManagedCLIDiagnostic.status == .ok)
     #expect(appManagedCLIDiagnostic.value == appManagedCLIURL.path)
-    #expect(appManagedCLIDiagnostic.detail == "stable CLI path for MCP hosts")
+    #expect(appManagedCLIDiagnostic.detail == "Local MCP apps should use this stable path.")
+    #expect(dashboard.settings?.appManagedCLIStatus == .ok)
+    #expect(dashboard.settings?.appManagedCLIStatusTitle == "Installed")
+    #expect(dashboard.settings?.appManagedCLIStatusDetail == "Local MCP apps should use this stable path.")
+    #expect(dashboard.settings?.cliMaintenancePrompt == nil)
 
     let helperFallbackDiagnostic = try #require(diagnostic(named: "selected-note-helper-fallback", in: dashboard.diagnostics))
     #expect(helperFallbackDiagnostic.status == .ok)
@@ -337,7 +345,8 @@ func dashboardSnapshotReportsCopiedTerminalCLIStatus() throws {
     #expect(dashboard.settings?.terminalCLIPath == terminalCLIURL.path)
     #expect(dashboard.settings?.terminalCLIStatus == .ok)
     #expect(dashboard.settings?.terminalCLIStatusTitle == "Installed")
-    #expect(dashboard.settings?.terminalCLIStatusDetail.contains("copied executable") == true)
+    #expect(dashboard.settings?.terminalCLIStatusDetail == "Optional copy for running `bear-mcp` directly from Terminal.")
+    #expect(dashboard.settings?.cliMaintenancePrompt == nil)
     let terminalDiagnostic = try #require(diagnostic(named: "terminal-cli", in: dashboard.diagnostics))
     #expect(terminalDiagnostic.status == .ok)
     #expect(terminalDiagnostic.value == terminalCLIURL.path)
@@ -385,7 +394,9 @@ func dashboardSnapshotFlagsOlderTerminalInstallForRefresh() throws {
 
     #expect(dashboard.settings?.terminalCLIStatus == .invalid)
     #expect(dashboard.settings?.terminalCLIStatusTitle == "Needs refresh")
-    #expect(dashboard.settings?.terminalCLIStatusDetail.contains("older Bear MCP setup") == true)
+    #expect(dashboard.settings?.terminalCLIStatusDetail == "This Terminal command came from an older Bear MCP setup. Refresh it only if you use Bear MCP from Terminal.")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.title == "Refresh the Terminal command")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [.refreshTerminalCLI])
 }
 
 @Test
@@ -441,7 +452,74 @@ func dashboardSnapshotFlagsStaleAppManagedCLIForRefresh() throws {
 
     let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
     #expect(appManagedCLIDiagnostic.status == .invalid)
-    #expect(appManagedCLIDiagnostic.detail?.contains("needs refresh") == true)
+    #expect(appManagedCLIDiagnostic.detail == "This host CLI is older than the one bundled in the current app build. Refresh it from this app.")
+    #expect(dashboard.settings?.appManagedCLIStatus == .invalid)
+    #expect(dashboard.settings?.appManagedCLIStatusTitle == "Needs refresh")
+    #expect(dashboard.settings?.appManagedCLIStatusDetail == "This host CLI is older than the one bundled in the current app build. Refresh it from this app.")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.title == "Refresh the host-facing CLI")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [.refreshAppManagedCLI])
+}
+
+@Test
+func dashboardSnapshotPromotesBothRefreshActionsWhenHostAndTerminalCLIAreStale() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let appManagedCLIURL = tempRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let terminalCLIURL = tempRoot
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: terminalCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "#!/bin/sh\necho stale-app-managed\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    try "#!/bin/sh\necho stale-terminal\n".write(to: terminalCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: terminalCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(),
+        currentAppBundleURL: appBundleURL,
+        appManagedCLIURL: appManagedCLIURL,
+        terminalCLIURL: terminalCLIURL,
+        bundledCLIExecutableURLResolver: { bundleURL, _ in
+            bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("bear-mcp", isDirectory: false)
+        },
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(dashboard.settings?.cliMaintenancePrompt?.title == "Refresh the host-facing CLI")
+    #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [.refreshAppManagedCLI, .refreshTerminalCLI])
 }
 
 @Test

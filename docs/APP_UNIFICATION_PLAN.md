@@ -28,6 +28,7 @@ As of 2026-03-28:
 - Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, inbox tags, and tool availability.
 - Tool availability can now be controlled from config/app UI, and the live MCP tool catalog filters out disabled tools.
 - The app can now install a copied terminal executable at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding, and older terminal installs are now treated as refreshable migration state rather than the preferred setup.
+- The dashboard now promotes missing/stale host-facing CLI and terminal CLI installs into a proactive action card, so first-run and post-update refresh steps are offered without requiring the user to read raw doctor output first.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
