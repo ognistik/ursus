@@ -492,17 +492,110 @@ Recommendation:
 Recommended options:
 
 - app bundles the CLI binary internally
-- app offers an “Install CLI” action that copies/symlinks it to a stable user path
+- app offers an “Install CLI” action that copies it to a stable user path
 
 Recommended stable path:
 
 - `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 
-Optional convenience symlink:
+Recommended terminal path:
 
-- `~/.local/bin/bear-mcp`
+- `~/bin/bear-mcp`
+
+Preferred behavior:
+
+- treat the app-managed CLI copy as the source of truth
+- let the app install or refresh a direct executable copy at predictable user paths
+- avoid exposing long app-bundle-internal paths in onboarding snippets
+- treat symlink-based terminal exposure as transitional only, not the polished long-term default
 
 The app should also expose the absolute CLI path for users who want to point MCP clients at it directly.
+
+## 2026-03-28 Product Follow-Ups
+
+This section captures product direction raised after the initial Phase 5 onboarding/config work. These items are not all implemented yet, but they should guide the next slices.
+
+### 1. App-first CLI lifecycle
+
+The product should feel like one app with a bundled CLI, not a collection of loose pieces.
+
+Direction:
+
+- `Bear MCP.app` should remain the control center
+- the app should be able to install or refresh the bundled CLI into stable user-facing locations
+- over time, first run and post-update flows should check whether the installed CLI copy is missing or stale and offer a lightweight refresh
+- user-facing setup copy should prefer predictable paths like `~/bin/bear-mcp` over long `Application Support` internals when that can be done safely
+
+Important note:
+
+- today’s symlink-based terminal install is acceptable as a transitional step, but the more polished target is an app-managed copied executable with a stable remembered path
+
+### 2. CLI surface should expand for direct user actions
+
+The CLI should remain useful even when the user is working directly in Bear without an MCP host.
+
+Planned additions:
+
+- `bear-mcp --new-note`
+  - create a new note through the existing template-aware flow
+  - title defaults to the current local date/time format like `yyMMdd - hh:mm a`
+  - use Bear URL flags `new_window=no`, `open_note=yes`, and `edit=yes`
+  - if a selected note exists, copy only that note’s tags into the new note
+  - if no selected-note tags exist, fall back to configured inbox tags
+- `bear-mcp --delete-note [ids...]`
+  - if no ids are passed, trash the currently selected Bear note
+  - if one or more ids are passed, trash those explicit notes in batch
+  - keep this CLI-only for now rather than exposing trashing in MCP tools
+- `bear-mcp --apply-template [ids...]`
+  - if no ids are passed, apply the current template to the selected note
+  - if ids are passed, normalize those notes with the same template logic already used by `bear_apply_template`
+
+### 3. `--update-config` is now compatibility-first
+
+Current behavior is still useful because it rewrites `config.json` into the latest known shape without dropping values.
+
+Longer-term direction:
+
+- app-managed save/migration flows should become the main way configuration evolves
+- once the app owns config migration and CLI refresh cleanly enough, `--update-config` should be removed rather than kept around as dead compatibility code
+- do not remove it before the app provides an easy update path for both configuration shape changes and CLI refresh behavior
+
+### 4. UI simplification now matters more than deeper host automation
+
+The dashboard has crossed the line from “missing features” into “too much surface area”.
+
+Next UX goals:
+
+- reduce mental load on first launch
+- remove low-value implementation details from primary views
+- keep version/build/bundle diagnostics in an About surface rather than the main dashboard
+- show host-specific setup only when the corresponding app is actually installed or relevant
+- keep generic local-stdio guidance as the baseline
+- move the configuration flow toward inline validation plus auto-save rather than explicit draft/save ceremony
+- rename scary or ambiguous actions to clearer language
+- consider folding token management into configuration instead of keeping it as a heavyweight separate tab
+- treat closing the main window as quitting the app unless a background mode is introduced later
+
+Concrete polish candidates:
+
+- replace `Save Configuration` with auto-save
+- replace `Reset Draft` with clearer wording such as `Reset to Saved` or `Reset to Defaults`, depending on behavior
+- prefer `Reveal Configuration` over encouraging direct JSON editing
+- add template viewing/editing from the app once the core configuration flow is calmer
+
+### 5. Runtime cleanup and naming cleanup should be coordinated
+
+Several cleanup items are desirable, but they affect compatibility and should be grouped thoughtfully.
+
+Planned cleanup items:
+
+- move debug logging from `~/Library/Logs/bear-mcp/` into `~/Library/Application Support/bear-mcp/`
+- stop writing `"token": null` when no legacy config token exists
+- migrate app/bundle/keychain naming away from user-specific prefixes toward a stable identifier such as `com.aft.bear-mcp`
+
+Important migration note:
+
+- bundle identifier, URL metadata, and Keychain service naming should be updated together to avoid accidental token duplication or loss during the transition
 
 ## File-By-File Impact Map
 

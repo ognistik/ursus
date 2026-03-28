@@ -69,6 +69,10 @@ final class BearMCPAppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        !BearSelectedNoteAppHost.shouldRunHeadless()
+    }
+
     @objc
     private func handleURLAppleEvent(_ event: NSAppleEventDescriptor, withReplyEvent replyEvent: NSAppleEventDescriptor) {
         guard

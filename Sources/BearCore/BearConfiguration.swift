@@ -233,8 +233,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(selectedNoteTokenStoredInKeychain, forKey: .selectedNoteTokenStoredInKeychain)
         if let token {
             try container.encode(token, forKey: .token)
-        } else {
-            try container.encodeNil(forKey: .token)
         }
     }
 

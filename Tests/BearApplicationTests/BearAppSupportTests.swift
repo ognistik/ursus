@@ -405,6 +405,79 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
 }
 
 @Test
+func saveConfigurationDraftRejectsInvalidValues() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    #expect(throws: BearError.self) {
+        try BearAppSupport.saveConfigurationDraft(
+            BearAppConfigurationDraft(
+                databasePath: "   ",
+                inboxTags: [],
+                defaultInsertPosition: .bottom,
+                templateManagementEnabled: true,
+                openNoteInEditModeByDefault: true,
+                createOpensNoteByDefault: true,
+                openUsesNewWindowByDefault: true,
+                createAddsInboxTagsByDefault: true,
+                tagsMergeMode: .append,
+                defaultDiscoveryLimit: 20,
+                maxDiscoveryLimit: 10,
+                defaultSnippetLength: 280,
+                maxSnippetLength: 100,
+                backupRetentionDays: 30,
+                disabledTools: []
+            ),
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+    }
+}
+
+@Test
+func validateConfigurationDraftReportsWarningsAndErrors() {
+    let report = BearAppSupport.validateConfigurationDraft(
+        BearAppConfigurationDraft(
+            databasePath: "relative/path.sqlite",
+            inboxTags: [],
+            defaultInsertPosition: .bottom,
+            templateManagementEnabled: true,
+            openNoteInEditModeByDefault: true,
+            createOpensNoteByDefault: true,
+            openUsesNewWindowByDefault: true,
+            createAddsInboxTagsByDefault: true,
+            tagsMergeMode: .append,
+            defaultDiscoveryLimit: 20,
+            maxDiscoveryLimit: 10,
+            defaultSnippetLength: 280,
+            maxSnippetLength: 100,
+            backupRetentionDays: -1,
+            disabledTools: []
+        )
+    )
+
+    #expect(report.issues(for: .databasePath).count == 2)
+    #expect(report.issues(for: .inboxTags).count == 1)
+    #expect(report.issues(for: .maxDiscoveryLimit).count == 1)
+    #expect(report.issues(for: .maxSnippetLength).count == 1)
+    #expect(report.issues(for: .backupRetentionDays).count == 1)
+    #expect(report.hasErrors)
+    #expect(report.warnings.count == 3)
+}
+
+@Test
 func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

@@ -67,7 +67,7 @@ The user explicitly clarified an important behavior:
 - The write path should then use Bear's full replacement mode.
 - Even when the user conceptually wants to change a title, a word, a phrase, or the entire content, the system can still compute the final full text locally and perform one full replacement write.
 
-Current implementation follows that direction.
+Current implementation follows that direction, and the app-side configuration editor now auto-saves validated changes directly back into the JSON-backed config instead of relying on an explicit manual save step.
 
 ### 5. Tool philosophy
 
@@ -133,7 +133,9 @@ Implemented:
 - shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
 - editable app configuration UI for core defaults, discovery limits, inbox tags, and tool availability
+- inline app configuration validation with debounced auto-save and per-field warning/error messaging
 - config-backed tool enable/disable support that filters the live MCP tool catalog and rejects direct calls to disabled tools
+- app lifecycle behavior that now quits when the last dashboard window closes, unless the app is running in headless selected-note callback-host mode
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
@@ -260,6 +262,9 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Missing config keys fall back to defaults in memory during load.
 - `bear-mcp --update-config` rewrites `config.json` in canonical current format, preserving existing values while filling in any newer keys.
+- `bear-mcp --update-config` is now considered temporary compatibility behavior. Once the app provides an easy built-in path for config migration and CLI refresh/update flows, this flag should be removed rather than kept around as dead code.
+- `config.token` is still retained as a compatibility fallback for selected-note access, but the preferred source of truth is now Keychain and the longer-term direction is to remove routine dependence on the JSON token field.
+- when no legacy config token exists, config encoding now omits the `token` key entirely instead of writing `"token": null`
 - `backupRetentionDays` controls durable backup retention under Application Support. `0` disables capture and prunes stored backups.
 
 ### Mutation side
@@ -303,6 +308,9 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Keychain-backed token storage is now wired for selected-note resolution, and the preferred app-installed path now keeps Keychain reads inside `Bear MCP.app`, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
 - The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, and the first Phase 4 Keychain-backed token-management slice, but it does not yet ship signed release artifacts or a broader editable settings UI beyond token management.
+- The current app UI is functionally ahead of its information architecture: it now exposes real editing/onboarding surfaces, but the Overview, Hosts, Configuration, and Token tabs still carry too much implementation detail and too much explicit save/setup ceremony for the intended polished app-first product.
+- Terminal CLI exposure is still partly framed around a symlink workflow. That works for now, but it is likely not the final professional installation story for an app-centered product.
+- Closing the main app window currently leaves the app running. That default macOS lifecycle behavior is now a UX mismatch for the current product because the app is not intended to provide background-only functionality.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
@@ -332,8 +340,8 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 ## Recommended Next Steps
 
-1. Extend the app from token-only editing to broader JSON-backed settings editing where it clearly improves UX.
-2. Decide whether to auto-migrate or auto-clean legacy `config.token` in more cases now that the app can manage the Keychain copy directly.
-3. Improve create-result identification so note IDs are returned more reliably.
-4. Decide whether runtime paths should stay `bear-mcp` or migrate to `bear-inbox`.
-5. Add README/install docs now that the app path and token-management flow are clearer.
+1. Continue simplifying the app UI now that auto-save is in place: reduce Overview clutter further, keep host guidance detected-only where possible, and trim low-value implementation details from primary views.
+2. Rework CLI installation so the app owns install/refresh of a predictable copied executable, with the current symlink-based terminal exposure treated as transitional rather than the final product story.
+3. Add direct user-facing CLI utility commands for selected-note workflows: `--new-note`, `--delete-note`, and `--apply-template`.
+4. Remove `--update-config` after the app owns config migration and CLI refresh/update flows cleanly enough that the flag no longer provides meaningful value.
+5. Clean up remaining runtime/config details as a coordinated compatibility pass: move debug logs into Application Support and plan any bundle-id / Keychain namespace migration together rather than piecemeal.

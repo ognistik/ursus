@@ -58,13 +58,13 @@ func configurationIgnoresLegacyAPITokenKey() throws {
 }
 
 @Test
-func configurationEncodingIncludesNullTokenPlaceholder() throws {
+func configurationEncodingOmitsMissingLegacyTokenField() throws {
     let data = try BearJSON.makeEncoder().encode(BearConfiguration.default)
     let text = try #require(String(data: data, encoding: .utf8))
 
     #expect(text.contains("\"disabledTools\" : ["))
     #expect(text.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
-    #expect(text.contains("\"token\" : null"))
+    #expect(!text.contains("\"token\""))
 }
 
 @Test

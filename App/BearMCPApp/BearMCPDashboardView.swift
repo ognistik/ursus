@@ -280,65 +280,69 @@ private struct BearMCPHostsView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            if let mergeNote = setup.mergeNote {
-                Text(mergeNote)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(spacing: 10) {
-                if setup.snippet != nil {
-                    Button("Copy Snippet") {
-                        model.copyHostSetupSnippet(setup)
+            DisclosureGroup("Show setup details") {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let configPath = setup.configPath {
+                        labeledValue("Config Path", configPath)
                     }
-                    .buttonStyle(.borderedProminent)
-                }
 
-                if let configPath = setup.configPath {
-                    Button("Open Config") {
-                        model.openFile(path: configPath)
+                    if let mergeNote = setup.mergeNote {
+                        Text(mergeNote)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(.bordered)
 
-                    Button("Reveal Config") {
-                        model.reveal(path: configPath)
+                    HStack(spacing: 10) {
+                        if setup.snippet != nil {
+                            Button("Copy Snippet") {
+                                model.copyHostSetupSnippet(setup)
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+
+                        if let configPath = setup.configPath {
+                            Button("Reveal Config") {
+                                model.reveal(path: configPath)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
-                    .buttonStyle(.bordered)
-                }
-            }
 
-            if let snippet = setup.snippet {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(setup.snippetTitle ?? "Setup Snippet")
-                        .font(.headline)
-                    Text(snippet)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(12)
-                        .background(Color.secondary.opacity(0.08))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                }
-            }
-
-            if !setup.checks.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Guided Checks")
-                        .font(.headline)
-
-                    ForEach(setup.checks, id: \.self) { check in
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "checkmark.circle")
+                    if let snippet = setup.snippet {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(setup.snippetTitle ?? "Setup Snippet")
+                                .font(.headline)
+                            Text(snippet)
+                                .font(.system(.body, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                                .padding(.top, 2)
-                            Text(check)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(12)
+                                .background(Color.secondary.opacity(0.08))
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                    }
+
+                    if !setup.checks.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Guided Checks")
+                                .font(.headline)
+
+                            ForEach(setup.checks, id: \.self) { check in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Image(systemName: "checkmark.circle")
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 2)
+                                    Text(check)
+                                        .font(.callout)
+                                        .foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
                         }
                     }
                 }
+                .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -363,45 +367,90 @@ private struct BearMCPConfigurationView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 if let settings = model.dashboard.settings {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Configuration")
+                                .font(.title3.weight(.semibold))
+                            Text("Changes save automatically. Bear MCP keeps the JSON file in sync for you and shows inline issues before anything invalid is written.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
                     GroupBox("Live Configuration") {
                         Form {
                             Section("Core") {
-                                TextField("Bear database path", text: $model.databasePathDraft)
-                                TextField("Inbox tags (comma or newline separated)", text: $model.inboxTagsDraft, axis: .vertical)
-                                    .lineLimit(2...4)
-                                Picker("Default insert position", selection: $model.defaultInsertPositionDraft) {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    TextField(
+                                        "Bear database path",
+                                        text: Binding(
+                                            get: { model.databasePathDraft },
+                                            set: { model.updateDatabasePathDraft($0) }
+                                        )
+                                    )
+                                    validationMessages(for: .databasePath)
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    TextField("Inbox tags (comma or newline separated)", text: autosavingBinding(\.inboxTagsDraft), axis: .vertical)
+                                        .lineLimit(2...4)
+                                    validationMessages(for: .inboxTags)
+                                }
+
+                                Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
                                     Text("Top").tag(BearConfiguration.InsertDefault.top)
                                     Text("Bottom").tag(BearConfiguration.InsertDefault.bottom)
                                 }
-                                Picker("Tags merge mode", selection: $model.tagsMergeModeDraft) {
+
+                                Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
                                     Text("Append").tag(BearConfiguration.TagsMergeMode.append)
                                     Text("Replace").tag(BearConfiguration.TagsMergeMode.replace)
                                 }
                             }
 
                             Section("Defaults") {
-                                Toggle("Template management enabled", isOn: $model.templateManagementEnabledDraft)
-                                Toggle("Open notes in edit mode by default", isOn: $model.openNoteInEditModeByDefaultDraft)
-                                Toggle("Create opens note by default", isOn: $model.createOpensNoteByDefaultDraft)
-                                Toggle("Open uses new window by default", isOn: $model.openUsesNewWindowByDefaultDraft)
-                                Toggle("Create adds inbox tags by default", isOn: $model.createAddsInboxTagsByDefaultDraft)
+                                Toggle("Template management enabled", isOn: autosavingBinding(\.templateManagementEnabledDraft))
+                                Toggle("Open notes in edit mode by default", isOn: autosavingBinding(\.openNoteInEditModeByDefaultDraft))
+                                Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
+                                Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
+                                Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
                             }
 
                             Section("Limits") {
-                                Stepper(value: $model.defaultDiscoveryLimitDraft, in: 1...500) {
-                                    labeledNumber("Default discovery limit", model.defaultDiscoveryLimitDraft)
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Stepper(value: autosavingBinding(\.defaultDiscoveryLimitDraft), in: 1...500) {
+                                        labeledNumber("Default discovery limit", model.defaultDiscoveryLimitDraft)
+                                    }
+                                    validationMessages(for: .defaultDiscoveryLimit)
                                 }
-                                Stepper(value: $model.maxDiscoveryLimitDraft, in: 1...1_000) {
-                                    labeledNumber("Max discovery limit", model.maxDiscoveryLimitDraft)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Stepper(value: autosavingBinding(\.maxDiscoveryLimitDraft), in: model.defaultDiscoveryLimitDraft...1_000) {
+                                        labeledNumber("Max discovery limit", model.maxDiscoveryLimitDraft)
+                                    }
+                                    validationMessages(for: .maxDiscoveryLimit)
                                 }
-                                Stepper(value: $model.defaultSnippetLengthDraft, in: 1...2_000) {
-                                    labeledNumber("Default snippet length", model.defaultSnippetLengthDraft)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Stepper(value: autosavingBinding(\.defaultSnippetLengthDraft), in: 1...2_000) {
+                                        labeledNumber("Default snippet length", model.defaultSnippetLengthDraft)
+                                    }
+                                    validationMessages(for: .defaultSnippetLength)
                                 }
-                                Stepper(value: $model.maxSnippetLengthDraft, in: 1...4_000) {
-                                    labeledNumber("Max snippet length", model.maxSnippetLengthDraft)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Stepper(value: autosavingBinding(\.maxSnippetLengthDraft), in: model.defaultSnippetLengthDraft...4_000) {
+                                        labeledNumber("Max snippet length", model.maxSnippetLengthDraft)
+                                    }
+                                    validationMessages(for: .maxSnippetLength)
                                 }
-                                Stepper(value: $model.backupRetentionDaysDraft, in: 0...365) {
-                                    labeledNumber("Backup retention days", model.backupRetentionDaysDraft)
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Stepper(value: autosavingBinding(\.backupRetentionDaysDraft), in: 0...365) {
+                                        labeledNumber("Backup retention days", model.backupRetentionDaysDraft)
+                                    }
+                                    validationMessages(for: .backupRetentionDays)
                                 }
                             }
 
@@ -440,18 +489,13 @@ private struct BearMCPConfigurationView: View {
                     }
 
                     HStack(spacing: 10) {
-                        Button("Save Configuration") {
-                            model.saveConfiguration()
-                        }
-                        .buttonStyle(.borderedProminent)
-
-                        Button("Reset Draft") {
-                            model.revertConfigurationDraft()
+                        Button("Reveal Configuration") {
+                            model.reveal(path: settings.configFilePath)
                         }
                         .buttonStyle(.bordered)
 
-                        Button("Open config.json") {
-                            model.openFile(path: settings.configFilePath)
+                        Button("Reveal Template") {
+                            model.reveal(path: settings.templatePath)
                         }
                         .buttonStyle(.bordered)
                     }
@@ -459,7 +503,7 @@ private struct BearMCPConfigurationView: View {
                     if let message = model.configurationStatusMessage {
                         Text(message)
                             .font(.callout)
-                            .foregroundStyle(.green)
+                            .foregroundStyle(model.configurationValidation.warnings.isEmpty ? .green : .orange)
                     }
 
                     if let error = model.configurationStatusError {
@@ -493,6 +537,36 @@ private struct BearMCPConfigurationView: View {
             Spacer()
             Text("\(value)")
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func autosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<BearMCPAppModel, Value>) -> Binding<Value> {
+        Binding(
+            get: { model[keyPath: keyPath] },
+            set: { newValue in
+                model[keyPath: keyPath] = newValue
+                model.configurationDraftDidChange()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func validationMessages(for field: BearAppConfigurationField) -> some View {
+        let issues = model.configurationIssues(for: field)
+        if !issues.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(issues) { issue in
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .padding(.top, 1)
+                        Text(issue.message)
+                            .font(.caption)
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 }

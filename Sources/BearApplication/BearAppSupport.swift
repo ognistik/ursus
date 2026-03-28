@@ -139,6 +139,65 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     }
 }
 
+public enum BearAppConfigurationField: String, Codable, Hashable, Sendable {
+    case databasePath
+    case inboxTags
+    case defaultDiscoveryLimit
+    case maxDiscoveryLimit
+    case defaultSnippetLength
+    case maxSnippetLength
+    case backupRetentionDays
+}
+
+public enum BearAppConfigurationIssueSeverity: String, Codable, Hashable, Sendable {
+    case error
+    case warning
+}
+
+public struct BearAppConfigurationIssue: Codable, Hashable, Sendable, Identifiable {
+    public let field: BearAppConfigurationField
+    public let severity: BearAppConfigurationIssueSeverity
+    public let message: String
+
+    public var id: String {
+        "\(field.rawValue):\(severity.rawValue):\(message)"
+    }
+
+    public init(
+        field: BearAppConfigurationField,
+        severity: BearAppConfigurationIssueSeverity,
+        message: String
+    ) {
+        self.field = field
+        self.severity = severity
+        self.message = message
+    }
+}
+
+public struct BearAppConfigurationValidationReport: Codable, Hashable, Sendable {
+    public let issues: [BearAppConfigurationIssue]
+
+    public init(issues: [BearAppConfigurationIssue] = []) {
+        self.issues = issues
+    }
+
+    public var errors: [BearAppConfigurationIssue] {
+        issues.filter { $0.severity == .error }
+    }
+
+    public var warnings: [BearAppConfigurationIssue] {
+        issues.filter { $0.severity == .warning }
+    }
+
+    public var hasErrors: Bool {
+        !errors.isEmpty
+    }
+
+    public func issues(for field: BearAppConfigurationField) -> [BearAppConfigurationIssue] {
+        issues.filter { $0.field == field }
+    }
+}
+
 public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
     public let generatedAt: Date
     public let diagnostics: [BearDoctorCheck]
@@ -385,6 +444,14 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL
     ) throws {
+        let validation = validateConfigurationDraft(
+            draft,
+            fileManager: fileManager
+        )
+        if let firstError = validation.errors.first {
+            throw BearError.invalidInput(firstError.message)
+        }
+
         let currentConfiguration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
             configDirectoryURL: configDirectoryURL,
@@ -429,6 +496,107 @@ public enum BearAppSupport {
             configFileURL: configFileURL,
             templateURL: templateURL
         )
+    }
+
+    public static func validateConfigurationDraft(
+        _ draft: BearAppConfigurationDraft,
+        fileManager: FileManager = .default
+    ) -> BearAppConfigurationValidationReport {
+        var issues: [BearAppConfigurationIssue] = []
+        let normalizedDatabasePath = draft.databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedTags = normalizedInboxTags(draft.inboxTags)
+
+        if normalizedDatabasePath.isEmpty {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .databasePath,
+                    severity: .error,
+                    message: "Database path cannot be empty."
+                )
+            )
+        } else {
+            if !normalizedDatabasePath.hasPrefix("/") {
+                issues.append(
+                    BearAppConfigurationIssue(
+                        field: .databasePath,
+                        severity: .warning,
+                        message: "Database path should usually be an absolute macOS path."
+                    )
+                )
+            }
+
+            if !fileManager.fileExists(atPath: normalizedDatabasePath) {
+                issues.append(
+                    BearAppConfigurationIssue(
+                        field: .databasePath,
+                        severity: .warning,
+                        message: "No file exists at this database path right now."
+                    )
+                )
+            }
+        }
+
+        if normalizedTags.isEmpty {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .inboxTags,
+                    severity: .warning,
+                    message: "Inbox tags are empty. Fallback note creation will not add inbox tags."
+                )
+            )
+        }
+
+        if draft.defaultDiscoveryLimit < 1 {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .defaultDiscoveryLimit,
+                    severity: .error,
+                    message: "Default discovery limit must be at least 1."
+                )
+            )
+        }
+
+        if draft.maxDiscoveryLimit < draft.defaultDiscoveryLimit {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .maxDiscoveryLimit,
+                    severity: .error,
+                    message: "Max discovery limit must be greater than or equal to the default discovery limit."
+                )
+            )
+        }
+
+        if draft.defaultSnippetLength < 1 {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .defaultSnippetLength,
+                    severity: .error,
+                    message: "Default snippet length must be at least 1."
+                )
+            )
+        }
+
+        if draft.maxSnippetLength < draft.defaultSnippetLength {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .maxSnippetLength,
+                    severity: .error,
+                    message: "Max snippet length must be greater than or equal to the default snippet length."
+                )
+            )
+        }
+
+        if draft.backupRetentionDays < 0 {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .backupRetentionDays,
+                    severity: .error,
+                    message: "Backup retention days cannot be negative."
+                )
+            )
+        }
+
+        return BearAppConfigurationValidationReport(issues: issues)
     }
 
     @discardableResult

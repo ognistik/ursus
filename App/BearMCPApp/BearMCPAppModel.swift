@@ -22,6 +22,7 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var hostSetupStatusError: String?
     @Published private(set) var configurationStatusMessage: String?
     @Published private(set) var configurationStatusError: String?
+    @Published private(set) var configurationValidation = BearAppConfigurationValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var storedTokenHasBeenExplicitlyLoaded = false
 
@@ -42,6 +43,8 @@ final class BearMCPAppModel: ObservableObject {
     @Published private var disabledToolsDraft: Set<BearToolName> = []
 
     private var cancellables: Set<AnyCancellable> = []
+    private var configurationAutosaveTask: Task<Void, Never>?
+    private var suppressConfigurationAutosave = false
 
     init(
         runsHeadlessCallbackHost: Bool = BearSelectedNoteAppHost.shouldRunHeadless()
@@ -114,40 +117,75 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
-    func saveConfiguration() {
+    func configurationDraftDidChange() {
+        guard !suppressConfigurationAutosave else {
+            return
+        }
+
+        configurationAutosaveTask?.cancel()
+        configurationValidation = validateCurrentConfigurationDraft()
+
+        guard !configurationValidation.hasErrors else {
+            configurationStatusMessage = nil
+            configurationStatusError = "Fix the highlighted configuration errors before Bear MCP can save."
+            return
+        }
+
+        configurationStatusError = nil
+        configurationStatusMessage = "Saving changes..."
+        configurationAutosaveTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(450))
+            guard !Task.isCancelled else {
+                return
+            }
+            await MainActor.run {
+                self?.saveConfigurationAutomatically()
+            }
+        }
+    }
+
+    func configurationIssues(for field: BearAppConfigurationField) -> [BearAppConfigurationIssue] {
+        configurationValidation.issues(for: field)
+    }
+
+    func updateDatabasePathDraft(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmed.isEmpty else {
+            configurationStatusMessage = nil
+            configurationStatusError = "Database path cannot be empty."
+            configurationValidation = validateCurrentConfigurationDraft()
+            return
+        }
+
+        databasePathDraft = trimmed
+        configurationDraftDidChange()
+    }
+
+    private func saveConfigurationAutomatically() {
+        let draft = currentConfigurationDraft()
+        let validation = BearAppSupport.validateConfigurationDraft(draft)
+        configurationValidation = validation
+
+        guard !validation.hasErrors else {
+            configurationStatusMessage = nil
+            configurationStatusError = "Fix the highlighted configuration errors before Bear MCP can save."
+            return
+        }
+
         do {
-            try BearAppSupport.saveConfigurationDraft(
-                BearAppConfigurationDraft(
-                    databasePath: databasePathDraft,
-                    inboxTags: parsedInboxTags,
-                    defaultInsertPosition: defaultInsertPositionDraft,
-                    templateManagementEnabled: templateManagementEnabledDraft,
-                    openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
-                    createOpensNoteByDefault: createOpensNoteByDefaultDraft,
-                    openUsesNewWindowByDefault: openUsesNewWindowByDefaultDraft,
-                    createAddsInboxTagsByDefault: createAddsInboxTagsByDefaultDraft,
-                    tagsMergeMode: tagsMergeModeDraft,
-                    defaultDiscoveryLimit: defaultDiscoveryLimitDraft,
-                    maxDiscoveryLimit: maxDiscoveryLimitDraft,
-                    defaultSnippetLength: defaultSnippetLengthDraft,
-                    maxSnippetLength: maxSnippetLengthDraft,
-                    backupRetentionDays: backupRetentionDaysDraft,
-                    disabledTools: Array(disabledToolsDraft)
-                )
+            try BearAppSupport.saveConfigurationDraft(draft)
+            dashboard = BearAppSupport.loadDashboardSnapshot(
+                currentAppBundleURL: Bundle.main.bundleURL
             )
-            configurationStatusMessage = "Configuration saved to \(BearPaths.configFileURL.path)."
+            configurationStatusMessage = validation.warnings.isEmpty
+                ? "Configuration saved automatically."
+                : "Configuration saved automatically. Review the warnings below."
             configurationStatusError = nil
-            reload()
         } catch {
             configurationStatusMessage = nil
             configurationStatusError = localizedMessage(for: error)
         }
-    }
-
-    func revertConfigurationDraft() {
-        applyDraft(from: dashboard.settings)
-        configurationStatusMessage = "Draft reset to the current saved configuration."
-        configurationStatusError = nil
     }
 
     func installBundledCLI() {
@@ -254,6 +292,8 @@ final class BearMCPAppModel: ObservableObject {
         } else {
             disabledToolsDraft.insert(tool)
         }
+
+        configurationDraftDidChange()
     }
 
     var appDisplayName: String {
@@ -311,11 +351,36 @@ final class BearMCPAppModel: ObservableObject {
             .filter { !$0.isEmpty }
     }
 
+    private func currentConfigurationDraft() -> BearAppConfigurationDraft {
+        BearAppConfigurationDraft(
+            databasePath: databasePathDraft,
+            inboxTags: parsedInboxTags,
+            defaultInsertPosition: defaultInsertPositionDraft,
+            templateManagementEnabled: templateManagementEnabledDraft,
+            openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
+            createOpensNoteByDefault: createOpensNoteByDefaultDraft,
+            openUsesNewWindowByDefault: openUsesNewWindowByDefaultDraft,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefaultDraft,
+            tagsMergeMode: tagsMergeModeDraft,
+            defaultDiscoveryLimit: defaultDiscoveryLimitDraft,
+            maxDiscoveryLimit: maxDiscoveryLimitDraft,
+            defaultSnippetLength: defaultSnippetLengthDraft,
+            maxSnippetLength: maxSnippetLengthDraft,
+            backupRetentionDays: backupRetentionDaysDraft,
+            disabledTools: Array(disabledToolsDraft)
+        )
+    }
+
+    private func validateCurrentConfigurationDraft() -> BearAppConfigurationValidationReport {
+        BearAppSupport.validateConfigurationDraft(currentConfigurationDraft())
+    }
+
     private func applyDraft(from settings: BearAppSettingsSnapshot?) {
         guard let settings else {
             return
         }
 
+        suppressConfigurationAutosave = true
         databasePathDraft = settings.databasePath
         inboxTagsDraft = settings.inboxTags.joined(separator: ", ")
         defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
@@ -331,6 +396,8 @@ final class BearMCPAppModel: ObservableObject {
         maxSnippetLengthDraft = settings.maxSnippetLength
         backupRetentionDaysDraft = settings.backupRetentionDays
         disabledToolsDraft = Set(settings.disabledTools)
+        configurationValidation = validateCurrentConfigurationDraft()
+        suppressConfigurationAutosave = false
     }
 
     private func localizedMessage(for error: Error) -> String {

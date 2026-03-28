@@ -55,3 +55,29 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     #expect(!updatedText.contains("\\/"))
     #expect(fileManager.fileExists(atPath: templateURL.path))
 }
+
+@Test
+func updateConfigurationFileOmitsMissingLegacyTokenField() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    _ = try BearRuntimeBootstrap.updateConfigurationFile(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let updatedText = try String(contentsOf: configFileURL)
+    #expect(!updatedText.contains("\"token\""))
+    #expect(updatedText.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
+}
