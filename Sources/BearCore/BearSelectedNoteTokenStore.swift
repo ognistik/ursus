@@ -149,6 +149,10 @@ public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStor
 }
 
 public enum BearSelectedNoteTokenResolver {
+    public static func configuredHint(configuration: BearConfiguration) -> Bool {
+        normalizedToken(configuration.token) != nil || configuration.selectedNoteTokenStoredInKeychain
+    }
+
     public static func resolve(
         configuration: BearConfiguration,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()

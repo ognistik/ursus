@@ -52,7 +52,6 @@ struct BearMCPMain {
         logger.info("bear-mcp acquired process lock at \(processLock.lockURL.path)")
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
         let tokenStore = BearKeychainSelectedNoteTokenStore()
-        let tokenStatus = BearSelectedNoteTokenResolver.status(configuration: configuration, tokenStore: tokenStore)
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
@@ -70,7 +69,7 @@ struct BearMCPMain {
         let server = await BearMCPServer(
             service: service,
             configuration: configuration,
-            selectedNoteTokenConfigured: tokenStatus.isConfigured
+            selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configuredHint(configuration: configuration)
         ).makeServer()
         try await server.start(transport: StdioTransport())
         let originalParentPID = getppid()

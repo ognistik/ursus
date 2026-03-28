@@ -174,6 +174,56 @@ func callbackHostCanHandleDirectAppCallbackURLs() throws {
 
 @Test
 @MainActor
+func callbackHostCanAuthorizeTokenlessSelectedNoteRequestsBeforeOpeningBear() throws {
+    let recorder = CallbackHostRecorder()
+    let responseFileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: false)
+        .appendingPathExtension("json")
+    defer { try? FileManager.default.removeItem(at: responseFileURL) }
+
+    let host = BearSelectedNoteCallbackHost(
+        callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
+        outputWriter: { data, channel in
+            recorder.recordOutput(data, channel: channel)
+        },
+        requestURLAuthorizer: { requestURL in
+            guard var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false) else {
+                return requestURL
+            }
+            var items = components.queryItems ?? []
+            items.append(URLQueryItem(name: "token", value: "managed-token"))
+            components.queryItems = items
+            return components.url ?? requestURL
+        },
+        urlOpener: { url, activateApp, completion in
+            recorder.recordOpen(url: url, activateApp: activateApp)
+            completion(nil)
+        },
+        terminator: {
+            recorder.recordTermination()
+        }
+    )
+
+    host.start(
+        arguments: [
+            "Bear MCP",
+            "-url", "bear://x-callback-url/open-note?selected=yes&open_note=no&show_window=no",
+            "-activateApp", "NO",
+            "-responseFile", responseFileURL.path,
+        ]
+    )
+
+    let started = recorder.snapshot()
+    let openedURL = try #require(started.openedURL)
+    let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: openedURL, resolvingAgainstBaseURL: false)?.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+    #expect(items["token"] == "managed-token")
+    #expect(items["selected"] == "yes")
+}
+
+@Test
+@MainActor
 func callbackHostReportsInvalidInvocationWithoutLaunchingBear() {
     let recorder = CallbackHostRecorder()
     let host = BearSelectedNoteCallbackHost(

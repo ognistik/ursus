@@ -212,7 +212,9 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
         tokenStore: tokenStore
     )
     #expect(tokenStore.storedToken == "new-keychain-token")
-    #expect(try BearConfiguration.load(from: configFileURL).token == nil)
+    let savedConfiguration = try BearConfiguration.load(from: configFileURL)
+    #expect(savedConfiguration.token == nil)
+    #expect(savedConfiguration.selectedNoteTokenStoredInKeychain == true)
 
     try """
     {
@@ -228,7 +230,9 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
     )
     #expect(imported)
     #expect(tokenStore.storedToken == "import-me")
-    #expect(try BearConfiguration.load(from: configFileURL).token == nil)
+    let importedConfiguration = try BearConfiguration.load(from: configFileURL)
+    #expect(importedConfiguration.token == nil)
+    #expect(importedConfiguration.selectedNoteTokenStoredInKeychain == true)
 
     try """
     {
@@ -243,7 +247,9 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
         tokenStore: tokenStore
     )
     #expect(tokenStore.storedToken == nil)
-    #expect(try BearConfiguration.load(from: configFileURL).token == nil)
+    let removedConfiguration = try BearConfiguration.load(from: configFileURL)
+    #expect(removedConfiguration.token == nil)
+    #expect(removedConfiguration.selectedNoteTokenStoredInKeychain == false)
 }
 
 @Test
@@ -372,6 +378,67 @@ func selectedNoteAppHostStartsAndCompletesCallbackSessionInsideDashboardInstance
 
     let payload = try parseAppHostPayload(Data(contentsOf: responseFileURL))
     #expect(payload["identifier"] == "selected-note")
+}
+
+@Test
+func prepareManagedSelectedNoteRequestURLInjectsTokenForTokenlessSelectedNoteRequest() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let requestURL = URL(string: "bear://x-callback-url/open-note?selected=yes&open_note=no&show_window=no")!
+    let preparedURL = try BearAppSupport.prepareManagedSelectedNoteRequestURL(
+        requestURL,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token")
+    )
+
+    let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: preparedURL, resolvingAgainstBaseURL: false)?.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+    #expect(items["selected"] == "yes")
+    #expect(items["token"] == "keychain-token")
+    #expect(items["open_note"] == "no")
+    #expect(items["show_window"] == "no")
+}
+
+@Test
+func loadSettingsSnapshotRepairsMissingKeychainHintWhenTheAppCanReadTheToken() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let settings = try BearAppSupport.loadSettingsSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token")
+    )
+
+    #expect(settings.selectedNoteTokenStoredInKeychain == true)
+    #expect(try BearConfiguration.load(from: configFileURL).selectedNoteTokenStoredInKeychain == true)
 }
 
 @Test

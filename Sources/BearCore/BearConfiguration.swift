@@ -34,6 +34,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var defaultSnippetLength: Int
     public var maxSnippetLength: Int
     public var backupRetentionDays: Int
+    public var selectedNoteTokenStoredInKeychain: Bool
     public var token: String?
 
     public init(
@@ -51,6 +52,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength: Int,
         maxSnippetLength: Int,
         backupRetentionDays: Int,
+        selectedNoteTokenStoredInKeychain: Bool = false,
         token: String? = nil
     ) {
         self.databasePath = databasePath
@@ -67,6 +69,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.defaultSnippetLength = defaultSnippetLength
         self.maxSnippetLength = maxSnippetLength
         self.backupRetentionDays = max(0, backupRetentionDays)
+        self.selectedNoteTokenStoredInKeychain = selectedNoteTokenStoredInKeychain
         self.token = Self.normalizedToken(token)
     }
 
@@ -86,6 +89,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: 280,
             maxSnippetLength: 1_000,
             backupRetentionDays: 30,
+            selectedNoteTokenStoredInKeychain: false,
             token: nil
         )
     }
@@ -106,6 +110,31 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: defaultSnippetLength,
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
+            selectedNoteTokenStoredInKeychain: selectedNoteTokenStoredInKeychain,
+            token: token
+        )
+    }
+
+    public func updatingSelectedNoteTokenStorage(
+        token: String? = nil,
+        storedInKeychain: Bool
+    ) -> BearConfiguration {
+        BearConfiguration(
+            databasePath: databasePath,
+            activeTags: activeTags,
+            defaultInsertPosition: defaultInsertPosition,
+            templateManagementEnabled: templateManagementEnabled,
+            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
+            createOpensNoteByDefault: createOpensNoteByDefault,
+            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
+            createAddsActiveTagsByDefault: createAddsActiveTagsByDefault,
+            tagsMergeMode: tagsMergeMode,
+            defaultDiscoveryLimit: defaultDiscoveryLimit,
+            maxDiscoveryLimit: maxDiscoveryLimit,
+            defaultSnippetLength: defaultSnippetLength,
+            maxSnippetLength: maxSnippetLength,
+            backupRetentionDays: backupRetentionDays,
+            selectedNoteTokenStoredInKeychain: storedInKeychain,
             token: token
         )
     }
@@ -125,6 +154,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case defaultSnippetLength
         case maxSnippetLength
         case backupRetentionDays
+        case selectedNoteTokenStoredInKeychain
         case token
     }
 
@@ -145,6 +175,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280
         maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
+        selectedNoteTokenStoredInKeychain = try container.decodeIfPresent(Bool.self, forKey: .selectedNoteTokenStoredInKeychain) ?? false
         token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
     }
 
@@ -164,6 +195,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(defaultSnippetLength, forKey: .defaultSnippetLength)
         try container.encode(maxSnippetLength, forKey: .maxSnippetLength)
         try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
+        try container.encode(selectedNoteTokenStoredInKeychain, forKey: .selectedNoteTokenStoredInKeychain)
         if let token {
             try container.encode(token, forKey: .token)
         } else {

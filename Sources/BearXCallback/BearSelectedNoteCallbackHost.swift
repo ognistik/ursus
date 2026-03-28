@@ -1,4 +1,5 @@
 import AppKit
+import BearCore
 import Foundation
 
 public enum BearSelectedNoteCallbackOutputChannel {
@@ -19,6 +20,7 @@ public final class BearSelectedNoteCallbackHost {
     private let defaultTimeoutSeconds: TimeInterval
     private let outputWriter: (Data, BearSelectedNoteCallbackOutputChannel) -> Void
     private let responseFileWriter: (Data, URL) throws -> Void
+    private let requestURLAuthorizer: ((URL) throws -> URL)?
     private let urlOpener: (URL, Bool, @escaping @Sendable (Error?) -> Void) -> Void
     private let terminator: () -> Void
 
@@ -31,6 +33,7 @@ public final class BearSelectedNoteCallbackHost {
         defaultTimeoutSeconds: TimeInterval = BearSelectedNoteCallbackHost.defaultTimeoutSeconds,
         outputWriter: ((Data, BearSelectedNoteCallbackOutputChannel) -> Void)? = nil,
         responseFileWriter: ((Data, URL) throws -> Void)? = nil,
+        requestURLAuthorizer: ((URL) throws -> URL)? = nil,
         urlOpener: ((URL, Bool, @escaping @Sendable (Error?) -> Void) -> Void)? = nil,
         terminator: (() -> Void)? = nil
     ) {
@@ -38,6 +41,7 @@ public final class BearSelectedNoteCallbackHost {
         self.defaultTimeoutSeconds = defaultTimeoutSeconds
         self.outputWriter = outputWriter ?? Self.defaultOutputWriter
         self.responseFileWriter = responseFileWriter ?? Self.defaultResponseFileWriter
+        self.requestURLAuthorizer = requestURLAuthorizer
         self.urlOpener = urlOpener ?? Self.defaultOpenBearURL
         self.terminator = terminator ?? { NSApp.terminate(nil) }
     }
@@ -132,8 +136,15 @@ public final class BearSelectedNoteCallbackHost {
             throw HelperError.invalidInvocation("Invalid Bear URL `\(requestURLString)`.")
         }
 
+        let authorizedRequestURL: URL
+        do {
+            authorizedRequestURL = try requestURLAuthorizer?(requestURL) ?? requestURL
+        } catch {
+            throw HelperError.invalidInvocation(error.localizedDescription)
+        }
+
         return Invocation(
-            requestURL: try requestURLWithCallbacks(requestURL, stateToken: stateToken),
+            requestURL: try requestURLWithCallbacks(authorizedRequestURL, stateToken: stateToken),
             activateApp: activateApp,
             timeoutSeconds: timeoutSeconds,
             stateToken: stateToken,

@@ -136,7 +136,7 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
     ) throws -> BearAppSettingsSnapshot {
-        let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        var configuration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
             configDirectoryURL: configDirectoryURL,
             configFileURL: configFileURL,
@@ -146,6 +146,20 @@ public enum BearAppSupport {
             configuration: configuration,
             tokenStore: tokenStore
         )
+
+        if tokenStatus.keychainTokenPresent && !configuration.selectedNoteTokenStoredInKeychain {
+            configuration = configuration.updatingSelectedNoteTokenStorage(
+                token: configuration.token,
+                storedInKeychain: true
+            )
+            try BearRuntimeBootstrap.saveConfiguration(
+                configuration,
+                fileManager: fileManager,
+                configDirectoryURL: configDirectoryURL,
+                configFileURL: configFileURL,
+                templateURL: templateURL
+            )
+        }
 
         return BearAppSettingsSnapshot(
             configDirectoryPath: configDirectoryURL.path,
@@ -194,16 +208,15 @@ public enum BearAppSupport {
         )
 
         try tokenStore.saveToken(token)
-
-        if configuration.token != nil {
-            try BearRuntimeBootstrap.saveConfiguration(
-                configuration.updatingToken(nil),
-                fileManager: fileManager,
-                configDirectoryURL: configDirectoryURL,
-                configFileURL: configFileURL,
-                templateURL: templateURL
-            )
-        }
+        try BearRuntimeBootstrap.saveConfiguration(
+            configuration.updatingSelectedNoteTokenStorage(
+                storedInKeychain: true
+            ),
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
     }
 
     public static func loadResolvedSelectedNoteToken(
@@ -247,7 +260,9 @@ public enum BearAppSupport {
 
         try tokenStore.saveToken(token)
         try BearRuntimeBootstrap.saveConfiguration(
-            configuration.updatingToken(nil),
+            configuration.updatingSelectedNoteTokenStorage(
+                storedInKeychain: true
+            ),
             fileManager: fileManager,
             configDirectoryURL: configDirectoryURL,
             configFileURL: configFileURL,
@@ -271,16 +286,55 @@ public enum BearAppSupport {
         )
 
         try tokenStore.removeToken()
+        try BearRuntimeBootstrap.saveConfiguration(
+            configuration.updatingSelectedNoteTokenStorage(
+                storedInKeychain: false
+            ),
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+    }
 
-        if configuration.token != nil {
-            try BearRuntimeBootstrap.saveConfiguration(
-                configuration.updatingToken(nil),
-                fileManager: fileManager,
-                configDirectoryURL: configDirectoryURL,
-                configFileURL: configFileURL,
-                templateURL: templateURL
-            )
+    public static func prepareManagedSelectedNoteRequestURL(
+        _ requestURL: URL,
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL,
+        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
+    ) throws -> URL {
+        guard requiresManagedSelectedNoteTokenInjection(requestURL) else {
+            return requestURL
         }
+
+        let configuration = try BearRuntimeBootstrap.loadConfiguration(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        guard let token = try BearSelectedNoteTokenResolver.resolve(
+            configuration: configuration,
+            tokenStore: tokenStore
+        )?.value else {
+            throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+        }
+
+        guard var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false) else {
+            throw BearError.invalidInput("Invalid Bear selected-note request URL.")
+        }
+
+        var queryItems = components.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "token", value: token))
+        components.queryItems = queryItems
+
+        guard let resolvedURL = components.url else {
+            throw BearError.invalidInput("Failed to prepare the Bear selected-note request URL.")
+        }
+
+        return resolvedURL
     }
 
     public static func doctorChecks(
@@ -453,5 +507,21 @@ public enum BearAppSupport {
 
     private static func localizedMessage(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+
+    private static func requiresManagedSelectedNoteTokenInjection(_ requestURL: URL) -> Bool {
+        guard
+            let components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false),
+            components.scheme == "bear",
+            components.host == "x-callback-url",
+            components.path == "/open-note"
+        else {
+            return false
+        }
+
+        let query = Dictionary((components.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { first, _ in first })
+        let selectedValue = query["selected"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let tokenValue = query["token"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return (selectedValue == "yes" || selectedValue == "true" || selectedValue == "1") && tokenValue.isEmpty
     }
 }

@@ -21,7 +21,7 @@ As of 2026-03-28:
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
 - Phase 3 has now landed incrementally in the repo: selected-note resolution prefers `Bear MCP.app`, preserves the CLI response-file contract, uses `bearmcp://` for callbacks, and now reuses an already-running dashboard instance instead of requiring the app to quit first.
-- Phase 4 has now started in the repo: selected-note token lookup prefers Keychain, the CLI still falls back to legacy `config.token`, diagnostics now report whether the token is coming from Keychain or legacy config, and `Bear MCP.app` now has a first token-management UI for save/import/remove flows.
+- Phase 4 has now started in the repo: selected-note token lookup prefers Keychain, the CLI still falls back to legacy `config.token`, diagnostics now report whether the token is coming from Keychain or legacy config, `Bear MCP.app` now has a first token-management UI for save/import/remove flows, and the preferred app-installed selected-note path now injects the managed token inside the app so ordinary CLI startup does not need to probe Keychain.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
@@ -646,6 +646,7 @@ Current repo status:
 - CLI/selected-note lookup order: done
 - app token save/remove/import UI: done
 - compatibility fallback from `config.token`: done
+- preferred app-installed selected-note flow now keeps Keychain access in `Bear MCP.app`, with non-secret config metadata used to avoid eager CLI Keychain reads: done
 - broader settings editing beyond token management: still pending
 
 Deliverable:

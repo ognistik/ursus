@@ -36,9 +36,8 @@ public enum BearRuntimeBootstrap {
             templateURL: templateURL
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
-        let tokenStatus = BearSelectedNoteTokenResolver.status(configuration: configuration)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) legacyConfigToken=\(configuration.token != nil) effectiveTokenSource=\(tokenStatus.effectiveSource?.rawValue ?? "none")"
+            "config.loaded path=\(configFileURL.path) activeTags=\(configuration.activeTags) createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) legacyConfigToken=\(configuration.token != nil) selectedNoteTokenStoredInKeychain=\(configuration.selectedNoteTokenStoredInKeychain) selectedNoteConfiguredHint=\(BearSelectedNoteTokenResolver.configuredHint(configuration: configuration))"
         )
         return configuration
     }

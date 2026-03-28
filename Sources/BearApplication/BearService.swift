@@ -140,6 +140,10 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func resolveSelectedNoteID() async throws -> String {
+        if let noteID = try await writeTransport.resolveSelectedNoteIDUsingInstalledApp() {
+            return noteID
+        }
+
         guard let token = try BearSelectedNoteTokenResolver.resolve(configuration: configuration, tokenStore: tokenStore)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }

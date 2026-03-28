@@ -222,6 +222,46 @@ func resolveSelectedNoteIDInvokesConfiguredHelperAndParsesIdentifier() async thr
 }
 
 @Test
+func resolveSelectedNoteIDUsingInstalledAppUsesTokenlessSelectedNoteRequest() async throws {
+    let helperURL = try makeSelectedNoteHelperScript(
+        body: """
+        case "$BEAR_URL" in
+          *"selected=yes"* ) ;;
+          * )
+            printf '{"errorMessage":"missing selected=yes"}\n' >&2
+            exit 1
+            ;;
+        esac
+        case "$BEAR_URL" in
+          *"token="* )
+            printf '{"errorMessage":"unexpected token in CLI-side request"}\n' >&2
+            exit 1
+            ;;
+        esac
+        printf '{"identifier":"selected-note"}\n'
+        """
+    )
+    defer { try? FileManager.default.removeItem(at: helperURL) }
+
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: nil, tags: []),
+        selectedNoteResolveTimeout: .seconds(1),
+        selectedNoteResolver: { url, timeout in
+            try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
+                executableURL: helperURL,
+                bearURL: url,
+                timeout: timeout
+            )
+        },
+        callbackAppInstalledProvider: { true }
+    )
+
+    let resolved = try await transport.resolveSelectedNoteIDUsingInstalledApp()
+
+    #expect(resolved == "selected-note")
+}
+
+@Test
 func resolveSelectedNoteIDSurfacesSelectedNoteHelperJSONError() async {
     let helperURL: URL
     do {

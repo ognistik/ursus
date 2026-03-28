@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, and the first user-facing Phase 4 Keychain slice now implemented: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, the standalone helper remains available only as a narrow fallback when the preferred app is missing, and the app can now save/import/remove the Bear API token without sending users to Keychain Access manually.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, and the current Phase 4 Keychain slice now refined further: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, the standalone helper remains available only as a narrow fallback when the preferred app is missing, the app can save/import/remove the Bear API token without sending users to Keychain Access manually, and the preferred selected-note flow now lets the app inject the managed token so the headless CLI no longer has to probe Keychain on ordinary startup.
 
 Implemented:
 
@@ -103,6 +103,7 @@ Implemented:
 - transient SQLite busy/locked retry handling on normal Bear DB reads
 - config/bootstrap path helpers
 - shared selected-note token resolution that prefers Keychain and falls back to legacy config
+- non-secret config metadata that records whether the selected-note token is expected to live in Keychain, so CLI startup and tool exposure do not need an eager Keychain read
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
 - stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
@@ -117,6 +118,7 @@ Implemented:
 - app bundle registration for `bearmcp://`
 - headless callback-host mode in `Bear MCP.app` that preserves the response-file JSON contract used by the CLI
 - running-app selected-note request routing that lets an already-open dashboard instance of `Bear MCP.app` start an in-process callback session and keep running afterward
+- app-managed selected-note request authorization that fills in a tokenless selected-note Bear URL before launching Bear, keeping the preferred app-installed path responsible for Keychain access
 - app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
 - app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
 - local app build script for unsigned development bundles
@@ -219,7 +221,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_find_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
-- When `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer now prefers resolving the selected Bear note through an app-hosted `bearmcp://` callback in the separately installed `Bear MCP.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline. If the app is already open in dashboard mode, the CLI now reuses that running instance by sending it a `bearmcp://` start-request URL that preserves the existing response-file JSON contract. The standalone helper app remains available only as a narrow fallback when the preferred app is not installed.
+- When config indicates selected-note token availability, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer now prefers resolving the selected Bear note through an app-hosted `bearmcp://` callback in the separately installed `Bear MCP.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline. On the preferred app-installed path, the CLI now sends a tokenless selected-note request and lets `Bear MCP.app` inject the managed token locally before Bear is launched. If the app is already open in dashboard mode, the CLI reuses that running instance by sending it a `bearmcp://` start-request URL that preserves the existing response-file JSON contract. The standalone helper app remains available only as a narrow fallback when the preferred app is not installed.
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
@@ -280,7 +282,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
-- Keychain-backed token storage is now wired for selected-note resolution, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
+- Keychain-backed token storage is now wired for selected-note resolution, and the preferred app-installed path now keeps Keychain reads inside `Bear MCP.app`, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
 - The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, and the first Phase 4 Keychain-backed token-management slice, but it does not yet ship signed release artifacts or a broader editable settings UI beyond token management.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.

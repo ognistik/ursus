@@ -21,6 +21,9 @@ public final class BearSelectedNoteAppHost {
             completion in
             BearSelectedNoteCallbackHost(
                 callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
+                requestURLAuthorizer: { requestURL in
+                    try BearAppSupport.prepareManagedSelectedNoteRequestURL(requestURL)
+                },
                 terminator: {
                     Task { @MainActor in
                         completion()

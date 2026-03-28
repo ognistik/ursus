@@ -186,6 +186,23 @@ func resolveSelectedNoteURLUsesSelectedModeTokenAndCallbacks() throws {
 }
 
 @Test
+func resolveSelectedNoteURLWithoutTokenPreservesSelectedModeFlags() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.resolveSelectedNoteURL()
+
+    let components = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false))
+    let items = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).compactMap { item in
+        item.value.map { (item.name, $0) }
+    })
+
+    #expect(components.path == "/open-note")
+    #expect(items["selected"] == "yes")
+    #expect(items["token"] == nil)
+    #expect(items["show_window"] == "no")
+    #expect(items["open_note"] == "no")
+}
+
+@Test
 func renameTagURLOmitsShowWindowWhenNotRequested() throws {
     let builder = BearXCallbackURLBuilder()
     let url = try builder.renameTagURL(

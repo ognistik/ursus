@@ -62,7 +62,18 @@ func configurationEncodingIncludesNullTokenPlaceholder() throws {
     let data = try BearJSON.makeEncoder().encode(BearConfiguration.default)
     let text = try #require(String(data: data, encoding: .utf8))
 
+    #expect(text.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
     #expect(text.contains("\"token\" : null"))
+}
+
+@Test
+func selectedNoteTokenConfiguredHintUsesLegacyTokenOrKeychainMetadata() {
+    let configToken = BearConfiguration.default.updatingToken("legacy-token")
+    let keychainHint = BearConfiguration.default.updatingSelectedNoteTokenStorage(storedInKeychain: true)
+
+    #expect(BearSelectedNoteTokenResolver.configuredHint(configuration: .default) == false)
+    #expect(BearSelectedNoteTokenResolver.configuredHint(configuration: configToken) == true)
+    #expect(BearSelectedNoteTokenResolver.configuredHint(configuration: keychainHint) == true)
 }
 
 @Test
