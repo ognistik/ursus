@@ -66,7 +66,10 @@ let package = Package(
             ]
         ),
         .executableTarget(
-            name: "BearSelectedNoteHelper"
+            name: "BearSelectedNoteHelper",
+            dependencies: [
+                "BearXCallback",
+            ]
         ),
         .testTarget(
             name: "BearCoreTests",

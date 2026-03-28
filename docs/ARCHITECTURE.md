@@ -6,7 +6,7 @@
 
 - `BearCore`: domain types, config paths, template rendering, and shared errors.
 - `BearDB`: read-only access to Bear's SQLite database through GRDB.
-- `BearXCallback`: Bear mutation URL construction and Bear app launching.
+- `BearXCallback`: Bear mutation URL construction, Bear app launching, and shared selected-note callback-host logic.
 - `BearApplication`: orchestration, mutation planning, optimistic-write guards, and bootstrap files.
 - `BearMCP`: MCP tool registration and argument decoding.
 - `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, and `paths`.
@@ -63,8 +63,8 @@
 ## Current limits
 
 - Token-backed x-callback actions are now used for optional helper-backed selected-note resolution only; broader token-backed Bear actions remain unexposed.
-- The CLI remains the primary product. Selected-note targeting is intentionally modeled as an advanced optional workflow that depends on a separately installed helper app in `/Applications` or `~/Applications`.
-- The repo now includes a first-party helper source target plus a local bundling script that assembles a background `.app` registering the `bearmcphelper://` callback scheme. Release signing/notarization can layer on top of that packaging path later.
+- The CLI remains the primary product. Selected-note targeting is intentionally modeled as an advanced optional workflow that currently depends on a separately installed helper app in `/Applications` or `~/Applications`.
+- The repo now includes shared callback-host logic in `BearXCallback` plus a first-party helper source target and local bundling script that assemble a background `.app` registering the `bearmcphelper://` callback scheme. The helper is now a thin host for that shared runtime so a future unified app can adopt the same contract without another rewrite.
 - Create receipts use best-effort note discovery by title and recent modification time.
 - Backup restore is designed primarily for note-text rollback. Attachment-related restore remains best-effort because replaying saved raw markdown cannot perfectly reverse every attachment-side mutation Bear may have performed.
 - Tag rename and delete use best-effort verification by polling tag lists across both normal and archived note locations after Bear accepts the x-callback.

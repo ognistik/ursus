@@ -2,6 +2,8 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
+The helper app is still the current install-time callback host, but its runtime behavior now lives in shared package code. That means these testing steps validate the callback contract that the future unified app is expected to keep.
+
 ## Local build outputs
 
 `swift build` in the repo builds the helper executable target too, but it does not create a macOS app bundle by itself.
@@ -70,7 +72,7 @@ My recommendation is:
 - keep the helper install location simple: `/Applications` or `~/Applications`
 - later, consider a dedicated Homebrew cask for `Bear MCP Helper`
 
-That keeps the release simple while you validate the helper in the real world.
+That keeps the release simple while you validate the helper-hosted callback path in the real world. It should be treated as a transition release strategy until the unified app bundle exists.
 
 ## Why not fully automate install yet
 

@@ -13,6 +13,15 @@ to:
 
 This plan is intentionally incremental. It is designed to preserve the working system and reduce product/design friction without rewriting the server.
 
+## Status Checkpoint
+
+As of 2026-03-28:
+
+- Phase 1 has started in the repo: selected-note callback-host behavior now lives in shared package code at `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`.
+- `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
+- The standalone helper app is still the active runtime path for selected-note callbacks today.
+- The unified macOS app target, `bearmcp://` scheme, app-hosted callback flow, and Keychain token storage are still pending.
+
 ## Decisions Locked In
 
 These decisions should be treated as the working product direction unless explicitly changed later.
@@ -552,6 +561,10 @@ Goal:
 
 - separate “callback-host behavior” from the standalone helper executable
 
+Status:
+
+- Landed on 2026-03-28. The helper now hosts shared callback logic instead of implementing the full flow inline.
+
 Tasks:
 
 - move helper request parsing, callback URL rewrite, response-file writing, and timeout behavior into shared code
@@ -684,14 +697,14 @@ Deliverable:
 
 If a new conversation is going to begin implementation, the best first task is:
 
-1. extract the current helper app runtime behavior into shared callback-host code
-2. keep the existing helper working during the extraction
-3. do not add the app target in the same patch unless the extraction lands cleanly
+1. start Phase 2 by adding a minimal macOS app target that links the existing package modules
+2. wire the app target for diagnostics/settings scaffolding and register `bearmcp://`
+3. keep the current helper path working until the app-hosted callback route is verified end-to-end
 
-That keeps risk low and creates the clean seam needed for everything else.
+That keeps momentum up while still preserving the currently working selected-note flow.
 
 ## Suggested Prompt For The Next Conversation
 
 Use this as a starting point in a fresh implementation thread:
 
-> Read `PROJECT_STATUS.md` and `docs/APP_UNIFICATION_PLAN.md`. We are starting Phase 1 only. Do not add the macOS app target yet. Extract the selected-note helper runtime logic into shared code that can later be hosted by the main app, while preserving the current helper behavior and tests. Keep the CLI runtime unchanged for now. Avoid architecture rewrites. Update docs/tests as needed.
+> Read `PROJECT_STATUS.md` and `docs/APP_UNIFICATION_PLAN.md`. Phase 1 is already landed. Start Phase 2 only: add a minimal macOS app target that links the existing package modules, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding. Do not reroute the selected-note callback flow through the app yet. Keep the CLI runtime unchanged, keep the current helper path working, and avoid architecture rewrites. Update docs/tests as needed.

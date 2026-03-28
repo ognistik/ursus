@@ -528,10 +528,8 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     }
 }
 
-private let mcpTemplateFileLock = MCPTestAsyncLock()
-
 private func withTemporaryMCPNoteTemplate<T: Sendable>(_ template: String?, operation: @Sendable () async throws -> T) async throws -> T {
-    try await mcpTemplateFileLock.withLock {
+    try await withSharedMCPTemplateFileLock {
         let templateURL = BearPaths.noteTemplateURL
         let fileManager = FileManager.default
         let originalTemplate = fileManager.fileExists(atPath: templateURL.path) ? try String(contentsOf: templateURL) : nil
@@ -554,34 +552,19 @@ private func withTemporaryMCPNoteTemplate<T: Sendable>(_ template: String?, oper
     }
 }
 
-private actor MCPTestAsyncLock {
-    private var locked = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
+private func withSharedMCPTemplateFileLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
+    let fileManager = FileManager.default
+    let lockURL = fileManager.temporaryDirectory.appendingPathComponent("bear-mcp-tests-template.lock", isDirectory: true)
 
-    func withLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async rethrows -> T {
-        await acquire()
-        defer { release() }
-        return try await operation()
-    }
-
-    private func acquire() async {
-        guard locked else {
-            locked = true
-            return
-        }
-
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
+    while true {
+        do {
+            try fileManager.createDirectory(at: lockURL, withIntermediateDirectories: false)
+            break
+        } catch let error as CocoaError where error.code == .fileWriteFileExists {
+            try await Task.sleep(for: .milliseconds(10))
         }
     }
 
-    private func release() {
-        guard !waiters.isEmpty else {
-            locked = false
-            return
-        }
-
-        let continuation = waiters.removeFirst()
-        continuation.resume()
-    }
+    defer { try? fileManager.removeItem(at: lockURL) }
+    return try await operation()
 }
