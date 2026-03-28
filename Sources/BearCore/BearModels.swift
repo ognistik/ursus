@@ -148,7 +148,7 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
     public let hasAttachments: Bool?
     public let hasAttachmentSearchText: Bool?
     public let hasTags: Bool?
-    public let activeTagsMode: FindTagMatchMode?
+    public let inboxTagsMode: FindTagMatchMode?
     public let dateField: FindDateField?
     public let from: String?
     public let to: String?
@@ -169,7 +169,7 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         hasAttachments: Bool? = nil,
         hasAttachmentSearchText: Bool? = nil,
         hasTags: Bool? = nil,
-        activeTagsMode: FindTagMatchMode? = nil,
+        inboxTagsMode: FindTagMatchMode? = nil,
         dateField: FindDateField? = nil,
         from: String? = nil,
         to: String? = nil,
@@ -189,7 +189,7 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         self.hasAttachments = hasAttachments
         self.hasAttachmentSearchText = hasAttachmentSearchText
         self.hasTags = hasTags
-        self.activeTagsMode = activeTagsMode
+        self.inboxTagsMode = inboxTagsMode
         self.dateField = dateField
         self.from = from
         self.to = to
@@ -283,7 +283,7 @@ public struct FindNotesByTagOperation: Codable, Hashable, Sendable {
     }
 }
 
-public struct FindNotesByActiveTagsOperation: Codable, Hashable, Sendable {
+public struct FindNotesByInboxTagsOperation: Codable, Hashable, Sendable {
     public let id: String?
     public let match: FindTagMatchMode
     public let location: BearNoteLocation
@@ -338,7 +338,7 @@ public enum DiscoveryKind: String, Codable, Hashable, Sendable {
     case findNotes = "find_notes"
     case searchNotes = "search_notes"
     case notesByTag = "notes_by_tag"
-    case notesByActiveTags = "notes_by_active_tags"
+    case notesByInboxTags = "notes_by_inbox_tags"
 }
 
 public struct DiscoveryCursor: Codable, Hashable, Sendable {

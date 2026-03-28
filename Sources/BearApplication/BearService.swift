@@ -94,7 +94,7 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
-    public func findNotesByActiveTags(_ operations: [FindNotesByActiveTagsOperation]) throws -> FindNotesBatchResult {
+    public func findNotesByInboxTags(_ operations: [FindNotesByInboxTagsOperation]) throws -> FindNotesBatchResult {
         guard !operations.isEmpty else {
             throw BearError.invalidInput("Missing required array argument 'operations'.")
         }
@@ -103,7 +103,7 @@ public final class BearService: @unchecked Sendable {
             operations.map { operation in
                 FindNotesOperation(
                     id: operation.id,
-                    activeTagsMode: operation.match,
+                    inboxTagsMode: operation.match,
                     location: operation.location,
                     limit: operation.limit,
                     snippetLength: operation.snippetLength,
@@ -231,7 +231,7 @@ public final class BearService: @unchecked Sendable {
                 : sanitizedContent
 
             BearDebugLog.append(
-                "create.rendered title='\(title)' config.activeTags=\(configuration.activeTags) config.createAddsActiveTagsByDefault=\(configuration.createAddsActiveTagsByDefault) config.tagsMergeMode=\(configuration.tagsMergeMode.rawValue) request.useOnlyRequestTags=\(request.useOnlyRequestTags.map(String.init(describing:)) ?? "nil") config.openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) tags=\(tags) content=\(content.debugDescription)"
+                "create.rendered title='\(title)' config.inboxTags=\(configuration.inboxTags) config.createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) config.tagsMergeMode=\(configuration.tagsMergeMode.rawValue) request.useOnlyRequestTags=\(request.useOnlyRequestTags.map(String.init(describing:)) ?? "nil") config.openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) tags=\(tags) content=\(content.debugDescription)"
             )
 
             let effective = CreateNoteRequest(
@@ -784,7 +784,7 @@ public final class BearService: @unchecked Sendable {
 
     private func mergedCreateTags(_ requestTags: [String], useOnlyRequestTagsOverride: Bool?) -> [String] {
         let baseTags: [String]
-        if configuration.createAddsActiveTagsByDefault {
+        if configuration.createAddsInboxTagsByDefault {
             let mergeMode: BearConfiguration.TagsMergeMode
             if let useOnlyRequestTagsOverride {
                 mergeMode = useOnlyRequestTagsOverride ? .replace : .append
@@ -794,9 +794,9 @@ public final class BearService: @unchecked Sendable {
 
             switch mergeMode {
             case .append:
-                baseTags = configuration.activeTags + requestTags
+                baseTags = configuration.inboxTags + requestTags
             case .replace:
-                baseTags = requestTags.isEmpty ? configuration.activeTags : requestTags
+                baseTags = requestTags.isEmpty ? configuration.inboxTags : requestTags
             }
         } else {
             baseTags = requestTags
@@ -1656,7 +1656,7 @@ public final class BearService: @unchecked Sendable {
     private func requiredApplyTemplate(loadedTemplate: String?, noteTitle: String) throws -> String {
         guard let template = loadedTemplate else {
             throw BearError.configuration(
-                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md, but the file is missing. Restore the active template before applying it to notes."
+                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md, but the file is missing. Restore the current template before applying it to notes."
             )
         }
 
@@ -2079,17 +2079,17 @@ public final class BearService: @unchecked Sendable {
         let hasAttachmentSearchText = operation.hasAttachmentSearchText
         let hasTags = operation.hasTags
 
-        if let activeTagsMode = operation.activeTagsMode {
-            let activeTags = normalizedTags(configuration.activeTags)
-            guard !activeTags.isEmpty else {
-                throw BearError.configuration("The active notes list is empty. Add tags to ~/.config/bear-mcp/config.json first.")
+        if let inboxTagsMode = operation.inboxTagsMode {
+            let inboxTags = normalizedTags(configuration.inboxTags)
+            guard !inboxTags.isEmpty else {
+                throw BearError.configuration("The inbox tag list is empty. Add tags to ~/.config/bear-mcp/config.json first.")
             }
 
-            switch activeTagsMode {
+            switch inboxTagsMode {
             case .any:
-                tagsAny = normalizedTags(tagsAny + activeTags)
+                tagsAny = normalizedTags(tagsAny + inboxTags)
             case .all:
-                tagsAll = normalizedTags(tagsAll + activeTags)
+                tagsAll = normalizedTags(tagsAll + inboxTags)
             }
         }
 

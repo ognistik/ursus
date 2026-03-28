@@ -28,7 +28,7 @@ func getNotesResolvesExactIDBeforeTitleAndDeduplicatesResults() throws {
         ]
     )
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -67,7 +67,7 @@ func getNotesUsesTemplateStrippedCanonicalContentAndReturnsAttachments() async t
         ]
     )
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -95,7 +95,7 @@ func getNotesStillMatchesTemplateWhenEffectiveTagsIncludeImplicitParentTags() as
     )
     let readStore = GetNotesReadStore(noteByID: ["note-implicit-parent": note])
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -122,7 +122,7 @@ func getNotesStillMatchesTemplateWhenTerminalContentIsEmpty() async throws {
     )
     let readStore = GetNotesReadStore(noteByID: ["note-empty-content": note])
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -161,7 +161,7 @@ func getNotesReturnsEncryptedFlagOnlyForEncryptedNotes() throws {
         ]
     )
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: []),
+        configuration: makeGetNotesConfiguration(inboxTags: []),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -202,7 +202,7 @@ func getNotesFiltersArchivedAndTrashedNotesByRequestedLocation() throws {
         ]
     )
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: []),
+        configuration: makeGetNotesConfiguration(inboxTags: []),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -231,7 +231,7 @@ func getNotesIgnoresUnmatchedAndEmptySelectors() throws {
         ]
     )
     let service = BearService(
-        configuration: makeGetNotesConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: GetNotesSilentWriteTransport(),
         logger: Logger(label: "BearServiceGetNotesTests")
@@ -244,17 +244,17 @@ func getNotesIgnoresUnmatchedAndEmptySelectors() throws {
 }
 
 private func makeGetNotesConfiguration(
-    activeTags: [String]
+    inboxTags: [String]
 ) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: activeTags,
+        inboxTags: inboxTags,
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,

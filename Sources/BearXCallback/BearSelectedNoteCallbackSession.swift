@@ -181,7 +181,7 @@ actor BearSelectedNoteCallbackSession {
 
         let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
         guard queryItems["state"] == stateToken else {
-            throw BearError.xCallback("Selected-note callback state did not match the active request.")
+            throw BearError.xCallback("Selected-note callback state did not match the current request.")
         }
 
         return CallbackRequest(path: components.path, queryItems: queryItems)
@@ -189,7 +189,7 @@ actor BearSelectedNoteCallbackSession {
 
     private func consumeCallback(_ callback: CallbackRequest) async throws {
         guard callback.path.hasPrefix("/bear-mcp/\(requestID)/") else {
-            throw BearError.xCallback("Selected-note callback path did not match the active request.")
+            throw BearError.xCallback("Selected-note callback path did not match the current request.")
         }
 
         if callback.path.hasSuffix("/error") {

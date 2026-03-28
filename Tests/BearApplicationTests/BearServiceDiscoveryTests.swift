@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func findNotesByActiveTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet() async throws {
+func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet() async throws {
     let note = makeNote(
         id: "note-1",
         title: "Inbox",
@@ -27,15 +27,15 @@ func findNotesByActiveTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet(
         ]
     )
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
     let batch = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
-        try service.findNotesByActiveTags([
-            FindNotesByActiveTagsOperation(location: .notes, snippetLength: 22),
+        try service.findNotesByInboxTags([
+            FindNotesByInboxTagsOperation(location: .notes, snippetLength: 22),
         ])
     }
 
@@ -64,7 +64,7 @@ func findNotesClampsConfiguredOverridesAndTracksMatchedFields() throws {
     ])
     let service = BearService(
         configuration: makeDiscoveryConfiguration(
-            activeTags: ["0-inbox"],
+            inboxTags: ["0-inbox"],
             defaultDiscoveryLimit: 7,
             maxDiscoveryLimit: 25,
             defaultSnippetLength: 12,
@@ -101,7 +101,7 @@ func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -148,7 +148,7 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
         DiscoveryNoteBatch(notes: [second], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -191,7 +191,7 @@ func findNotesReturnsPerOperationErrorsWithoutFailingSiblings() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -224,7 +224,7 @@ func findNotesRejectsMismatchedCursorPerOperation() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: true),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -249,7 +249,7 @@ func findNotesParsesDateFiltersAndDefaultsDateFieldToModifiedAt() throws {
         DiscoveryNoteBatch(notes: [], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -281,7 +281,7 @@ func findNotesAllowsPresenceOnlyFilters() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -306,7 +306,7 @@ func findNotesAllowsPresenceOnlyFilters() throws {
 func findNotesRejectsFutureNaturalLanguageDateFilters() throws {
     let readStore = DiscoveryReadStore(findBatches: [])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -329,7 +329,7 @@ func listTagsDefaultsToNotesWithoutFilters() throws {
         TagSummary(name: "projects", identifier: "tag-1", noteCount: 2),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -347,7 +347,7 @@ func listTagsDefaultsToNotesWithoutFilters() throws {
 func listTagsNormalizesOptionalFiltersBeforeQuerying() throws {
     let readStore = DiscoveryReadStore()
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(activeTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -365,7 +365,7 @@ func listTagsNormalizesOptionalFiltersBeforeQuerying() throws {
 }
 
 private func makeDiscoveryConfiguration(
-    activeTags: [String],
+    inboxTags: [String],
     defaultDiscoveryLimit: Int = 20,
     maxDiscoveryLimit: Int = 100,
     defaultSnippetLength: Int = 280,
@@ -374,13 +374,13 @@ private func makeDiscoveryConfiguration(
 ) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: activeTags,
+        inboxTags: inboxTags,
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: defaultDiscoveryLimit,
         maxDiscoveryLimit: maxDiscoveryLimit,

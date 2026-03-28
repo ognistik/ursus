@@ -15,7 +15,7 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     try """
     {
       "databasePath" : "/tmp/custom.sqlite",
-      "activeTags" : [
+      "inboxTags" : [
         "inbox",
         "next"
       ],
@@ -36,9 +36,9 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     let updatedText = try String(contentsOf: configFileURL)
 
     #expect(configuration.databasePath == "/tmp/custom.sqlite")
-    #expect(configuration.activeTags == ["inbox", "next"])
+    #expect(configuration.inboxTags == ["inbox", "next"])
     #expect(updatedOnDisk.databasePath == "/tmp/custom.sqlite")
-    #expect(updatedOnDisk.activeTags == ["inbox", "next"])
+    #expect(updatedOnDisk.inboxTags == ["inbox", "next"])
     #expect(updatedOnDisk.defaultDiscoveryLimit == BearConfiguration.default.defaultDiscoveryLimit)
     #expect(updatedOnDisk.maxDiscoveryLimit == BearConfiguration.default.maxDiscoveryLimit)
     #expect(updatedOnDisk.defaultSnippetLength == BearConfiguration.default.defaultSnippetLength)

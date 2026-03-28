@@ -22,7 +22,7 @@ Read [PROJECT_STATUS.md](/Users/ognistik/Documents/GitHubRepos/bear-mcp/PROJECT_
 - Batch operations are important. Prefer `operations: []` inputs for mutation tools.
 - `bear_replace_note_body` should compute the full note text locally, then commit through Bear's full replacement path.
 - That replacement flow may be used for title changes when the leading title markdown is changed.
-- Discovery tools should return compact note summaries, while `bear_get_notes` remains the full-note fetch. `bear_get_active` is driven by configured active tags.
+- Discovery tools should return compact note summaries, while `bear_get_notes` remains the full-note fetch. Inbox-note discovery is driven by configured inbox tags.
 - Mutation tools should return compact receipts, not full note bodies, unless the user explicitly asks for content.
 - Trash/restore are intentionally excluded for now.
 

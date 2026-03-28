@@ -54,13 +54,13 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let terminalCLIStatusTitle: String
     public let terminalCLIStatusDetail: String
     public let databasePath: String
-    public let activeTags: [String]
+    public let inboxTags: [String]
     public let defaultInsertPosition: String
     public let templateManagementEnabled: Bool
     public let openNoteInEditModeByDefault: Bool
     public let createOpensNoteByDefault: Bool
     public let openUsesNewWindowByDefault: Bool
-    public let createAddsActiveTagsByDefault: Bool
+    public let createAddsInboxTagsByDefault: Bool
     public let tagsMergeMode: String
     public let defaultDiscoveryLimit: Int
     public let maxDiscoveryLimit: Int
@@ -89,13 +89,13 @@ public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiab
 
 public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let databasePath: String
-    public let activeTags: [String]
+    public let inboxTags: [String]
     public let defaultInsertPosition: BearConfiguration.InsertDefault
     public let templateManagementEnabled: Bool
     public let openNoteInEditModeByDefault: Bool
     public let createOpensNoteByDefault: Bool
     public let openUsesNewWindowByDefault: Bool
-    public let createAddsActiveTagsByDefault: Bool
+    public let createAddsInboxTagsByDefault: Bool
     public let tagsMergeMode: BearConfiguration.TagsMergeMode
     public let defaultDiscoveryLimit: Int
     public let maxDiscoveryLimit: Int
@@ -106,13 +106,13 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
 
     public init(
         databasePath: String,
-        activeTags: [String],
+        inboxTags: [String],
         defaultInsertPosition: BearConfiguration.InsertDefault,
         templateManagementEnabled: Bool,
         openNoteInEditModeByDefault: Bool,
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
-        createAddsActiveTagsByDefault: Bool,
+        createAddsInboxTagsByDefault: Bool,
         tagsMergeMode: BearConfiguration.TagsMergeMode,
         defaultDiscoveryLimit: Int,
         maxDiscoveryLimit: Int,
@@ -122,13 +122,13 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         disabledTools: [BearToolName]
     ) {
         self.databasePath = databasePath
-        self.activeTags = activeTags
+        self.inboxTags = inboxTags
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
         self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
         self.createOpensNoteByDefault = createOpensNoteByDefault
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
-        self.createAddsActiveTagsByDefault = createAddsActiveTagsByDefault
+        self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
         self.tagsMergeMode = tagsMergeMode
         self.defaultDiscoveryLimit = defaultDiscoveryLimit
         self.maxDiscoveryLimit = maxDiscoveryLimit
@@ -277,13 +277,13 @@ public enum BearAppSupport {
             terminalCLIStatusTitle: terminalCLIStatus.title,
             terminalCLIStatusDetail: terminalCLIStatus.detail,
             databasePath: configuration.databasePath,
-            activeTags: configuration.activeTags,
+            inboxTags: configuration.inboxTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
             templateManagementEnabled: configuration.templateManagementEnabled,
             openNoteInEditModeByDefault: configuration.openNoteInEditModeByDefault,
             createOpensNoteByDefault: configuration.createOpensNoteByDefault,
             openUsesNewWindowByDefault: configuration.openUsesNewWindowByDefault,
-            createAddsActiveTagsByDefault: configuration.createAddsActiveTagsByDefault,
+            createAddsInboxTagsByDefault: configuration.createAddsInboxTagsByDefault,
             tagsMergeMode: configuration.tagsMergeMode.rawValue,
             defaultDiscoveryLimit: configuration.defaultDiscoveryLimit,
             maxDiscoveryLimit: configuration.maxDiscoveryLimit,
@@ -400,17 +400,17 @@ public enum BearAppSupport {
         let maxDiscoveryLimit = max(defaultDiscoveryLimit, draft.maxDiscoveryLimit)
         let defaultSnippetLength = max(1, draft.defaultSnippetLength)
         let maxSnippetLength = max(defaultSnippetLength, draft.maxSnippetLength)
-        let normalizedActiveTags = normalizedActiveTags(draft.activeTags)
+        let normalizedInboxTags = normalizedInboxTags(draft.inboxTags)
 
         let updatedConfiguration = BearConfiguration(
             databasePath: normalizedDatabasePath,
-            activeTags: normalizedActiveTags,
+            inboxTags: normalizedInboxTags,
             defaultInsertPosition: draft.defaultInsertPosition,
             templateManagementEnabled: draft.templateManagementEnabled,
             openNoteInEditModeByDefault: draft.openNoteInEditModeByDefault,
             createOpensNoteByDefault: draft.createOpensNoteByDefault,
             openUsesNewWindowByDefault: draft.openUsesNewWindowByDefault,
-            createAddsActiveTagsByDefault: draft.createAddsActiveTagsByDefault,
+            createAddsInboxTagsByDefault: draft.createAddsInboxTagsByDefault,
             tagsMergeMode: draft.tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
             maxDiscoveryLimit: maxDiscoveryLimit,
@@ -801,11 +801,11 @@ public enum BearAppSupport {
         }
     }
 
-    private static func normalizedActiveTags(_ activeTags: [String]) -> [String] {
+    private static func normalizedInboxTags(_ inboxTags: [String]) -> [String] {
         var seen: Set<String> = []
         var normalized: [String] = []
 
-        for tag in activeTags {
+        for tag in inboxTags {
             let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, !seen.contains(trimmed) else {
                 continue

@@ -25,7 +25,7 @@ As of 2026-03-28:
 - Routine doctor/dashboard status loading now relies on the non-secret Keychain hint by default instead of eagerly reading Keychain, so normal diagnostics do not trigger authorization prompts unless the user explicitly opens token-management actions that need the secret.
 - Phase 5 has now started in the repo: the local app build now embeds `bear-mcp` inside `Bear MCP.app`, the dashboard can install or refresh that bundled CLI to `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and doctor/app diagnostics now distinguish between the bundled app copy and the stable host-facing CLI path.
 - The onboarding slice has now widened into a more host-agnostic Phase 5 direction: the dashboard/settings surface still includes host-specific guided checks for common apps, but it now also includes generic local-stdio guidance that is not tied to Codex or Claude Desktop.
-- Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, active tags, and tool availability.
+- Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, inbox tags, and tool availability.
 - Tool availability can now be controlled from config/app UI, and the live MCP tool catalog filters out disabled tools.
 - The app can now create a one-click terminal symlink at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
@@ -601,7 +601,7 @@ Goal:
 
 Status:
 
-- Landed on 2026-03-28. The repo now includes a minimal Xcode app target, local app build script, `bearmcp://` registration, and diagnostics/settings shell views while the separate helper remains the active callback runtime.
+- Landed on 2026-03-28. The repo now includes a minimal Xcode app target, local app build script, `bearmcp://` registration, and diagnostics/settings shell views while the separate helper remains the primary callback runtime.
 
 Tasks:
 
@@ -733,7 +733,7 @@ Deliverable:
 - do not add XPC before the simple response-file contract is exhausted
 - do not switch config away from JSON yet
 - do not build a complicated updater before basic GitHub update checks exist
-- do not leave both the old helper path and the new app path half-active without clear ownership
+- do not leave both the old helper path and the new app path half-configured without clear ownership
 
 ## Recommended Starting Task For The Next Implementation Thread
 

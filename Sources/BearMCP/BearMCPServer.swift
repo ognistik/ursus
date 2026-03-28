@@ -83,9 +83,9 @@ public final class BearMCPServer: Sendable {
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByTagOperation)
             return try jsonResult(try service.findNotesByTag(operations))
 
-        case "bear_find_notes_by_active_tags":
-            let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByActiveTagsOperation)
-            return try jsonResult(try service.findNotesByActiveTags(operations))
+        case "bear_find_notes_by_inbox_tags":
+            let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByInboxTagsOperation)
+            return try jsonResult(try service.findNotesByInboxTags(operations))
 
         case "bear_list_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -358,7 +358,7 @@ public final class BearMCPServer: Sendable {
             hasAttachments: try MCPArgumentDecoder.optionalBool(object, "has_attachments"),
             hasAttachmentSearchText: try MCPArgumentDecoder.optionalBool(object, "has_attachment_search_text"),
             hasTags: try MCPArgumentDecoder.optionalBool(object, "has_tags"),
-            activeTagsMode: try MCPArgumentDecoder.optionalFindTagMatchMode(object, key: "active_tags_mode"),
+            inboxTagsMode: try MCPArgumentDecoder.optionalFindTagMatchMode(object, key: "inbox_tags_mode"),
             dateField: try MCPArgumentDecoder.optionalFindDateField(object, key: "date_field"),
             from: MCPArgumentDecoder.optionalString(object, "from"),
             to: MCPArgumentDecoder.optionalString(object, "to"),
@@ -466,8 +466,8 @@ public final class BearMCPServer: Sendable {
         )
     }
 
-    private func decodeFindNotesByActiveTagsOperation(_ object: [String: Value]) throws -> FindNotesByActiveTagsOperation {
-        FindNotesByActiveTagsOperation(
+    private func decodeFindNotesByInboxTagsOperation(_ object: [String: Value]) throws -> FindNotesByInboxTagsOperation {
+        FindNotesByInboxTagsOperation(
             id: MCPArgumentDecoder.optionalString(object, "id"),
             match: try MCPArgumentDecoder.findTagMatchMode(object, key: "match"),
             location: try MCPArgumentDecoder.location(object),
@@ -506,7 +506,7 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: "Find Bear notes with text, tag, active-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
@@ -548,9 +548,9 @@ private enum ToolCatalog {
                 required: ["tags"]
             ),
             batchedDiscoveryTool(
-                name: "bear_find_notes_by_active_tags",
-                description: "Find Bear notes by the configured active tags and return compact summaries. Current active tags: \(formattedTagList(configuration.activeTags)). Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
-                operationProperties: findNotesByActiveTagsOperationProperties(configuration: configuration),
+                name: "bear_find_notes_by_inbox_tags",
+                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
             batchedDiscoveryTool(
@@ -662,7 +662,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
-                description: "Apply the active Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the active template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: "Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "expected_version": expectedVersionProperty(),
@@ -674,7 +674,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Current create defaults: omitted `open_note` uses \(formattedBool(configuration.createOpensNoteByDefault)); omitted `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened; configured active tags are \(formattedTagList(configuration.activeTags)); tag merging on omission currently \(formattedCreateTagMergeBehavior(configuration)). Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override those defaults for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
+                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Current create defaults: omitted `open_note` uses \(formattedBool(configuration.createOpensNoteByDefault)); omitted `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened; configured inbox tags are \(formattedTagList(configuration.inboxTags)); tag merging on omission currently \(formattedCreateTagMergeBehavior(configuration)). Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override those defaults for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -684,7 +684,7 @@ private enum ToolCatalog {
                     "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                     "use_only_request_tags": .object([
                         "type": .string("boolean"),
-                        "description": .string("Optional per-request override for note creation. Omit unless the user explicitly asks to change the current tag-merging default. Current omission behavior: \(formattedCreateTagMergeBehavior(configuration)). `true` uses only the supplied request tags instead of configured active tags. `false` appends configured active tags. If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                        "description": .string("Optional per-request override for note creation. Omit unless the user explicitly asks to change the current tag-merging default. Current omission behavior: \(formattedCreateTagMergeBehavior(configuration)). `true` uses only the supplied request tags instead of configured inbox tags. `false` appends configured inbox tags. If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
                     "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Current omission default: \(formattedBool(configuration.createOpensNoteByDefault)). Map any explicit user preference about opening to this field. `true` forces open and `false` forces closed. Omit this field when the user does not mention opening."),
                     "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Current omission default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior."),
@@ -869,10 +869,10 @@ private enum ToolCatalog {
                 "type": .string("boolean"),
                 "description": .string("Optional presence filter. Set true to return only tagged notes, or false to return only notes without tags."),
             ]),
-            "active_tags_mode": .object([
+            "inbox_tags_mode": .object([
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
-                "description": .string("Optional active-tag filter against the current configured active tags \(formattedTagList(configuration.activeTags))."),
+                "description": .string("Optional inbox-tag filter against the current configured inbox tags \(formattedTagList(configuration.inboxTags))."),
             ]),
             "date_field": .object([
                 "type": .string("string"),
@@ -903,13 +903,13 @@ private enum ToolCatalog {
         ], configuration: configuration)
     }
 
-    private static func findNotesByActiveTagsOperationProperties(configuration: BearConfiguration) -> [String: Value] {
+    private static func findNotesByInboxTagsOperationProperties(configuration: BearConfiguration) -> [String: Value] {
         discoveryOperationProperties([
             "id": .object(["type": .string("string")]),
             "match": .object([
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
-                "description": .string("Optional matching mode over the current configured active tags \(formattedTagList(configuration.activeTags))."),
+                "description": .string("Optional matching mode over the current configured inbox tags \(formattedTagList(configuration.inboxTags))."),
             ]),
         ], configuration: configuration)
     }
@@ -1132,15 +1132,15 @@ private enum ToolCatalog {
     }
 
     private static func formattedCreateTagMergeBehavior(_ configuration: BearConfiguration) -> String {
-        guard configuration.createAddsActiveTagsByDefault else {
+        guard configuration.createAddsInboxTagsByDefault else {
             return "uses only request tags unless explicitly overridden"
         }
 
         switch configuration.tagsMergeMode {
         case .append:
-            return "appends configured active tags to request tags"
+            return "appends configured inbox tags to request tags"
         case .replace:
-            return "uses request tags when any are supplied, otherwise falls back to configured active tags"
+            return "uses request tags when any are supplied, otherwise falls back to configured inbox tags"
         }
     }
 }

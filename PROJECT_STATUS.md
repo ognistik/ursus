@@ -81,14 +81,14 @@ Tools intentionally excluded for now:
 - trash
 - unarchive
 
-### 6. Active notes / discovery
+### 6. Inbox notes / discovery
 
-The old `get-active` behavior is important.
+The old inbox-style discovery behavior is important.
 
 Current direction:
 
-- represent active-note listing as an explicit discovery tool
-- `bear_find_notes_by_active_tags` is driven by configured active tags from config
+- represent inbox-note listing as an explicit discovery tool
+- `bear_find_notes_by_inbox_tags` is driven by configured inbox tags from config
 - discovery tools return compact note summaries, not full note bodies
 - archive reads are explicit via tool input (`location: notes|archive`), not mixed into default note discovery
 
@@ -132,7 +132,7 @@ Implemented:
 - generic local-stdio host guidance in the app/dashboard so local MCP setup is documented independently of any one host app
 - shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
-- editable app configuration UI for core defaults, discovery limits, active tags, and tool availability
+- editable app configuration UI for core defaults, discovery limits, inbox tags, and tool availability
 - config-backed tool enable/disable support that filters the live MCP tool catalog and rejects direct calls to disabled tools
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
@@ -164,7 +164,7 @@ Implemented MCP tool names:
 - `bear_get_notes`
 - `bear_list_tags`
 - `bear_find_notes_by_tag`
-- `bear_find_notes_by_active_tags`
+- `bear_find_notes_by_inbox_tags`
 - `bear_list_backups`
 - `bear_delete_backups`
 - `bear_open_tag`
@@ -241,7 +241,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
 - When config indicates selected-note token availability, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer now prefers resolving the selected Bear note through an app-hosted `bearmcp://` callback in the separately installed `Bear MCP.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline. On the preferred app-installed path, the CLI now sends a tokenless selected-note request and lets `Bear MCP.app` inject the managed token locally before Bear is launched. If the app is already open in dashboard mode, the CLI reuses that running instance by sending it a `bearmcp://` start-request URL that preserves the existing response-file JSON contract. The standalone helper app remains available only as a narrow fallback when the preferred app is not installed.
-- `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
+- `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_inbox_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
 - Bear's DB tag list remains the effective/discovery view, which may include implicit parent tags for subtags. Template matching and note-tag mutations now separately parse literal tag tokens from note text so DB-expanded parent tags do not poison template-aware reads or writes.
@@ -266,15 +266,15 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 
 - Create builds final text locally, then uses Bear x-callback create.
 - Create uses a config-driven default for whether the new note opens at all, plus config-driven open style defaults when it does open.
-- Create uses config `tagsMergeMode` as the default for how requested tags combine with configured active tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
+- Create uses config `tagsMergeMode` as the default for how requested tags combine with configured inbox tags, and `bear_create_notes` can override that per operation with `use_only_request_tags` when the user explicitly asks.
 - Before note-destructive mutations (`bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_apply_template`, and `bear_restore_notes`), the service now captures one pre-mutation backup snapshot per logical note operation in a durable file-backed store under Application Support. Template-aware multi-step add-file flows snapshot only once before internal anchor writes so backup history does not include temporary transport states.
 - Note-targeting mutation tools now accept title-or-ID selectors at the MCP surface. Selectors resolve as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id.
 - `bear_get_notes`, `bear_list_backups`, `bear_delete_backups`, `bear_add_tags`, `bear_remove_tags`, `bear_apply_template`, `bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_open_notes`, `bear_archive_notes`, and `bear_restore_notes` now also support selected-note targeting when the Bear API token is configured.
-- Insert now supports both top/bottom placement and relative-target placement. Without a relative target, it tries to preserve the active note template: when template management is enabled and the current note matches the active `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`. With a relative target, the service resolves one heading-title or exact editable-content string match and writes the updated note through `replace_all`.
+- Insert now supports both top/bottom placement and relative-target placement. Without a relative target, it tries to preserve the current note template: when template management is enabled and the current note matches the current `template.md`, the service inserts inside the `{{content}}` region locally and writes the full note back through `replace_all`; otherwise it falls back to Bear's direct add-text prepend/append path. Omitted `position` still defaults to config `defaultInsertPosition`. With a relative target, the service resolves one heading-title or exact editable-content string match and writes the updated note through `replace_all`.
 - Replace content computes full new note text locally from title/body/content-scoped edit intents, then writes through add-text with `replace_all`.
 - Note-tag mutations are split by scope: `bear_add_tags` and `bear_remove_tags` edit one note's literal tags through full-body replacement, while `bear_delete_tags` deletes a tag globally through Bear's official x-callback action.
-- Template-aware note-tag mutations now treat the active template as the highest-priority tag placement when a note matches it and the template contains `{{tags}}`. If no template match exists, add-tags extends the first raw tag-only cluster when found; otherwise it applies the active template to the note when template management is enabled or inserts one canonical tag line at the configured default position when template management is disabled. When template management requires that fallback template application and `template.md` is missing or lacks a valid `{{tags}}` slot, add-tags now fails clearly so the template can be fixed before continuing.
-- `bear_apply_template` is an explicit batched normalization tool. It always loads the active `template.md`, even when template management is disabled for other flows, migrates all tag-only clusters from editable content into the template `{{tags}}` slot, preserves inline prose hashtags, de-duplicates tags in first-seen order, cleans whitespace after cluster removal, and re-renders the full note through Bear's full replacement path. Missing or invalid `template.md` files now fail clearly for this tool.
+- Template-aware note-tag mutations now treat the current template as the highest-priority tag placement when a note matches it and the template contains `{{tags}}`. If no template match exists, add-tags extends the first raw tag-only cluster when found; otherwise it applies the current template to the note when template management is enabled or inserts one canonical tag line at the configured default position when template management is disabled. When template management requires that fallback template application and `template.md` is missing or lacks a valid `{{tags}}` slot, add-tags now fails clearly so the template can be fixed before continuing.
+- `bear_apply_template` is an explicit batched normalization tool. It always loads the current `template.md`, even when template management is disabled for other flows, migrates all tag-only clusters from editable content into the template `{{tags}}` slot, preserves inline prose hashtags, de-duplicates tags in first-seen order, cleans whitespace after cluster removal, and re-renders the full note through Bear's full replacement path. Missing or invalid `template.md` files now fail clearly for this tool.
 - For note-opening mutation flows, omitted `new_window` now consistently falls back to config `openUsesNewWindowByDefault`.
 - Background note mutations now always serialize `open_note=no` and `show_window=no` when the effective presentation keeps the note closed, even if the client omitted `open_note` and the closed state came from defaults.
 - x-callback debug traces now log the outgoing action plus a redacted query summary so `open_note`, `show_window`, `new_window`, `mode`, and similar flags can be inspected without dumping full note text or base64 file payloads.
@@ -282,7 +282,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - `Bear MCP.app` now has a headless callback-host mode: it can be launched with the existing response-file contract, rewrite Bear's `x-success` and `x-error` targets to `bearmcp://`, receive the callback, write the same JSON payload the CLI already expects, and exit without changing the CLI-facing runtime contract.
 - When `Bear MCP.app` is already running in dashboard mode, the CLI now sends that live app instance a `bearmcp://x-callback-url/start-selected-note-host?...` request so it can start an in-process callback session without quitting or relaunching the app, while still returning the same response-file payload the CLI already expects.
 - The standalone selected-note helper executable remains a thin shell around the same shared `BearSelectedNoteCallbackHost` logic in `BearXCallback`, preserving a narrow helper fallback path when the preferred app is not available.
-- Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and supports both top/bottom placement and relative-target placement. For template-aware top/bottom placement, it preserves active template boundaries by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. For relative-target placement, it uses the same anchor orchestration for both templated and non-templated notes after resolving one heading-title or exact editable-content string match. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In every anchor-managed path, Bear's header-targeted add-file call uses `prepend`; final placement is determined by where the temporary anchor is inserted in editable content.
+- Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and supports both top/bottom placement and relative-target placement. For template-aware top/bottom placement, it preserves current template boundaries by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. For relative-target placement, it uses the same anchor orchestration for both templated and non-templated notes after resolving one heading-title or exact editable-content string match. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In every anchor-managed path, Bear's header-targeted add-file call uses `prepend`; final placement is determined by where the temporary anchor is inserted in editable content.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
 - Rename tags use Bear rename-tag with batched `operations: []` input and only send `show_window` when the caller explicitly requests it.
@@ -308,7 +308,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.
 - Debug tracing now writes under `~/Library/Logs/bear-mcp/debug.log` with simple size-based rotation.
 - The preferred shared runtime lock lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock` so the user-facing config folder only contains editable files.
-- When Codex launches additional stdio MCP children while another Bear server is already active, the runtime now falls back to temp per-launch lock files instead of refusing to start.
+- When Codex launches additional stdio MCP children while another Bear server is already running, the runtime now falls back to temp per-launch lock files instead of refusing to start.
 - The stdio server now shuts down on either transport EOF or loss of the original parent PID so Codex restarts do not leave orphaned MCP instances holding the lock.
 - When the preferred Application Support lock path is not writable under the client sandbox, the server falls back to a temp-directory lock path so Codex can still launch the MCP process.
 

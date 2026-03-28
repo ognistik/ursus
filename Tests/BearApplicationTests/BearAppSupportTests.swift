@@ -47,11 +47,11 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     try """
     {
       "databasePath" : "/tmp/bear.sqlite",
-      "activeTags" : [
+      "inboxTags" : [
         "0-inbox",
         "next"
       ],
-      "createAddsActiveTagsByDefault" : false,
+      "createAddsInboxTagsByDefault" : false,
       "token" : "phase-two-token"
     }
     """.write(to: configFileURL, atomically: true, encoding: .utf8)
@@ -75,8 +75,8 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings != nil)
     #expect(dashboard.settingsError == nil)
     #expect(dashboard.settings?.databasePath == "/tmp/bear.sqlite")
-    #expect(dashboard.settings?.activeTags == ["0-inbox", "next"])
-    #expect(dashboard.settings?.createAddsActiveTagsByDefault == false)
+    #expect(dashboard.settings?.inboxTags == ["0-inbox", "next"])
+    #expect(dashboard.settings?.createAddsInboxTagsByDefault == false)
     #expect(dashboard.settings?.appManagedCLIPath == appManagedCLIURL.path)
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == false)
@@ -359,13 +359,13 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     try BearAppSupport.saveConfigurationDraft(
         BearAppConfigurationDraft(
             databasePath: "/tmp/updated.sqlite",
-            activeTags: ["0-inbox", "next", "0-inbox"],
+            inboxTags: ["0-inbox", "next", "0-inbox"],
             defaultInsertPosition: .top,
             templateManagementEnabled: false,
             openNoteInEditModeByDefault: false,
             createOpensNoteByDefault: false,
             openUsesNewWindowByDefault: false,
-            createAddsActiveTagsByDefault: false,
+            createAddsInboxTagsByDefault: false,
             tagsMergeMode: .replace,
             defaultDiscoveryLimit: 5,
             maxDiscoveryLimit: 25,
@@ -388,13 +388,13 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     )
 
     #expect(configuration.databasePath == "/tmp/updated.sqlite")
-    #expect(configuration.activeTags == ["0-inbox", "next"])
+    #expect(configuration.inboxTags == ["0-inbox", "next"])
     #expect(configuration.defaultInsertPosition == .top)
     #expect(configuration.templateManagementEnabled == false)
     #expect(configuration.openNoteInEditModeByDefault == false)
     #expect(configuration.createOpensNoteByDefault == false)
     #expect(configuration.openUsesNewWindowByDefault == false)
-    #expect(configuration.createAddsActiveTagsByDefault == false)
+    #expect(configuration.createAddsInboxTagsByDefault == false)
     #expect(configuration.tagsMergeMode == .replace)
     #expect(configuration.defaultDiscoveryLimit == 5)
     #expect(configuration.maxDiscoveryLimit == 25)

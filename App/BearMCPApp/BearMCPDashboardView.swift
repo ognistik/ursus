@@ -367,7 +367,7 @@ private struct BearMCPConfigurationView: View {
                         Form {
                             Section("Core") {
                                 TextField("Bear database path", text: $model.databasePathDraft)
-                                TextField("Active tags (comma or newline separated)", text: $model.activeTagsDraft, axis: .vertical)
+                                TextField("Inbox tags (comma or newline separated)", text: $model.inboxTagsDraft, axis: .vertical)
                                     .lineLimit(2...4)
                                 Picker("Default insert position", selection: $model.defaultInsertPositionDraft) {
                                     Text("Top").tag(BearConfiguration.InsertDefault.top)
@@ -384,7 +384,7 @@ private struct BearMCPConfigurationView: View {
                                 Toggle("Open notes in edit mode by default", isOn: $model.openNoteInEditModeByDefaultDraft)
                                 Toggle("Create opens note by default", isOn: $model.createOpensNoteByDefaultDraft)
                                 Toggle("Open uses new window by default", isOn: $model.openUsesNewWindowByDefaultDraft)
-                                Toggle("Create adds active tags by default", isOn: $model.createAddsActiveTagsByDefaultDraft)
+                                Toggle("Create adds inbox tags by default", isOn: $model.createAddsInboxTagsByDefaultDraft)
                             }
 
                             Section("Limits") {

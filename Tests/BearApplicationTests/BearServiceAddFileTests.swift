@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func addFilesUseTemplateAwareAnchorFlowWhenNoteMatchesActiveTemplate() async throws {
+func addFilesUseTemplateAwareAnchorFlowWhenNoteMatchesCurrentTemplate() async throws {
     let note = makeAddFileSourceNote(
         id: "note-1",
         title: "Inbox",
@@ -128,7 +128,7 @@ func addFilesCleanupRemovesAnchorWhenBearAppendsAttachmentInline() async throws 
 }
 
 @Test
-func addFilesFallBackToDirectAddFileWhenNoteDoesNotMatchActiveTemplate() async throws {
+func addFilesFallBackToDirectAddFileWhenNoteDoesNotMatchCurrentTemplate() async throws {
     let note = makeAddFileSourceNote(
         id: "note-1",
         title: "Inbox",
@@ -242,13 +242,13 @@ func addFilesRejectAmbiguousRelativeStringTargetBeforeWriting() async throws {
 private func makeAddFileConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox"],
+        inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,

@@ -26,13 +26,13 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var storedTokenHasBeenExplicitlyLoaded = false
 
     @Published var databasePathDraft = ""
-    @Published var activeTagsDraft = ""
+    @Published var inboxTagsDraft = ""
     @Published var defaultInsertPositionDraft: BearConfiguration.InsertDefault = .bottom
     @Published var templateManagementEnabledDraft = true
     @Published var openNoteInEditModeByDefaultDraft = true
     @Published var createOpensNoteByDefaultDraft = true
     @Published var openUsesNewWindowByDefaultDraft = true
-    @Published var createAddsActiveTagsByDefaultDraft = true
+    @Published var createAddsInboxTagsByDefaultDraft = true
     @Published var tagsMergeModeDraft: BearConfiguration.TagsMergeMode = .append
     @Published var defaultDiscoveryLimitDraft = 20
     @Published var maxDiscoveryLimitDraft = 100
@@ -119,13 +119,13 @@ final class BearMCPAppModel: ObservableObject {
             try BearAppSupport.saveConfigurationDraft(
                 BearAppConfigurationDraft(
                     databasePath: databasePathDraft,
-                    activeTags: parsedActiveTags,
+                    inboxTags: parsedInboxTags,
                     defaultInsertPosition: defaultInsertPositionDraft,
                     templateManagementEnabled: templateManagementEnabledDraft,
                     openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
                     createOpensNoteByDefault: createOpensNoteByDefaultDraft,
                     openUsesNewWindowByDefault: openUsesNewWindowByDefaultDraft,
-                    createAddsActiveTagsByDefault: createAddsActiveTagsByDefaultDraft,
+                    createAddsInboxTagsByDefault: createAddsInboxTagsByDefaultDraft,
                     tagsMergeMode: tagsMergeModeDraft,
                     defaultDiscoveryLimit: defaultDiscoveryLimitDraft,
                     maxDiscoveryLimit: maxDiscoveryLimitDraft,
@@ -304,8 +304,8 @@ final class BearMCPAppModel: ObservableObject {
         dashboard.settings?.terminalCLIPath ?? BearMCPCLILocator.userCommandInstallURL.path
     }
 
-    private var parsedActiveTags: [String] {
-        activeTagsDraft
+    private var parsedInboxTags: [String] {
+        inboxTagsDraft
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
             .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
@@ -317,13 +317,13 @@ final class BearMCPAppModel: ObservableObject {
         }
 
         databasePathDraft = settings.databasePath
-        activeTagsDraft = settings.activeTags.joined(separator: ", ")
+        inboxTagsDraft = settings.inboxTags.joined(separator: ", ")
         defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
         templateManagementEnabledDraft = settings.templateManagementEnabled
         openNoteInEditModeByDefaultDraft = settings.openNoteInEditModeByDefault
         createOpensNoteByDefaultDraft = settings.createOpensNoteByDefault
         openUsesNewWindowByDefaultDraft = settings.openUsesNewWindowByDefault
-        createAddsActiveTagsByDefaultDraft = settings.createAddsActiveTagsByDefault
+        createAddsInboxTagsByDefaultDraft = settings.createAddsInboxTagsByDefault
         tagsMergeModeDraft = BearConfiguration.TagsMergeMode(rawValue: settings.tagsMergeMode) ?? .append
         defaultDiscoveryLimitDraft = settings.defaultDiscoveryLimit
         maxDiscoveryLimitDraft = settings.maxDiscoveryLimit

@@ -28,7 +28,7 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
     case getNotes = "bear_get_notes"
     case listTags = "bear_list_tags"
     case findNotesByTag = "bear_find_notes_by_tag"
-    case findNotesByActiveTags = "bear_find_notes_by_active_tags"
+    case findNotesByInboxTags = "bear_find_notes_by_inbox_tags"
     case listBackups = "bear_list_backups"
     case deleteBackups = "bear_delete_backups"
     case openTag = "bear_open_tag"
@@ -55,8 +55,8 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
             return "List Tags"
         case .findNotesByTag:
             return "Find Notes by Tag"
-        case .findNotesByActiveTags:
-            return "Find Notes by Active Tags"
+        case .findNotesByInboxTags:
+            return "Find Notes by Inbox Tags"
         case .listBackups:
             return "List Backups"
         case .deleteBackups:
@@ -100,8 +100,8 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
             return "Discover canonical Bear tags before tagging or navigation."
         case .findNotesByTag:
             return "Search note summaries by one or more Bear tags."
-        case .findNotesByActiveTags:
-            return "Search note summaries using the configured active tags."
+        case .findNotesByInboxTags:
+            return "Search note summaries using the configured inbox tags."
         case .listBackups:
             return "Inspect saved note backup snapshots."
         case .deleteBackups:
@@ -117,7 +117,7 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
         case .removeTags:
             return "Remove tags from notes."
         case .applyTemplate:
-            return "Apply the active template to notes."
+            return "Apply the current template to notes."
         case .createNotes:
             return "Create new Bear notes."
         case .insertText:
@@ -137,7 +137,7 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
 
     public var category: BearToolCategory {
         switch self {
-        case .findNotes, .getNotes, .listTags, .findNotesByTag, .findNotesByActiveTags:
+        case .findNotes, .getNotes, .listTags, .findNotesByTag, .findNotesByInboxTags:
             return .discovery
         case .createNotes, .insertText, .replaceContent, .addFiles, .applyTemplate:
             return .noteContent

@@ -5,17 +5,17 @@ import Logging
 import Testing
 
 @Test
-func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() async throws {
+func createNotesMergesInboxTagsStripsDuplicateTitleAndRendersSingleTemplate() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox", "#Daily", "#deep work#"],
+        inboxTags: ["0-inbox", "#Daily", "#deep work#"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
@@ -49,17 +49,17 @@ func createNotesMergesActiveTagsStripsDuplicateTitleAndRendersSingleTemplate() a
 }
 
 @Test
-func createNotesCanReplaceActiveTagsWithExplicitRequestTags() async throws {
+func createNotesCanReplaceInboxTagsWithExplicitRequestTags() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox", "daily"],
+        inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
@@ -96,13 +96,13 @@ func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox", "daily"],
+        inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
@@ -136,17 +136,17 @@ func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
 }
 
 @Test
-func createNotesCanExplicitlyAppendActiveTagsPerRequest() async throws {
+func createNotesCanExplicitlyAppendInboxTagsPerRequest() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
         databasePath: "/tmp/database.sqlite",
-        activeTags: ["0-inbox", "daily"],
+        inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
         openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
-        createAddsActiveTagsByDefault: true,
+        createAddsInboxTagsByDefault: true,
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,

@@ -21,13 +21,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     }
 
     public var databasePath: String
-    public var activeTags: [String]
+    public var inboxTags: [String]
     public var defaultInsertPosition: InsertDefault
     public var templateManagementEnabled: Bool
     public var openNoteInEditModeByDefault: Bool
     public var createOpensNoteByDefault: Bool
     public var openUsesNewWindowByDefault: Bool
-    public var createAddsActiveTagsByDefault: Bool
+    public var createAddsInboxTagsByDefault: Bool
     public var tagsMergeMode: TagsMergeMode
     public var defaultDiscoveryLimit: Int
     public var maxDiscoveryLimit: Int
@@ -40,13 +40,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public init(
         databasePath: String,
-        activeTags: [String],
+        inboxTags: [String],
         defaultInsertPosition: InsertDefault,
         templateManagementEnabled: Bool,
         openNoteInEditModeByDefault: Bool,
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
-        createAddsActiveTagsByDefault: Bool,
+        createAddsInboxTagsByDefault: Bool,
         tagsMergeMode: TagsMergeMode,
         defaultDiscoveryLimit: Int,
         maxDiscoveryLimit: Int,
@@ -58,13 +58,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         token: String? = nil
     ) {
         self.databasePath = databasePath
-        self.activeTags = activeTags
+        self.inboxTags = inboxTags
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
         self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
         self.createOpensNoteByDefault = createOpensNoteByDefault
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
-        self.createAddsActiveTagsByDefault = createAddsActiveTagsByDefault
+        self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
         self.tagsMergeMode = tagsMergeMode
         self.defaultDiscoveryLimit = defaultDiscoveryLimit
         self.maxDiscoveryLimit = maxDiscoveryLimit
@@ -79,13 +79,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public static var `default`: BearConfiguration {
         BearConfiguration(
             databasePath: BearPaths.defaultBearDatabaseURL.path,
-            activeTags: ["0-inbox"],
+            inboxTags: ["0-inbox"],
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
             openNoteInEditModeByDefault: true,
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
-            createAddsActiveTagsByDefault: true,
+            createAddsInboxTagsByDefault: true,
             tagsMergeMode: .append,
             defaultDiscoveryLimit: 20,
             maxDiscoveryLimit: 100,
@@ -101,13 +101,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public func updatingToken(_ token: String?) -> BearConfiguration {
         BearConfiguration(
             databasePath: databasePath,
-            activeTags: activeTags,
+            inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
             openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
-            createAddsActiveTagsByDefault: createAddsActiveTagsByDefault,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
             maxDiscoveryLimit: maxDiscoveryLimit,
@@ -126,13 +126,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     ) -> BearConfiguration {
         BearConfiguration(
             databasePath: databasePath,
-            activeTags: activeTags,
+            inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
             openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
-            createAddsActiveTagsByDefault: createAddsActiveTagsByDefault,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
             maxDiscoveryLimit: maxDiscoveryLimit,
@@ -148,13 +148,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public func updatingDisabledTools(_ disabledTools: [BearToolName]) -> BearConfiguration {
         BearConfiguration(
             databasePath: databasePath,
-            activeTags: activeTags,
+            inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
             openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
-            createAddsActiveTagsByDefault: createAddsActiveTagsByDefault,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
             maxDiscoveryLimit: maxDiscoveryLimit,
@@ -173,13 +173,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case databasePath
-        case activeTags
+        case inboxTags
         case defaultInsertPosition
         case templateManagementEnabled
         case openNoteInEditModeByDefault
         case createOpensNoteByDefault
         case openUsesNewWindowByDefault
-        case createAddsActiveTagsByDefault
+        case createAddsInboxTagsByDefault
         case tagsMergeMode
         case defaultDiscoveryLimit
         case maxDiscoveryLimit
@@ -195,13 +195,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         databasePath = try container.decodeIfPresent(String.self, forKey: .databasePath) ?? BearPaths.defaultBearDatabaseURL.path
-        activeTags = try container.decodeIfPresent([String].self, forKey: .activeTags) ?? ["0-inbox"]
+        inboxTags = try container.decodeIfPresent([String].self, forKey: .inboxTags) ?? ["0-inbox"]
         defaultInsertPosition = try container.decodeIfPresent(InsertDefault.self, forKey: .defaultInsertPosition) ?? .bottom
         templateManagementEnabled = try container.decodeIfPresent(Bool.self, forKey: .templateManagementEnabled) ?? true
         openNoteInEditModeByDefault = try container.decodeIfPresent(Bool.self, forKey: .openNoteInEditModeByDefault) ?? true
         createOpensNoteByDefault = try container.decodeIfPresent(Bool.self, forKey: .createOpensNoteByDefault) ?? true
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
-        createAddsActiveTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsActiveTagsByDefault) ?? true
+        createAddsInboxTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsInboxTagsByDefault) ?? true
         tagsMergeMode = try container.decodeIfPresent(TagsMergeMode.self, forKey: .tagsMergeMode) ?? .append
         defaultDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20
         maxDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .maxDiscoveryLimit) ?? 100
@@ -216,13 +216,13 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(databasePath, forKey: .databasePath)
-        try container.encode(activeTags, forKey: .activeTags)
+        try container.encode(inboxTags, forKey: .inboxTags)
         try container.encode(defaultInsertPosition, forKey: .defaultInsertPosition)
         try container.encode(templateManagementEnabled, forKey: .templateManagementEnabled)
         try container.encode(openNoteInEditModeByDefault, forKey: .openNoteInEditModeByDefault)
         try container.encode(createOpensNoteByDefault, forKey: .createOpensNoteByDefault)
         try container.encode(openUsesNewWindowByDefault, forKey: .openUsesNewWindowByDefault)
-        try container.encode(createAddsActiveTagsByDefault, forKey: .createAddsActiveTagsByDefault)
+        try container.encode(createAddsInboxTagsByDefault, forKey: .createAddsInboxTagsByDefault)
         try container.encode(tagsMergeMode, forKey: .tagsMergeMode)
         try container.encode(defaultDiscoveryLimit, forKey: .defaultDiscoveryLimit)
         try container.encode(maxDiscoveryLimit, forKey: .maxDiscoveryLimit)
