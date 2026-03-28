@@ -69,10 +69,18 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.databasePath == "/tmp/bear.sqlite")
     #expect(dashboard.settings?.activeTags == ["0-inbox", "next"])
     #expect(dashboard.settings?.createAddsActiveTagsByDefault == false)
+    #expect(dashboard.settings?.appManagedCLIPath.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp") == true)
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == false)
     #expect(dashboard.settings?.selectedNoteLegacyConfigTokenDetected == true)
     #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Legacy config.json fallback")
+    let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
+    #expect(bundledCLIDiagnostic.status == .missing)
+    #expect(bundledCLIDiagnostic.detail == BearMCPCLILocator.bundledExecutableGuidance)
+    let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
+    #expect(appManagedCLIDiagnostic.status == .missing)
+    #expect(appManagedCLIDiagnostic.value.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp"))
+    #expect(appManagedCLIDiagnostic.detail == BearMCPCLILocator.appManagedInstallGuidance)
     #expect(dashboard.diagnostics.contains(where: {
         $0.key == "selected-note-token"
             && $0.value == "Legacy config.json fallback"
@@ -96,10 +104,25 @@ func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throw
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
     let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
     let helperBundleURL = tempRoot.appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+    let appManagedCLIURL = tempRoot.appendingPathComponent("installed", isDirectory: true).appendingPathComponent("bear-mcp", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appBundleURL.appendingPathComponent("Contents/Resources/bin", isDirectory: true), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: helperBundleURL.appendingPathComponent("Contents/MacOS", isDirectory: true), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(
+        to: appBundleURL.appendingPathComponent("Contents/Resources/bin/bear-mcp", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
+    try fileManager.setAttributes(
+        [.posixPermissions: 0o755],
+        ofItemAtPath: appBundleURL.appendingPathComponent("Contents/Resources/bin/bear-mcp", isDirectory: false).path
+    )
+    try "#!/bin/sh\nexit 0\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -110,6 +133,16 @@ func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throw
         configFileURL: configFileURL,
         templateURL: templateURL,
         tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
+        allowSecureTokenStatusRead: true,
+        currentAppBundleURL: appBundleURL,
+        appManagedCLIURL: appManagedCLIURL,
+        bundledCLIExecutableURLResolver: { bundleURL, _ in
+            bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent("bear-mcp", isDirectory: false)
+        },
         callbackAppBundleURLProvider: { _ in appBundleURL },
         callbackAppExecutableURLResolver: { bundleURL, _ in
             bundleURL
@@ -126,21 +159,25 @@ func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throw
         }
     )
 
-    let hasPreferredAppDiagnostic = dashboard.diagnostics.contains { check in
-        check.key == "selected-note-callback-app"
-            && check.status == .ok
-            && check.value == appBundleURL.path
-            && check.detail == "detected install location; preferred host -> \(appBundleURL.path)/Contents/MacOS/Bear MCP"
-    }
-    let hasHelperFallbackDiagnostic = dashboard.diagnostics.contains { check in
-        check.key == "selected-note-helper-fallback"
-            && check.status == .ok
-            && check.value == helperBundleURL.path
-            && check.detail == "helper fallback; detected install location -> \(helperBundleURL.path)/Contents/MacOS/bear-mcp-helper"
-    }
+    let preferredAppDiagnostic = try #require(diagnostic(named: "selected-note-callback-app", in: dashboard.diagnostics))
+    #expect(preferredAppDiagnostic.status == .ok)
+    #expect(preferredAppDiagnostic.value == appBundleURL.path)
+    #expect(preferredAppDiagnostic.detail == "detected install location; preferred host -> \(appBundleURL.path)/Contents/MacOS/Bear MCP")
 
-    #expect(hasPreferredAppDiagnostic)
-    #expect(hasHelperFallbackDiagnostic)
+    let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
+    #expect(bundledCLIDiagnostic.status == .ok)
+    #expect(bundledCLIDiagnostic.value == "\(appBundleURL.path)/Contents/Resources/bin/bear-mcp")
+    #expect(bundledCLIDiagnostic.detail == "embedded in \(appBundleURL.path)")
+
+    let appManagedCLIDiagnostic = try #require(diagnostic(named: "app-managed-cli", in: dashboard.diagnostics))
+    #expect(appManagedCLIDiagnostic.status == .ok)
+    #expect(appManagedCLIDiagnostic.value == appManagedCLIURL.path)
+    #expect(appManagedCLIDiagnostic.detail == "stable CLI path for MCP hosts")
+
+    let helperFallbackDiagnostic = try #require(diagnostic(named: "selected-note-helper-fallback", in: dashboard.diagnostics))
+    #expect(helperFallbackDiagnostic.status == .ok)
+    #expect(helperFallbackDiagnostic.value == helperBundleURL.path)
+    #expect(helperFallbackDiagnostic.detail == "helper fallback; detected install location -> \(helperBundleURL.path)/Contents/MacOS/bear-mcp-helper")
 }
 
 @Test
@@ -168,6 +205,7 @@ func dashboardSnapshotPrefersKeychainStatusWhenAvailable() throws {
         configFileURL: configFileURL,
         templateURL: templateURL,
         tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
+        allowSecureTokenStatusRead: true,
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
     )
@@ -434,11 +472,53 @@ func loadSettingsSnapshotRepairsMissingKeychainHintWhenTheAppCanReadTheToken() t
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token")
+        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
+        allowSecureTokenStatusRead: true
     )
 
     #expect(settings.selectedNoteTokenStoredInKeychain == true)
     #expect(try BearConfiguration.load(from: configFileURL).selectedNoteTokenStoredInKeychain == true)
+}
+
+@Test
+func dashboardSnapshotUsesKeychainHintWithoutReadingSecureStorageByDefault() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try """
+    {
+      "selectedNoteTokenStoredInKeychain" : true
+    }
+    """.write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: TestSelectedNoteTokenStore(
+            readError: BearError.configuration("Keychain should not be read during dashboard load")
+        ),
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
+    #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == true)
+    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Managed in Keychain")
+    #expect(dashboard.diagnostics.contains(where: {
+        $0.key == "selected-note-token"
+            && $0.value == "Managed in Keychain"
+            && ($0.detail?.contains("avoid re-reading it") ?? false)
+    }))
 }
 
 @Test
@@ -475,6 +555,10 @@ private func parseAppHostPayload(_ data: Data) throws -> [String: String] {
         return [:]
     }
     return object
+}
+
+private func diagnostic(named key: String, in diagnostics: [BearDoctorCheck]) -> BearDoctorCheck? {
+    diagnostics.first(where: { $0.key == key })
 }
 
 private struct AppHostCallbackSnapshot {

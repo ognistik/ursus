@@ -27,17 +27,20 @@ public struct BearSelectedNoteTokenStatus: Hashable, Sendable {
     public let legacyConfigTokenPresent: Bool
     public let effectiveSource: BearSelectedNoteTokenSource?
     public let keychainAccessError: String?
+    public let keychainStatusDerivedFromHint: Bool
 
     public init(
         keychainTokenPresent: Bool,
         legacyConfigTokenPresent: Bool,
         effectiveSource: BearSelectedNoteTokenSource?,
-        keychainAccessError: String?
+        keychainAccessError: String?,
+        keychainStatusDerivedFromHint: Bool
     ) {
         self.keychainTokenPresent = keychainTokenPresent
         self.legacyConfigTokenPresent = legacyConfigTokenPresent
         self.effectiveSource = effectiveSource
         self.keychainAccessError = keychainAccessError
+        self.keychainStatusDerivedFromHint = keychainStatusDerivedFromHint
     }
 
     public var isConfigured: Bool {
@@ -170,9 +173,29 @@ public enum BearSelectedNoteTokenResolver {
 
     public static func status(
         configuration: BearConfiguration,
-        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
+        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
+        allowSecureRead: Bool = true
     ) -> BearSelectedNoteTokenStatus {
         let legacyConfigTokenPresent = normalizedToken(configuration.token) != nil
+
+        guard allowSecureRead else {
+            let keychainTokenPresent = configuration.selectedNoteTokenStoredInKeychain
+            let effectiveSource: BearSelectedNoteTokenSource? = if keychainTokenPresent {
+                .keychain
+            } else if legacyConfigTokenPresent {
+                .legacyConfig
+            } else {
+                nil
+            }
+
+            return BearSelectedNoteTokenStatus(
+                keychainTokenPresent: keychainTokenPresent,
+                legacyConfigTokenPresent: legacyConfigTokenPresent,
+                effectiveSource: effectiveSource,
+                keychainAccessError: nil,
+                keychainStatusDerivedFromHint: keychainTokenPresent
+            )
+        }
 
         do {
             let keychainTokenPresent = try tokenStore.readToken() != nil
@@ -188,7 +211,8 @@ public enum BearSelectedNoteTokenResolver {
                 keychainTokenPresent: keychainTokenPresent,
                 legacyConfigTokenPresent: legacyConfigTokenPresent,
                 effectiveSource: effectiveSource,
-                keychainAccessError: nil
+                keychainAccessError: nil,
+                keychainStatusDerivedFromHint: false
             )
         } catch {
             let effectiveSource: BearSelectedNoteTokenSource? = legacyConfigTokenPresent ? .legacyConfig : nil
@@ -198,7 +222,8 @@ public enum BearSelectedNoteTokenResolver {
                 keychainTokenPresent: false,
                 legacyConfigTokenPresent: legacyConfigTokenPresent,
                 effectiveSource: effectiveSource,
-                keychainAccessError: message
+                keychainAccessError: message,
+                keychainStatusDerivedFromHint: false
             )
         }
     }

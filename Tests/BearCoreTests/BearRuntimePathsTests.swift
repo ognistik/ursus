@@ -9,6 +9,8 @@ func runtimeArtifactsUseLibraryLocations() {
     #expect(BearPaths.debugLogURL.path.hasSuffix("/Library/Logs/bear-mcp/debug.log"))
     #expect(BearPaths.backupsDirectoryURL.path.hasSuffix("/Library/Application Support/bear-mcp/Backups"))
     #expect(BearPaths.backupsIndexURL.path.hasSuffix("/Library/Application Support/bear-mcp/Backups/index.json"))
+    #expect(BearPaths.bundledCLIDirectoryURL.path.hasSuffix("/Library/Application Support/bear-mcp/bin"))
+    #expect(BearPaths.bundledCLIExecutableURL.path.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp"))
     #expect(BearPaths.processLockURL.path.hasSuffix("/Library/Application Support/bear-mcp/Runtime/.server.lock"))
     #expect(BearPaths.fallbackProcessLockURL.path.hasSuffix("/bear-mcp/Runtime/.server.lock"))
     #expect(BearPaths.processSpecificFallbackLockURL(processID: 123).path.hasSuffix("/bear-mcp/Runtime/locks/123.server.lock"))

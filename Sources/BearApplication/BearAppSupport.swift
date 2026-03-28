@@ -45,6 +45,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let templatePath: String
     public let backupsDirectoryPath: String
     public let backupsIndexPath: String
+    public let appManagedCLIPath: String
     public let processLockPath: String
     public let fallbackProcessLockPath: String
     public let debugLogPath: String
@@ -83,6 +84,10 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
+        allowSecureTokenStatusRead: Bool = false,
+        currentAppBundleURL: URL? = nil,
+        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
@@ -94,7 +99,9 @@ public enum BearAppSupport {
                 configDirectoryURL: configDirectoryURL,
                 configFileURL: configFileURL,
                 templateURL: templateURL,
-                tokenStore: tokenStore
+                tokenStore: tokenStore,
+                allowSecureTokenStatusRead: allowSecureTokenStatusRead,
+                appManagedCLIURL: appManagedCLIURL
             )
 
             return BearAppDashboardSnapshot(
@@ -102,6 +109,9 @@ public enum BearAppSupport {
                 diagnostics: doctorChecks(
                     fileManager: fileManager,
                     configuration: settings,
+                    currentAppBundleURL: currentAppBundleURL,
+                    appManagedCLIURL: appManagedCLIURL,
+                    bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
                     callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
                     helperBundleURLProvider: helperBundleURLProvider,
@@ -118,6 +128,9 @@ public enum BearAppSupport {
                 diagnostics: doctorChecks(
                     fileManager: fileManager,
                     configLoadError: message,
+                    currentAppBundleURL: currentAppBundleURL,
+                    appManagedCLIURL: appManagedCLIURL,
+                    bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
                     callbackAppExecutableURLResolver: callbackAppExecutableURLResolver,
                     helperBundleURLProvider: helperBundleURLProvider,
@@ -134,7 +147,9 @@ public enum BearAppSupport {
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
-        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
+        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
+        allowSecureTokenStatusRead: Bool = false,
+        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL
     ) throws -> BearAppSettingsSnapshot {
         var configuration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
@@ -144,10 +159,11 @@ public enum BearAppSupport {
         )
         let tokenStatus = BearSelectedNoteTokenResolver.status(
             configuration: configuration,
-            tokenStore: tokenStore
+            tokenStore: tokenStore,
+            allowSecureRead: allowSecureTokenStatusRead
         )
 
-        if tokenStatus.keychainTokenPresent && !configuration.selectedNoteTokenStoredInKeychain {
+        if allowSecureTokenStatusRead && tokenStatus.keychainTokenPresent && !configuration.selectedNoteTokenStoredInKeychain {
             configuration = configuration.updatingSelectedNoteTokenStorage(
                 token: configuration.token,
                 storedInKeychain: true
@@ -167,6 +183,7 @@ public enum BearAppSupport {
             templatePath: templateURL.path,
             backupsDirectoryPath: BearPaths.backupsDirectoryURL.path,
             backupsIndexPath: BearPaths.backupsIndexURL.path,
+            appManagedCLIPath: appManagedCLIURL.path,
             processLockPath: BearPaths.processLockURL.path,
             fallbackProcessLockPath: BearPaths.fallbackProcessLockURL.path,
             debugLogPath: BearPaths.debugLogURL.path,
@@ -236,6 +253,19 @@ public enum BearAppSupport {
         return try BearSelectedNoteTokenResolver.resolve(
             configuration: configuration,
             tokenStore: tokenStore
+        )
+    }
+
+    @discardableResult
+    public static func installBundledCLI(
+        fromAppBundleURL appBundleURL: URL,
+        fileManager: FileManager = .default,
+        destinationURL: URL = BearMCPCLILocator.appManagedInstallURL
+    ) throws -> BearBundledCLIInstallReceipt {
+        try BearMCPCLILocator.installBundledExecutable(
+            fromAppBundleURL: appBundleURL,
+            fileManager: fileManager,
+            destinationURL: destinationURL
         )
     }
 
@@ -341,6 +371,9 @@ public enum BearAppSupport {
         fileManager: FileManager = .default,
         configuration: BearAppSettingsSnapshot? = nil,
         configLoadError: String? = nil,
+        currentAppBundleURL: URL? = nil,
+        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
@@ -390,6 +423,63 @@ public enum BearAppSupport {
                 detail: statusDetail(fileManager.fileExists(atPath: BearPaths.defaultBearDatabaseURL.path))
             ),
         ]
+
+        let appBundleURLForBundledCLI = currentAppBundleURL ?? callbackAppBundleURLProvider(fileManager)
+
+        if let appBundleURLForBundledCLI {
+            do {
+                let bundledCLIURL = try bundledCLIExecutableURLResolver(appBundleURLForBundledCLI, fileManager)
+                checks.append(
+                    BearDoctorCheck(
+                        key: "bundled-cli",
+                        value: bundledCLIURL.path,
+                        status: .ok,
+                        detail: "embedded in \(appBundleURLForBundledCLI.path)"
+                    )
+                )
+            } catch {
+                checks.append(
+                    BearDoctorCheck(
+                        key: "bundled-cli",
+                        value: appBundleURLForBundledCLI.path,
+                        status: .invalid,
+                        detail: "invalid: \(localizedMessage(for: error))"
+                    )
+                )
+            }
+        } else {
+            checks.append(
+                BearDoctorCheck(
+                    key: "bundled-cli",
+                    value: "not detected",
+                    status: .missing,
+                    detail: BearMCPCLILocator.bundledExecutableGuidance
+                )
+            )
+        }
+
+        let appManagedCLIPath = appManagedCLIURL.path
+        if fileManager.fileExists(atPath: appManagedCLIPath) {
+            checks.append(
+                BearDoctorCheck(
+                    key: "app-managed-cli",
+                    value: appManagedCLIPath,
+                    status: fileManager.isExecutableFile(atPath: appManagedCLIPath) ? .ok : .invalid,
+                    detail: fileManager.isExecutableFile(atPath: appManagedCLIPath)
+                        ? "stable CLI path for MCP hosts"
+                        : "invalid: app-managed CLI is not executable"
+                )
+            )
+        } else {
+            checks.append(
+                BearDoctorCheck(
+                    key: "app-managed-cli",
+                    value: appManagedCLIPath,
+                    status: .missing,
+                    detail: BearMCPCLILocator.appManagedInstallGuidance
+                )
+            )
+        }
 
         if let configuration {
             checks.append(
@@ -477,6 +567,9 @@ public enum BearAppSupport {
 
     private static func tokenStorageDescription(for status: BearSelectedNoteTokenStatus) -> String {
         if status.keychainTokenPresent {
+            if status.keychainStatusDerivedFromHint {
+                return "Managed in Keychain"
+            }
             return "Stored in Keychain"
         }
 
@@ -493,6 +586,11 @@ public enum BearAppSupport {
 
     private static func tokenStatusDetail(for status: BearSelectedNoteTokenStatus) -> String? {
         if status.keychainTokenPresent {
+            if status.keychainStatusDerivedFromHint {
+                return status.legacyConfigTokenPresent
+                    ? "Config says the token is managed in Keychain, and a legacy plaintext token is still present in config.json. Open token settings only when you intentionally want to re-read or change the secret."
+                    : "Config says the Bear API token is managed in macOS Keychain. Normal diagnostics avoid re-reading it so routine checks do not trigger Keychain prompts."
+            }
             return status.legacyConfigTokenPresent
                 ? "A legacy plaintext token is still present in config.json. Saving or removing the token from the app will clean that up."
                 : "The Bear API token is stored in macOS Keychain."

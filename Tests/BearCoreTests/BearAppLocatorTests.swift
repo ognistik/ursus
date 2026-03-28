@@ -26,3 +26,49 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
         ) == "supported user-specific install location"
     )
 }
+
+@Test
+func cliLocatorGuidancePointsHostsAtAppManagedPath() {
+    #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/bear-mcp")
+    #expect(
+        BearMCPCLILocator.appManagedInstallURL.path.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp")
+    )
+    #expect(BearMCPCLILocator.appManagedInstallGuidance.contains("MCP hosts should point to that stable path"))
+}
+
+@Test
+func cliLocatorInstallsBundledExecutableIntoStablePath() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = temporaryRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let installedCLIURL = temporaryRoot
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let receipt = try BearMCPCLILocator.installBundledExecutable(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        destinationURL: installedCLIURL
+    )
+
+    #expect(receipt.sourcePath == bundledCLIURL.path)
+    #expect(receipt.destinationPath == installedCLIURL.path)
+    #expect(fileManager.fileExists(atPath: installedCLIURL.path))
+    #expect(fileManager.isExecutableFile(atPath: installedCLIURL.path))
+    #expect(try String(contentsOf: installedCLIURL, encoding: .utf8).contains("bundled"))
+}

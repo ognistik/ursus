@@ -127,3 +127,23 @@ func selectedNoteTokenStatusKeepsLegacyFallbackWhenKeychainReadFails() {
     #expect(status.effectiveSource == .legacyConfig)
     #expect(status.keychainAccessError == "Keychain locked")
 }
+
+@Test
+func selectedNoteTokenStatusCanUseConfigHintWithoutReadingKeychain() {
+    let configuration = BearConfiguration.default.updatingSelectedNoteTokenStorage(storedInKeychain: true)
+    let tokenStore = InMemorySelectedNoteTokenStore(
+        readError: BearError.configuration("Keychain should not be touched")
+    )
+
+    let status = BearSelectedNoteTokenResolver.status(
+        configuration: configuration,
+        tokenStore: tokenStore,
+        allowSecureRead: false
+    )
+
+    #expect(status.isConfigured)
+    #expect(status.keychainTokenPresent)
+    #expect(status.effectiveSource == .keychain)
+    #expect(status.keychainAccessError == nil)
+    #expect(status.keychainStatusDerivedFromHint)
+}

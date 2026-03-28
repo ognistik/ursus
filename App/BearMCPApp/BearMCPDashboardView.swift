@@ -1,4 +1,5 @@
 import BearApplication
+import BearCore
 import SwiftUI
 
 struct BearMCPDashboardView: View {
@@ -60,11 +61,11 @@ private struct BearMCPDiagnosticsView: View {
                 )
                 if let url = model.lastIncomingCallbackURL {
                     labeledRow("Last Incoming URL", url.absoluteString)
-                    Text("`bearmcp://` is now wired for the Phase 3 selected-note callback flow. During verification, the legacy helper remains available as a fallback path.")
+                    Text("`bearmcp://` is now owned by `Bear MCP.app`. The standalone helper remains only as a temporary fallback when the preferred app install is unavailable.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("`bearmcp://` is registered on the app bundle and can now host the selected-note callback flow in a hidden app launch. The legacy helper is retained only as a low-risk fallback during verification.")
+                    Text("`Bear MCP.app` is the intended callback host, whether it launches headlessly for a request or stays open in dashboard mode. The helper should keep shrinking toward an emergency-only fallback.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -144,9 +145,10 @@ struct BearMCPSettingsView: View {
             VStack(alignment: .leading, spacing: 20) {
                 if let settings = model.dashboard.settings {
                     pathSection(settings)
+                    cliSection(settings)
                     tokenSection(settings)
                     configSection(settings)
-                    notesSection
+                    notesSection(settings)
                 } else {
                     GroupBox("Settings") {
                         VStack(alignment: .leading, spacing: 10) {
@@ -172,9 +174,67 @@ struct BearMCPSettingsView: View {
                 pathRow("Bear Database", settings.databasePath)
                 pathRow("Backups", settings.backupsDirectoryPath)
                 pathRow("Backups Index", settings.backupsIndexPath)
+                pathRow("App-Managed CLI", settings.appManagedCLIPath)
+                if let currentBundledCLIPath = model.currentBundledCLIPath {
+                    pathRow("Bundled CLI", currentBundledCLIPath)
+                } else {
+                    settingsRow("Bundled CLI", "This app bundle does not currently include an embedded CLI binary.")
+                }
                 pathRow("Primary Lock", settings.processLockPath)
                 pathRow("Fallback Lock", settings.fallbackProcessLockPath)
                 pathRow("Debug Log", settings.debugLogPath)
+            }
+        }
+    }
+
+    private func cliSection(_ settings: BearAppSettingsSnapshot) -> some View {
+        GroupBox("CLI Setup") {
+            VStack(alignment: .leading, spacing: 12) {
+                settingsRow("Host-Facing CLI Path", settings.appManagedCLIPath)
+
+                Text("MCP hosts should point at the app-managed CLI path above. `Bear MCP.app` owns installing and refreshing that copy so users do not have to chase SwiftPM build outputs or independent CLI installs.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if let currentBundledCLIPath = model.currentBundledCLIPath {
+                    Text("This app currently bundles `\(currentBundledCLIPath)` and can expose it to the stable host-facing path.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("This app build is missing the bundled CLI, so install/refresh cannot run until the app is rebuilt with the embedded binary.")
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
+
+                HStack(spacing: 10) {
+                    Button("Install or Refresh CLI") {
+                        model.installBundledCLI()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.currentBundledCLIPath == nil)
+
+                    Button("Copy CLI Path") {
+                        model.copyInstalledCLIPath()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Reveal CLI Folder") {
+                        model.reveal(path: settings.appManagedCLIPath)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let message = model.cliStatusMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                }
+
+                if let error = model.cliStatusError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
             }
         }
     }
@@ -209,27 +269,38 @@ struct BearMCPSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if settings.selectedNoteTokenConfigured, let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                if settings.selectedNoteTokenConfigured {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Stored Token")
                             .font(.headline)
 
-                        HStack(spacing: 10) {
-                            if model.revealsStoredToken {
-                                Text(displayedToken)
-                                    .font(.body.monospaced())
-                                    .foregroundStyle(.secondary)
-                                    .textSelection(.enabled)
-                            } else {
-                                Text(displayedToken)
-                                    .font(.body.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
+                        if model.storedTokenHasBeenExplicitlyLoaded, let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                            HStack(spacing: 10) {
+                                if model.revealsStoredToken {
+                                    Text(displayedToken)
+                                        .font(.body.monospaced())
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                } else {
+                                    Text(displayedToken)
+                                        .font(.body.monospaced())
+                                        .foregroundStyle(.secondary)
+                                }
 
-                            Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
-                                model.revealsStoredToken.toggle()
+                                Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
+                                    model.revealsStoredToken.toggle()
+                                }
+                                .buttonStyle(.borderless)
                             }
-                            .buttonStyle(.borderless)
+                        } else {
+                            Text("Not loaded during normal app use. Reveal only when you intentionally want to read the secret from Keychain.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+
+                            Button("Load from Keychain") {
+                                model.loadStoredSelectedNoteToken()
+                            }
+                            .buttonStyle(.bordered)
                         }
                     }
                 }
@@ -276,9 +347,9 @@ struct BearMCPSettingsView: View {
         }
     }
 
-    private var notesSection: some View {
-        GroupBox("Phase 4 Direction") {
-            Text("`Bear MCP.app` is becoming the friendly place to manage the Bear API token. The CLI still runs headlessly, but token entry, import, update, and removal should happen here instead of in Keychain Access or plaintext config.")
+    private func notesSection(_ settings: BearAppSettingsSnapshot) -> some View {
+        GroupBox("Product Direction") {
+            Text("`Bear MCP.app` should be the one true install and setup surface. It owns token management, diagnostics, and now the stable CLI path at `\(settings.appManagedCLIPath)` so MCP users do not have to think in terms of a separate standalone CLI product.")
                 .foregroundStyle(.secondary)
         }
     }

@@ -1,5 +1,6 @@
 import AppKit
 import BearApplication
+import BearCore
 import Combine
 import Foundation
 
@@ -7,13 +8,18 @@ import Foundation
 final class BearMCPAppModel: ObservableObject {
     let runsHeadlessCallbackHost: Bool
 
-    @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot()
+    @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot(
+        currentAppBundleURL: Bundle.main.bundleURL
+    )
     @Published private(set) var lastIncomingCallbackURL: URL?
     @Published var tokenDraft = ""
     @Published var revealsStoredToken = false
     @Published private(set) var tokenStatusMessage: String?
     @Published private(set) var tokenStatusError: String?
+    @Published private(set) var cliStatusMessage: String?
+    @Published private(set) var cliStatusError: String?
     @Published private(set) var storedSelectedNoteToken: String?
+    @Published private(set) var storedTokenHasBeenExplicitlyLoaded = false
 
     private var cancellables: Set<AnyCancellable> = []
 
@@ -29,18 +35,20 @@ final class BearMCPAppModel: ObservableObject {
             }
             .store(in: &cancellables)
 
-        refreshStoredSelectedNoteToken()
     }
 
     func reload() {
-        dashboard = BearAppSupport.loadDashboardSnapshot()
-        refreshStoredSelectedNoteToken()
+        dashboard = BearAppSupport.loadDashboardSnapshot(
+            currentAppBundleURL: Bundle.main.bundleURL
+        )
     }
 
     func saveSelectedNoteToken() {
         do {
             try BearAppSupport.saveSelectedNoteToken(tokenDraft)
             tokenDraft = ""
+            storedSelectedNoteToken = nil
+            storedTokenHasBeenExplicitlyLoaded = false
             revealsStoredToken = false
             tokenStatusMessage = "Token saved in Keychain. Any legacy config copy was cleaned up."
             tokenStatusError = nil
@@ -54,6 +62,8 @@ final class BearMCPAppModel: ObservableObject {
     func importSelectedNoteTokenFromConfig() {
         do {
             let imported = try BearAppSupport.importSelectedNoteTokenFromConfig()
+            storedSelectedNoteToken = nil
+            storedTokenHasBeenExplicitlyLoaded = false
             revealsStoredToken = false
             tokenStatusMessage = imported
                 ? "Token imported into Keychain and removed from config.json."
@@ -70,6 +80,8 @@ final class BearMCPAppModel: ObservableObject {
         do {
             try BearAppSupport.removeSelectedNoteToken()
             tokenDraft = ""
+            storedSelectedNoteToken = nil
+            storedTokenHasBeenExplicitlyLoaded = false
             revealsStoredToken = false
             tokenStatusMessage = "Token removed. Keychain and any legacy config copy are now cleared."
             tokenStatusError = nil
@@ -84,8 +96,41 @@ final class BearMCPAppModel: ObservableObject {
         lastIncomingCallbackURL = url
     }
 
+    func installBundledCLI() {
+        do {
+            let receipt = try BearAppSupport.installBundledCLI(fromAppBundleURL: Bundle.main.bundleURL)
+            cliStatusMessage = "CLI installed at \(receipt.destinationPath). MCP hosts should use that path."
+            cliStatusError = nil
+            reload()
+        } catch {
+            cliStatusMessage = nil
+            cliStatusError = localizedMessage(for: error)
+        }
+    }
+
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+    }
+
+    func copyInstalledCLIPath() {
+        let path = installedCLIPath
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(path, forType: .string)
+        cliStatusMessage = "Copied CLI path: \(path)"
+        cliStatusError = nil
+    }
+
+    func loadStoredSelectedNoteToken() {
+        do {
+            storedSelectedNoteToken = try BearAppSupport.loadResolvedSelectedNoteToken()?.value
+            storedTokenHasBeenExplicitlyLoaded = true
+            tokenStatusError = nil
+        } catch {
+            storedSelectedNoteToken = nil
+            storedTokenHasBeenExplicitlyLoaded = false
+            tokenStatusError = localizedMessage(for: error)
+        }
     }
 
     var appDisplayName: String {
@@ -124,14 +169,12 @@ final class BearMCPAppModel: ObservableObject {
         return String(repeating: "*", count: max(8, storedSelectedNoteToken.count))
     }
 
-    private func refreshStoredSelectedNoteToken() {
-        do {
-            storedSelectedNoteToken = try BearAppSupport.loadResolvedSelectedNoteToken()?.value
-            tokenStatusError = nil
-        } catch {
-            storedSelectedNoteToken = nil
-            tokenStatusError = localizedMessage(for: error)
-        }
+    var currentBundledCLIPath: String? {
+        try? BearMCPCLILocator.bundledExecutableURL(forAppBundleURL: Bundle.main.bundleURL).path
+    }
+
+    var installedCLIPath: String {
+        dashboard.settings?.appManagedCLIPath ?? BearMCPCLILocator.appManagedInstallURL.path
     }
 
     private func localizedMessage(for error: Error) -> String {

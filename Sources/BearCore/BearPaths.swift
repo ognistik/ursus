@@ -42,6 +42,14 @@ public enum BearPaths {
         backupsDirectoryURL.appendingPathComponent("index.json", isDirectory: false)
     }
 
+    public static var bundledCLIDirectoryURL: URL {
+        applicationSupportDirectoryURL.appendingPathComponent("bin", isDirectory: true)
+    }
+
+    public static var bundledCLIExecutableURL: URL {
+        bundledCLIDirectoryURL.appendingPathComponent("bear-mcp", isDirectory: false)
+    }
+
     public static var runtimeLockDirectoryURL: URL {
         applicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
     }

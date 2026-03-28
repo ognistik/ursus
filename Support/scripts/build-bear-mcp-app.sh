@@ -21,6 +21,11 @@ DERIVED_DATA_DIR="$ROOT_DIR/.build/BearMCPApp"
 PROJECT_PATH="$ROOT_DIR/BearMCPApp.xcodeproj"
 SCHEME_NAME="Bear MCP"
 
+SWIFT_BUILD_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
+APP_BUNDLE_PATH="$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/Bear MCP.app"
+BUNDLED_CLI_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/bear-mcp"
+BUNDLED_CLI_DESTINATION="$APP_BUNDLE_PATH/Contents/Resources/bin/bear-mcp"
+
 xcodebuild \
   -project "$PROJECT_PATH" \
   -scheme "$SCHEME_NAME" \
@@ -31,4 +36,13 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   build
 
-echo "$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/Bear MCP.app"
+swift build \
+  --package-path "$ROOT_DIR" \
+  --configuration "$SWIFT_BUILD_CONFIGURATION" \
+  --product bear-mcp
+
+mkdir -p "$(dirname "$BUNDLED_CLI_DESTINATION")"
+cp "$BUNDLED_CLI_SOURCE" "$BUNDLED_CLI_DESTINATION"
+chmod 755 "$BUNDLED_CLI_DESTINATION"
+
+echo "$APP_BUNDLE_PATH"

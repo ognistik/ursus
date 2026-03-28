@@ -22,10 +22,12 @@ As of 2026-03-28:
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
 - Phase 3 has now landed incrementally in the repo: selected-note resolution prefers `Bear MCP.app`, preserves the CLI response-file contract, uses `bearmcp://` for callbacks, and now reuses an already-running dashboard instance instead of requiring the app to quit first.
 - Phase 4 has now started in the repo: selected-note token lookup prefers Keychain, the CLI still falls back to legacy `config.token`, diagnostics now report whether the token is coming from Keychain or legacy config, `Bear MCP.app` now has a first token-management UI for save/import/remove flows, and the preferred app-installed selected-note path now injects the managed token inside the app so ordinary CLI startup does not need to probe Keychain.
+- Routine doctor/dashboard status loading now relies on the non-secret Keychain hint by default instead of eagerly reading Keychain, so normal diagnostics do not trigger authorization prompts unless the user explicitly opens token-management actions that need the secret.
+- Phase 5 has now started in the repo: the local app build now embeds `bear-mcp` inside `Bear MCP.app`, the dashboard can install or refresh that bundled CLI to `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and doctor/app diagnostics now distinguish between the bundled app copy and the stable host-facing CLI path.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
-- Broader settings editing is still pending; the new app editing flow is token-focused for now.
+- Broader settings editing is still pending; the new app editing flow is now token-focused plus CLI-exposure-focused.
 
 ## Decisions Locked In
 
@@ -665,6 +667,13 @@ Tasks:
 - add an app action to install/expose the CLI to a stable path
 - add diagnostics for CLI presence and permissions
 - document how host apps should point to the CLI
+
+Current repo status:
+
+- local `Support/scripts/build-bear-mcp-app.sh` now embeds `bear-mcp` at `Bear MCP.app/Contents/Resources/bin/bear-mcp`: done
+- app dashboard now has install/refresh, copy, and reveal controls for the stable CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`: done
+- doctor/dashboard now report `bundled-cli` and `app-managed-cli` separately, which makes stale installed app bundles obvious: done
+- broader distribution/install polish around signed releases and automatic replacement of an older installed app bundle: still pending
 
 Deliverable:
 

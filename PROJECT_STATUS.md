@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, and the current Phase 4 Keychain slice now refined further: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, the standalone helper remains available only as a narrow fallback when the preferred app is missing, the app can save/import/remove the Bear API token without sending users to Keychain Access manually, and the preferred selected-note flow now lets the app inject the managed token so the headless CLI no longer has to probe Keychain on ordinary startup.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the first meaningful Phase 5 slice now landed as well: the local app build now embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app dashboard can install or refresh that bundled CLI to a stable user path for MCP hosts, and doctor/settings now call out whether the installed app bundle and app-managed CLI copy are actually present. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -104,6 +104,7 @@ Implemented:
 - config/bootstrap path helpers
 - shared selected-note token resolution that prefers Keychain and falls back to legacy config
 - non-secret config metadata that records whether the selected-note token is expected to live in Keychain, so CLI startup and tool exposure do not need an eager Keychain read
+- routine doctor/dashboard settings loading now uses that non-secret Keychain hint instead of eagerly re-reading Keychain, so normal diagnostics avoid authorization prompts unless the user explicitly loads or changes the token
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
 - stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
@@ -122,6 +123,10 @@ Implemented:
 - app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
 - app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
 - local app build script for unsigned development bundles
+- local app build script now embedding the `bear-mcp` CLI at `Bear MCP.app/Contents/Resources/bin/bear-mcp`
+- shared bundled-CLI locator/install support for the app-managed host-facing CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
+- app settings actions for install/refresh, copy, and reveal of the app-managed CLI path
+- doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
@@ -137,6 +142,9 @@ Verified locally:
 - `swift test`
 - `swift run bear-mcp doctor`
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- confirmed the local Debug app bundle now contains `.build/BearMCPApp/Build/Products/Debug/Bear MCP.app/Contents/Resources/bin/bear-mcp`
+- confirmed `swift run bear-mcp doctor` now reports `bundled-cli` and `app-managed-cli` separately, and will flag an older installed app bundle that has not yet been refreshed with the embedded CLI
+- refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and confirmed the app-managed CLI now reports `bundled-cli` plus `app-managed-cli` as healthy while describing the selected-note token as `Managed in Keychain` without a routine secure read
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was not running, resolving the selected note through the installed app path with `callbackAppInstalled=true`
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was already open in dashboard mode, resolving the selected note through the running app with `host=app reason=preferred-app-running reuseExistingInstance=true`
 
@@ -179,6 +187,7 @@ Primary files:
 - `Sources/BearApplication/BearSelectedNoteAppHost.swift`
 - `Sources/BearApplication/BearService.swift`
 - `Sources/BearApplication/BearBackupFileStore.swift`
+- `Sources/BearCore/BearMCPCLILocator.swift`
 - `Sources/BearCore/BearMCPAppLocator.swift`
 - `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`
 - `Sources/BearXCallback/BearXCallbackURLBuilder.swift`
@@ -197,6 +206,7 @@ Current local runtime paths are:
 
 - config: `~/.config/bear-mcp/config.json`
 - note template: `~/.config/bear-mcp/template.md`
+- app-managed CLI: `~/Library/Application Support/bear-mcp/bin/bear-mcp`
 - backups: `~/Library/Application Support/bear-mcp/Backups/`
 - backup index: `~/Library/Application Support/bear-mcp/Backups/index.json`
 - process lock (preferred shared path): `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
