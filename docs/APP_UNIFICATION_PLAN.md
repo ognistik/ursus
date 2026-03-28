@@ -30,6 +30,7 @@ As of 2026-03-28:
 - The app can now install a copied terminal executable at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding, and older terminal installs are now treated as refreshable migration state rather than the preferred setup.
 - The dashboard now promotes missing/stale host-facing CLI and terminal CLI installs into a proactive action card, so first-run and post-update refresh steps are offered without requiring the user to read raw doctor output first.
 - The host-facing CLI is now auto-reconciled from the current app bundle on normal dashboard launch when possible, which reduces the need for users to manually trigger a refresh after app updates. The optional terminal command remains manual.
+- The first direct terminal utility slice has now landed in the CLI: `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
@@ -537,7 +538,7 @@ Important note:
 
 The CLI should remain useful even when the user is working directly in Bear without an MCP host.
 
-Planned additions:
+Current direct utility slice:
 
 - `bear-mcp --new-note`
   - create a new note through the existing template-aware flow
@@ -545,13 +546,13 @@ Planned additions:
   - use Bear URL flags `new_window=no`, `open_note=yes`, and `edit=yes`
   - if a selected note exists, copy only that note’s tags into the new note
   - if no selected-note tags exist, fall back to configured inbox tags
-- `bear-mcp --delete-note [ids...]`
-  - if no ids are passed, trash the currently selected Bear note
-  - if one or more ids are passed, trash those explicit notes in batch
+- `bear-mcp --delete-note [note-id-or-title ...]`
+  - if no note ids or titles are passed, trash the currently selected Bear note
+  - if one or more note ids or titles are passed, trash those explicit notes in batch
   - keep this CLI-only for now rather than exposing trashing in MCP tools
-- `bear-mcp --apply-template [ids...]`
-  - if no ids are passed, apply the current template to the selected note
-  - if ids are passed, normalize those notes with the same template logic already used by `bear_apply_template`
+- `bear-mcp --apply-template [note-id-or-title ...]`
+  - if no note ids or titles are passed, apply the current template to the selected note
+  - if note ids or titles are passed, normalize those notes with the same template logic already used by `bear_apply_template`
 
 ### 3. `--update-config` is now compatibility-first
 

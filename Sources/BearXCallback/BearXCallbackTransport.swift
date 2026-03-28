@@ -222,6 +222,35 @@ public actor BearXCallbackTransport: BearWriteTransport {
         )
     }
 
+    public func trash(noteID: String) async throws -> MutationReceipt {
+        let previous = try readStore.note(id: noteID)
+        if previous?.trashed == true {
+            return MutationReceipt(
+                noteID: noteID,
+                title: previous?.title,
+                status: "already_trashed",
+                modifiedAt: previous?.revision.modifiedAt
+            )
+        }
+
+        let url = try builder.trashURL(noteID: noteID)
+        try await openAndLog(action: "trash", url: url, activates: false)
+
+        let updated: BearNote? = try await poll(timeout: .seconds(4), interval: .milliseconds(200)) {
+            guard let note = try self.readStore.note(id: noteID), note.trashed else {
+                return nil
+            }
+            return note
+        }
+
+        return MutationReceipt(
+            noteID: noteID,
+            title: updated?.title ?? previous?.title,
+            status: updated == nil ? "submitted" : "trashed",
+            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+        )
+    }
+
     private func open(url: URL, activates: Bool) async throws {
         try await urlOpener(url, activates)
     }

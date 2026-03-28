@@ -184,6 +184,15 @@ public struct BearXCallbackURLBuilder: Sendable {
         )
     }
 
+    public func trashURL(noteID: String) throws -> URL {
+        try makeURL(
+            action: "trash",
+            queryItems: [
+                URLQueryItem(name: "id", value: noteID),
+            ]
+        )
+    }
+
     private func makeURL(action: String, queryItems: [URLQueryItem]) throws -> URL {
         var components = URLComponents()
         components.scheme = "bear"

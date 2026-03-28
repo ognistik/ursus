@@ -175,6 +175,11 @@ public final class BearService: @unchecked Sendable {
         return resolvedTargets
     }
 
+    public func resolveConcreteNoteIDs(_ targets: [NoteTarget]) async throws -> [String] {
+        let resolvedTargets = try await resolveNoteTargets(targets)
+        return try resolvedTargets.map { try self.resolveNoteSelector($0).ref.identifier }
+    }
+
     public func getNotes(selectors: [String], location: BearNoteLocation) throws -> [BearFetchedNote] {
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
         let trimmedSelectors = selectors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -244,6 +249,31 @@ public final class BearService: @unchecked Sendable {
             receipts.append(try await writeTransport.create(effective))
         }
         return receipts
+    }
+
+    public func createInteractiveNote(at date: Date = Date(), timeZone: TimeZone? = nil) async throws -> MutationReceipt {
+        let seedTags = await interactiveCreateSeedTags()
+        let receipts = try await createNotes([
+            CreateNoteRequest(
+                title: interactiveNoteTitle(for: date, timeZone: timeZone ?? self.timeZone),
+                content: "",
+                tags: seedTags,
+                useOnlyRequestTags: true,
+                presentation: BearPresentationOptions(
+                    openNote: true,
+                    newWindow: false,
+                    newWindowOverride: false,
+                    showWindow: true,
+                    edit: true
+                )
+            ),
+        ])
+
+        guard let receipt = receipts.first else {
+            throw BearError.unsupported("Interactive note creation did not produce a mutation receipt.")
+        }
+
+        return receipt
     }
 
     public func insertText(_ requests: [InsertTextRequest]) async throws -> [MutationReceipt] {
@@ -571,6 +601,39 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    public func applyTemplateToTargets(_ targets: [NoteTarget]) async throws -> [ApplyTemplateReceipt] {
+        let noteIDs = try await resolveConcreteNoteIDs(targets)
+        guard !noteIDs.isEmpty else {
+            throw BearError.invalidInput("Apply-template CLI requires one or more note targets.")
+        }
+
+        return try await applyTemplate(
+            noteIDs.map { noteID in
+                ApplyTemplateRequest(
+                    noteID: noteID,
+                    presentation: BearPresentationOptions(
+                        openNote: false,
+                        newWindow: false,
+                        showWindow: false,
+                        edit: false
+                    ),
+                    expectedVersion: nil
+                )
+            }
+        )
+    }
+
+    public func trashNoteTargets(_ targets: [NoteTarget]) async throws -> [MutationReceipt] {
+        let noteIDs = try await resolveConcreteNoteIDs(targets)
+        guard !noteIDs.isEmpty else {
+            throw BearError.invalidInput("Delete-note CLI requires one or more note targets.")
+        }
+
+        return try await mutateEach(noteIDs) { noteID in
+            try await self.writeTransport.trash(noteID: noteID)
+        }
+    }
+
     public func archiveNotes(_ noteSelectors: [String]) async throws -> [MutationReceipt] {
         try await mutateEach(noteSelectors) { noteSelector in
             let note = try self.resolveNoteSelector(noteSelector)
@@ -818,6 +881,27 @@ public final class BearService: @unchecked Sendable {
         }
 
         return merged
+    }
+
+    private func interactiveCreateSeedTags() async -> [String] {
+        do {
+            let selectedNoteID = try await resolveSelectedNoteID()
+            guard let selectedNote = try readStore.note(id: selectedNoteID), !selectedNote.tags.isEmpty else {
+                return []
+            }
+            return selectedNote.tags
+        } catch {
+            BearDebugLog.append("cli.new-note.selected-tags-fallback reason=\(Self.renderOperationError(error))")
+            return []
+        }
+    }
+
+    private func interactiveNoteTitle(for date: Date, timeZone: TimeZone) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyMMdd - hh:mm a"
+        return formatter.string(from: date)
     }
 
     private func sanitizedCreateContent(title: String, content: String) -> String {

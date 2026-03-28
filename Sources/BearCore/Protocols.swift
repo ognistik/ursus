@@ -27,10 +27,15 @@ public protocol BearWriteTransport: Sendable {
     func renameTag(_ request: RenameTagRequest) async throws -> TagMutationReceipt
     func deleteTag(_ request: DeleteTagRequest) async throws -> TagMutationReceipt
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt
+    func trash(noteID: String) async throws -> MutationReceipt
 }
 
 public extension BearWriteTransport {
     func resolveSelectedNoteIDUsingInstalledApp() async throws -> String? { nil }
+
+    func trash(noteID: String) async throws -> MutationReceipt {
+        throw BearError.unsupported("Bear trash mutations are not available through this write transport.")
+    }
 }
 
 public protocol BearBackupStore: Sendable {

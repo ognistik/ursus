@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts and now automatically reconciles that host-facing copy on normal dashboard launch when it is missing or stale, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, and the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive CLI attention cards that remain as fallback repair actions when auto-management is not enough. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts and now automatically reconciles that host-facing copy on normal dashboard launch when it is missing or stale, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive CLI attention cards that remain as fallback repair actions when auto-management is not enough, and the terminal-facing CLI now has its first direct user utility flags for `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -146,6 +146,7 @@ Implemented:
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
 - CLI commands: `mcp`, `--update-config`, `doctor`, `paths`
+- direct CLI utility flags: `--new-note`, `--apply-template [note-id-or-title ...]`, `--delete-note [note-id-or-title ...]`
 - a few core tests
 
 Verified locally:
@@ -153,6 +154,7 @@ Verified locally:
 - `swift build`
 - `swift test`
 - `swift run bear-mcp doctor`
+- `swift run bear-mcp --help`
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
 - confirmed the local Debug app bundle now contains `.build/BearMCPApp/Build/Products/Debug/Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - confirmed `swift run bear-mcp doctor` now reports `bundled-cli` and `app-managed-cli` separately, and will flag an older installed app bundle that has not yet been refreshed with the embedded CLI

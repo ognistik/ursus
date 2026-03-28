@@ -112,6 +112,54 @@ func archiveStaysBackgroundedEvenWhenShowWindowIsTrue() async throws {
 }
 
 @Test
+func trashUsesTrashActionAndStaysBackgrounded() async throws {
+    let opener = ActivationRecordingOpener()
+    let readStore = MutableTransportReadStore(
+        note: makeNote(
+            id: "note-1",
+            title: "Disposable",
+            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    )
+    let transport = BearXCallbackTransport(
+        readStore: readStore,
+        urlOpenerWithActivation: { url, activates in
+            try await opener.record(url: url, activates: activates)
+            readStore.setTrashed(noteID: "note-1")
+        }
+    )
+
+    let receipt = try await transport.trash(noteID: "note-1")
+
+    let openedURL = try #require(await opener.urls.first)
+    #expect(openedURL.path == "/trash")
+    #expect(await opener.activations == [false])
+    #expect(receipt.status == "trashed")
+}
+
+@Test
+func trashSkipsOpeningWhenNoteIsAlreadyTrashed() async throws {
+    let opener = ActivationRecordingOpener()
+    let readStore = MutableTransportReadStore(
+        note: makeNote(
+            id: "note-1",
+            title: "Disposable",
+            trashed: true,
+            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    )
+    let transport = BearXCallbackTransport(
+        readStore: readStore,
+        urlOpenerWithActivation: opener.record
+    )
+
+    let receipt = try await transport.trash(noteID: "note-1")
+
+    #expect(await opener.urls.isEmpty)
+    #expect(receipt.status == "already_trashed")
+}
+
+@Test
 func replaceAllTreatsModifiedNoteAsUpdatedEvenWhenVersionStaysTheSame() async throws {
     let readStore = MutableTransportReadStore(
         note: makeNote(
@@ -495,6 +543,30 @@ private final class MutableTransportReadStore: @unchecked Sendable, BearReadStor
         )
     }
 
+    func setTrashed(noteID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard note.ref.identifier == noteID else {
+            return
+        }
+
+        note = BearNote(
+            ref: note.ref,
+            revision: NoteRevision(
+                version: note.revision.version + 1,
+                createdAt: note.revision.createdAt,
+                modifiedAt: note.revision.modifiedAt.addingTimeInterval(1)
+            ),
+            title: note.title,
+            body: note.body,
+            rawText: note.rawText,
+            tags: note.tags,
+            archived: note.archived,
+            trashed: true,
+            encrypted: note.encrypted
+        )
+    }
+
     private func parseBody(_ rawText: String) -> String {
         let normalized = rawText
             .replacingOccurrences(of: "\r\n", with: "\n")
@@ -510,8 +582,10 @@ private final class MutableTransportReadStore: @unchecked Sendable, BearReadStor
 
 private actor ActivationRecordingOpener {
     private(set) var activations: [Bool] = []
+    private(set) var urls: [URL] = []
 
-    func record(url _: URL, activates: Bool) async throws {
+    func record(url: URL, activates: Bool) async throws {
+        urls.append(url)
         activations.append(activates)
     }
 }
@@ -520,6 +594,7 @@ private func makeNote(
     id: String,
     title: String,
     archived: Bool = false,
+    trashed: Bool = false,
     version: Int = 1,
     modifiedAt: Date = Date(),
     body: String = "Body"
@@ -532,7 +607,7 @@ private func makeNote(
         rawText: BearText.composeRawText(title: title, body: body),
         tags: [],
         archived: archived,
-        trashed: false,
+        trashed: trashed,
         encrypted: false
     )
 }
