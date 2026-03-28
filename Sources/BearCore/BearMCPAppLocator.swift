@@ -2,9 +2,36 @@ import Foundation
 
 public enum BearMCPAppLocator {
     public static let appName = "Bear MCP.app"
+    public static let preferredInstallDirectoryPath = "/Applications"
 
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
         standardAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) })
+    }
+
+    public static var preferredAppBundleURL: URL {
+        appBundleURL(inApplicationsDirectoryAtPath: preferredInstallDirectoryPath)
+    }
+
+    public static var userSpecificAppBundleURL: URL {
+        appBundleURL(inApplicationsDirectoryAtPath: userApplicationsDirectoryPath)
+    }
+
+    public static var installGuidance: String {
+        "install `\(appName)` in `\(preferredAppBundleURL.path)` (preferred). `\(userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
+    }
+
+    public static func installationLocationDescription(forAppBundleURL bundleURL: URL) -> String {
+        let standardizedPath = bundleURL.standardizedFileURL.path
+
+        if standardizedPath == preferredAppBundleURL.standardizedFileURL.path {
+            return "preferred install location"
+        }
+
+        if standardizedPath == userSpecificAppBundleURL.standardizedFileURL.path {
+            return "supported user-specific install location"
+        }
+
+        return "detected install location"
     }
 
     public static func executableURL(
@@ -49,12 +76,17 @@ public enum BearMCPAppLocator {
     }
 
     private static var standardAppBundleURLs: [URL] {
-        let systemApplications = URL(fileURLWithPath: "/Applications", isDirectory: true)
-            .appendingPathComponent(appName, isDirectory: true)
-        let userApplications = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent("Applications", isDirectory: true)
-            .appendingPathComponent(appName, isDirectory: true)
+        [preferredAppBundleURL, userSpecificAppBundleURL]
+    }
 
-        return [systemApplications, userApplications]
+    private static var userApplicationsDirectoryPath: String {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Applications", isDirectory: true)
+            .path
+    }
+
+    private static func appBundleURL(inApplicationsDirectoryAtPath applicationsDirectoryPath: String) -> URL {
+        URL(fileURLWithPath: applicationsDirectoryPath, isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
     }
 }

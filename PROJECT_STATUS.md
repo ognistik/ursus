@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, and the standalone helper remains available only as a narrow legacy fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app: the selected-note callback host lives in shared package code, `Bear MCP.app` now hosts the preferred selected-note callback path through `bearmcp://`, `/Applications/Bear MCP.app` is the canonical preferred install path, `~/Applications/Bear MCP.app` remains a fully supported user-specific install location, and the standalone helper remains available only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -110,8 +110,8 @@ Implemented:
 - application service layer
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
-- app-hosted selected-note callback integration for Bear's token-backed `open-note?selected=yes` flow, with legacy helper fallback retained during verification
-- shared selected-note callback-host runtime in `BearXCallback`, now used by both the main app and the legacy helper shell
+- app-hosted selected-note callback integration for Bear's token-backed `open-note?selected=yes` flow, with standalone helper fallback retained during verification
+- shared selected-note callback-host runtime in `BearXCallback`, now used by both the main app and the standalone helper shell
 - first-party selected-note helper executable/app shell plus local `.app` bundling script
 - minimal `Bear MCP.app` Xcode target that links shared package code through a local package product
 - app bundle registration for `bearmcp://`
@@ -122,7 +122,7 @@ Implemented:
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
-- doctor/config support for preferred app-host detection plus legacy helper fallback visibility
+- doctor/config support for preferred app-host detection plus standalone helper fallback visibility
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
 - CLI commands: `mcp`, `--update-config`, `doctor`, `paths`
@@ -218,7 +218,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - MCP tag-tool descriptions now cross-reference `bear_list_tags`, `bear_find_notes_by_tag`, and `bear_open_tag` so clients have clearer discovery hints when an exact tag name is required versus when the goal is UI navigation.
 - `bear_get_notes` now defaults `location` to `notes`, never returns trashed notes, and only searches archived notes when `location: archive` is explicitly requested.
 - `bear_get_notes` now accepts a single `notes` selector array, resolves each selector as exact note id first and then exact case-insensitive title within the requested location, preserves selector order, and deduplicates results by note id.
-- When `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer now prefers resolving the selected Bear note through an app-hosted `bearmcp://` callback in the separately installed `Bear MCP.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline. If the app is already open in dashboard mode, the CLI now reuses that running instance by sending it a `bearmcp://` start-request URL that preserves the existing response-file JSON contract. The legacy helper app remains available only as a narrow fallback when the preferred app is not installed.
+- When `token` is configured in `~/.config/bear-mcp/config.json`, note-selector tools expose `selected: true` as an alternative to explicit selectors. The MCP layer now prefers resolving the selected Bear note through an app-hosted `bearmcp://` callback in the separately installed `Bear MCP.app`, captures Bear's callback `identifier`, and then reuses that concrete note id through the existing read/write pipeline. If the app is already open in dashboard mode, the CLI now reuses that running instance by sending it a `bearmcp://` start-request URL that preserves the existing response-file JSON contract. The standalone helper app remains available only as a narrow fallback when the preferred app is not installed.
 - `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_active_tags` now share a batched summary result shape. Each operation returns compact note summaries with note id, title, body snippet, optional attachment snippet, optional matched fields, tags, created/modified timestamps, archive status, and pagination metadata, or an inline error.
 - Discovery pagination is cursor-based per operation. Discovery tools accept an optional opaque `cursor`, return `hasMore` plus `nextCursor`, and paginate over the full internal sort key.
 - Internal tag values are normalized as bare tag names. When rendering note text, single-word tags use `#tag` and tags containing whitespace use Bear's wrapped form `#tag with spaces#`.
@@ -259,7 +259,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Selected-note callback invocation now redacts token-bearing callback URL/query data in debug traces, and transport error messages no longer echo full token-bearing URLs.
 - `Bear MCP.app` now has a headless callback-host mode: it can be launched with the existing response-file contract, rewrite Bear's `x-success` and `x-error` targets to `bearmcp://`, receive the callback, write the same JSON payload the CLI already expects, and exit without changing the CLI-facing runtime contract.
 - When `Bear MCP.app` is already running in dashboard mode, the CLI now sends that live app instance a `bearmcp://x-callback-url/start-selected-note-host?...` request so it can start an in-process callback session without quitting or relaunching the app, while still returning the same response-file payload the CLI already expects.
-- The standalone selected-note helper executable remains a thin shell around the same shared `BearSelectedNoteCallbackHost` logic in `BearXCallback`, preserving a narrow legacy fallback path when the preferred app is not available.
+- The standalone selected-note helper executable remains a thin shell around the same shared `BearSelectedNoteCallbackHost` logic in `BearXCallback`, preserving a narrow helper fallback path when the preferred app is not available.
 - Add file now defaults omitted `position` to config `defaultInsertPosition`, base64-encodes the local file payload for Bear's documented `add-file` URL parameters, and supports both top/bottom placement and relative-target placement. For template-aware top/bottom placement, it preserves active template boundaries by inserting through a temporary backend-only header anchor inside the `{{content}}` region before cleaning that anchor back out with `replace_all`. For relative-target placement, it uses the same anchor orchestration for both templated and non-templated notes after resolving one heading-title or exact editable-content string match. Cleanup now tolerates Bear rewriting the anchor line by appending the attachment inline instead of leaving the header on its own line. In every anchor-managed path, Bear's header-targeted add-file call uses `prepend`; final placement is determined by where the temporary anchor is inserted in editable content.
 - `bear_list_backups` returns compact snapshot summaries for one note or across notes, `bear_delete_backups` deletes one explicit `snapshot_id` or clears one note's saved backup history when `delete_all: true` is paired with a note selector, and `bear_restore_notes` restores either the latest saved snapshot for a note or an explicit `snapshot_id`.
 - Open tag uses Bear open-tag for a single canonical tag name and returns a compact UI-action receipt rather than note data.
@@ -280,7 +280,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Live write behavior has not yet been validated end-to-end for every Bear x-callback action.
 - Create receipt matching is heuristic and may be ambiguous when titles collide.
 - Keychain-backed token storage is not wired yet; the Bear API token currently lives in config and is used for optional selected-note resolution only.
-- The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow legacy helper fallback, and standard-location detection for `/Applications` plus `~/Applications`, but it does not yet ship signed release artifacts or Phase 4 Keychain-backed token storage.
+- The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, and standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, but it does not yet ship signed release artifacts or Phase 4 Keychain-backed token storage.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.
 - Runtime config directory is still named `bear-mcp`; migrating it to `bear-inbox` would be a separate compatibility decision.

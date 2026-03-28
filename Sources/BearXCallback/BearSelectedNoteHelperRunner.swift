@@ -45,7 +45,7 @@ enum BearSelectedNoteHelperRunner {
         }
 
         throw BearError.configuration(
-            "Selected-note targeting requires `\(BearMCPAppLocator.appName)` to be installed in `/Applications` or `~/Applications`. During Phase 3 verification, `\(BearSelectedNoteHelperLocator.appName)` can still be installed there as a legacy fallback."
+            "Selected-note targeting requires the preferred callback app. \(BearMCPAppLocator.installGuidance) During Phase 3 verification, \(BearSelectedNoteHelperLocator.installGuidance)"
         )
     }
 

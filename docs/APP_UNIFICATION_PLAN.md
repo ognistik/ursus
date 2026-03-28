@@ -21,7 +21,8 @@ As of 2026-03-28:
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.
 - Phase 3 has now landed incrementally in the repo: selected-note resolution prefers `Bear MCP.app`, preserves the CLI response-file contract, uses `bearmcp://` for callbacks, and now reuses an already-running dashboard instance instead of requiring the app to quit first.
-- The standalone helper app remains available as a narrow legacy fallback when the preferred app is not installed.
+- The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
+- `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
 - Local development builds are available through `Support/scripts/build-bear-mcp-app.sh`.
 - Keychain token storage is still pending.
 
@@ -109,7 +110,7 @@ Current selected-note resolution works like this:
 5. Bear calls back into `Bear MCP.app`.
 6. The app writes JSON back to the CLI and either exits its headless instance or returns to dashboard mode.
 
-The legacy helper path still exists as a narrow fallback when `Bear MCP.app` is not installed.
+The standalone helper path still exists as a narrow fallback when `Bear MCP.app` is not installed.
 
 ## Target Product Shape
 
@@ -611,7 +612,7 @@ Goal:
 
 Status:
 
-- Landed incrementally on 2026-03-28 and manually validated end-to-end the same day against the real Bear app. The CLI now prefers `Bear MCP.app` as the callback host, preserves the response-file JSON contract, and can reuse an already-running dashboard instance through a `bearmcp://` start-request flow. The legacy helper remains available only as a narrow fallback when the preferred app is not installed.
+- Landed incrementally on 2026-03-28 and manually validated end-to-end the same day against the real Bear app. The CLI now prefers `Bear MCP.app` as the callback host, preserves the response-file JSON contract, and can reuse an already-running dashboard instance through a `bearmcp://` start-request flow. The standalone helper remains available only as a narrow fallback when the preferred app is not installed.
 
 Tasks:
 

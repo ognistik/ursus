@@ -234,7 +234,7 @@ public enum BearAppSupport {
                             key: "selected-note-callback-app",
                             value: callbackAppBundleURL.path,
                             status: .ok,
-                            detail: "preferred host -> \(executableURL.path)"
+                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); preferred host -> \(executableURL.path)"
                         )
                     )
                 } catch {
@@ -253,7 +253,7 @@ public enum BearAppSupport {
                         key: "selected-note-callback-app",
                         value: "not detected",
                         status: .missing,
-                        detail: "install `\(BearMCPAppLocator.appName)` in `/Applications` or `~/Applications`"
+                        detail: BearMCPAppLocator.installGuidance
                     )
                 )
             }
@@ -266,7 +266,7 @@ public enum BearAppSupport {
                             key: "selected-note-helper-fallback",
                             value: helperBundleURL.path,
                             status: .ok,
-                            detail: "legacy fallback -> \(executableURL.path)"
+                            detail: "helper fallback; \(BearSelectedNoteHelperLocator.installationLocationDescription(forAppBundleURL: helperBundleURL)) -> \(executableURL.path)"
                         )
                     )
                 } catch {

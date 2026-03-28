@@ -2,9 +2,36 @@ import Foundation
 
 public enum BearSelectedNoteHelperLocator {
     public static let appName = "Bear MCP Helper.app"
+    public static let preferredInstallDirectoryPath = "/Applications"
 
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
         standardAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) })
+    }
+
+    public static var preferredAppBundleURL: URL {
+        appBundleURL(inApplicationsDirectoryAtPath: preferredInstallDirectoryPath)
+    }
+
+    public static var userSpecificAppBundleURL: URL {
+        appBundleURL(inApplicationsDirectoryAtPath: userApplicationsDirectoryPath)
+    }
+
+    public static var installGuidance: String {
+        "install `\(appName)` in `\(preferredAppBundleURL.path)` when you need the helper fallback. `\(userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
+    }
+
+    public static func installationLocationDescription(forAppBundleURL bundleURL: URL) -> String {
+        let standardizedPath = bundleURL.standardizedFileURL.path
+
+        if standardizedPath == preferredAppBundleURL.standardizedFileURL.path {
+            return "preferred install location"
+        }
+
+        if standardizedPath == userSpecificAppBundleURL.standardizedFileURL.path {
+            return "supported user-specific install location"
+        }
+
+        return "detected install location"
     }
 
     public static func installedExecutableURL(
@@ -12,7 +39,7 @@ public enum BearSelectedNoteHelperLocator {
     ) throws -> URL {
         guard let bundleURL = installedAppBundleURL(fileManager: fileManager) else {
             throw BearError.configuration(
-                "Selected-note targeting requires `\(appName)` to be installed in `/Applications` or `~/Applications`."
+                "Selected-note targeting requires the standalone helper app to be installed. \(installGuidance)"
             )
         }
 
@@ -61,12 +88,17 @@ public enum BearSelectedNoteHelperLocator {
     }
 
     private static var standardAppBundleURLs: [URL] {
-        let systemApplications = URL(fileURLWithPath: "/Applications", isDirectory: true)
-            .appendingPathComponent(appName, isDirectory: true)
-        let userApplications = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
-            .appendingPathComponent("Applications", isDirectory: true)
-            .appendingPathComponent(appName, isDirectory: true)
+        [preferredAppBundleURL, userSpecificAppBundleURL]
+    }
 
-        return [systemApplications, userApplications]
+    private static var userApplicationsDirectoryPath: String {
+        URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Applications", isDirectory: true)
+            .path
+    }
+
+    private static func appBundleURL(inApplicationsDirectoryAtPath applicationsDirectoryPath: String) -> URL {
+        URL(fileURLWithPath: applicationsDirectoryPath, isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
     }
 }

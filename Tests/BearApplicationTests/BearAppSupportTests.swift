@@ -44,12 +44,17 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.createAddsActiveTagsByDefault == false)
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.diagnostics.contains(where: { $0.key == "selected-note-token" && $0.value == "configured" }))
-    #expect(dashboard.diagnostics.contains(where: { $0.key == "selected-note-callback-app" && $0.status == .missing }))
+    #expect(dashboard.diagnostics.contains(where: {
+        $0.key == "selected-note-callback-app"
+            && $0.status == .missing
+            && ($0.detail?.contains("install `Bear MCP.app` in `/Applications/Bear MCP.app` (preferred).") ?? false)
+            && ($0.detail?.contains("fully supported for user-specific installs") ?? false)
+    }))
     #expect(!dashboard.diagnostics.contains(where: { $0.key == "selected-note-helper-fallback" }))
 }
 
 @Test
-func dashboardSnapshotIncludesPreferredAppAndLegacyHelperDiagnostics() throws {
+func dashboardSnapshotIncludesPreferredAppAndStandaloneHelperDiagnostics() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -90,11 +95,13 @@ func dashboardSnapshotIncludesPreferredAppAndLegacyHelperDiagnostics() throws {
         check.key == "selected-note-callback-app"
             && check.status == .ok
             && check.value == appBundleURL.path
+            && check.detail == "detected install location; preferred host -> \(appBundleURL.path)/Contents/MacOS/Bear MCP"
     }
     let hasHelperFallbackDiagnostic = dashboard.diagnostics.contains { check in
         check.key == "selected-note-helper-fallback"
             && check.status == .ok
             && check.value == helperBundleURL.path
+            && check.detail == "helper fallback; detected install location -> \(helperBundleURL.path)/Contents/MacOS/bear-mcp-helper"
     }
 
     #expect(hasPreferredAppDiagnostic)

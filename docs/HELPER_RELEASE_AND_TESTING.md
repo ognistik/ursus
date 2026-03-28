@@ -2,7 +2,7 @@
 
 This file is a practical checklist for local testing now and release prep later.
 
-Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, and that app-hosted route has been manually validated end-to-end against the real Bear app for both app-launch and already-running-app flows. The helper app remains available only as a narrow fallback when `Bear MCP.app` is not installed. Its runtime behavior still lives in shared package code.
+Phase 3 now prefers `Bear MCP.app` as the selected-note callback host, and that app-hosted route has been manually validated end-to-end against the real Bear app for both app-launch and already-running-app flows. The canonical app install target is `/Applications/Bear MCP.app`; `~/Applications/Bear MCP.app` remains a fully supported user-specific install location. The helper app remains available only as a narrow fallback when `Bear MCP.app` is not installed. Its runtime behavior still lives in shared package code.
 
 ## Local build outputs
 
@@ -34,15 +34,15 @@ CONFIGURATION=release Support/scripts/build-selected-note-helper-app.sh
 
 ## Local install for testing
 
-Recommended local test path for the legacy helper only:
+Recommended local test path for the standalone helper only:
 
 1. Build the app bundle with `Support/scripts/build-selected-note-helper-app.sh`.
-2. Move or copy `.build/debug/Bear MCP Helper.app` into `/Applications` or `~/Applications`.
+2. Move or copy `.build/debug/Bear MCP Helper.app` into `/Applications`. If needed, `~/Applications` is also fully supported for user-specific installs.
 3. Launch it once manually with Finder or `open "/Applications/Bear MCP Helper.app"` so Launch Services registers the callback scheme cleanly.
 4. Put your Bear API token in `~/.config/bear-mcp/config.json`.
 5. Run `swift run bear-mcp doctor` and confirm the helper shows as detected and valid.
 
-For the preferred path, install `Bear MCP.app` instead and verify selected-note MCP calls with the app both closed and already open in dashboard mode.
+For the preferred path, install `Bear MCP.app` in `/Applications/Bear MCP.app` and verify selected-note MCP calls with the app both closed and already open in dashboard mode. If a user cannot install there, `~/Applications/Bear MCP.app` is also fully supported as a user-specific install path.
 
 ## Manual behavior checks
 
@@ -71,14 +71,14 @@ My recommendation is:
 
 - ship `bear-mcp` as the main Homebrew formula
 - ship `Bear MCP Helper.app` as a separate signed release asset first
-- keep the helper install location simple: `/Applications` or `~/Applications`
+- keep the helper install location simple: prefer `/Applications`, but continue fully supporting `~/Applications` for user-specific installs
 - later, consider a dedicated Homebrew cask for `Bear MCP Helper`
 
 That keeps the release simple while you preserve a narrow compatibility fallback. It should be treated as a transition release strategy until the helper can be retired completely.
 
 ## Why not fully automate install yet
 
-The helper is an app bundle with a callback URL scheme, so macOS app placement and registration matter more than for a plain CLI binary. Asking early users to place it in `/Applications` or `~/Applications` is a reasonable first-release tradeoff.
+The helper is an app bundle with a callback URL scheme, so macOS app placement and registration matter more than for a plain CLI binary. Asking early users to place it in `/Applications`, while still fully supporting `~/Applications` for user-specific installs, is a reasonable first-release tradeoff.
 
 Once the release flow feels stable, you can decide between:
 
