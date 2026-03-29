@@ -57,7 +57,7 @@ open "$HOME/Applications/Bear MCP.app"
 
 ## Clean Install Reset
 
-If you want to test onboarding from the beginning, remove the app, config, app-managed runtime files, terminal command, and the Bear token stored in Keychain.
+If you want to test onboarding from the beginning, remove the app, config, Bear MCP runtime files, the public launcher, and the Bear token stored in Keychain.
 
 Important:
 
@@ -95,12 +95,11 @@ open "$HOME/Applications/Bear MCP.app"
 
 ## Notes About The CLI
 
-The app can currently install:
+The app now installs one shared launcher at:
 
-- an app-managed CLI at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
-- a copied terminal CLI at `~/bin/bear-mcp`
+- `~/.local/bin/bear-mcp`
 
-The copied Terminal command is now useful for direct Bear workflows too:
+That launcher is useful both for MCP host setup and for direct Bear workflows:
 
 - `bear-mcp --new-note`
 - `bear-mcp --apply-template [note-id-or-title ...]`
@@ -108,11 +107,11 @@ The copied Terminal command is now useful for direct Bear workflows too:
 
 When `--apply-template` or `--delete-note` receive no note ids or titles, they target the currently selected Bear note. Passed note arguments resolve as exact note id first and then exact case-insensitive title. Quote titles with spaces.
 
-On a fresh install or after updating the app bundle, the dashboard overview now shows a proactive CLI attention card whenever either copy is missing or stale, with direct install/refresh actions.
+On a fresh install or after updating the app bundle, the dashboard overview now shows a proactive launcher attention card whenever that path is missing or stale, with direct install/repair actions.
 
-On a normal dashboard launch, `Bear MCP.app` now also auto-installs or refreshes the host-facing CLI copy at `~/Library/Application Support/bear-mcp/bin/bear-mcp` when the bundled CLI is available and the installed copy is missing or stale. The optional `~/bin/bear-mcp` Terminal command still stays manual.
+On a normal dashboard launch, `Bear MCP.app` now also auto-installs or repairs the launcher at `~/.local/bin/bear-mcp` when the bundled CLI is available and the launcher is missing or stale.
 
-If you are testing from a clean start, remove both the Application Support directory and `~/bin/bear-mcp`.
+If you are testing from a clean start, remove `~/.local/bin/bear-mcp` before reopening the app.
 
 ## Notes About `--update-config`
 

@@ -30,8 +30,7 @@ struct BearMCPMain {
                     [
                         BearPaths.configFileURL.path,
                         BearPaths.noteTemplateURL.path,
-                        BearPaths.bundledCLIExecutableURL.path,
-                        BearPaths.userCLIExecutableURL.path,
+                        BearPaths.publicCLIExecutableURL.path,
                         BearPaths.backupsIndexURL.path,
                         BearPaths.processLockURL.path,
                         BearPaths.debugLogURL.path,

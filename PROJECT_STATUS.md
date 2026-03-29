@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app can install or refresh that bundled CLI to a stable user path for MCP hosts and now automatically reconciles that host-facing copy on normal dashboard launch when it is missing or stale, it can also install a copied terminal executable at `~/bin/bear-mcp`, doctor now reports both generic local-stdio readiness and the terminal command path, the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive CLI attention cards that remain as fallback repair actions when auto-management is not enough, and the terminal-facing CLI now has its first direct user utility flags for `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app now installs and repairs one public launcher at `~/.local/bin/bear-mcp` that forwards into the bundled CLI, normal dashboard launch automatically reconciles that launcher when it is missing or stale, doctor now reports both generic local-stdio readiness and the shared launcher path, the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive launcher repair messaging when auto-management is not enough, and the terminal-facing CLI now has its first direct user utility flags for `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -124,16 +124,14 @@ Implemented:
 - app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
 - local app build script for unsigned development bundles
 - local app build script now embedding the `bear-mcp` CLI at `Bear MCP.app/Contents/Resources/bin/bear-mcp`
-- shared bundled-CLI locator/install support for the app-managed host-facing CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
-- app settings actions for install/refresh, copy, and reveal of the app-managed CLI path
-- normal dashboard launch auto-reconciliation for the app-managed CLI, so the stable host-facing copy is refreshed from the current app bundle when needed
-- terminal CLI install support through a stable copied executable at `~/bin/bear-mcp`, sourced from the app-managed CLI copy
-- doctor/dashboard diagnostics for bundled CLI presence and app-managed CLI exposure, so stale app installs are surfaced clearly
-- doctor/dashboard diagnostics for the terminal CLI copy at `~/bin/bear-mcp`, including refresh guidance for older terminal installs
-- shared app/dashboard CLI health snapshots that now expose host-facing CLI status alongside terminal CLI status
-- proactive dashboard CLI attention cards that surface install/refresh actions when the host-facing or terminal CLI copies need attention
+- shared bundled-CLI locator plus public-launcher install support for `~/.local/bin/bear-mcp`
+- app settings actions for installing, repairing, copying, and revealing the public launcher path
+- normal dashboard launch auto-reconciliation for the public launcher, so the shared host/Terminal path is refreshed from the current app bundle when needed
+- doctor/dashboard diagnostics for bundled CLI presence and public launcher exposure, so stale launcher installs are surfaced clearly
+- shared app/dashboard CLI health snapshots that expose one launcher status for both hosts and Terminal usage
+- proactive dashboard CLI attention cards that surface launcher install/repair actions when needed
 - generic local-stdio host guidance in the app/dashboard so local MCP setup is documented independently of any one host app
-- shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the stable app-managed CLI path
+- shared host-app onboarding snapshots and diagnostics for Codex, Claude Desktop, and ChatGPT, all centered on the public launcher path
 - app settings UI for host-app setup guidance, including copyable Codex/Claude snippets plus guided checks and local config-path reveal/copy actions
 - editable app configuration UI for core defaults, discovery limits, inbox tags, and tool availability
 - inline app configuration validation with debounced auto-save and per-field warning/error messaging
@@ -157,9 +155,8 @@ Verified locally:
 - `swift run bear-mcp --help`
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
 - confirmed the local Debug app bundle now contains `.build/BearMCPApp/Build/Products/Debug/Bear MCP.app/Contents/Resources/bin/bear-mcp`
-- confirmed `swift run bear-mcp doctor` now reports `bundled-cli` and `app-managed-cli` separately, and will flag an older installed app bundle that has not yet been refreshed with the embedded CLI
-- confirmed `swift run bear-mcp doctor` now reports `terminal-cli` and `host-local-stdio` alongside the host-specific checks
-- refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and confirmed the app-managed CLI now reports `bundled-cli` plus `app-managed-cli` as healthy while describing the selected-note token as `Managed in Keychain` without a routine secure read
+- confirmed `swift run bear-mcp doctor` now reports `bundled-cli`, `public-cli-launcher`, and `host-local-stdio`, and will flag an older launcher that has not yet been refreshed from the embedded CLI
+- refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/.local/bin/bear-mcp`, and confirmed the public launcher now reports `bundled-cli` plus `public-cli-launcher` as healthy while describing the selected-note token as `Managed in Keychain` without a routine secure read
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was not running, resolving the selected note through the installed app path with `callbackAppInstalled=true`
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was already open in dashboard mode, resolving the selected note through the running app with `host=app reason=preferred-app-running reuseExistingInstance=true`
 
@@ -222,7 +219,7 @@ Current local runtime paths are:
 
 - config: `~/.config/bear-mcp/config.json`
 - note template: `~/.config/bear-mcp/template.md`
-- app-managed CLI: `~/Library/Application Support/bear-mcp/bin/bear-mcp`
+- public launcher: `~/.local/bin/bear-mcp`
 - backups: `~/Library/Application Support/bear-mcp/Backups/`
 - backup index: `~/Library/Application Support/bear-mcp/Backups/index.json`
 - process lock (preferred shared path): `~/Library/Application Support/bear-mcp/Runtime/.server.lock`
@@ -314,7 +311,7 @@ Important: repo/GitHub naming can change to `bear-inbox` without immediately cha
 - Keychain-backed token storage is now wired for selected-note resolution, and the preferred app-installed path now keeps Keychain reads inside `Bear MCP.app`, but the repo still keeps a legacy `config.token` fallback for compatibility until broader migration/cleanup is complete.
 - The repo now includes a working app-hosted callback path, running-instance reuse for the installed app, a narrow helper fallback, standard-location detection that prefers `/Applications/Bear MCP.app` while still fully supporting `~/Applications/Bear MCP.app` for user-specific installs, and the first Phase 4 Keychain-backed token-management slice, but it does not yet ship signed release artifacts or a broader editable settings UI beyond token management.
 - The current app UI is functionally ahead of its information architecture: it now exposes real editing/onboarding surfaces, but the Overview, Hosts, Configuration, and Token tabs still carry too much implementation detail and too much explicit save/setup ceremony for the intended polished app-first product.
-- Terminal CLI exposure now installs a copied executable at `~/bin/bear-mcp`, but broader first-run and post-update refresh automation is still pending.
+- The public launcher currently prefers the current app bundle path and standard app-install fallbacks, so app moves outside `/Applications` or `~/Applications` still rely on reopening the app to repair the launcher.
 - Closing the main app window currently leaves the app running. That default macOS lifecycle behavior is now a UX mismatch for the current product because the app is not intended to provide background-only functionality.
 - Backup restore is strongest for note-text mistakes. Attachment-related rollback is still best-effort because restoring saved raw markdown cannot perfectly model every Bear attachment side effect.
 - Find now has deterministic text-aware ranking, but it still does not use fuzzy matching, typo tolerance, stemming, BM25, or SQLite FTS scoring.

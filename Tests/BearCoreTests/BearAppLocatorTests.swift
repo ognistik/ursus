@@ -28,16 +28,16 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
 }
 
 @Test
-func cliLocatorGuidancePointsHostsAtAppManagedPath() {
+func cliLocatorGuidancePointsHostsAtPublicLauncherPath() {
     #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/bear-mcp")
     #expect(
-        BearMCPCLILocator.appManagedInstallURL.path.hasSuffix("/Library/Application Support/bear-mcp/bin/bear-mcp")
+        BearMCPCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/bear-mcp")
     )
-    #expect(BearMCPCLILocator.appManagedInstallGuidance.contains("MCP hosts should point to that stable path"))
+    #expect(BearMCPCLILocator.publicLauncherGuidance.contains("Local MCP hosts and Terminal should use that same path"))
 }
 
 @Test
-func cliLocatorInstallsBundledExecutableIntoStablePath() throws {
+func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -48,8 +48,7 @@ func cliLocatorInstallsBundledExecutableIntoStablePath() throws {
         .appendingPathComponent("bin", isDirectory: true)
         .appendingPathComponent("bear-mcp", isDirectory: false)
     let installedCLIURL = temporaryRoot
-        .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: true)
+        .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
         .appendingPathComponent("bear-mcp", isDirectory: false)
 
@@ -60,7 +59,7 @@ func cliLocatorInstallsBundledExecutableIntoStablePath() throws {
         try? fileManager.removeItem(at: temporaryRoot)
     }
 
-    let receipt = try BearMCPCLILocator.installBundledExecutable(
+    let receipt = try BearMCPCLILocator.installPublicLauncher(
         fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
         destinationURL: installedCLIURL
@@ -70,40 +69,46 @@ func cliLocatorInstallsBundledExecutableIntoStablePath() throws {
     #expect(receipt.destinationPath == installedCLIURL.path)
     #expect(fileManager.fileExists(atPath: installedCLIURL.path))
     #expect(fileManager.isExecutableFile(atPath: installedCLIURL.path))
-    #expect(try String(contentsOf: installedCLIURL, encoding: .utf8).contains("bundled"))
+    let launcherScript = try String(contentsOf: installedCLIURL, encoding: .utf8)
+    #expect(launcherScript.contains(bundledCLIURL.path))
+    #expect(launcherScript.contains("exec \"$cli_path\" \"$@\""))
 }
 
 @Test
-func cliLocatorInstallsCopiedTerminalExecutableInsteadOfSymlink() throws {
+func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appManagedCLIURL = temporaryRoot
-        .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: true)
+    let appBundleURL = temporaryRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
         .appendingPathComponent("bear-mcp", isDirectory: false)
-    let terminalCLIURL = temporaryRoot
+    let launcherURL = temporaryRoot
+        .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
         .appendingPathComponent("bear-mcp", isDirectory: false)
 
-    try fileManager.createDirectory(at: appManagedCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try "#!/bin/sh\necho app-managed\n".write(to: appManagedCLIURL, atomically: true, encoding: .utf8)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appManagedCLIURL.path)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try fileManager.createSymbolicLink(at: launcherURL, withDestinationURL: bundledCLIURL)
     defer {
         try? fileManager.removeItem(at: temporaryRoot)
     }
 
-    let receipt = try BearMCPCLILocator.installUserCommandExecutable(
+    let receipt = try BearMCPCLILocator.installPublicLauncher(
+        fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
-        sourceURL: appManagedCLIURL,
-        destinationURL: terminalCLIURL
+        destinationURL: launcherURL
     )
 
-    #expect(receipt.sourcePath == appManagedCLIURL.path)
-    #expect(receipt.destinationPath == terminalCLIURL.path)
-    #expect(fileManager.fileExists(atPath: terminalCLIURL.path))
-    #expect(fileManager.isExecutableFile(atPath: terminalCLIURL.path))
-    #expect(try String(contentsOf: terminalCLIURL, encoding: .utf8).contains("app-managed"))
-    #expect(!BearMCPCLILocator.hasIndirectFilesystemEntry(at: terminalCLIURL))
+    #expect(receipt.sourcePath == bundledCLIURL.path)
+    #expect(receipt.destinationPath == launcherURL.path)
+    #expect(fileManager.fileExists(atPath: launcherURL.path))
+    #expect(fileManager.isExecutableFile(atPath: launcherURL.path))
+    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Bear MCP launcher"))
+    #expect(!BearMCPCLILocator.hasIndirectFilesystemEntry(at: launcherURL))
 }

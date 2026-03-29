@@ -44,46 +44,46 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
 enum BearHostAppSupport {
     static func loadSetups(
         fileManager: FileManager = .default,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) -> [BearHostAppSetupSnapshot] {
         makeResults(
             fileManager: fileManager,
-            appManagedCLIURL: appManagedCLIURL,
+            launcherURL: launcherURL,
             homeDirectoryURL: homeDirectoryURL
         ).map(\.setup)
     }
 
     static func diagnostics(
         fileManager: FileManager = .default,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) -> [BearDoctorCheck] {
         makeResults(
             fileManager: fileManager,
-            appManagedCLIURL: appManagedCLIURL,
+            launcherURL: launcherURL,
             homeDirectoryURL: homeDirectoryURL
         ).compactMap(\.doctorCheck)
     }
 
     private static func makeResults(
         fileManager: FileManager,
-        appManagedCLIURL: URL,
+        launcherURL: URL,
         homeDirectoryURL: URL
     ) -> [HostAppResult] {
         [
-            genericLocalHostResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL),
-            codexResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL, homeDirectoryURL: homeDirectoryURL),
-            claudeDesktopResult(fileManager: fileManager, appManagedCLIURL: appManagedCLIURL, homeDirectoryURL: homeDirectoryURL),
+            genericLocalHostResult(fileManager: fileManager, launcherURL: launcherURL),
+            codexResult(fileManager: fileManager, launcherURL: launcherURL, homeDirectoryURL: homeDirectoryURL),
+            claudeDesktopResult(fileManager: fileManager, launcherURL: launcherURL, homeDirectoryURL: homeDirectoryURL),
             chatGPTResult(),
         ]
     }
 
     private static func genericLocalHostResult(
         fileManager: FileManager,
-        appManagedCLIURL: URL
+        launcherURL: URL
     ) -> HostAppResult {
-        let cliPath = appManagedCLIURL.path
+        let cliPath = launcherURL.path
         let snippet = """
         {
           "type": "stdio",
@@ -92,7 +92,7 @@ enum BearHostAppSupport {
         }
         """
         let checks = [
-            "Install or refresh the stable CLI copy at \(cliPath) from Bear MCP.app.",
+            "Install or repair the public launcher at \(cliPath) from Bear MCP.app.",
             "In any local stdio MCP host, point `command` at that path and set `args` to `[\"mcp\"]`.",
             "Restart the host app after saving so it reloads the Bear server definition.",
         ]
@@ -104,7 +104,7 @@ enum BearHostAppSupport {
                     appName: "Any Local MCP Host",
                     status: .ok,
                     statusTitle: "Ready",
-                    detail: "Use the stable app-managed CLI path below with any local stdio MCP host, not just Codex or Claude Desktop.",
+                    detail: "Use the public launcher path below with any local stdio MCP host, not just Codex or Claude Desktop.",
                     snippetTitle: "Generic stdio example",
                     snippetLanguage: "json",
                     snippet: snippet,
@@ -115,7 +115,7 @@ enum BearHostAppSupport {
                     key: "host-local-stdio",
                     value: cliPath,
                     status: .ok,
-                    detail: "stable generic CLI target for any local stdio MCP host"
+                    detail: "public launcher target for any local stdio MCP host"
                 )
             )
         }
@@ -125,8 +125,8 @@ enum BearHostAppSupport {
                 id: "generic-local-stdio",
                 appName: "Any Local MCP Host",
                 status: .missing,
-                statusTitle: "CLI not installed yet",
-                detail: "Install the stable app-managed CLI first, then reuse the same command path in any local stdio MCP host.",
+                statusTitle: "Launcher not installed yet",
+                detail: "Install the public launcher first, then reuse the same command path in any local stdio MCP host.",
                 snippetTitle: "Generic stdio example",
                 snippetLanguage: "json",
                 snippet: snippet,
@@ -137,20 +137,20 @@ enum BearHostAppSupport {
                 key: "host-local-stdio",
                 value: cliPath,
                 status: .missing,
-                detail: "install the app-managed CLI before wiring it into local MCP hosts"
+                detail: "install the public launcher before wiring it into local MCP hosts"
             )
         )
     }
 
     private static func codexResult(
         fileManager: FileManager,
-        appManagedCLIURL: URL,
+        launcherURL: URL,
         homeDirectoryURL: URL
     ) -> HostAppResult {
         let configURL = homeDirectoryURL
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("config.toml", isDirectory: false)
-        let cliPath = appManagedCLIURL.path
+        let cliPath = launcherURL.path
         let snippet = """
         [mcp_servers.bear]
         enabled = true
@@ -158,8 +158,8 @@ enum BearHostAppSupport {
         args = ["mcp"]
         """
         let checks = [
-            "Use Bear MCP.app to install or refresh the CLI at \(cliPath).",
-            "Add or update the `[mcp_servers.bear]` section in `\(configURL.path)` so `command` points at that stable CLI path and `args` contains `\"mcp\"`.",
+            "Use Bear MCP.app to install or repair the launcher at \(cliPath).",
+            "Add or update the `[mcp_servers.bear]` section in `\(configURL.path)` so `command` points at that launcher path and `args` contains `\"mcp\"`.",
             "Restart Codex after saving the config so it reloads the MCP server definition.",
         ]
 
@@ -171,7 +171,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .missing,
                     statusTitle: "Config file not found",
-                    detail: "Create `\(configURL.path)` or let Codex create it, then add the Bear MCP section below so Codex uses the stable app-managed CLI instead of a repo-local build output.",
+                    detail: "Create `\(configURL.path)` or let Codex create it, then add the Bear MCP section below so Codex uses the public launcher instead of a repo-local build output.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -195,7 +195,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Config file unreadable",
-                    detail: "Bear MCP.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.bear` at the stable app-managed CLI.",
+                    detail: "Bear MCP.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.bear` at the public launcher.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -226,18 +226,18 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .ok,
                     statusTitle: "Configured",
-                    detail: "Codex already points `mcp_servers.bear` at the stable app-managed CLI path.",
+                    detail: "Codex already points `mcp_servers.bear` at the public launcher path.",
                     snippetTitle: "Current recommended section",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "No change is needed unless you want to refresh the CLI copy from Bear MCP.app.",
+                    mergeNote: "No change is needed unless you want to repair the launcher from Bear MCP.app.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
                     key: "host-codex",
                     value: configURL.path,
                     status: .ok,
-                    detail: "configured to launch Bear MCP from the app-managed CLI path"
+                    detail: "configured to launch Bear MCP from the public launcher path"
                 )
             )
         }
@@ -250,7 +250,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Needs update",
-                    detail: "Codex already has a Bear MCP entry, but it is not using the stable app-managed CLI path and `args = [\"mcp\"]` shape together yet.",
+                    detail: "Codex already has a Bear MCP entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
                     snippetTitle: "Replace the Bear section with",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -261,7 +261,7 @@ enum BearHostAppSupport {
                     key: "host-codex",
                     value: configURL.path,
                     status: .invalid,
-                    detail: "Bear entry detected, but it is not aligned with the stable CLI path at \(cliPath)"
+                    detail: "Bear entry detected, but it is not aligned with the public launcher path at \(cliPath)"
                 )
             )
         }
@@ -291,7 +291,7 @@ enum BearHostAppSupport {
 
     private static func claudeDesktopResult(
         fileManager: FileManager,
-        appManagedCLIURL: URL,
+        launcherURL: URL,
         homeDirectoryURL: URL
     ) -> HostAppResult {
         let candidateURLs = [
@@ -306,7 +306,7 @@ enum BearHostAppSupport {
                 .appendingPathComponent("claude_desktop_config.json", isDirectory: false),
         ]
         let configURL = candidateURLs.first(where: { fileManager.fileExists(atPath: $0.path) }) ?? candidateURLs[0]
-        let cliPath = appManagedCLIURL.path
+        let cliPath = launcherURL.path
         let snippet = """
         {
           "mcpServers": {
@@ -320,8 +320,8 @@ enum BearHostAppSupport {
         }
         """
         let checks = [
-            "Use Bear MCP.app to install or refresh the CLI at \(cliPath).",
-            "Add or merge the `bear` server entry into `mcpServers` inside `\(configURL.path)` so Claude Desktop launches the stable app-managed CLI.",
+            "Use Bear MCP.app to install or repair the launcher at \(cliPath).",
+            "Add or merge the `bear` server entry into `mcpServers` inside `\(configURL.path)` so Claude Desktop launches the public launcher.",
             "Restart Claude Desktop after saving the JSON so it reloads the local MCP server.",
         ]
 
@@ -333,7 +333,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .missing,
                     statusTitle: "Config file not found",
-                    detail: "Create `\(configURL.path)` or configure a local MCP server from Claude Desktop, then merge the Bear entry below so Claude uses the stable app-managed CLI path.",
+                    detail: "Create `\(configURL.path)` or configure a local MCP server from Claude Desktop, then merge the Bear entry below so Claude uses the public launcher path.",
                     snippetTitle: "Claude Desktop JSON example",
                     snippetLanguage: "json",
                     snippet: snippet,
@@ -395,18 +395,18 @@ enum BearHostAppSupport {
                         configPath: configURL.path,
                         status: .ok,
                         statusTitle: "Configured",
-                        detail: "Claude Desktop already has a Bear stdio server entry pointing at the stable app-managed CLI path.",
+                        detail: "Claude Desktop already has a Bear stdio server entry pointing at the public launcher path.",
                         snippetTitle: "Current recommended JSON",
                         snippetLanguage: "json",
                         snippet: snippet,
-                        mergeNote: "No change is needed unless you want to refresh the app-managed CLI copy from Bear MCP.app.",
+                        mergeNote: "No change is needed unless you want to repair the public launcher from Bear MCP.app.",
                         checks: checks
                     ),
                     doctorCheck: BearDoctorCheck(
                         key: "host-claude-desktop",
                         value: configURL.path,
                         status: .ok,
-                        detail: "configured to launch Bear MCP from the app-managed CLI path"
+                        detail: "configured to launch Bear MCP from the public launcher path"
                     )
                 )
             }
@@ -439,7 +439,7 @@ enum BearHostAppSupport {
                     key: "host-claude-desktop",
                     value: configURL.path,
                     status: .invalid,
-                    detail: "Bear entry detected, but it is not aligned with the stable CLI path at \(cliPath)"
+                    detail: "Bear entry detected, but it is not aligned with the public launcher path at \(cliPath)"
                 )
             )
         }
@@ -469,7 +469,7 @@ enum BearHostAppSupport {
 
     private static func chatGPTResult() -> HostAppResult {
         let checks = [
-            "Do not point ChatGPT at the local app-managed CLI path; current ChatGPT MCP support is remote-only.",
+            "Do not point ChatGPT at the local Bear MCP launcher path; current ChatGPT MCP support is remote-only.",
             "If you want Bear in ChatGPT, deploy a remote MCP server over streaming HTTP or SSE instead of using the local stdio binary.",
             "Use Bear MCP.app for local host apps like Codex and Claude Desktop, and treat ChatGPT as a separate remote-connector path for now.",
         ]
@@ -480,7 +480,7 @@ enum BearHostAppSupport {
                 appName: "ChatGPT",
                 status: .notConfigured,
                 statusTitle: "Remote MCP only",
-                detail: "ChatGPT developer mode currently supports remote MCP servers, not local stdio binaries, so the app-managed CLI path is not the right integration target here.",
+                detail: "ChatGPT developer mode currently supports remote MCP servers, not local stdio binaries, so the Bear MCP launcher path is not the right integration target here.",
                 checks: checks
             ),
             doctorCheck: BearDoctorCheck(

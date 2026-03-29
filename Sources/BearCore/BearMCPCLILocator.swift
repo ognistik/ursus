@@ -1,17 +1,7 @@
 import Darwin
 import Foundation
 
-public struct BearBundledCLIInstallReceipt: Codable, Hashable, Sendable {
-    public let sourcePath: String
-    public let destinationPath: String
-
-    public init(sourcePath: String, destinationPath: String) {
-        self.sourcePath = sourcePath
-        self.destinationPath = destinationPath
-    }
-}
-
-public struct BearCLIExecutableInstallReceipt: Codable, Hashable, Sendable {
+public struct BearPublicCLILauncherInstallReceipt: Codable, Hashable, Sendable {
     public let sourcePath: String
     public let destinationPath: String
 
@@ -25,24 +15,16 @@ public enum BearMCPCLILocator {
     public static let executableName = "bear-mcp"
     public static let bundledRelativePath = "Contents/Resources/bin/\(executableName)"
 
-    public static var appManagedInstallURL: URL {
-        BearPaths.bundledCLIExecutableURL
+    public static var publicLauncherURL: URL {
+        BearPaths.publicCLIExecutableURL
     }
 
-    public static var userCommandInstallURL: URL {
-        BearPaths.userCLIExecutableURL
-    }
-
-    public static var appManagedInstallGuidance: String {
-        "Use `\(BearMCPAppLocator.appName)` to install the bundled CLI to `\(appManagedInstallURL.path)`. MCP hosts should point to that stable path, not to transient SwiftPM build outputs."
+    public static var publicLauncherGuidance: String {
+        "Use `\(BearMCPAppLocator.appName)` to install or repair the public launcher at `\(publicLauncherURL.path)`. Local MCP hosts and Terminal should use that same path."
     }
 
     public static var bundledExecutableGuidance: String {
         "Build or reinstall `\(BearMCPAppLocator.appName)` so it contains `\(bundledRelativePath)`."
-    }
-
-    public static var userCommandInstallGuidance: String {
-        "Install the app-managed CLI first, then copy a terminal-friendly executable to `\(userCommandInstallURL.path)` so `bear-mcp` is easy to run from Terminal."
     }
 
     public static func bundledExecutableURL(
@@ -70,70 +52,83 @@ public enum BearMCPCLILocator {
         return executableURL
     }
 
-    public static func installedExecutableURL(
+    public static func installedLauncherURL(
         fileManager: FileManager = .default,
-        destinationURL: URL = appManagedInstallURL
+        destinationURL: URL = publicLauncherURL
     ) throws -> URL {
         guard fileManager.fileExists(atPath: destinationURL.path) else {
-            throw BearError.configuration("App-managed CLI was not found at `\(destinationURL.path)`. \(appManagedInstallGuidance)")
+            throw BearError.configuration("Public launcher was not found at `\(destinationURL.path)`. \(publicLauncherGuidance)")
         }
 
         guard fileManager.isExecutableFile(atPath: destinationURL.path) else {
-            throw BearError.configuration("App-managed CLI at `\(destinationURL.path)` is not executable.")
+            throw BearError.configuration("Public launcher at `\(destinationURL.path)` is not executable.")
         }
 
         return destinationURL
     }
 
-    @discardableResult
-    public static func installUserCommandExecutable(
-        fileManager: FileManager = .default,
-        sourceURL: URL = appManagedInstallURL,
-        destinationURL: URL = userCommandInstallURL
-    ) throws -> BearCLIExecutableInstallReceipt {
-        let sourceExecutableURL = try installedExecutableURL(
-            fileManager: fileManager,
-            destinationURL: sourceURL
+    public static func launcherScript(
+        forAppBundleURL bundleURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> String {
+        let bundledCLIURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
+        let candidatePaths = launcherCandidatePaths(
+            primaryAppBundleURL: bundleURL,
+            primaryBundledCLIURL: bundledCLIURL
         )
-        return try installExecutableCopy(
-            from: sourceExecutableURL,
-            fileManager: fileManager,
-            destinationURL: destinationURL
-        )
+
+        let loopEntries = candidatePaths
+            .map { "  \($0)" }
+            .joined(separator: " \\\n")
+        let installGuidance = "Open Bear MCP.app once to repair the launcher, or reinstall the app in /Applications/Bear MCP.app or ~/Applications/Bear MCP.app."
+
+        return """
+        #!/bin/sh
+        set -eu
+
+        for cli_path in \\
+        \(loopEntries)
+        do
+          if [ -x "$cli_path" ]; then
+            exec "$cli_path" "$@"
+          fi
+        done
+
+        printf '%s\\n' 'Bear MCP launcher could not find the bundled CLI. \(installGuidance)' >&2
+        exit 1
+        """
     }
 
     @discardableResult
-    public static func installBundledExecutable(
+    public static func installPublicLauncher(
         fromAppBundleURL bundleURL: URL,
         fileManager: FileManager = .default,
-        destinationURL: URL = appManagedInstallURL
-    ) throws -> BearBundledCLIInstallReceipt {
-        let sourceURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
-        let receipt = try installExecutableCopy(
-            from: sourceURL,
+        destinationURL: URL = publicLauncherURL
+    ) throws -> BearPublicCLILauncherInstallReceipt {
+        let bundledCLIURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
+        let launcherScript = try launcherScript(forAppBundleURL: bundleURL, fileManager: fileManager)
+
+        try installLauncherScript(
+            launcherScript,
             fileManager: fileManager,
             destinationURL: destinationURL
         )
 
-        return BearBundledCLIInstallReceipt(
-            sourcePath: receipt.sourcePath,
-            destinationPath: receipt.destinationPath
+        return BearPublicCLILauncherInstallReceipt(
+            sourcePath: bundledCLIURL.path,
+            destinationPath: destinationURL.path
         )
     }
 
-    public static func executableContentsMatch(
-        sourceURL: URL,
-        destinationURL: URL,
-        fileManager: FileManager = .default
+    public static func launcherMatches(
+        expectedScript: String,
+        destinationURL: URL
     ) throws -> Bool {
-        let sourceData = try Data(contentsOf: sourceURL)
         let destinationData = try Data(contentsOf: destinationURL)
-        return sourceData == destinationData
+        return destinationData == Data(expectedScript.utf8)
     }
 
-    public static func hasIndirectFilesystemEntry(
-        at url: URL,
-    ) -> Bool {
+    public static func hasIndirectFilesystemEntry(at url: URL) -> Bool {
         var status = stat()
         guard lstat(url.path, &status) == 0 else {
             return false
@@ -143,11 +138,11 @@ public enum BearMCPCLILocator {
     }
 
     @discardableResult
-    private static func installExecutableCopy(
-        from sourceURL: URL,
+    private static func installLauncherScript(
+        _ launcherScript: String,
         fileManager: FileManager,
         destinationURL: URL
-    ) throws -> BearCLIExecutableInstallReceipt {
+    ) throws -> URL {
         let destinationDirectoryURL = destinationURL.deletingLastPathComponent()
         try fileManager.createDirectory(at: destinationDirectoryURL, withIntermediateDirectories: true)
 
@@ -158,20 +153,47 @@ public enum BearMCPCLILocator {
             try fileManager.removeItem(at: stagingURL)
         }
 
-        try fileManager.copyItem(at: sourceURL, to: stagingURL)
+        try Data(launcherScript.utf8).write(to: stagingURL, options: .atomic)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stagingURL.path)
 
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
-        } else if hasIndirectFilesystemEntry(at: destinationURL) {
+        if fileManager.fileExists(atPath: destinationURL.path) || hasIndirectFilesystemEntry(at: destinationURL) {
             try fileManager.removeItem(at: destinationURL)
         }
 
         try fileManager.moveItem(at: stagingURL, to: destinationURL)
+        return destinationURL
+    }
 
-        return BearCLIExecutableInstallReceipt(
-            sourcePath: sourceURL.path,
-            destinationPath: destinationURL.path
-        )
+    private static func launcherCandidatePaths(
+        primaryAppBundleURL: URL,
+        primaryBundledCLIURL: URL
+    ) -> [String] {
+        var paths = [shellSingleQuoted(primaryBundledCLIURL.path)]
+        let fallbackBundleURLs = [
+            BearMCPAppLocator.preferredAppBundleURL,
+            BearMCPAppLocator.userSpecificAppBundleURL,
+        ]
+
+        for bundleURL in fallbackBundleURLs where bundleURL.standardizedFileURL.path != primaryAppBundleURL.standardizedFileURL.path {
+            let bundledCLIPath = bundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Resources", isDirectory: true)
+                .appendingPathComponent("bin", isDirectory: true)
+                .appendingPathComponent(executableName, isDirectory: false)
+                .path
+            paths.append(shellSingleQuoted(bundledCLIPath))
+        }
+
+        let homeRelativePath = "Applications/\(BearMCPAppLocator.appName)/Contents/Resources/bin/\(executableName)"
+        let homeCandidate = "\"$HOME/\(homeRelativePath)\""
+        if !paths.contains(homeCandidate) {
+            paths.append(homeCandidate)
+        }
+
+        return paths
+    }
+
+    private static func shellSingleQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }

@@ -45,17 +45,13 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let templatePath: String
     public let backupsDirectoryPath: String
     public let backupsIndexPath: String
-    public let appManagedCLIPath: String
-    public let appManagedCLIStatus: BearDoctorCheckStatus
-    public let appManagedCLIStatusTitle: String
-    public let appManagedCLIStatusDetail: String
+    public let launcherPath: String
+    public let launcherStatus: BearDoctorCheckStatus
+    public let launcherStatusTitle: String
+    public let launcherStatusDetail: String
     public let processLockPath: String
     public let fallbackProcessLockPath: String
     public let debugLogPath: String
-    public let terminalCLIPath: String
-    public let terminalCLIStatus: BearDoctorCheckStatus
-    public let terminalCLIStatusTitle: String
-    public let terminalCLIStatusDetail: String
     public let cliMaintenancePrompt: BearAppCLIMaintenancePrompt?
     public let databasePath: String
     public let inboxTags: [String]
@@ -82,10 +78,8 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
 }
 
 public enum BearAppCLIMaintenanceAction: String, Codable, Hashable, Sendable, Identifiable {
-    case installAppManagedCLI
-    case refreshAppManagedCLI
-    case installTerminalCLI
-    case refreshTerminalCLI
+    case installLauncher
+    case refreshLauncher
 
     public var id: String { rawValue }
 }
@@ -106,20 +100,20 @@ public struct BearAppCLIMaintenancePrompt: Codable, Hashable, Sendable {
     }
 }
 
-public enum BearAppManagedCLIReconciliationStatus: String, Codable, Hashable, Sendable {
+public enum BearAppPublicLauncherReconciliationStatus: String, Codable, Hashable, Sendable {
     case unchanged
     case installed
     case refreshed
     case unavailable
 }
 
-public struct BearAppManagedCLIReconciliationResult: Codable, Hashable, Sendable {
-    public let status: BearAppManagedCLIReconciliationStatus
+public struct BearAppPublicLauncherReconciliationResult: Codable, Hashable, Sendable {
+    public let status: BearAppPublicLauncherReconciliationStatus
     public let sourcePath: String?
     public let destinationPath: String?
 
     public init(
-        status: BearAppManagedCLIReconciliationStatus,
+        status: BearAppPublicLauncherReconciliationStatus,
         sourcePath: String? = nil,
         destinationPath: String? = nil
     ) {
@@ -275,8 +269,7 @@ public enum BearAppSupport {
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         allowSecureTokenStatusRead: Bool = false,
         currentAppBundleURL: URL? = nil,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
-        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
+        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
@@ -293,8 +286,7 @@ public enum BearAppSupport {
                 tokenStore: tokenStore,
                 allowSecureTokenStatusRead: allowSecureTokenStatusRead,
                 currentAppBundleURL: currentAppBundleURL,
-                appManagedCLIURL: appManagedCLIURL,
-                terminalCLIURL: terminalCLIURL,
+                launcherURL: launcherURL,
                 homeDirectoryURL: homeDirectoryURL
             )
 
@@ -304,8 +296,7 @@ public enum BearAppSupport {
                     fileManager: fileManager,
                     configuration: settings,
                     currentAppBundleURL: currentAppBundleURL,
-                    appManagedCLIURL: appManagedCLIURL,
-                    terminalCLIURL: terminalCLIURL,
+                    launcherURL: launcherURL,
                     homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
@@ -325,8 +316,7 @@ public enum BearAppSupport {
                     fileManager: fileManager,
                     configLoadError: message,
                     currentAppBundleURL: currentAppBundleURL,
-                    appManagedCLIURL: appManagedCLIURL,
-                    terminalCLIURL: terminalCLIURL,
+                    launcherURL: launcherURL,
                     homeDirectoryURL: homeDirectoryURL,
                     bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver,
                     callbackAppBundleURLProvider: callbackAppBundleURLProvider,
@@ -348,8 +338,7 @@ public enum BearAppSupport {
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         allowSecureTokenStatusRead: Bool = false,
         currentAppBundleURL: URL? = nil,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
-        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
+        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) throws -> BearAppSettingsSnapshot {
         var configuration = try BearRuntimeBootstrap.loadConfiguration(
@@ -378,15 +367,10 @@ public enum BearAppSupport {
             )
         }
 
-        let appManagedCLIStatus = appManagedCLIStatus(
+        let launcherStatus = launcherStatus(
             fileManager: fileManager,
-            appManagedCLIURL: appManagedCLIURL,
+            launcherURL: launcherURL,
             currentAppBundleURL: currentAppBundleURL
-        )
-        let terminalCLIStatus = terminalCLIStatus(
-            fileManager: fileManager,
-            terminalCLIURL: terminalCLIURL,
-            appManagedCLIURL: appManagedCLIURL
         )
 
         return BearAppSettingsSnapshot(
@@ -395,21 +379,14 @@ public enum BearAppSupport {
             templatePath: templateURL.path,
             backupsDirectoryPath: BearPaths.backupsDirectoryURL.path,
             backupsIndexPath: BearPaths.backupsIndexURL.path,
-            appManagedCLIPath: appManagedCLIURL.path,
-            appManagedCLIStatus: appManagedCLIStatus.status,
-            appManagedCLIStatusTitle: appManagedCLIStatus.title,
-            appManagedCLIStatusDetail: appManagedCLIStatus.detail,
+            launcherPath: launcherURL.path,
+            launcherStatus: launcherStatus.status,
+            launcherStatusTitle: launcherStatus.title,
+            launcherStatusDetail: launcherStatus.detail,
             processLockPath: BearPaths.processLockURL.path,
             fallbackProcessLockPath: BearPaths.fallbackProcessLockURL.path,
             debugLogPath: BearPaths.debugLogURL.path,
-            terminalCLIPath: terminalCLIURL.path,
-            terminalCLIStatus: terminalCLIStatus.status,
-            terminalCLIStatusTitle: terminalCLIStatus.title,
-            terminalCLIStatusDetail: terminalCLIStatus.detail,
-            cliMaintenancePrompt: cliMaintenancePrompt(
-                appManagedCLIStatus: appManagedCLIStatus,
-                terminalCLIStatus: terminalCLIStatus
-            ),
+            cliMaintenancePrompt: cliMaintenancePrompt(launcherStatus: launcherStatus),
             databasePath: configuration.databasePath,
             inboxTags: configuration.inboxTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
@@ -433,7 +410,7 @@ public enum BearAppSupport {
             toolToggles: toolToggles(for: configuration),
             hostAppSetups: BearHostAppSupport.loadSetups(
                 fileManager: fileManager,
-                appManagedCLIURL: appManagedCLIURL,
+                launcherURL: launcherURL,
                 homeDirectoryURL: homeDirectoryURL
             )
         )
@@ -487,12 +464,12 @@ public enum BearAppSupport {
     }
 
     @discardableResult
-    public static func installBundledCLI(
+    public static func installPublicLauncher(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
-        destinationURL: URL = BearMCPCLILocator.appManagedInstallURL
-    ) throws -> BearBundledCLIInstallReceipt {
-        try BearMCPCLILocator.installBundledExecutable(
+        destinationURL: URL = BearMCPCLILocator.publicLauncherURL
+    ) throws -> BearPublicCLILauncherInstallReceipt {
+        try BearMCPCLILocator.installPublicLauncher(
             fromAppBundleURL: appBundleURL,
             fileManager: fileManager,
             destinationURL: destinationURL
@@ -500,64 +477,59 @@ public enum BearAppSupport {
     }
 
     @discardableResult
-    public static func installTerminalCLI(
-        fileManager: FileManager = .default,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
-        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL
-    ) throws -> BearCLIExecutableInstallReceipt {
-        try BearMCPCLILocator.installUserCommandExecutable(
-            fileManager: fileManager,
-            sourceURL: appManagedCLIURL,
-            destinationURL: terminalCLIURL
-        )
-    }
-
-    @discardableResult
-    public static func reconcileAppManagedCLIIfNeeded(
+    public static func reconcilePublicLauncherIfNeeded(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
-        destinationURL: URL = BearMCPCLILocator.appManagedInstallURL,
+        destinationURL: URL = BearMCPCLILocator.publicLauncherURL,
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
-    ) throws -> BearAppManagedCLIReconciliationResult {
-        let bundledCLIURL: URL
+    ) throws -> BearAppPublicLauncherReconciliationResult {
         do {
-            bundledCLIURL = try bundledCLIExecutableURLResolver(appBundleURL, fileManager)
+            _ = try bundledCLIExecutableURLResolver(appBundleURL, fileManager)
         } catch {
-            return BearAppManagedCLIReconciliationResult(status: .unavailable)
+            return BearAppPublicLauncherReconciliationResult(status: .unavailable)
         }
 
         let destinationPath = destinationURL.path
         let destinationExists = fileManager.fileExists(atPath: destinationPath)
 
         if !destinationExists || !fileManager.isExecutableFile(atPath: destinationPath) {
-            let receipt = try installBundledCLI(
+            let receipt = try installPublicLauncher(
                 fromAppBundleURL: appBundleURL,
                 fileManager: fileManager,
                 destinationURL: destinationURL
             )
 
-            return BearAppManagedCLIReconciliationResult(
+            return BearAppPublicLauncherReconciliationResult(
                 status: destinationExists ? .refreshed : .installed,
                 sourcePath: receipt.sourcePath,
                 destinationPath: receipt.destinationPath
             )
         }
 
-        let contentsMatch: Bool
+        let launcherScript: String
         do {
-            contentsMatch = try BearMCPCLILocator.executableContentsMatch(
-                sourceURL: bundledCLIURL,
-                destinationURL: destinationURL,
+            launcherScript = try BearMCPCLILocator.launcherScript(
+                forAppBundleURL: appBundleURL,
                 fileManager: fileManager
             )
         } catch {
-            let receipt = try installBundledCLI(
+            return BearAppPublicLauncherReconciliationResult(status: .unavailable)
+        }
+
+        let contentsMatch: Bool
+        do {
+            contentsMatch = try BearMCPCLILocator.launcherMatches(
+                expectedScript: launcherScript,
+                destinationURL: destinationURL,
+            )
+        } catch {
+            let receipt = try installPublicLauncher(
                 fromAppBundleURL: appBundleURL,
                 fileManager: fileManager,
                 destinationURL: destinationURL
             )
 
-            return BearAppManagedCLIReconciliationResult(
+            return BearAppPublicLauncherReconciliationResult(
                 status: .refreshed,
                 sourcePath: receipt.sourcePath,
                 destinationPath: receipt.destinationPath
@@ -565,16 +537,16 @@ public enum BearAppSupport {
         }
 
         guard !contentsMatch else {
-            return BearAppManagedCLIReconciliationResult(status: .unchanged)
+            return BearAppPublicLauncherReconciliationResult(status: .unchanged)
         }
 
-        let receipt = try installBundledCLI(
+        let receipt = try installPublicLauncher(
             fromAppBundleURL: appBundleURL,
             fileManager: fileManager,
             destinationURL: destinationURL
         )
 
-        return BearAppManagedCLIReconciliationResult(
+        return BearAppPublicLauncherReconciliationResult(
             status: .refreshed,
             sourcePath: receipt.sourcePath,
             destinationPath: receipt.destinationPath
@@ -846,8 +818,7 @@ public enum BearAppSupport {
         configuration: BearAppSettingsSnapshot? = nil,
         configLoadError: String? = nil,
         currentAppBundleURL: URL? = nil,
-        appManagedCLIURL: URL = BearMCPCLILocator.appManagedInstallURL,
-        terminalCLIURL: URL = BearMCPCLILocator.userCommandInstallURL,
+        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
@@ -934,39 +905,25 @@ public enum BearAppSupport {
             )
         }
 
-        let appManagedCLIStatus = appManagedCLIStatus(
+        let launcherStatus = launcherStatus(
             fileManager: fileManager,
-            appManagedCLIURL: appManagedCLIURL,
+            launcherURL: launcherURL,
             currentAppBundleURL: appBundleURLForBundledCLI,
             bundledCLIExecutableURLResolver: bundledCLIExecutableURLResolver
         )
         checks.append(
             BearDoctorCheck(
-                key: "app-managed-cli",
-                value: appManagedCLIURL.path,
-                status: appManagedCLIStatus.status,
-                detail: appManagedCLIStatus.detail
-            )
-        )
-
-        let shellCLIStatus = terminalCLIStatus(
-            fileManager: fileManager,
-            terminalCLIURL: terminalCLIURL,
-            appManagedCLIURL: appManagedCLIURL
-        )
-        checks.append(
-            BearDoctorCheck(
-                key: "terminal-cli",
-                value: terminalCLIURL.path,
-                status: shellCLIStatus.status,
-                detail: shellCLIStatus.detail
+                key: "public-cli-launcher",
+                value: launcherURL.path,
+                status: launcherStatus.status,
+                detail: launcherStatus.detail
             )
         )
 
         checks.append(
             contentsOf: BearHostAppSupport.diagnostics(
                 fileManager: fileManager,
-                appManagedCLIURL: appManagedCLIURL,
+                launcherURL: launcherURL,
                 homeDirectoryURL: homeDirectoryURL
             )
         )
@@ -1122,27 +1079,27 @@ public enum BearAppSupport {
         return normalized
     }
 
-    private static func appManagedCLIStatus(
+    private static func launcherStatus(
         fileManager: FileManager,
-        appManagedCLIURL: URL,
+        launcherURL: URL,
         currentAppBundleURL: URL?,
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
     ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
-        let appManagedCLIPath = appManagedCLIURL.path
+        let launcherPath = launcherURL.path
 
-        guard fileManager.fileExists(atPath: appManagedCLIPath) else {
+        guard fileManager.fileExists(atPath: launcherPath) else {
             return (
                 .missing,
                 "Not installed",
-                "Install the host CLI once so local MCP apps can launch Bear MCP from a stable path."
+                "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path."
             )
         }
 
-        guard fileManager.isExecutableFile(atPath: appManagedCLIPath) else {
+        guard fileManager.isExecutableFile(atPath: launcherPath) else {
             return (
                 .invalid,
                 "Invalid executable",
-                "The host CLI exists, but it is not executable. Refresh it from this app."
+                "The public launcher exists, but it is not executable. Repair it from this app."
             )
         }
 
@@ -1150,141 +1107,60 @@ public enum BearAppSupport {
             return (
                 .ok,
                 "Installed",
-                "Local MCP apps should use this stable path."
+                "Local MCP hosts and Terminal should use this one launcher path."
             )
         }
 
         do {
-            let bundledCLIURL = try bundledCLIExecutableURLResolver(currentAppBundleURL, fileManager)
-            guard try BearMCPCLILocator.executableContentsMatch(
-                sourceURL: bundledCLIURL,
-                destinationURL: appManagedCLIURL,
+            _ = try bundledCLIExecutableURLResolver(currentAppBundleURL, fileManager)
+            let expectedLauncherScript = try BearMCPCLILocator.launcherScript(
+                forAppBundleURL: currentAppBundleURL,
                 fileManager: fileManager
+            )
+            guard try BearMCPCLILocator.launcherMatches(
+                expectedScript: expectedLauncherScript,
+                destinationURL: launcherURL
             ) else {
                 return (
                     .invalid,
                     "Needs refresh",
-                    "This host CLI is older than the one bundled in the current app build. Refresh it from this app."
+                    "This public launcher does not match the current app build. Repair it from this app."
                 )
             }
         } catch {
             return (
                 .invalid,
-                "Invalid bundled CLI",
-                "This app could not validate its bundled CLI. Rebuild or reinstall Bear MCP.app."
+                "Invalid launcher",
+                "This app could not validate its launcher against the bundled CLI. Rebuild or reinstall Bear MCP.app."
             )
         }
 
         return (
             .ok,
             "Installed",
-            "Local MCP apps should use this stable path."
+            "Local MCP hosts and Terminal should use this one launcher path."
         )
     }
 
     private static func cliMaintenancePrompt(
-        appManagedCLIStatus: (status: BearDoctorCheckStatus, title: String, detail: String),
-        terminalCLIStatus: (status: BearDoctorCheckStatus, title: String, detail: String)
+        launcherStatus: (status: BearDoctorCheckStatus, title: String, detail: String)
     ) -> BearAppCLIMaintenancePrompt? {
-        switch appManagedCLIStatus.status {
+        switch launcherStatus.status {
         case .missing:
             return BearAppCLIMaintenancePrompt(
-                title: "Install the host-facing CLI",
-                detail: appManagedCLIStatus.detail,
-                actions: [.installAppManagedCLI]
+                title: "Install the public launcher",
+                detail: launcherStatus.detail,
+                actions: [.installLauncher]
             )
         case .invalid:
-            var actions: [BearAppCLIMaintenanceAction] = [.refreshAppManagedCLI]
-            if terminalCLIStatus.status == .invalid {
-                actions.append(.refreshTerminalCLI)
-            }
             return BearAppCLIMaintenancePrompt(
-                title: "Refresh the host-facing CLI",
-                detail: appManagedCLIStatus.detail,
-                actions: actions
+                title: "Repair the public launcher",
+                detail: launcherStatus.detail,
+                actions: [.refreshLauncher]
             )
         case .ok, .configured, .notConfigured, .failed:
-            break
+            return nil
         }
-
-        if terminalCLIStatus.status == .invalid {
-            return BearAppCLIMaintenancePrompt(
-                title: "Refresh the Terminal command",
-                detail: terminalCLIStatus.detail,
-                actions: [.refreshTerminalCLI]
-            )
-        }
-
-        return nil
-    }
-
-    private static func terminalCLIStatus(
-        fileManager: FileManager,
-        terminalCLIURL: URL,
-        appManagedCLIURL: URL
-    ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
-        guard
-            fileManager.fileExists(atPath: appManagedCLIURL.path),
-            fileManager.isExecutableFile(atPath: appManagedCLIURL.path)
-        else {
-            return (
-                .missing,
-                "Host CLI required first",
-                "Install the host CLI first. The Terminal command is optional."
-            )
-        }
-
-        if BearMCPCLILocator.hasIndirectFilesystemEntry(at: terminalCLIURL) {
-            return (
-                .invalid,
-                "Needs refresh",
-                "This Terminal command came from an older Bear MCP setup. Refresh it only if you use Bear MCP from Terminal."
-            )
-        }
-
-        guard
-            fileManager.fileExists(atPath: terminalCLIURL.path)
-        else {
-            return (
-                .missing,
-                "Optional",
-                "Install this only if you want to run `bear-mcp` directly from Terminal."
-            )
-        }
-
-        guard fileManager.isExecutableFile(atPath: terminalCLIURL.path) else {
-            return (
-                .invalid,
-                "Invalid executable",
-                "This Terminal command exists, but it is not executable. Refresh it only if you use Bear MCP from Terminal."
-            )
-        }
-
-        do {
-            guard try BearMCPCLILocator.executableContentsMatch(
-                sourceURL: appManagedCLIURL,
-                destinationURL: terminalCLIURL,
-                fileManager: fileManager
-            ) else {
-                return (
-                    .invalid,
-                    "Needs refresh",
-                    "This Terminal command is older than the current host CLI. Refresh it only if you use Bear MCP from Terminal."
-                )
-            }
-        } catch {
-            return (
-                .invalid,
-                "Needs refresh",
-                "This Terminal command could not be validated. Refresh it only if you use Bear MCP from Terminal."
-            )
-        }
-
-        return (
-            .ok,
-            "Installed",
-            "Optional copy for running `bear-mcp` directly from Terminal."
-        )
     }
 
     private static func localizedMessage(for error: Error) -> String {

@@ -42,18 +42,18 @@ CONFIGURATION=release Support/scripts/build-selected-note-helper-app.sh
 
 Install `Bear MCP.app` in `/Applications/Bear MCP.app` for the preferred path. `~/Applications/Bear MCP.app` is also fully supported for user-specific installs, but it should not be treated as the default recommendation in docs or packaging.
 
-Use `Bear MCP.app` to manage the Bear API token in Keychain and to install or refresh the host-facing CLI path at:
+Use `Bear MCP.app` to manage the Bear API token in Keychain and to install or repair the public launcher at:
 
 ```text
-~/Library/Application Support/bear-mcp/bin/bear-mcp
+~/.local/bin/bear-mcp
 ```
 
-MCP clients should point at that stable app-managed CLI path, not at the app executable and not at transient SwiftPM build outputs. Install `Bear MCP Helper.app` only if you want to keep the helper fallback available when the preferred app is absent. Then run `bear-mcp doctor` to confirm the callback host detection state.
+MCP clients should point at that launcher path, not at the app executable and not at transient SwiftPM build outputs. Install `Bear MCP Helper.app` only if you want to keep the helper fallback available when the preferred app is absent. Then run `bear-mcp doctor` to confirm the callback host detection state.
 
 ## Current behavior
 
 - `Bear MCP.app` is now the preferred callback host and preserves the same response-file JSON contract the CLI already used with the helper
-- the local app build now embeds the `bear-mcp` binary inside `Bear MCP.app`, and the dashboard can expose that bundled binary to the stable host-facing path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`
+- the local app build now embeds the `bear-mcp` binary inside `Bear MCP.app`, and the dashboard can install one shared launcher at `~/.local/bin/bear-mcp` that forwards into that bundled binary
 - `/Applications/Bear MCP.app` is the canonical preferred install path; `~/Applications/Bear MCP.app` remains fully supported for user-specific installs
 - the preferred app-hosted route works end-to-end when `Bear MCP.app` is installed and not already running
 - if `Bear MCP.app` is already open in dashboard mode, the CLI now reuses that running app instance through a `bearmcp://x-callback-url/start-selected-note-host?...` request instead of falling back to the helper

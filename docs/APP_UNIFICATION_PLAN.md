@@ -23,13 +23,12 @@ As of 2026-03-28:
 - Phase 3 has now landed incrementally in the repo: selected-note resolution prefers `Bear MCP.app`, preserves the CLI response-file contract, uses `bearmcp://` for callbacks, and now reuses an already-running dashboard instance instead of requiring the app to quit first.
 - Phase 4 has now started in the repo: selected-note token lookup prefers Keychain, the CLI still falls back to legacy `config.token`, diagnostics now report whether the token is coming from Keychain or legacy config, `Bear MCP.app` now has a first token-management UI for save/import/remove flows, and the preferred app-installed selected-note path now injects the managed token inside the app so ordinary CLI startup does not need to probe Keychain.
 - Routine doctor/dashboard status loading now relies on the non-secret Keychain hint by default instead of eagerly reading Keychain, so normal diagnostics do not trigger authorization prompts unless the user explicitly opens token-management actions that need the secret.
-- Phase 5 has now started in the repo: the local app build now embeds `bear-mcp` inside `Bear MCP.app`, the dashboard can install or refresh that bundled CLI to `~/Library/Application Support/bear-mcp/bin/bear-mcp`, and doctor/app diagnostics now distinguish between the bundled app copy and the stable host-facing CLI path.
+- Phase 5 has now started in the repo: the local app build now embeds `bear-mcp` inside `Bear MCP.app`, the dashboard can install or repair one public launcher at `~/.local/bin/bear-mcp`, and doctor/app diagnostics now distinguish between the bundled app copy and that shared launcher path.
 - The onboarding slice has now widened into a more host-agnostic Phase 5 direction: the dashboard/settings surface still includes host-specific guided checks for common apps, but it now also includes generic local-stdio guidance that is not tied to Codex or Claude Desktop.
 - Broader settings editing is no longer just pending: the app now has a real editable configuration flow for core defaults, discovery limits, inbox tags, and tool availability.
 - Tool availability can now be controlled from config/app UI, and the live MCP tool catalog filters out disabled tools.
-- The app can now install a copied terminal executable at `~/bin/bear-mcp` so the CLI is easier to run directly outside host-app onboarding, and older terminal installs are now treated as refreshable migration state rather than the preferred setup.
-- The dashboard now promotes missing/stale host-facing CLI and terminal CLI installs into a proactive action card, so first-run and post-update refresh steps are offered without requiring the user to read raw doctor output first.
-- The host-facing CLI is now auto-reconciled from the current app bundle on normal dashboard launch when possible, which reduces the need for users to manually trigger a refresh after app updates. The optional terminal command remains manual.
+- The dashboard now promotes missing/stale launcher installs into a proactive action card, so first-run and post-update repair steps are offered without requiring the user to read raw doctor output first.
+- The public launcher is now auto-reconciled from the current app bundle on normal dashboard launch when possible, which reduces the need for users to manually trigger a repair after app updates.
 - The first direct terminal utility slice has now landed in the CLI: `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`.
 - The standalone helper app remains available as a narrow helper fallback when the preferred app is not installed.
 - `/Applications/Bear MCP.app` is now the canonical preferred install location. `~/Applications/Bear MCP.app` remains a fully supported user-specific install location.
@@ -136,10 +135,8 @@ The desired architecture is:
   - diagnostics
   - update checks
   - CLI installation/exposure
-- The app should expose both:
-  - a stable host-facing CLI path for MCP hosts
-  - an optional terminal-friendly copied executable for direct shell usage
-- Host-app snippets should continue to point at the stable app-managed absolute path rather than the optional terminal command, because GUI hosts should not depend on shell PATH behavior.
+- The app should expose one stable public launcher path for both MCP hosts and direct shell usage.
+- Host-app snippets should continue to point at that absolute launcher path rather than app-bundle internals or shell-dependent names.
 - The CLI remains a separate executable binary inside the product, used by MCP clients for stdio operation.
 - The app does not become the stdio MCP server.
 
@@ -498,22 +495,18 @@ Recommended options:
 - app bundles the CLI binary internally
 - app offers an “Install CLI” action that copies it to a stable user path
 
-Recommended stable path:
+Recommended public launcher path:
 
-- `~/Library/Application Support/bear-mcp/bin/bear-mcp`
-
-Recommended terminal path:
-
-- `~/bin/bear-mcp`
+- `~/.local/bin/bear-mcp`
 
 Preferred behavior:
 
-- treat the app-managed CLI copy as the source of truth
-- let the app install or refresh a direct executable copy at predictable user paths
+- treat the app-bundled CLI as the source of truth
+- let the app install or repair one small public launcher at a predictable user path
 - avoid exposing long app-bundle-internal paths in onboarding snippets
-- treat copied terminal executables as the polished default, with any older terminal installs refreshed forward
+- avoid maintaining separate copied binaries for GUI hosts and Terminal
 
-The app should also expose the absolute CLI path for users who want to point MCP clients at it directly.
+The app should expose that absolute launcher path for users who want to point MCP clients at it directly.
 
 ## 2026-03-28 Product Follow-Ups
 
@@ -526,13 +519,13 @@ The product should feel like one app with a bundled CLI, not a collection of loo
 Direction:
 
 - `Bear MCP.app` should remain the control center
-- the app should be able to install or refresh the bundled CLI into stable user-facing locations
-- over time, first run and post-update flows should check whether the installed CLI copy is missing or stale and offer a lightweight refresh
-- user-facing setup copy should prefer predictable paths like `~/bin/bear-mcp` over long `Application Support` internals when that can be done safely
+- the app should be able to install or repair one public launcher that forwards into the bundled CLI
+- over time, first run and post-update flows should check whether that launcher is missing or stale and offer a lightweight repair
+- user-facing setup copy should prefer predictable paths like `~/.local/bin/bear-mcp` over long app-bundle internals
 
 Important note:
 
-- the copied `~/bin/bear-mcp` install has now landed, but first-run and post-update refresh prompts for missing or stale copies are still pending
+- the current implementation now uses one shared launcher at `~/.local/bin/bear-mcp`, and first-run plus post-update repair are handled from the app dashboard
 
 ### 2. CLI surface should expand for direct user actions
 
@@ -776,9 +769,8 @@ Tasks:
 Current repo status:
 
 - local `Support/scripts/build-bear-mcp-app.sh` now embeds `bear-mcp` at `Bear MCP.app/Contents/Resources/bin/bear-mcp`: done
-- app dashboard now has install/refresh, copy, and reveal controls for the stable CLI path at `~/Library/Application Support/bear-mcp/bin/bear-mcp`: done
-- doctor/dashboard now report `bundled-cli` and `app-managed-cli` separately, which makes stale installed app bundles obvious: done
-- terminal CLI installs at `~/bin/bear-mcp` now use a copied executable, and the app flags older terminal installs for refresh: done
+- app dashboard now has install/repair, copy, and reveal controls for the public launcher path at `~/.local/bin/bear-mcp`: done
+- doctor/dashboard now report `bundled-cli` and `public-cli-launcher` separately, which makes stale launcher installs obvious: done
 - app settings and doctor now surface host-specific onboarding state for Codex and Claude Desktop, with ChatGPT explicitly called out as remote-only for now: done
 - broader distribution/install polish around signed releases and automatic replacement of an older installed app bundle: still pending
 

@@ -76,88 +76,48 @@ private struct BearMCPOverviewView: View {
     private func cliSection(_ settings: BearAppSettingsSnapshot) -> some View {
         GroupBox("CLI Setup") {
             VStack(alignment: .leading, spacing: 18) {
-                Text("If you connect Bear MCP to Codex, Claude, or another local MCP app, only the host-facing CLI below is required. The Terminal command is optional.")
+                Text("If you connect Bear MCP to Codex, Claude, or another local MCP app, use the one public launcher below. That same path also works from Terminal.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Text("Bear MCP keeps the host-facing CLI aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
+                Text("Bear MCP keeps this launcher aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
-                        Text("Host-facing CLI")
+                        Text("Public launcher")
                             .font(.headline)
-                        statusBadge(title: settings.appManagedCLIStatusTitle, status: settings.appManagedCLIStatus)
+                        statusBadge(title: settings.launcherStatusTitle, status: settings.launcherStatus)
                     }
-                    Text(settings.appManagedCLIPath)
+                    Text(settings.launcherPath)
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
-                    Text(settings.appManagedCLIStatusDetail)
+                    Text(settings.launcherStatusDetail)
                         .font(.callout)
                         .foregroundStyle(.secondary)
 
                     HStack(spacing: 10) {
-                        if let title = hostCLIPrimaryActionTitle(for: settings) {
+                        if let title = launcherPrimaryActionTitle(for: settings) {
                             Button(title) {
-                                model.installBundledCLI()
+                                model.installPublicLauncher()
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(model.currentBundledCLIPath == nil)
                         }
 
-                        Button("Copy Host Path") {
-                            model.copyInstalledCLIPath()
+                        Button("Copy Launcher Path") {
+                            model.copyLauncherPath()
                         }
                         .buttonStyle(.bordered)
                     }
                 }
 
-                Divider()
-
-                DisclosureGroup {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(settings.terminalCLIPath)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.enabled)
-
-                        Text(settings.terminalCLIStatusDetail)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-
-                        HStack(spacing: 10) {
-                            if let title = terminalCLIActionTitle(for: settings) {
-                                Button(title) {
-                                    model.installTerminalCLI()
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            Button("Copy Terminal Path") {
-                                model.copyTerminalCLIPath()
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                    .padding(.top, 8)
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text("Optional Terminal command")
-                                .font(.headline)
-                            terminalBadge(for: settings)
-                        }
-                        Text("Only install this if you want to run Bear MCP directly from Terminal.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                    }
-                }
-
-                if let currentBundledCLIPath = model.currentBundledCLIPath {
-                    Text("This app installs the host CLI and the optional Terminal command from its bundled `bear-mcp` binary.")
+                if model.currentBundledCLIPath != nil {
+                    Text("This app installs one launcher at `~/.local/bin/bear-mcp` and routes it to the bundled `bear-mcp` binary inside the current app.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("This app build does not include the bundled CLI yet, so install actions stay unavailable until the app is rebuilt.")
+                    Text("This app build does not include the bundled CLI yet, so launcher actions stay unavailable until the app is rebuilt.")
                         .font(.callout)
                         .foregroundStyle(.red)
                 }
@@ -716,37 +676,14 @@ private func statusBadge(title: String, status: BearDoctorCheckStatus) -> some V
         .clipShape(Capsule())
 }
 
-private func hostCLIPrimaryActionTitle(for settings: BearAppSettingsSnapshot) -> String? {
-    switch settings.appManagedCLIStatus {
+private func launcherPrimaryActionTitle(for settings: BearAppSettingsSnapshot) -> String? {
+    switch settings.launcherStatus {
     case .missing:
-        return "Install Host CLI"
+        return "Install Launcher"
     case .invalid:
-        return "Refresh Host CLI"
+        return "Repair Launcher"
     case .ok, .configured, .notConfigured, .failed:
         return nil
-    }
-}
-
-private func terminalCLIActionTitle(for settings: BearAppSettingsSnapshot) -> String? {
-    switch settings.terminalCLIStatus {
-    case .missing:
-        return "Install Terminal Command"
-    case .invalid:
-        return "Refresh Terminal Command"
-    case .ok, .configured, .notConfigured, .failed:
-        return nil
-    }
-}
-
-@ViewBuilder
-private func terminalBadge(for settings: BearAppSettingsSnapshot) -> some View {
-    switch settings.terminalCLIStatus {
-    case .invalid:
-        statusBadge(title: settings.terminalCLIStatusTitle, status: settings.terminalCLIStatus)
-    case .ok:
-        statusBadge(title: "Installed", status: .ok)
-    case .missing, .configured, .notConfigured, .failed:
-        neutralBadge(title: "Optional")
     }
 }
 
@@ -759,16 +696,6 @@ private func statusSymbol(for status: BearDoctorCheckStatus) -> String {
     case .invalid, .failed:
         return "xmark.octagon.fill"
     }
-}
-
-private func neutralBadge(title: String) -> some View {
-    Text(title)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.secondary.opacity(0.12))
-        .foregroundStyle(.secondary)
-        .clipShape(Capsule())
 }
 
 private func statusColor(for status: BearDoctorCheckStatus) -> Color {

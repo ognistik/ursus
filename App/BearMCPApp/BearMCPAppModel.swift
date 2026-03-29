@@ -61,7 +61,7 @@ final class BearMCPAppModel: ObservableObject {
         applyDraft(from: dashboard.settings)
 
         if !runsHeadlessCallbackHost {
-            reconcileAppManagedCLIAutomatically()
+            reconcilePublicLauncherAutomatically()
         }
     }
 
@@ -192,22 +192,10 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
-    func installBundledCLI() {
+    func installPublicLauncher() {
         do {
-            let receipt = try BearAppSupport.installBundledCLI(fromAppBundleURL: Bundle.main.bundleURL)
-            cliStatusMessage = "CLI installed at \(receipt.destinationPath). MCP hosts should use that path."
-            cliStatusError = nil
-            reload()
-        } catch {
-            cliStatusMessage = nil
-            cliStatusError = localizedMessage(for: error)
-        }
-    }
-
-    func installTerminalCLI() {
-        do {
-            let receipt = try BearAppSupport.installTerminalCLI()
-            cliStatusMessage = "Terminal CLI installed at \(receipt.destinationPath) from \(receipt.sourcePath)"
+            let receipt = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
+            cliStatusMessage = "Launcher installed at \(receipt.destinationPath). Local MCP hosts and Terminal should use that path."
             cliStatusError = nil
             reload()
         } catch {
@@ -218,10 +206,8 @@ final class BearMCPAppModel: ObservableObject {
 
     func performCLIMaintenanceAction(_ action: BearAppCLIMaintenanceAction) {
         switch action {
-        case .installAppManagedCLI, .refreshAppManagedCLI:
-            installBundledCLI()
-        case .installTerminalCLI, .refreshTerminalCLI:
-            installTerminalCLI()
+        case .installLauncher, .refreshLauncher:
+            installPublicLauncher()
         }
     }
 
@@ -237,21 +223,12 @@ final class BearMCPAppModel: ObservableObject {
         NSWorkspace.shared.open(URL(fileURLWithPath: path))
     }
 
-    func copyInstalledCLIPath() {
-        let path = installedCLIPath
+    func copyLauncherPath() {
+        let path = launcherPath
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(path, forType: .string)
-        cliStatusMessage = "Copied CLI path: \(path)"
-        cliStatusError = nil
-    }
-
-    func copyTerminalCLIPath() {
-        let path = terminalCLIPath
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(path, forType: .string)
-        cliStatusMessage = "Copied terminal CLI path: \(path)"
+        cliStatusMessage = "Copied launcher path: \(path)"
         cliStatusError = nil
     }
 
@@ -349,12 +326,8 @@ final class BearMCPAppModel: ObservableObject {
         try? BearMCPCLILocator.bundledExecutableURL(forAppBundleURL: Bundle.main.bundleURL).path
     }
 
-    var installedCLIPath: String {
-        dashboard.settings?.appManagedCLIPath ?? BearMCPCLILocator.appManagedInstallURL.path
-    }
-
-    var terminalCLIPath: String {
-        dashboard.settings?.terminalCLIPath ?? BearMCPCLILocator.userCommandInstallURL.path
+    var launcherPath: String {
+        dashboard.settings?.launcherPath ?? BearMCPCLILocator.publicLauncherURL.path
     }
 
     private var parsedInboxTags: [String] {
@@ -417,9 +390,9 @@ final class BearMCPAppModel: ObservableObject {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 
-    private func reconcileAppManagedCLIAutomatically() {
+    private func reconcilePublicLauncherAutomatically() {
         do {
-            let result = try BearAppSupport.reconcileAppManagedCLIIfNeeded(
+            let result = try BearAppSupport.reconcilePublicLauncherIfNeeded(
                 fromAppBundleURL: Bundle.main.bundleURL
             )
 
@@ -429,12 +402,12 @@ final class BearMCPAppModel: ObservableObject {
 
             reload()
 
-            let destinationPath = result.destinationPath ?? installedCLIPath
+            let destinationPath = result.destinationPath ?? launcherPath
             switch result.status {
             case .installed:
-                cliStatusMessage = "Host-facing CLI installed automatically at \(destinationPath)."
+                cliStatusMessage = "Public launcher installed automatically at \(destinationPath)."
             case .refreshed:
-                cliStatusMessage = "Host-facing CLI refreshed automatically at \(destinationPath)."
+                cliStatusMessage = "Public launcher repaired automatically at \(destinationPath)."
             case .unchanged, .unavailable:
                 cliStatusMessage = nil
             }
