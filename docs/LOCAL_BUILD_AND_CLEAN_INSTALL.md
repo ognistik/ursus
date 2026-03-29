@@ -57,14 +57,12 @@ open "$HOME/Applications/Bear MCP.app"
 
 ## Clean Install Reset
 
-If you want to test onboarding from the beginning, remove the app, config, Bear MCP runtime files, the public launcher, and the Bear token stored in Keychain.
+If you want to test onboarding from the beginning, remove the app, config, Bear MCP runtime files, and the public launcher.
 
 Important:
 
-- deleting the app bundle alone does **not** remove the Bear token from Keychain
-- the current Keychain item is:
-  - service: `com.ognistik.bear-mcp`
-  - account: `selected-note-token`
+- deleting the app bundle alone does **not** remove Bear MCP's config
+- the selected-note token now lives in `~/.config/bear-mcp/config.json`
 
 Fully reset the local Bear MCP state:
 

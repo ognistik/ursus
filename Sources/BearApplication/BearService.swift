@@ -5,7 +5,6 @@ import Logging
 
 public final class BearService: @unchecked Sendable {
     private let configuration: BearConfiguration
-    private let tokenStore: any BearSelectedNoteTokenStore
     private let readStore: BearReadStore
     private let writeTransport: BearWriteTransport
     private let backupStore: (any BearBackupStore)?
@@ -29,11 +28,9 @@ public final class BearService: @unchecked Sendable {
         readStore: BearReadStore,
         writeTransport: BearWriteTransport,
         backupStore: (any BearBackupStore)? = nil,
-        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore(),
         logger: Logger
     ) {
         self.configuration = configuration
-        self.tokenStore = tokenStore
         self.readStore = readStore
         self.writeTransport = writeTransport
         self.backupStore = backupStore
@@ -144,7 +141,7 @@ public final class BearService: @unchecked Sendable {
             return noteID
         }
 
-        guard let token = try BearSelectedNoteTokenResolver.resolve(configuration: configuration, tokenStore: tokenStore)?.value else {
+        guard let token = BearSelectedNoteTokenResolver.resolve(configuration: configuration)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }
 

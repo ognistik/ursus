@@ -4,58 +4,6 @@ import BearXCallback
 import Foundation
 import Testing
 
-private final class TestSelectedNoteTokenStore: BearSelectedNoteTokenStore, @unchecked Sendable {
-    var storedToken: String?
-    var readError: Error?
-
-    init(storedToken: String? = nil, readError: Error? = nil) {
-        self.storedToken = storedToken
-        self.readError = readError
-    }
-
-    func readToken() throws -> String? {
-        if let readError {
-            throw readError
-        }
-        return storedToken
-    }
-
-    func saveToken(_ token: String) throws {
-        storedToken = token
-    }
-
-    func removeToken() throws {
-        storedToken = nil
-    }
-}
-
-private final class TestTrustedApplicationAwareSelectedNoteTokenStore: BearTrustedApplicationAwareSelectedNoteTokenStore, @unchecked Sendable {
-    var storedToken: String?
-    var savedTrustedApplicationPaths: [String] = []
-    var refreshedTrustedApplicationPaths: [String] = []
-
-    func readToken() throws -> String? {
-        storedToken
-    }
-
-    func saveToken(_ token: String) throws {
-        storedToken = token
-    }
-
-    func saveToken(_ token: String, trustedApplicationPaths: [String]) throws {
-        storedToken = token
-        savedTrustedApplicationPaths = trustedApplicationPaths
-    }
-
-    func refreshTrustedApplicationPaths(_ trustedApplicationPaths: [String]) throws {
-        refreshedTrustedApplicationPaths = trustedApplicationPaths
-    }
-
-    func removeToken() throws {
-        storedToken = nil
-    }
-}
-
 @Test
 func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let fileManager = FileManager.default
@@ -91,7 +39,6 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(),
         launcherURL: launcherURL,
         homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
@@ -109,9 +56,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.launcherStatusDetail == "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path.")
     #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [BearAppCLIMaintenanceAction.installLauncher])
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
-    #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == false)
-    #expect(dashboard.settings?.selectedNoteLegacyConfigTokenDetected == true)
-    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Legacy config.json fallback")
+    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Stored in config.json")
 
     let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
     #expect(bundledCLIDiagnostic.status == BearDoctorCheckStatus.missing)
@@ -169,8 +114,6 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
-        allowSecureTokenStatusRead: true,
         currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         bundledCLIExecutableURLResolver: { bundleURL, _ in
@@ -275,7 +218,6 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(),
         launcherURL: launcherURL,
         homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
@@ -340,7 +282,6 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(),
         currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         bundledCLIExecutableURLResolver: { bundleURL, _ in
@@ -653,7 +594,6 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(),
         launcherURL: launcherURL,
         homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
@@ -676,7 +616,7 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
 }
 
 @Test
-func dashboardSnapshotPrefersKeychainStatusWhenAvailable() throws {
+func dashboardSnapshotReportsConfigBackedTokenStatus() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -699,32 +639,26 @@ func dashboardSnapshotPrefersKeychainStatusWhenAvailable() throws {
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
-        allowSecureTokenStatusRead: true,
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
     )
 
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
-    #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == true)
-    #expect(dashboard.settings?.selectedNoteLegacyConfigTokenDetected == true)
-    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Stored in Keychain")
+    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Stored in config.json")
     #expect(dashboard.diagnostics.contains(where: {
         $0.key == "selected-note-token"
-            && $0.value == "Stored in Keychain"
-            && ($0.detail?.contains("legacy plaintext token") ?? false)
+            && $0.value == "Stored in config.json"
+            && ($0.detail?.contains("config.json") ?? false)
     }))
 }
 
 @Test
-func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp() throws {
+func tokenManagementActionsSaveLoadAndRemoveUpdateConfig() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let tokenStore = TestSelectedNoteTokenStore()
-
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
     {
@@ -737,35 +671,23 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
     }
 
     try BearAppSupport.saveSelectedNoteToken(
-        "new-keychain-token",
+        "new-config-token",
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
+        templateURL: templateURL
     )
-    #expect(tokenStore.storedToken == "new-keychain-token")
     let savedConfiguration = try BearConfiguration.load(from: configFileURL)
-    #expect(savedConfiguration.token == nil)
-    #expect(savedConfiguration.selectedNoteTokenStoredInKeychain == true)
+    #expect(savedConfiguration.token == "new-config-token")
 
-    try """
-    {
-      "token" : "import-me"
-    }
-    """.write(to: configFileURL, atomically: true, encoding: .utf8)
-    let imported = try BearAppSupport.importSelectedNoteTokenFromConfig(
+    let resolved = try BearAppSupport.loadResolvedSelectedNoteToken(
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
+        templateURL: templateURL
     )
-    #expect(imported)
-    #expect(tokenStore.storedToken == "import-me")
-    let importedConfiguration = try BearConfiguration.load(from: configFileURL)
-    #expect(importedConfiguration.token == nil)
-    #expect(importedConfiguration.selectedNoteTokenStoredInKeychain == true)
+    #expect(resolved?.value == "new-config-token")
+    #expect(resolved?.source == .config)
 
     try """
     {
@@ -776,149 +698,19 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
+        templateURL: templateURL
     )
-    #expect(tokenStore.storedToken == nil)
     let removedConfiguration = try BearConfiguration.load(from: configFileURL)
     #expect(removedConfiguration.token == nil)
-    #expect(removedConfiguration.selectedNoteTokenStoredInKeychain == false)
 }
 
 @Test
-func saveSelectedNoteTokenIncludesAppHelperAndBundledCLIInTrustedApplications() throws {
-    let fileManager = FileManager.default
-    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
-    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
-    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
-    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appExecutableURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("MacOS", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: false)
-    let helperExecutableURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Helpers", isDirectory: true)
-        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("MacOS", isDirectory: true)
-        .appendingPathComponent("bear-mcp-helper", isDirectory: false)
-    let bundledCLIURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
-    let tokenStore = TestTrustedApplicationAwareSelectedNoteTokenStore()
-
-    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: appExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: helperExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
-    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    try Data().write(to: appExecutableURL)
-    try Data().write(to: helperExecutableURL)
-    try Data().write(to: bundledCLIURL)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appExecutableURL.path)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperExecutableURL.path)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
-    defer {
-        try? fileManager.removeItem(at: tempRoot)
-    }
-
-    try BearAppSupport.saveSelectedNoteToken(
-        "new-keychain-token",
-        currentAppBundleURL: appBundleURL,
-        fileManager: fileManager,
-        configDirectoryURL: configDirectoryURL,
-        configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
-    )
-
-    #expect(tokenStore.storedToken == "new-keychain-token")
-    #expect(tokenStore.savedTrustedApplicationPaths == [
-        appExecutableURL.standardizedFileURL.path,
-        bundledCLIURL.standardizedFileURL.path,
-        helperExecutableURL.standardizedFileURL.path,
-    ].sorted())
-}
-
-@Test
-func repairSelectedNoteTokenTrustedApplicationsUsesCurrentAppBundleArtifacts() throws {
-    let fileManager = FileManager.default
-    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
-    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
-    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
-    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appExecutableURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("MacOS", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: false)
-    let helperExecutableURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Library", isDirectory: true)
-        .appendingPathComponent("Helpers", isDirectory: true)
-        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("MacOS", isDirectory: true)
-        .appendingPathComponent("bear-mcp-helper", isDirectory: false)
-    let bundledCLIURL = appBundleURL
-        .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
-    let tokenStore = TestTrustedApplicationAwareSelectedNoteTokenStore()
-
-    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: appExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: helperExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try """
-    {
-      "selectedNoteTokenStoredInKeychain" : true
-    }
-    """.write(to: configFileURL, atomically: true, encoding: .utf8)
-    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    try Data().write(to: appExecutableURL)
-    try Data().write(to: helperExecutableURL)
-    try Data().write(to: bundledCLIURL)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appExecutableURL.path)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperExecutableURL.path)
-    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
-    defer {
-        try? fileManager.removeItem(at: tempRoot)
-    }
-
-    let repaired = try BearAppSupport.repairSelectedNoteTokenTrustedApplicationsIfNeeded(
-        currentAppBundleURL: appBundleURL,
-        fileManager: fileManager,
-        configDirectoryURL: configDirectoryURL,
-        configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
-    )
-
-    #expect(repaired)
-    #expect(tokenStore.refreshedTrustedApplicationPaths == [
-        appExecutableURL.standardizedFileURL.path,
-        bundledCLIURL.standardizedFileURL.path,
-        helperExecutableURL.standardizedFileURL.path,
-    ].sorted())
-}
-
-@Test
-func loadResolvedSelectedNoteTokenMatchesEffectiveLookupOrder() throws {
+func loadResolvedSelectedNoteTokenReadsConfigValue() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let tokenStore = TestSelectedNoteTokenStore(storedToken: "keychain-token")
-
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
     {
@@ -934,12 +726,11 @@ func loadResolvedSelectedNoteTokenMatchesEffectiveLookupOrder() throws {
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: tokenStore
+        templateURL: templateURL
     )
 
-    #expect(resolved?.value == "keychain-token")
-    #expect(resolved?.source == .keychain)
+    #expect(resolved?.value == "legacy-token")
+    #expect(resolved?.source == .config)
 }
 
 @Test
@@ -1039,7 +830,7 @@ func selectedNoteAppHostStartsAndCompletesCallbackSessionInsideDashboardInstance
 }
 
 @Test
-func prepareManagedSelectedNoteRequestURLInjectsTokenForTokenlessSelectedNoteRequest() throws {
+func prepareManagedSelectedNoteRequestURLRequiresConfiguredTokenForTokenlessSelectedNoteRequest() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -1048,6 +839,43 @@ func prepareManagedSelectedNoteRequestURLInjectsTokenForTokenlessSelectedNoteReq
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    do {
+        _ = try BearAppSupport.prepareManagedSelectedNoteRequestURL(
+            URL(string: "bear://x-callback-url/open-note?selected=yes&open_note=no&show_window=no")!,
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        Issue.record("Expected missing-token error.")
+    } catch let error as BearError {
+        guard case .invalidInput(let message) = error else {
+            Issue.record("Expected invalid-input error, got \(error).")
+            return
+        }
+        #expect(message.contains("configured Bear API token"))
+    }
+}
+
+@Test
+func prepareManagedSelectedNoteRequestURLInjectsConfigToken() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try """
+    {
+      "token" : "config-token"
+    }
+    """.write(to: configFileURL, atomically: true, encoding: .utf8)
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
     defer {
         try? fileManager.removeItem(at: tempRoot)
@@ -1059,21 +887,18 @@ func prepareManagedSelectedNoteRequestURLInjectsTokenForTokenlessSelectedNoteReq
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token")
+        templateURL: templateURL
     )
 
     let items = Dictionary(uniqueKeysWithValues: (URLComponents(url: preparedURL, resolvingAgainstBaseURL: false)?.queryItems ?? []).compactMap { item in
         item.value.map { (item.name, $0) }
     })
     #expect(items["selected"] == "yes")
-    #expect(items["token"] == "keychain-token")
-    #expect(items["open_note"] == "no")
-    #expect(items["show_window"] == "no")
+    #expect(items["token"] == "config-token")
 }
 
 @Test
-func loadSettingsSnapshotRepairsMissingKeychainHintWhenTheAppCanReadTheToken() throws {
+func loadSettingsSnapshotReportsMissingTokenAsNotConfigured() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -1087,57 +912,20 @@ func loadSettingsSnapshotRepairsMissingKeychainHintWhenTheAppCanReadTheToken() t
         try? fileManager.removeItem(at: tempRoot)
     }
 
-    let settings = try BearAppSupport.loadSettingsSnapshot(
-        fileManager: fileManager,
-        configDirectoryURL: configDirectoryURL,
-        configFileURL: configFileURL,
-        templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(storedToken: "keychain-token"),
-        allowSecureTokenStatusRead: true
-    )
-
-    #expect(settings.selectedNoteTokenStoredInKeychain == true)
-    #expect(try BearConfiguration.load(from: configFileURL).selectedNoteTokenStoredInKeychain == true)
-}
-
-@Test
-func dashboardSnapshotUsesKeychainHintWithoutReadingSecureStorageByDefault() throws {
-    let fileManager = FileManager.default
-    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
-    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
-    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-
-    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
-    try """
-    {
-      "selectedNoteTokenStoredInKeychain" : true
-    }
-    """.write(to: configFileURL, atomically: true, encoding: .utf8)
-    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
-    defer {
-        try? fileManager.removeItem(at: tempRoot)
-    }
-
     let dashboard = BearAppSupport.loadDashboardSnapshot(
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
         templateURL: templateURL,
-        tokenStore: TestSelectedNoteTokenStore(
-            readError: BearError.configuration("Keychain should not be read during dashboard load")
-        ),
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
     )
 
-    #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
-    #expect(dashboard.settings?.selectedNoteTokenStoredInKeychain == true)
-    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Managed in Keychain")
+    #expect(dashboard.settings?.selectedNoteTokenConfigured == false)
+    #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Not configured")
     #expect(dashboard.diagnostics.contains(where: {
         $0.key == "selected-note-token"
-            && $0.value == "Managed in Keychain"
-            && ($0.detail?.contains("avoid re-reading it") ?? false)
+            && $0.value == "Not configured"
     }))
 }
 

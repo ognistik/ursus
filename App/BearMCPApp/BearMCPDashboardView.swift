@@ -584,7 +584,7 @@ private struct BearMCPTokenView: View {
                                     Text("Stored Token")
                                         .font(.headline)
 
-                                    if model.storedTokenHasBeenExplicitlyLoaded, let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                                    if let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
                                         HStack(spacing: 10) {
                                             Text(displayedToken)
                                                 .font(.body.monospaced())
@@ -597,11 +597,11 @@ private struct BearMCPTokenView: View {
                                             .buttonStyle(.borderless)
                                         }
                                     } else {
-                                        Text("Not loaded during routine app use. Reveal it only when you intentionally want to read the secret from Keychain.")
+                                        Text("Token is configured but could not be loaded from config.json right now.")
                                             .font(.callout)
                                             .foregroundStyle(.secondary)
 
-                                        Button("Load from Keychain") {
+                                        Button("Reload Token") {
                                             model.loadStoredSelectedNoteToken()
                                         }
                                         .buttonStyle(.bordered)
@@ -612,28 +612,21 @@ private struct BearMCPTokenView: View {
                             SecureField(settings.selectedNoteTokenConfigured ? "Paste a new Bear API token to replace the current one" : "Paste Bear API token", text: $model.tokenDraft)
                                 .textFieldStyle(.roundedBorder)
 
-                            Text("Save stores the token in macOS Keychain so the configuration file can stay non-secret.")
+                            Text("Save stores the token in Bear MCP's config.json. The app keeps it hidden by default, but it is not stored in macOS Keychain.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
 
                             HStack(spacing: 10) {
-                                Button("Save to Keychain") {
+                                Button("Save Token") {
                                     model.saveSelectedNoteToken()
                                 }
                                 .buttonStyle(.borderedProminent)
-
-                                if settings.selectedNoteLegacyConfigTokenDetected && !settings.selectedNoteTokenStoredInKeychain {
-                                    Button("Import from config.json") {
-                                        model.importSelectedNoteTokenFromConfig()
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
 
                                 Button("Remove Token", role: .destructive) {
                                     model.removeSelectedNoteToken()
                                 }
                                 .buttonStyle(.bordered)
-                                .disabled(!settings.selectedNoteTokenConfigured && !settings.selectedNoteLegacyConfigTokenDetected)
+                                .disabled(!settings.selectedNoteTokenConfigured)
                             }
 
                             if let message = model.tokenStatusMessage {

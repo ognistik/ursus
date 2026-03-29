@@ -4,8 +4,7 @@ public enum BearSelectedNoteRequestAuthorizer {
     public static func prepareManagedRequestURL(
         _ requestURL: URL,
         fileManager: FileManager = .default,
-        configFileURL: URL = BearPaths.configFileURL,
-        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
+        configFileURL: URL = BearPaths.configFileURL
     ) throws -> URL {
         guard requiresManagedSelectedNoteTokenInjection(requestURL) else {
             return requestURL
@@ -18,10 +17,7 @@ public enum BearSelectedNoteRequestAuthorizer {
             configuration = .default
         }
 
-        guard let token = try BearSelectedNoteTokenResolver.resolve(
-            configuration: configuration,
-            tokenStore: tokenStore
-        )?.value else {
+        guard let token = BearSelectedNoteTokenResolver.resolve(configuration: configuration)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }
 

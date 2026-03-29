@@ -42,7 +42,7 @@ CONFIGURATION=release Support/scripts/build-selected-note-helper-app.sh
 
 Install `Bear MCP.app` in `/Applications/Bear MCP.app` for the preferred path. `~/Applications/Bear MCP.app` is also fully supported for user-specific installs, but it should not be treated as the default recommendation in docs or packaging.
 
-Use `Bear MCP.app` to manage the Bear API token in Keychain and to install or repair the public launcher at:
+Use `Bear MCP.app` to manage the Bear API token in Bear MCP's own config and to install or repair the public launcher at:
 
 ```text
 ~/.local/bin/bear-mcp

@@ -94,7 +94,7 @@ Current direction:
 
 ## Current Code Status
 
-As of 2026-03-28, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the current Phase 4 Keychain slice refined further so selected-note token access stays inside `Bear MCP.app`, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app now installs and repairs one public launcher at `~/.local/bin/bear-mcp` that forwards into the bundled CLI, normal dashboard launch automatically reconciles that launcher when it is missing or stale, doctor now reports both generic local-stdio readiness and the shared launcher path, the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive launcher repair messaging when auto-management is not enough, and the terminal-facing CLI now has its first direct user utility flags for `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
+As of 2026-03-29, the repo contains a working initial scaffold plus note-tag mutation support, with Phases 1, 2, and Phase 3 of the app-unification plan now landed and manually validated end-to-end against the real Bear app, the earlier Phase 4 Keychain experiment now removed in favor of a simpler config-only selected-note token model, and the current Phase 5 work now broadened in a more host-agnostic direction: the local app build embeds the `bear-mcp` CLI inside `Bear MCP.app`, the app now installs and repairs one public launcher at `~/.local/bin/bear-mcp` that forwards into the bundled CLI, normal dashboard launch automatically reconciles that launcher when it is missing or stale, doctor now reports both generic local-stdio readiness and the shared launcher path, the dashboard has moved beyond read-only diagnostics into a real editable configuration surface with tool enable/disable controls plus proactive launcher repair messaging when auto-management is not enough, and the terminal-facing CLI now has its first direct user utility flags for `--new-note`, `--apply-template`, and CLI-only note trashing through `--delete-note`. Host-specific snippets for Codex and Claude Desktop remain convenience guidance rather than the primary product direction. The app is increasingly the canonical product surface; the standalone helper remains only as a narrow fallback when the preferred app is missing.
 
 Implemented:
 
@@ -102,9 +102,9 @@ Implemented:
 - real Bear DB reader against the installed Bear schema
 - transient SQLite busy/locked retry handling on normal Bear DB reads
 - config/bootstrap path helpers
-- shared selected-note token resolution that prefers Keychain and falls back to legacy config
-- non-secret config metadata that records whether the selected-note token is expected to live in Keychain, so CLI startup and tool exposure do not need an eager Keychain read
-- routine doctor/dashboard settings loading now uses that non-secret Keychain hint instead of eagerly re-reading Keychain, so normal diagnostics avoid authorization prompts unless the user explicitly loads or changes the token
+- shared selected-note token resolution backed directly by `config.json`
+- app token-management controls that save, reveal, and remove the selected-note token directly in config instead of relying on macOS Keychain
+- config writes now harden `config.json` to user-only file permissions (`0600`) after save
 - single-file create-note template support
 - runtime lock handling that prefers a shared process lock and falls back to temp locks when Codex launches additional stdio children
 - stdio runtime shutdown that exits when the MCP connection closes or the original parent process disappears
@@ -121,7 +121,7 @@ Implemented:
 - embedded selected-note helper app support inside `Bear MCP.app/Contents/Library/Helpers`, so one installed app can launch an on-demand background callback host without stealing focus
 - shared selected-note request authorization that can fill in a tokenless selected-note Bear URL before launching Bear, keeping managed-token access available to both the app shell and the helper shell
 - app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
-- app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
+- app token-management controls for saving, revealing, and removing the selected-note token directly in config
 - local app build script for unsigned development bundles
 - local app build script now embedding the `bear-mcp` CLI at `Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - shared bundled-CLI locator plus public-launcher install support for `~/.local/bin/bear-mcp`
@@ -157,7 +157,7 @@ Verified locally:
 - `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
 - confirmed the local Debug app bundle now contains `.build/BearMCPApp/Build/Products/Debug/Bear MCP.app/Contents/Resources/bin/bear-mcp`
 - confirmed `swift run bear-mcp doctor` now reports `bundled-cli`, `public-cli-launcher`, and `host-local-stdio`, and will flag an older launcher that has not yet been refreshed from the embedded CLI
-- refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/.local/bin/bear-mcp`, and confirmed the public launcher now reports `bundled-cli` plus `public-cli-launcher` as healthy while describing the selected-note token as `Managed in Keychain` without a routine secure read
+- refreshed `~/Applications/Bear MCP.app` from the current Debug build, installed `~/.local/bin/bear-mcp`, and confirmed the public launcher now reports `bundled-cli` plus `public-cli-launcher` as healthy while describing the selected-note token as config-backed
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was not running, resolving the selected note through the installed app path with `callbackAppInstalled=true`
 - manual MCP stdio `bear_get_notes` call with `selected: true` against the real Bear app while `Bear MCP.app` was already open in dashboard mode, resolving the selected note through the running app with `host=app reason=preferred-app-running reuseExistingInstance=true`
 

@@ -22,7 +22,6 @@ func createInteractiveNoteUsesSelectedNoteTagsAndEditingPresentation() async thr
         configuration: makeCLIUtilityConfiguration(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
-        tokenStore: CLIUtilityEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceCLIUtilityTests")
     )
 
@@ -60,7 +59,6 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
         configuration: makeCLIUtilityConfiguration(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
-        tokenStore: CLIUtilityEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceCLIUtilityTests")
     )
 
@@ -93,7 +91,6 @@ func createInteractiveNoteDropsImplicitParentTagsFromSelectedNote() async throws
         configuration: makeCLIUtilityConfiguration(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
-        tokenStore: CLIUtilityEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceCLIUtilityTests")
     )
 
@@ -125,7 +122,6 @@ func applyTemplateToTargetsUsesSelectedNoteWhenNoExplicitSelectorIsPassed() asyn
         configuration: makeCLIUtilityConfiguration(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
-        tokenStore: CLIUtilityEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceCLIUtilityTests")
     )
 
@@ -156,7 +152,6 @@ func trashNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
         configuration: makeCLIUtilityConfiguration(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
-        tokenStore: CLIUtilityEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceCLIUtilityTests")
     )
 
@@ -221,12 +216,6 @@ private func makeCLIUtilityNote(
         trashed: false,
         encrypted: false
     )
-}
-
-private final class CLIUtilityEmptySelectedNoteTokenStore: BearSelectedNoteTokenStore, @unchecked Sendable {
-    func readToken() throws -> String? { nil }
-    func saveToken(_ token: String) throws {}
-    func removeToken() throws {}
 }
 
 private final class CLIUtilityReadStore: @unchecked Sendable, BearReadStore {

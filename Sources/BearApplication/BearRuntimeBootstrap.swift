@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) legacyConfigToken=\(configuration.token != nil) selectedNoteTokenStoredInKeychain=\(configuration.selectedNoteTokenStoredInKeychain) selectedNoteConfiguredHint=\(BearSelectedNoteTokenResolver.configuredHint(configuration: configuration))"
+            "config.loaded path=\(configFileURL.path) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) openNoteInEditModeByDefault=\(configuration.openNoteInEditModeByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) maxDiscoveryLimit=\(configuration.maxDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) maxSnippetLength=\(configuration.maxSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) tokenConfigured=\(BearSelectedNoteTokenResolver.configured(configuration: configuration))"
         )
         return configuration
     }
@@ -57,7 +57,7 @@ public enum BearRuntimeBootstrap {
             templateURL: templateURL
         )
         try writeConfiguration(configuration, to: configFileURL)
-        BearDebugLog.append("config.saved path=\(configFileURL.path) legacyConfigToken=\(configuration.token != nil)")
+        BearDebugLog.append("config.saved path=\(configFileURL.path) tokenConfigured=\(configuration.token != nil)")
         return configuration
     }
 
@@ -97,6 +97,7 @@ public enum BearRuntimeBootstrap {
         let encoder = BearJSON.makeEncoder()
         let data = try encoder.encode(configuration)
         try data.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
     }
 
     private static let defaultNoteTemplate = """

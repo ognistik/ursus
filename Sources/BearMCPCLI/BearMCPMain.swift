@@ -73,7 +73,7 @@ struct BearMCPMain {
         let server = await BearMCPServer(
             service: service,
             configuration: configuration,
-            selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configuredHint(configuration: configuration)
+            selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: configuration)
         ).makeServer()
         try await server.start(transport: StdioTransport())
         let originalParentPID = getppid()
@@ -91,7 +91,6 @@ struct BearMCPMain {
 
     private static func makeRuntimeServices(logger: Logger) throws -> RuntimeServices {
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
-        let tokenStore = BearKeychainSelectedNoteTokenStore()
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
@@ -102,7 +101,6 @@ struct BearMCPMain {
             readStore: databaseReader,
             writeTransport: writeTransport,
             backupStore: backupStore,
-            tokenStore: tokenStore,
             logger: logger
         )
 

@@ -44,12 +44,10 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
     #expect(updatedOnDisk.defaultSnippetLength == BearConfiguration.default.defaultSnippetLength)
     #expect(updatedOnDisk.maxSnippetLength == BearConfiguration.default.maxSnippetLength)
     #expect(updatedOnDisk.backupRetentionDays == BearConfiguration.default.backupRetentionDays)
-    #expect(updatedOnDisk.selectedNoteTokenStoredInKeychain == false)
     #expect(updatedOnDisk.token == "secret-token")
     #expect(updatedText.contains("\"defaultDiscoveryLimit\""))
     #expect(updatedText.contains("\"maxSnippetLength\""))
     #expect(updatedText.contains("\"backupRetentionDays\""))
-    #expect(updatedText.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
     #expect(updatedText.contains("\"token\" : \"secret-token\""))
     #expect(updatedText.contains("\"databasePath\" : \"/tmp/custom.sqlite\""))
     #expect(!updatedText.contains("\\/"))
@@ -79,5 +77,4 @@ func updateConfigurationFileOmitsMissingLegacyTokenField() throws {
 
     let updatedText = try String(contentsOf: configFileURL)
     #expect(!updatedText.contains("\"token\""))
-    #expect(updatedText.contains("\"selectedNoteTokenStoredInKeychain\" : false"))
 }

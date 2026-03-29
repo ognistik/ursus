@@ -17,6 +17,10 @@ This plan is intentionally incremental. It is designed to preserve the working s
 
 As of 2026-03-28:
 
+Note:
+
+- The earlier Phase 4 Keychain direction described below has been superseded in the repo by a config-only selected-note token model. Keep the historical notes for context, but treat current code and `PROJECT_STATUS.md` as the source of truth.
+
 - Phase 1 has started in the repo: selected-note callback-host behavior now lives in shared package code at `Sources/BearXCallback/BearSelectedNoteCallbackHost.swift`.
 - `Sources/BearSelectedNoteHelper/main.swift` is now a thin AppKit shell that forwards launch and callback handling into that shared host.
 - Phase 2 has now landed in the repo: `BearMCPApp.xcodeproj` builds a minimal `Bear MCP.app`, links the shared package through a new `BearApplication` library product, registers `bearmcp://`, and renders basic diagnostics/settings scaffolding.

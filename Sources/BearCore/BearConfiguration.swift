@@ -35,7 +35,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var maxSnippetLength: Int
     public var backupRetentionDays: Int
     public var disabledTools: [BearToolName]
-    public var selectedNoteTokenStoredInKeychain: Bool
     public var token: String?
 
     public init(
@@ -54,7 +53,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName] = [],
-        selectedNoteTokenStoredInKeychain: Bool = false,
         token: String? = nil
     ) {
         self.databasePath = databasePath
@@ -72,7 +70,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.maxSnippetLength = maxSnippetLength
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.disabledTools = Self.normalizedDisabledTools(disabledTools)
-        self.selectedNoteTokenStoredInKeychain = selectedNoteTokenStoredInKeychain
         self.token = Self.normalizedToken(token)
     }
 
@@ -93,7 +90,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: 1_000,
             backupRetentionDays: 30,
             disabledTools: [],
-            selectedNoteTokenStoredInKeychain: false,
             token: nil
         )
     }
@@ -115,32 +111,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            selectedNoteTokenStoredInKeychain: selectedNoteTokenStoredInKeychain,
-            token: token
-        )
-    }
-
-    public func updatingSelectedNoteTokenStorage(
-        token: String? = nil,
-        storedInKeychain: Bool
-    ) -> BearConfiguration {
-        BearConfiguration(
-            databasePath: databasePath,
-            inboxTags: inboxTags,
-            defaultInsertPosition: defaultInsertPosition,
-            templateManagementEnabled: templateManagementEnabled,
-            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
-            createOpensNoteByDefault: createOpensNoteByDefault,
-            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
-            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
-            tagsMergeMode: tagsMergeMode,
-            defaultDiscoveryLimit: defaultDiscoveryLimit,
-            maxDiscoveryLimit: maxDiscoveryLimit,
-            defaultSnippetLength: defaultSnippetLength,
-            maxSnippetLength: maxSnippetLength,
-            backupRetentionDays: backupRetentionDays,
-            disabledTools: disabledTools,
-            selectedNoteTokenStoredInKeychain: storedInKeychain,
             token: token
         )
     }
@@ -162,7 +132,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            selectedNoteTokenStoredInKeychain: selectedNoteTokenStoredInKeychain,
             token: token
         )
     }
@@ -187,7 +156,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case maxSnippetLength
         case backupRetentionDays
         case disabledTools
-        case selectedNoteTokenStoredInKeychain
         case token
     }
 
@@ -209,7 +177,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])
-        selectedNoteTokenStoredInKeychain = try container.decodeIfPresent(Bool.self, forKey: .selectedNoteTokenStoredInKeychain) ?? false
         token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
     }
 
@@ -230,7 +197,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(maxSnippetLength, forKey: .maxSnippetLength)
         try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
         try container.encode(disabledTools, forKey: .disabledTools)
-        try container.encode(selectedNoteTokenStoredInKeychain, forKey: .selectedNoteTokenStoredInKeychain)
         if let token {
             try container.encode(token, forKey: .token)
         }

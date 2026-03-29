@@ -15,7 +15,7 @@ public final class BearMCPServer: Sendable {
     ) {
         self.service = service
         self.configuration = configuration
-        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? (configuration.token != nil)
+        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured(configuration: configuration)
     }
 
     public func makeServer() async -> Server {
@@ -490,7 +490,7 @@ public final class BearMCPServer: Sendable {
     ) -> [Tool] {
         ToolCatalog.makeTools(
             configuration: configuration,
-            selectedNoteSupported: selectedNoteTokenConfigured ?? (configuration.token != nil)
+            selectedNoteSupported: selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured(configuration: configuration)
         ).filter { tool in
             guard let toolName = BearToolName(rawValue: tool.name) else {
                 return true
