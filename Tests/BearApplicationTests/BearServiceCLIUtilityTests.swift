@@ -74,6 +74,38 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
 }
 
 @Test
+func createInteractiveNoteDropsImplicitParentTagsFromSelectedNote() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .success("selected-note"))
+    let readStore = CLIUtilityReadStore(
+        noteByID: [
+            "selected-note": makeCLIUtilityNote(
+                id: "selected-note",
+                title: "Context",
+                body: "Body",
+                tags: ["parent", "parent/child", "areas/focus", "standalone"]
+            ),
+        ],
+        notesByTitle: [:]
+    )
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createInteractiveNote(
+            at: try #require(makeCLIUtilityDate(year: 2024, month: 3, day: 28, hour: 17, minute: 5)),
+            timeZone: TimeZone(secondsFromGMT: 0)
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags == ["parent/child", "areas/focus", "standalone"])
+}
+
+@Test
 func applyTemplateToTargetsUsesSelectedNoteWhenNoExplicitSelectorIsPassed() async throws {
     let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .success("selected-note"))
     let readStore = CLIUtilityReadStore(

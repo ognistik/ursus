@@ -123,6 +123,33 @@ public enum BearTag {
         return names
     }
 
+    public static func removingImplicitParentTags(from values: [String]) -> [String] {
+        let normalized = values.compactMap { raw -> String? in
+            let name = normalizedName(raw)
+            return name.isEmpty ? nil : name
+        }
+
+        var seen: Set<String> = []
+        var deduplicated: [String] = []
+
+        for tag in normalized {
+            let key = deduplicationKey(tag)
+            guard seen.insert(key).inserted else {
+                continue
+            }
+            deduplicated.append(tag)
+        }
+
+        let allKeys = Set(deduplicated.map(deduplicationKey))
+        return deduplicated.filter { tag in
+            let key = deduplicationKey(tag)
+            let childPrefix = key + "/"
+            return allKeys.contains { candidate in
+                candidate.hasPrefix(childPrefix)
+            } == false
+        }
+    }
+
     private static func wrappedTagEnd(in text: String, startingAt start: String.Index) -> String.Index? {
         var cursor = start
 

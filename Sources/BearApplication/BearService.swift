@@ -889,7 +889,7 @@ public final class BearService: @unchecked Sendable {
             guard let selectedNote = try readStore.note(id: selectedNoteID), !selectedNote.tags.isEmpty else {
                 return []
             }
-            return selectedNote.tags
+            return BearTag.removingImplicitParentTags(from: selectedNote.tags)
         } catch {
             BearDebugLog.append("cli.new-note.selected-tags-fallback reason=\(Self.renderOperationError(error))")
             return []
