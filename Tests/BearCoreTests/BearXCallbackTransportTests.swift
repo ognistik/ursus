@@ -84,6 +84,19 @@ func openTagActivatesBear() async throws {
 }
 
 @Test
+func backgroundOpenArgumentsUseLaunchServicesBackgroundMode() {
+    let arguments = BearXCallbackTransport.backgroundOpenArguments(
+        for: URL(string: "bear://x-callback-url/trash?id=note-1&show_window=no")!
+    )
+
+    #expect(arguments == [
+        "-g",
+        "-u",
+        "bear://x-callback-url/trash?id=note-1&show_window=no",
+    ])
+}
+
+@Test
 func renameTagStaysBackgroundedEvenWhenShowWindowIsTrue() async throws {
     let opener = ActivationRecordingOpener()
     let transport = BearXCallbackTransport(
@@ -413,6 +426,25 @@ func debugDescriptionRedactsSelectedNoteTokenAndCallbackURLs() async throws {
     #expect(description.contains("x-error=<redacted>"))
     #expect(!description.contains("top-secret-token"))
     #expect(!description.contains("127.0.0.1:8080"))
+}
+
+@Test
+func selectedNoteHelperLaunchArgumentsKeepHostHidden() {
+    let arguments = BearSelectedNoteHelperRunner.launchArguments(
+        appBundleURL: URL(fileURLWithPath: "/Applications/Bear MCP.app", isDirectory: true),
+        bearURL: URL(string: "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no")!,
+        responseFileURL: URL(fileURLWithPath: "/tmp/selected-note.json", isDirectory: false)
+    )
+
+    #expect(arguments == [
+        "-g",
+        "-j",
+        "-a", "/Applications/Bear MCP.app",
+        "--args",
+        "-url", "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no",
+        "-activateApp", "NO",
+        "-responseFile", "/tmp/selected-note.json",
+    ])
 }
 
 private final class LockThenCreateReadStore: @unchecked Sendable, BearReadStore {

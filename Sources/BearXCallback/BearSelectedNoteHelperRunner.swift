@@ -131,13 +131,11 @@ enum BearSelectedNoteHelperRunner {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open", isDirectory: false)
-        process.arguments = [
-            "-a", appBundleURL.path,
-            "--args",
-            "-url", bearURL.absoluteString,
-            "-activateApp", "NO",
-            "-responseFile", responseFileURL.path,
-        ]
+        process.arguments = launchArguments(
+            appBundleURL: appBundleURL,
+            bearURL: bearURL,
+            responseFileURL: responseFileURL
+        )
 
         try await withCheckedThrowingContinuation { continuation in
             let completion = ProcessLaunchCompletion()
@@ -250,6 +248,22 @@ enum BearSelectedNoteHelperRunner {
                 )
             }
         }
+    }
+
+    static func launchArguments(
+        appBundleURL: URL,
+        bearURL: URL,
+        responseFileURL: URL
+    ) -> [String] {
+        [
+            "-g",
+            "-j",
+            "-a", appBundleURL.path,
+            "--args",
+            "-url", bearURL.absoluteString,
+            "-activateApp", "NO",
+            "-responseFile", responseFileURL.path,
+        ]
     }
 
     @MainActor

@@ -250,3 +250,14 @@ func deleteTagURLIncludesExplicitShowWindowOverride() throws {
     let absolute = url.absoluteString
     #expect(absolute.contains("show_window=no"))
 }
+
+@Test
+func trashURLIncludesExplicitShowWindowNo() throws {
+    let builder = BearXCallbackURLBuilder()
+    let url = try builder.trashURL(noteID: "note-1")
+
+    let absolute = url.absoluteString
+    #expect(absolute.contains("bear://x-callback-url/trash"))
+    #expect(absolute.contains("id=note-1"))
+    #expect(absolute.contains("show_window=no"))
+}

@@ -189,6 +189,7 @@ public struct BearXCallbackURLBuilder: Sendable {
             action: "trash",
             queryItems: [
                 URLQueryItem(name: "id", value: noteID),
+                URLQueryItem(name: "show_window", value: yesNo(false)),
             ]
         )
     }

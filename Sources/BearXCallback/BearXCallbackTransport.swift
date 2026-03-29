@@ -286,6 +286,14 @@ public actor BearXCallbackTransport: BearWriteTransport {
     }
 
     private static func defaultOpen(url: URL, activates: Bool) async throws {
+        if activates == false {
+            try await runOpenCommand(
+                arguments: backgroundOpenArguments(for: url),
+                failureMessage: "Bear did not accept the background x-callback action."
+            )
+            return
+        }
+
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = activates
 
@@ -296,6 +304,44 @@ public actor BearXCallbackTransport: BearWriteTransport {
                 } else {
                     continuation.resume()
                 }
+            }
+        }
+    }
+
+    static func backgroundOpenArguments(for url: URL) -> [String] {
+        [
+            "-g",
+            "-u",
+            url.absoluteString,
+        ]
+    }
+
+    private static func runOpenCommand(arguments: [String], failureMessage: String) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open", isDirectory: false)
+        process.arguments = arguments
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { process in
+                if process.terminationStatus == 0 {
+                    continuation.resume()
+                } else {
+                    continuation.resume(
+                        throwing: BearError.xCallback(
+                            "\(failureMessage) Launch Services exited with status \(process.terminationStatus)."
+                        )
+                    )
+                }
+            }
+
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(
+                    throwing: BearError.xCallback(
+                        "\(failureMessage) \(error.localizedDescription)"
+                    )
+                )
             }
         }
     }

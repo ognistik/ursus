@@ -138,6 +138,7 @@ Implemented:
 - config-backed tool enable/disable support that filters the live MCP tool catalog and rejects direct calls to disabled tools
 - app lifecycle behavior that now quits when the last dashboard window closes, unless the app is running in headless selected-note callback-host mode
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
+- background Bear URL launches that now route through `open -g` plus hidden selected-note callback-host launches, reducing visible app blink during CLI utility flows
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
 - doctor/config support for preferred app-host detection plus standalone helper fallback visibility
