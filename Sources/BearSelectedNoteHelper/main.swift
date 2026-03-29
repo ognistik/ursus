@@ -1,4 +1,5 @@
 import AppKit
+import BearCore
 import BearXCallback
 import Foundation
 
@@ -19,7 +20,11 @@ struct BearSelectedNoteHelperEntry {
 
 @MainActor
 final class BearSelectedNoteHelperAppDelegate: NSObject, NSApplicationDelegate {
-    private let callbackHost = BearSelectedNoteCallbackHost()
+    private let callbackHost = BearSelectedNoteCallbackHost(
+        requestURLAuthorizer: { requestURL in
+            try BearSelectedNoteRequestAuthorizer.prepareManagedRequestURL(requestURL)
+        }
+    )
 
     fileprivate var exitCode: Int32 { callbackHost.exitCode }
 

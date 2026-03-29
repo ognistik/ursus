@@ -1,4 +1,5 @@
 import AppKit
+import BearCore
 import BearXCallback
 import Foundation
 
@@ -22,7 +23,7 @@ public final class BearSelectedNoteAppHost {
             BearSelectedNoteCallbackHost(
                 callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
                 requestURLAuthorizer: { requestURL in
-                    try BearAppSupport.prepareManagedSelectedNoteRequestURL(requestURL)
+                    try BearSelectedNoteRequestAuthorizer.prepareManagedRequestURL(requestURL)
                 },
                 terminator: {
                     Task { @MainActor in

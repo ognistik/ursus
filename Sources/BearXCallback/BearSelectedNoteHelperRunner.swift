@@ -7,33 +7,9 @@ enum BearSelectedNoteHelperRunner {
         bearURL: URL,
         timeout: Duration
     ) async throws -> String {
-        if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
-            if await isApplicationRunning(appBundleURL: appBundleURL) {
-                BearDebugLog.append(
-                    "xcallback.resolve-selected-note host=app reason=preferred-app-running reuseExistingInstance=true appPath=\(appBundleURL.path)"
-                )
-                return try await resolveSelectedNoteIDInRunningApp(
-                    appBundleURL: appBundleURL,
-                    bearURL: bearURL,
-                    timeout: timeout
-                )
-            }
-
-            BearDebugLog.append(
-                "xcallback.resolve-selected-note host=app appPath=\(appBundleURL.path)"
-            )
-            return try await resolveSelectedNoteID(
-                appBundleURL: appBundleURL,
-                appName: BearMCPAppLocator.appName,
-                bearURL: bearURL,
-                timeout: timeout,
-                terminateRunningInstancesBeforeLaunch: false
-            )
-        }
-
         if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
             BearDebugLog.append(
-                "xcallback.resolve-selected-note host=helper reason=preferred-app-missing helperPath=\(helperBundleURL.path)"
+                "xcallback.resolve-selected-note host=helper helperPath=\(helperBundleURL.path)"
             )
             return try await resolveSelectedNoteID(
                 appBundleURL: helperBundleURL,
@@ -44,8 +20,21 @@ enum BearSelectedNoteHelperRunner {
             )
         }
 
+        if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
+            BearDebugLog.append(
+                "xcallback.resolve-selected-note host=app-fallback reason=helper-missing appPath=\(appBundleURL.path)"
+            )
+            return try await resolveSelectedNoteID(
+                appBundleURL: appBundleURL,
+                appName: BearMCPAppLocator.appName,
+                bearURL: bearURL,
+                timeout: timeout,
+                terminateRunningInstancesBeforeLaunch: false
+            )
+        }
+
         throw BearError.configuration(
-            "Selected-note targeting requires the preferred callback app. \(BearMCPAppLocator.installGuidance) During Phase 3 verification, \(BearSelectedNoteHelperLocator.installGuidance)"
+            "Selected-note targeting requires the embedded callback helper. \(BearSelectedNoteHelperLocator.installGuidance)"
         )
     }
 
@@ -169,87 +158,6 @@ enum BearSelectedNoteHelperRunner {
         }
     }
 
-    private static func resolveSelectedNoteIDInRunningApp(
-        appBundleURL: URL,
-        bearURL: URL,
-        timeout: Duration
-    ) async throws -> String {
-        let responseFileURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: false)
-            .appendingPathExtension("json")
-        defer {
-            try? FileManager.default.removeItem(at: responseFileURL)
-        }
-
-        let appRequest = BearSelectedNoteAppRequest(
-            requestURL: bearURL,
-            activateApp: false,
-            responseFileURL: responseFileURL
-        )
-
-        try await runRunningAppOpenCommand(
-            appBundleURL: appBundleURL,
-            appRequest: appRequest
-        )
-
-        let result = try await waitForResponseFile(responseFileURL, timeout: timeout)
-        let payload = try parseJSONPayload(result)
-
-        if let identifier = payload["identifier"] ?? payload["id"], !identifier.isEmpty {
-            return identifier
-        }
-
-        let message = payload["errorMessage"]
-            ?? payload["error"]
-            ?? payload["internal_error"]
-            ?? "Selected-note callback host failed without returning a note identifier."
-        throw BearError.xCallback(message)
-    }
-
-    private static func runRunningAppOpenCommand(
-        appBundleURL: URL,
-        appRequest: BearSelectedNoteAppRequest
-    ) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open", isDirectory: false)
-        process.arguments = [
-            "-g",
-            "-a", appBundleURL.path,
-            appRequest.url.absoluteString,
-        ]
-
-        try await withCheckedThrowingContinuation { continuation in
-            let completion = ProcessLaunchCompletion()
-            process.terminationHandler = { process in
-                if process.terminationStatus == 0 {
-                    completion.finish(continuation: continuation, result: .success(()))
-                } else {
-                    completion.finish(
-                        continuation: continuation,
-                        result: .failure(
-                            BearError.configuration(
-                                "Failed to send the selected-note callback request to the running `\(BearMCPAppLocator.appName)` instance."
-                            )
-                        )
-                    )
-                }
-            }
-
-            do {
-                try process.run()
-            } catch {
-                completion.finish(
-                    continuation: continuation,
-                    result: .failure(
-                        BearError.configuration(
-                            "Failed to contact the running `\(BearMCPAppLocator.appName)` instance. \(error.localizedDescription)"
-                        )
-                    )
-                )
-            }
-        }
-    }
-
     static func launchArguments(
         appBundleURL: URL,
         bearURL: URL,
@@ -264,17 +172,6 @@ enum BearSelectedNoteHelperRunner {
             "-activateApp", "NO",
             "-responseFile", responseFileURL.path,
         ]
-    }
-
-    @MainActor
-    private static func isApplicationRunning(appBundleURL: URL) -> Bool {
-        guard let bundle = Bundle(url: appBundleURL),
-              let bundleIdentifier = bundle.bundleIdentifier
-        else {
-            return false
-        }
-
-        return !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).isEmpty
     }
 
     @MainActor

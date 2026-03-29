@@ -22,7 +22,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", from: "0.9.0"),
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.9.0"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.9.1"),
     ],

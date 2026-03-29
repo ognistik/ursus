@@ -26,17 +26,17 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let tools = BearMCPServer.toolCatalog(configuration: configuration)
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
-    #expect(create.description?.contains("omitted `open_note` uses `false`") == true)
-    #expect(create.description?.contains("omitted `new_window` uses `false`") == true)
-    #expect(create.description?.contains("configured inbox tags are `0-inbox`, `client work`") == true)
-    #expect(create.description?.contains("tag merging on omission currently uses request tags when any are supplied") == true)
+    #expect(create.description.contains("omitted `open_note` uses `false`"))
+    #expect(create.description.contains("omitted `new_window` uses `false`"))
+    #expect(create.description.contains("configured inbox tags are `0-inbox`, `client work`"))
+    #expect(create.description.contains("tag merging on omission currently uses request tags when any are supplied"))
     #expect(propertyDescription(named: "open_note", in: create)?.contains("Current omission default: `false`") == true)
     #expect(propertyDescription(named: "new_window", in: create)?.contains("Current omission default when the created note is opened: `false`") == true)
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
-    #expect(insert.description?.contains("`position` uses `top`") == true)
-    #expect(insert.description?.contains("`new_window` uses `false` when the note is opened") == true)
-    #expect(insert.description?.contains("`note` accepts a selector matched as exact note id first") == true)
+    #expect(insert.description.contains("`position` uses `top`"))
+    #expect(insert.description.contains("`new_window` uses `false` when the note is opened"))
+    #expect(insert.description.contains("`note` accepts a selector matched as exact note id first"))
     #expect(propertyDescription(named: "note", in: insert)?.contains("Use exactly one of `note` or `selected: true`") == true)
     #expect(propertyDescription(named: "selected", in: insert)?.contains("currently selected Bear note") == true)
     #expect(propertyDescription(named: "note", in: insert)?.contains("exact case-insensitive title across notes and archive") == true)
@@ -46,63 +46,63 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "expected_version", in: insert)?.contains("Omit unless the user explicitly asks for concurrency protection") == true)
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
-    #expect(addFiles.description?.contains("`position` uses `top`") == true)
+    #expect(addFiles.description.contains("`position` uses `top`"))
     #expect(propertyDescription(named: "note", in: addFiles)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "position", in: addFiles)?.contains("Omitted uses the current session default `top`") == true)
     #expect(propertyDescription(named: "target", in: addFiles)?.contains("before or after a matching heading") == true)
 
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
-    #expect(openNotes.description?.contains("Current omission default: `new_window` uses `false`") == true)
+    #expect(openNotes.description.contains("Current omission default: `new_window` uses `false`"))
     #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
 
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
-    #expect(replace.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
+    #expect(replace.description.contains("Do not call `bear_get_notes` only to resolve the note selector"))
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
     #expect(propertyDescription(named: "expected_version", in: replace)?.contains("current `version`") == true)
 
     let addTags = try #require(tool(named: "bear_add_tags", in: tools))
-    #expect(addTags.description?.contains("specific Bear notes") == true)
-    #expect(addTags.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
+    #expect(addTags.description.contains("specific Bear notes"))
+    #expect(addTags.description.contains("Do not call `bear_get_notes` only to resolve the note selector"))
     #expect(propertyDescription(named: "note", in: addTags)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "new_window", in: addTags)?.contains("Current omission default when the note is opened: `false`") == true)
     #expect(propertyDescription(named: "expected_version", in: addTags)?.contains("fresh version from an earlier read") == true)
 
     let removeTags = try #require(tool(named: "bear_remove_tags", in: tools))
-    #expect(removeTags.description?.contains("without deleting the tag globally") == true)
-    #expect(removeTags.description?.contains("Do not call `bear_get_notes` only to resolve the note selector") == true)
+    #expect(removeTags.description.contains("without deleting the tag globally"))
+    #expect(removeTags.description.contains("Do not call `bear_get_notes` only to resolve the note selector"))
     #expect(propertyDescription(named: "tags", in: removeTags)?.contains("remove from this one note only") == true)
 
     let applyTemplate = try #require(tool(named: "bear_apply_template", in: tools))
-    #expect(applyTemplate.description?.contains("normalize tag-only clusters into the template `{{tags}}` slot") == true)
-    #expect(applyTemplate.description?.contains("preserves inline prose hashtags") == true)
+    #expect(applyTemplate.description.contains("normalize tag-only clusters into the template `{{tags}}` slot"))
+    #expect(applyTemplate.description.contains("preserves inline prose hashtags"))
     #expect(propertyDescription(named: "note", in: applyTemplate)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "new_window", in: applyTemplate)?.contains("Current omission default when the note is opened: `false`") == true)
 
     let deleteTags = try #require(tool(named: "bear_delete_tags", in: tools))
-    #expect(deleteTags.description?.contains("entire Bear app") == true)
+    #expect(deleteTags.description.contains("entire Bear app"))
     #expect(propertyDescription(named: "name", in: deleteTags)?.contains("delete across Bear") == true)
 
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
-    #expect(listBackups.description?.contains("Use this before `bear_restore_notes`") == true)
+    #expect(listBackups.description.contains("Use this before `bear_restore_notes`"))
     #expect(propertyDescription(named: "limit", in: listBackups)?.contains("Omitted uses `7`") == true)
     #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
 
     let deleteBackups = try #require(tool(named: "bear_delete_backups", in: tools))
-    #expect(deleteBackups.description?.contains("Provide `snapshot_id` to delete one exact backup") == true)
+    #expect(deleteBackups.description.contains("Provide `snapshot_id` to delete one exact backup"))
     #expect(propertyDescription(named: "delete_all", in: deleteBackups)?.contains("remove all saved backups for that note") == true)
     #expect(propertyDescription(named: "selected", in: deleteBackups)?.contains("currently selected Bear note") == true)
 
     let restore = try #require(tool(named: "bear_restore_notes", in: tools))
-    #expect(restore.description?.contains("If `snapshot_id` is omitted, the most recent backup") == true)
+    #expect(restore.description.contains("If `snapshot_id` is omitted, the most recent backup"))
     #expect(propertyDescription(named: "snapshot_id", in: restore)?.contains("most recent snapshot") == true)
 
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
-    #expect(getNotes.description?.contains("selected: true") == true)
+    #expect(getNotes.description.contains("selected: true"))
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
 
     let archiveNotes = try #require(tool(named: "bear_archive_notes", in: tools))
-    #expect(archiveNotes.description?.contains("selected: true") == true)
+    #expect(archiveNotes.description.contains("selected: true"))
     #expect(propertyDescription(named: "selected", inTopLevelTool: archiveNotes)?.contains("currently selected Bear note") == true)
 }
 
@@ -136,7 +136,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     #expect(propertyDescription(named: "inbox_tags_mode", in: find)?.contains("`0-inbox`, `deep work`") == true)
 
     let inbox = try #require(tool(named: "bear_find_notes_by_inbox_tags", in: tools))
-    #expect(inbox.description?.contains("Current inbox tags: `0-inbox`, `deep work`") == true)
+    #expect(inbox.description.contains("Current inbox tags: `0-inbox`, `deep work`"))
     #expect(propertyDescription(named: "match", in: inbox)?.contains("`0-inbox`, `deep work`") == true)
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
@@ -172,7 +172,7 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
     )
 
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
-    #expect(getNotes.description?.contains("selected: true") == true)
+    #expect(getNotes.description.contains("selected: true"))
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
 }
 
@@ -194,7 +194,7 @@ private func tool(named name: String, in tools: [Tool]) -> Tool? {
 
 private func propertyDescription(named name: String, in tool: Tool) -> String? {
     guard
-        let schema = tool.inputSchema.objectValue,
+        let schema = tool.inputSchema?.objectValue,
         let properties = schema["properties"]?.objectValue,
         let operations = properties["operations"]?.objectValue,
         let items = operations["items"]?.objectValue,
@@ -209,7 +209,7 @@ private func propertyDescription(named name: String, in tool: Tool) -> String? {
 
 private func propertyDescription(named name: String, inTopLevelTool tool: Tool) -> String? {
     guard
-        let schema = tool.inputSchema.objectValue,
+        let schema = tool.inputSchema?.objectValue,
         let properties = schema["properties"]?.objectValue,
         let property = properties[name]?.objectValue
     else {

@@ -29,6 +29,33 @@ private final class TestSelectedNoteTokenStore: BearSelectedNoteTokenStore, @unc
     }
 }
 
+private final class TestTrustedApplicationAwareSelectedNoteTokenStore: BearTrustedApplicationAwareSelectedNoteTokenStore, @unchecked Sendable {
+    var storedToken: String?
+    var savedTrustedApplicationPaths: [String] = []
+    var refreshedTrustedApplicationPaths: [String] = []
+
+    func readToken() throws -> String? {
+        storedToken
+    }
+
+    func saveToken(_ token: String) throws {
+        storedToken = token
+    }
+
+    func saveToken(_ token: String, trustedApplicationPaths: [String]) throws {
+        storedToken = token
+        savedTrustedApplicationPaths = trustedApplicationPaths
+    }
+
+    func refreshTrustedApplicationPaths(_ trustedApplicationPaths: [String]) throws {
+        refreshedTrustedApplicationPaths = trustedApplicationPaths
+    }
+
+    func removeToken() throws {
+        storedToken = nil
+    }
+}
+
 @Test
 func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let fileManager = FileManager.default
@@ -756,6 +783,131 @@ func tokenManagementActionsSaveImportAndRemoveWithoutTouchingKeychainAccessApp()
     let removedConfiguration = try BearConfiguration.load(from: configFileURL)
     #expect(removedConfiguration.token == nil)
     #expect(removedConfiguration.selectedNoteTokenStoredInKeychain == false)
+}
+
+@Test
+func saveSelectedNoteTokenIncludesAppHelperAndBundledCLIInTrustedApplications() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appExecutableURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: false)
+    let helperExecutableURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("bear-mcp-helper", isDirectory: false)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let tokenStore = TestTrustedApplicationAwareSelectedNoteTokenStore()
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: helperExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try Data().write(to: appExecutableURL)
+    try Data().write(to: helperExecutableURL)
+    try Data().write(to: bundledCLIURL)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appExecutableURL.path)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperExecutableURL.path)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.saveSelectedNoteToken(
+        "new-keychain-token",
+        currentAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: tokenStore
+    )
+
+    #expect(tokenStore.storedToken == "new-keychain-token")
+    #expect(tokenStore.savedTrustedApplicationPaths == [
+        appExecutableURL.standardizedFileURL.path,
+        bundledCLIURL.standardizedFileURL.path,
+        helperExecutableURL.standardizedFileURL.path,
+    ].sorted())
+}
+
+@Test
+func repairSelectedNoteTokenTrustedApplicationsUsesCurrentAppBundleArtifacts() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appExecutableURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: false)
+    let helperExecutableURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("bear-mcp-helper", isDirectory: false)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let tokenStore = TestTrustedApplicationAwareSelectedNoteTokenStore()
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: appExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: helperExecutableURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try """
+    {
+      "selectedNoteTokenStoredInKeychain" : true
+    }
+    """.write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try Data().write(to: appExecutableURL)
+    try Data().write(to: helperExecutableURL)
+    try Data().write(to: bundledCLIURL)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: appExecutableURL.path)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helperExecutableURL.path)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let repaired = try BearAppSupport.repairSelectedNoteTokenTrustedApplicationsIfNeeded(
+        currentAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        tokenStore: tokenStore
+    )
+
+    #expect(repaired)
+    #expect(tokenStore.refreshedTrustedApplicationPaths == [
+        appExecutableURL.standardizedFileURL.path,
+        bundledCLIURL.standardizedFileURL.path,
+        helperExecutableURL.standardizedFileURL.path,
+    ].sorted())
 }
 
 @Test

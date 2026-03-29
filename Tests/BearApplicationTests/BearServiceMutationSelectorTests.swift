@@ -166,6 +166,7 @@ func resolveNoteTargetsResolvesSelectedNoteOnlyOncePerBatch() async throws {
         configuration: makeMutationSelectorConfiguration(token: "secret-token"),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]]),
         writeTransport: transport,
+        tokenStore: EmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearServiceMutationSelectorTests")
     )
 

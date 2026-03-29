@@ -477,7 +477,7 @@ public final class BearMCPServer: Sendable {
         )
     }
 
-    private static func renderError(_ error: Error) -> String {
+    private static func renderError(_ error: any Swift.Error) -> String {
         if let localized = error as? LocalizedError, let description = localized.errorDescription {
             return description
         }

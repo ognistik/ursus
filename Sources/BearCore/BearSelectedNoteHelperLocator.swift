@@ -3,9 +3,37 @@ import Foundation
 public enum BearSelectedNoteHelperLocator {
     public static let appName = "Bear MCP Helper.app"
     public static let preferredInstallDirectoryPath = "/Applications"
+    public static let embeddedRelativePath = "Contents/Library/Helpers/\(appName)"
 
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
-        standardAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) })
+        installedAppBundleURL(
+            fileManager: fileManager,
+            preferredAppBundleURL: BearMCPAppLocator.preferredAppBundleURL,
+            userSpecificAppBundleURL: BearMCPAppLocator.userSpecificAppBundleURL,
+            preferredHelperBundleURL: preferredAppBundleURL,
+            userSpecificHelperBundleURL: userSpecificAppBundleURL
+        )
+    }
+
+    public static func installedAppBundleURL(
+        fileManager: FileManager = .default,
+        preferredAppBundleURL: URL,
+        userSpecificAppBundleURL: URL,
+        preferredHelperBundleURL: URL,
+        userSpecificHelperBundleURL: URL
+    ) -> URL? {
+        let candidateMainAppBundleURLs = [preferredAppBundleURL, userSpecificAppBundleURL]
+
+        if let mainAppBundleURL = candidateMainAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) }),
+           let embeddedBundleURL = embeddedAppBundleURL(
+               inAppBundleURL: mainAppBundleURL,
+               fileManager: fileManager
+           ) {
+            return embeddedBundleURL
+        }
+
+        return [preferredHelperBundleURL, userSpecificHelperBundleURL]
+            .first(where: { fileManager.fileExists(atPath: $0.path) })
     }
 
     public static var preferredAppBundleURL: URL {
@@ -17,11 +45,17 @@ public enum BearSelectedNoteHelperLocator {
     }
 
     public static var installGuidance: String {
-        "install `\(appName)` in `\(preferredAppBundleURL.path)` when you need the helper fallback. `\(userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
+        "reinstall `\(BearMCPAppLocator.appName)` so it contains the embedded selected-note helper, or install `\(appName)` in `\(preferredAppBundleURL.path)` as a standalone fallback. `\(userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
     }
 
     public static func installationLocationDescription(forAppBundleURL bundleURL: URL) -> String {
         let standardizedPath = bundleURL.standardizedFileURL.path
+        if let embeddedContainerURL = containingAppBundleURL(
+            forEmbeddedHelperBundleURL: bundleURL,
+            fileManager: .default
+        ) {
+            return "embedded in \(embeddedContainerURL.path)"
+        }
 
         if standardizedPath == preferredAppBundleURL.standardizedFileURL.path {
             return "preferred install location"
@@ -51,6 +85,23 @@ public enum BearSelectedNoteHelperLocator {
         fileManager: FileManager = .default
     ) throws -> URL {
         try bundleExecutableURL(bundleURL: bundleURL, fileManager: fileManager)
+    }
+
+    public static func embeddedAppBundleURL(
+        inAppBundleURL appBundleURL: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        let helperBundleURL = appBundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
+            .appendingPathComponent(appName, isDirectory: true)
+
+        guard fileManager.fileExists(atPath: helperBundleURL.path) else {
+            return nil
+        }
+
+        return helperBundleURL
     }
 
     private static func bundleExecutableURL(
@@ -89,6 +140,28 @@ public enum BearSelectedNoteHelperLocator {
 
     private static var standardAppBundleURLs: [URL] {
         [preferredAppBundleURL, userSpecificAppBundleURL]
+    }
+
+    private static func containingAppBundleURL(
+        forEmbeddedHelperBundleURL helperBundleURL: URL,
+        fileManager: FileManager
+    ) -> URL? {
+        let pathComponents = helperBundleURL.standardizedFileURL.pathComponents
+        guard let contentsIndex = pathComponents.lastIndex(of: "Contents"), contentsIndex >= 1 else {
+            return nil
+        }
+
+        let candidatePath = NSString.path(withComponents: Array(pathComponents.prefix(contentsIndex - 1 + 1)))
+        let candidateURL = URL(fileURLWithPath: candidatePath, isDirectory: true)
+        guard fileManager.fileExists(atPath: candidateURL.path) else {
+            return nil
+        }
+
+        guard embeddedAppBundleURL(inAppBundleURL: candidateURL, fileManager: fileManager)?.standardizedFileURL == helperBundleURL.standardizedFileURL else {
+            return nil
+        }
+
+        return candidateURL
     }
 
     private static var userApplicationsDirectoryPath: String {

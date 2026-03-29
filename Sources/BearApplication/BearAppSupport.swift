@@ -418,6 +418,7 @@ public enum BearAppSupport {
 
     public static func saveSelectedNoteToken(
         _ token: String,
+        currentAppBundleURL: URL? = nil,
         fileManager: FileManager = .default,
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
@@ -431,7 +432,12 @@ public enum BearAppSupport {
             templateURL: templateURL
         )
 
-        try tokenStore.saveToken(token)
+        try saveSelectedNoteToken(
+            token,
+            currentAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager,
+            tokenStore: tokenStore
+        )
         try BearRuntimeBootstrap.saveConfiguration(
             configuration.updatingSelectedNoteTokenStorage(
                 storedInKeychain: true
@@ -717,6 +723,7 @@ public enum BearAppSupport {
 
     @discardableResult
     public static func importSelectedNoteTokenFromConfig(
+        currentAppBundleURL: URL? = nil,
         fileManager: FileManager = .default,
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
@@ -734,7 +741,12 @@ public enum BearAppSupport {
             return false
         }
 
-        try tokenStore.saveToken(token)
+        try saveSelectedNoteToken(
+            token,
+            currentAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager,
+            tokenStore: tokenStore
+        )
         try BearRuntimeBootstrap.saveConfiguration(
             configuration.updatingSelectedNoteTokenStorage(
                 storedInKeychain: true
@@ -773,16 +785,17 @@ public enum BearAppSupport {
         )
     }
 
-    public static func prepareManagedSelectedNoteRequestURL(
-        _ requestURL: URL,
+    @discardableResult
+    public static func repairSelectedNoteTokenTrustedApplicationsIfNeeded(
+        currentAppBundleURL: URL,
         fileManager: FileManager = .default,
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
-    ) throws -> URL {
-        guard requiresManagedSelectedNoteTokenInjection(requestURL) else {
-            return requestURL
+    ) throws -> Bool {
+        guard let trustedTokenStore = tokenStore as? any BearTrustedApplicationAwareSelectedNoteTokenStore else {
+            return false
         }
 
         let configuration = try BearRuntimeBootstrap.loadConfiguration(
@@ -791,26 +804,121 @@ public enum BearAppSupport {
             configFileURL: configFileURL,
             templateURL: templateURL
         )
-        guard let token = try BearSelectedNoteTokenResolver.resolve(
-            configuration: configuration,
+
+        guard configuration.selectedNoteTokenStoredInKeychain else {
+            return false
+        }
+
+        let trustedApplicationPaths = selectedNoteTokenTrustedApplicationPaths(
+            currentAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager
+        )
+        guard !trustedApplicationPaths.isEmpty else {
+            return false
+        }
+
+        try trustedTokenStore.refreshTrustedApplicationPaths(trustedApplicationPaths)
+        return true
+    }
+
+    public static func prepareManagedSelectedNoteRequestURL(
+        _ requestURL: URL,
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL,
+        tokenStore: any BearSelectedNoteTokenStore = BearKeychainSelectedNoteTokenStore()
+    ) throws -> URL {
+        _ = configDirectoryURL
+        _ = templateURL
+        return try BearSelectedNoteRequestAuthorizer.prepareManagedRequestURL(
+            requestURL,
+            fileManager: fileManager,
+            configFileURL: configFileURL,
             tokenStore: tokenStore
-        )?.value else {
-            throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+        )
+    }
+
+    private static func saveSelectedNoteToken(
+        _ token: String,
+        currentAppBundleURL: URL?,
+        fileManager: FileManager,
+        tokenStore: any BearSelectedNoteTokenStore
+    ) throws {
+        let trustedApplicationPaths = selectedNoteTokenTrustedApplicationPaths(
+            currentAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager
+        )
+
+        if let trustedTokenStore = tokenStore as? any BearTrustedApplicationAwareSelectedNoteTokenStore,
+           !trustedApplicationPaths.isEmpty
+        {
+            try trustedTokenStore.saveToken(token, trustedApplicationPaths: trustedApplicationPaths)
+            return
         }
 
-        guard var components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false) else {
-            throw BearError.invalidInput("Invalid Bear selected-note request URL.")
+        try tokenStore.saveToken(token)
+    }
+
+    private static func selectedNoteTokenTrustedApplicationPaths(
+        currentAppBundleURL: URL?,
+        fileManager: FileManager
+    ) -> [String] {
+        guard let currentAppBundleURL else {
+            return []
         }
 
-        var queryItems = components.queryItems ?? []
-        queryItems.append(URLQueryItem(name: "token", value: token))
-        components.queryItems = queryItems
+        var paths: [String] = []
 
-        guard let resolvedURL = components.url else {
-            throw BearError.invalidInput("Failed to prepare the Bear selected-note request URL.")
+        if let appExecutableURL = try? BearMCPAppLocator.executableURL(
+            forAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager
+        ) {
+            paths.append(appExecutableURL.path)
+        } else {
+            let fallbackAppExecutableURL = currentAppBundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("MacOS", isDirectory: true)
+                .appendingPathComponent("Bear MCP", isDirectory: false)
+            if fileManager.isExecutableFile(atPath: fallbackAppExecutableURL.path) {
+                paths.append(fallbackAppExecutableURL.path)
+            }
         }
 
-        return resolvedURL
+        if let bundledCLIURL = try? BearMCPCLILocator.bundledExecutableURL(
+            forAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager
+        ) {
+            paths.append(bundledCLIURL.path)
+        }
+
+        if let embeddedHelperBundleURL = BearSelectedNoteHelperLocator.embeddedAppBundleURL(
+            inAppBundleURL: currentAppBundleURL,
+            fileManager: fileManager
+        ),
+            let embeddedHelperExecutableURL = try? BearSelectedNoteHelperLocator.executableURL(
+                forAppBundleURL: embeddedHelperBundleURL,
+                fileManager: fileManager
+            )
+        {
+            paths.append(embeddedHelperExecutableURL.path)
+        } else {
+            let fallbackHelperExecutableURL = currentAppBundleURL
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("Helpers", isDirectory: true)
+                .appendingPathComponent(BearSelectedNoteHelperLocator.appName, isDirectory: true)
+                .appendingPathComponent("Contents", isDirectory: true)
+                .appendingPathComponent("MacOS", isDirectory: true)
+                .appendingPathComponent("bear-mcp-helper", isDirectory: false)
+            if fileManager.isExecutableFile(atPath: fallbackHelperExecutableURL.path) {
+                paths.append(fallbackHelperExecutableURL.path)
+            }
+        }
+
+        return Array(
+            Set(paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path })
+        ).sorted()
     }
 
     public static func doctorChecks(
@@ -948,7 +1056,7 @@ public enum BearAppSupport {
                             key: "selected-note-callback-app",
                             value: callbackAppBundleURL.path,
                             status: .ok,
-                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); preferred host -> \(executableURL.path)"
+                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); dashboard app -> \(executableURL.path)"
                         )
                     )
                 } catch {
@@ -980,7 +1088,7 @@ public enum BearAppSupport {
                             key: "selected-note-helper-fallback",
                             value: helperBundleURL.path,
                             status: .ok,
-                            detail: "helper fallback; \(BearSelectedNoteHelperLocator.installationLocationDescription(forAppBundleURL: helperBundleURL)) -> \(executableURL.path)"
+                            detail: "selected-note background helper; \(BearSelectedNoteHelperLocator.installationLocationDescription(forAppBundleURL: helperBundleURL)) -> \(executableURL.path)"
                         )
                     )
                 } catch {
@@ -1167,19 +1275,4 @@ public enum BearAppSupport {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
     }
 
-    private static func requiresManagedSelectedNoteTokenInjection(_ requestURL: URL) -> Bool {
-        guard
-            let components = URLComponents(url: requestURL, resolvingAgainstBaseURL: false),
-            components.scheme == "bear",
-            components.host == "x-callback-url",
-            components.path == "/open-note"
-        else {
-            return false
-        }
-
-        let query = Dictionary((components.queryItems ?? []).map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { first, _ in first })
-        let selectedValue = query["selected"]?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let tokenValue = query["token"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return (selectedValue == "yes" || selectedValue == "true" || selectedValue == "1") && tokenValue.isEmpty
-    }
 }

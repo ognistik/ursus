@@ -112,14 +112,14 @@ Implemented:
 - application service layer
 - x-callback URL builder
 - x-callback launcher transport with best-effort polling
-- app-hosted selected-note callback integration for Bear's token-backed `open-note?selected=yes` flow, with standalone helper fallback retained during verification
+- shared selected-note callback integration for Bear's token-backed `open-note?selected=yes` flow, with an embedded background helper app now preferred for interruption-free callback handling
 - shared selected-note callback-host runtime in `BearXCallback`, now used by both the main app and the standalone helper shell
 - first-party selected-note helper executable/app shell plus local `.app` bundling script
 - minimal `Bear MCP.app` Xcode target that links shared package code through a local package product
 - app bundle registration for `bearmcp://`
 - headless callback-host mode in `Bear MCP.app` that preserves the response-file JSON contract used by the CLI
-- running-app selected-note request routing that lets an already-open dashboard instance of `Bear MCP.app` start an in-process callback session and keep running afterward
-- app-managed selected-note request authorization that fills in a tokenless selected-note Bear URL before launching Bear, keeping the preferred app-installed path responsible for Keychain access
+- embedded selected-note helper app support inside `Bear MCP.app/Contents/Library/Helpers`, so one installed app can launch an on-demand background callback host without stealing focus
+- shared selected-note request authorization that can fill in a tokenless selected-note Bear URL before launching Bear, keeping managed-token access available to both the app shell and the helper shell
 - app diagnostics/settings shell views backed by shared `BearApplication` dashboard snapshot loading
 - app token-management controls for saving to Keychain, importing a legacy config token, and removing the token from both Keychain and legacy config
 - local app build script for unsigned development bundles
@@ -138,10 +138,10 @@ Implemented:
 - config-backed tool enable/disable support that filters the live MCP tool catalog and rejects direct calls to disabled tools
 - app lifecycle behavior that now quits when the last dashboard window closes, unless the app is running in headless selected-note callback-host mode
 - background note-mutation URL normalization that explicitly sends `open_note=no` and `show_window=no` when notes should stay closed
-- background Bear URL launches that now route through `open -g` plus hidden selected-note callback-host launches, reducing visible app blink during CLI utility flows
+- background Bear URL launches that now route through `open -g` plus hidden selected-note helper launches, keeping the visible dashboard app out of the selected-note callback critical path
 - redacted x-callback debug logging that preserves behavior flags while hiding large note-text and file payloads
 - explicit selected-note callback-host debug logging that records whether the app or helper path was chosen
-- doctor/config support for preferred app-host detection plus standalone helper fallback visibility
+- doctor/config support for visible-app detection plus embedded selected-note helper visibility
 - MCP server/tool registration
 - empty MCP resource/resource-template list handlers for client compatibility during discovery
 - CLI commands: `mcp`, `--update-config`, `doctor`, `paths`

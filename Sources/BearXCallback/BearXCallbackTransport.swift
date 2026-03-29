@@ -77,7 +77,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
         let url = try builder.resolveSelectedNoteURL()
         let helperInstalled = helperInstalledProvider()
-        BearDebugLog.append("xcallback.resolve-selected-note host=app managedTokenAccess=true helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
+        BearDebugLog.append("xcallback.resolve-selected-note host=managed-helper helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
 
         if let selectedNoteResolver {
             return try await selectedNoteResolver(url, selectedNoteResolveTimeout)

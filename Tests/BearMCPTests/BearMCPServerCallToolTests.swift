@@ -50,6 +50,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
+        tokenStore: MCPToolEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearMCPServerCallToolTests")
     )
 
@@ -80,7 +81,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
             ]
         )
 
-        #expect(result.isError != true)
+        #expect(result.isError != true, "Tool error: \(result.content)")
 
         let replaceCall = try #require(await writeTransport.replaceCalls.first)
         #expect(replaceCall.noteID == "note-1")
@@ -141,6 +142,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
+        tokenStore: MCPToolEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearMCPServerCallToolTests")
     )
 
@@ -234,6 +236,7 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
+        tokenStore: MCPToolEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearMCPServerCallToolTests")
     )
 
@@ -328,6 +331,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
+        tokenStore: MCPToolEmptySelectedNoteTokenStore(),
         logger: Logger(label: "BearMCPServerCallToolTests")
     )
 
@@ -356,7 +360,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
             ]
         )
 
-        #expect(result.isError != true)
+        #expect(result.isError != true, "Tool error: \(result.content)")
 
         let replaceCall = try #require(await writeTransport.replaceCalls.first)
         #expect(replaceCall.noteID == "note-1")
@@ -473,6 +477,12 @@ private struct MCPToolReadStore: BearReadStore {
     }
     func listTags(_ query: ListTagsQuery) throws -> [TagSummary] { [] }
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
+}
+
+private final class MCPToolEmptySelectedNoteTokenStore: BearSelectedNoteTokenStore, @unchecked Sendable {
+    func readToken() throws -> String? { nil }
+    func saveToken(_ token: String) throws {}
+    func removeToken() throws {}
 }
 
 private actor MCPToolRecordingWriteTransport: BearWriteTransport {

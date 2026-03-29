@@ -7,6 +7,11 @@ public protocol BearSelectedNoteTokenStore: Sendable {
     func removeToken() throws
 }
 
+public protocol BearTrustedApplicationAwareSelectedNoteTokenStore: BearSelectedNoteTokenStore {
+    func saveToken(_ token: String, trustedApplicationPaths: [String]) throws
+    func refreshTrustedApplicationPaths(_ trustedApplicationPaths: [String]) throws
+}
+
 public enum BearSelectedNoteTokenSource: String, Codable, Hashable, Sendable {
     case keychain
     case legacyConfig
@@ -48,7 +53,7 @@ public struct BearSelectedNoteTokenStatus: Hashable, Sendable {
     }
 }
 
-public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStore {
+public final class BearKeychainSelectedNoteTokenStore: BearTrustedApplicationAwareSelectedNoteTokenStore {
     public static let defaultService = "com.ognistik.bear-mcp"
     public static let defaultAccount = "selected-note-token"
 
@@ -88,15 +93,22 @@ public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStor
     }
 
     public func saveToken(_ token: String) throws {
+        try saveToken(token, trustedApplicationPaths: [])
+    }
+
+    public func saveToken(_ token: String, trustedApplicationPaths: [String]) throws {
         guard let normalized = Self.normalizedToken(token) else {
             throw BearError.invalidInput("Enter a Bear API token before saving.")
         }
 
         let data = Data(normalized.utf8)
         let query = baseQuery()
-        let attributes: [String: Any] = [
+        var attributes: [String: Any] = [
             kSecValueData as String: data,
         ]
+        if let access = try trustedAccess(trustedApplicationPaths: trustedApplicationPaths) {
+            attributes[kSecAttrAccess as String] = access
+        }
 
         let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
         switch updateStatus {
@@ -106,6 +118,9 @@ public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStor
             var addQuery = query
             addQuery[kSecValueData as String] = data
             addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+            if let access = try trustedAccess(trustedApplicationPaths: trustedApplicationPaths) {
+                addQuery[kSecAttrAccess as String] = access
+            }
 
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
@@ -127,6 +142,24 @@ public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStor
         }
     }
 
+    public func refreshTrustedApplicationPaths(_ trustedApplicationPaths: [String]) throws {
+        guard let access = try trustedAccess(trustedApplicationPaths: trustedApplicationPaths) else {
+            return
+        }
+
+        let attributes: [String: Any] = [
+            kSecAttrAccess as String: access,
+        ]
+
+        let status = SecItemUpdate(baseQuery() as CFDictionary, attributes as CFDictionary)
+        switch status {
+        case errSecSuccess, errSecItemNotFound:
+            return
+        default:
+            throw keychainError(status, action: "refresh trusted applications for")
+        }
+    }
+
     private func baseQuery() -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
@@ -139,6 +172,45 @@ public final class BearKeychainSelectedNoteTokenStore: BearSelectedNoteTokenStor
         let fallbackMessage = "OSStatus \(status)"
         let systemMessage = SecCopyErrorMessageString(status, nil) as String? ?? fallbackMessage
         return .configuration("Failed to \(action) the Bear API token in Keychain: \(systemMessage)")
+    }
+
+    private func trustedAccess(trustedApplicationPaths: [String]) throws -> SecAccess? {
+        let normalizedPaths = Array(
+            Set(
+                trustedApplicationPaths
+                    .map { NSString(string: $0).expandingTildeInPath }
+                    .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
+                    .filter { !$0.isEmpty }
+            )
+        ).sorted()
+
+        guard !normalizedPaths.isEmpty else {
+            return nil
+        }
+
+        var trustedApplications: [SecTrustedApplication] = []
+        trustedApplications.reserveCapacity(normalizedPaths.count)
+
+        for path in normalizedPaths {
+            var trustedApplication: SecTrustedApplication?
+            let status = SecTrustedApplicationCreateFromPath(path, &trustedApplication)
+            guard status == errSecSuccess, let trustedApplication else {
+                throw keychainError(status, action: "prepare trusted-application access for")
+            }
+            trustedApplications.append(trustedApplication)
+        }
+
+        var access: SecAccess?
+        let status = SecAccessCreate(
+            "Bear MCP selected-note token" as CFString,
+            trustedApplications as CFArray,
+            &access
+        )
+        guard status == errSecSuccess, let access else {
+            throw keychainError(status, action: "prepare trusted-application access for")
+        }
+
+        return access
     }
 
     private static func normalizedToken(_ value: String?) -> String? {

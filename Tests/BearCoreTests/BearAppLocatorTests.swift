@@ -112,3 +112,38 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Bear MCP launcher"))
     #expect(!BearMCPCLILocator.hasIndirectFilesystemEntry(at: launcherURL))
 }
+
+@Test
+func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let applicationsDirectoryURL = temporaryRoot.appendingPathComponent("Applications", isDirectory: true)
+    let userHomeURL = temporaryRoot.appendingPathComponent("home", isDirectory: true)
+    let mainAppBundleURL = applicationsDirectoryURL.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let embeddedHelperBundleURL = mainAppBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+
+    try fileManager.createDirectory(at: embeddedHelperBundleURL, withIntermediateDirectories: true)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
+        fileManager: fileManager,
+        preferredAppBundleURL: mainAppBundleURL,
+        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true),
+        preferredHelperBundleURL: applicationsDirectoryURL.appendingPathComponent("Bear MCP Helper.app", isDirectory: true),
+        userSpecificHelperBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP Helper.app", isDirectory: true)
+    )
+
+    #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
+    #expect(
+        BearSelectedNoteHelperLocator.installationLocationDescription(
+            forAppBundleURL: embeddedHelperBundleURL
+        ) == "embedded in \(mainAppBundleURL.path)"
+    )
+}

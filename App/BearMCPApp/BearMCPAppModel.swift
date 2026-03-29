@@ -61,6 +61,7 @@ final class BearMCPAppModel: ObservableObject {
         applyDraft(from: dashboard.settings)
 
         if !runsHeadlessCallbackHost {
+            repairSelectedNoteTokenTrustedApplicationsIfNeeded()
             reconcilePublicLauncherAutomatically()
         }
     }
@@ -74,7 +75,10 @@ final class BearMCPAppModel: ObservableObject {
 
     func saveSelectedNoteToken() {
         do {
-            try BearAppSupport.saveSelectedNoteToken(tokenDraft)
+            try BearAppSupport.saveSelectedNoteToken(
+                tokenDraft,
+                currentAppBundleURL: Bundle.main.bundleURL
+            )
             tokenDraft = ""
             storedSelectedNoteToken = nil
             storedTokenHasBeenExplicitlyLoaded = false
@@ -90,7 +94,9 @@ final class BearMCPAppModel: ObservableObject {
 
     func importSelectedNoteTokenFromConfig() {
         do {
-            let imported = try BearAppSupport.importSelectedNoteTokenFromConfig()
+            let imported = try BearAppSupport.importSelectedNoteTokenFromConfig(
+                currentAppBundleURL: Bundle.main.bundleURL
+            )
             storedSelectedNoteToken = nil
             storedTokenHasBeenExplicitlyLoaded = false
             revealsStoredToken = false
@@ -102,6 +108,16 @@ final class BearMCPAppModel: ObservableObject {
         } catch {
             tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
+        }
+    }
+
+    private func repairSelectedNoteTokenTrustedApplicationsIfNeeded() {
+        do {
+            _ = try BearAppSupport.repairSelectedNoteTokenTrustedApplicationsIfNeeded(
+                currentAppBundleURL: Bundle.main.bundleURL
+            )
+        } catch {
+            return
         }
     }
 

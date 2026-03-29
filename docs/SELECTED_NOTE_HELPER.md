@@ -1,10 +1,10 @@
-# Bear MCP Helper Fallback
+# Bear MCP Helper
 
 `bear-mcp` keeps selected-note targeting optional.
 
-The main CLI server remains the primary MCP runtime. Phase 3 now prefers `Bear MCP.app` as the selected-note callback host through `bearmcp://`, and that app-hosted route has been manually validated end-to-end against the real Bear app for both app-launch and already-running-app flows. The canonical install path for `Bear MCP.app` is `/Applications/Bear MCP.app`; `~/Applications/Bear MCP.app` remains a fully supported user-specific install location. The companion helper app can still be installed as a narrow fallback when `Bear MCP.app` is not installed.
+The main CLI server remains the primary MCP runtime. The selected-note callback path now prefers a background helper app bundled inside `Bear MCP.app`, so one visible app install can still launch an on-demand callback receiver without stealing focus. The canonical install path for `Bear MCP.app` is `/Applications/Bear MCP.app`; `~/Applications/Bear MCP.app` remains a fully supported user-specific install location. The companion standalone helper app remains available only as a compatibility fallback when the embedded helper is unavailable.
 
-This helper is a transition host for shared callback logic, not the long-term product center. The callback runtime itself lives in package code and is now used by both the main app and the helper shell.
+This helper is not meant to run all the time. It is an on-demand background callback host. The callback runtime itself lives in package code and is used by both the app shell and the helper shell.
 
 ## Why this exists
 
@@ -13,7 +13,7 @@ Bear's selected-note callback flow depends on a callback URL target. A real `.ap
 This repo now includes:
 
 - shared callback-host runtime in `BearXCallback`
-- a native `Bear MCP.app` bundle that registers `bearmcp://` and can run headless as the preferred callback host
+- a native `Bear MCP.app` bundle that contains the visible dashboard app plus the embedded background helper
 - a SwiftPM helper executable product: `bear-mcp-helper`
 - a bundling script that wraps that executable in a background `.app`
 - an app `Info.plist` that registers the `bearmcphelper://` callback scheme
@@ -48,16 +48,16 @@ Use `Bear MCP.app` to manage the Bear API token in Keychain and to install or re
 ~/.local/bin/bear-mcp
 ```
 
-MCP clients should point at that launcher path, not at the app executable and not at transient SwiftPM build outputs. Install `Bear MCP Helper.app` only if you want to keep the helper fallback available when the preferred app is absent. Then run `bear-mcp doctor` to confirm the callback host detection state.
+MCP clients should point at that launcher path, not at the app executable and not at transient SwiftPM build outputs. Install `Bear MCP Helper.app` separately only if you want to keep the standalone compatibility fallback available when the embedded helper is absent. Then run `bear-mcp doctor` to confirm the callback host detection state.
 
 ## Current behavior
 
-- `Bear MCP.app` is now the preferred callback host and preserves the same response-file JSON contract the CLI already used with the helper
+- `Bear MCP.app` now ships one embedded background helper that preserves the same response-file JSON contract the CLI already used with the standalone helper
 - the local app build now embeds the `bear-mcp` binary inside `Bear MCP.app`, and the dashboard can install one shared launcher at `~/.local/bin/bear-mcp` that forwards into that bundled binary
 - `/Applications/Bear MCP.app` is the canonical preferred install path; `~/Applications/Bear MCP.app` remains fully supported for user-specific installs
-- the preferred app-hosted route works end-to-end when `Bear MCP.app` is installed and not already running
-- if `Bear MCP.app` is already open in dashboard mode, the CLI now reuses that running app instance through a `bearmcp://x-callback-url/start-selected-note-host?...` request instead of falling back to the helper
-- the helper is now only needed as a secondary fallback path when `Bear MCP.app` is not installed
+- the preferred route now launches the embedded helper on demand and keeps the visible dashboard app out of the callback critical path
+- the helper exits after the callback arrives, so it does not need to run continuously in the background
+- the standalone helper is now only a secondary compatibility fallback when the embedded helper is unavailable
 - The helper accepts an xcall-compatible CLI shape: `-url ... -activateApp YES|NO`
 - The standalone executable is a thin AppKit shell around shared `BearSelectedNoteCallbackHost` logic in `BearXCallback`
 - It injects its own success/error callback URLs
