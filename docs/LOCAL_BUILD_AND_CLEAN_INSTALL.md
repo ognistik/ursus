@@ -1,70 +1,77 @@
 # Local Build And Clean Install
 
-This document is for local development and for testing the app from a clean starting point on macOS.
+This document is the practical local build, install, and reset guide for the current app-centered setup.
 
-## Build Commands
+## Build
 
-Build a local Debug app bundle:
+From the repo root:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh
 ```
 
-Build a local Release app bundle:
+For a Release build:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 CONFIGURATION=Release Support/scripts/build-bear-mcp-app.sh
 ```
 
-The build script prints the final app path on success.
-
-Current output paths:
-
-- Debug app: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Bear MCP.app`
-- Release app: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Bear MCP.app`
-
-Optional verification commands:
+Useful verification:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 swift test
 swift run bear-mcp doctor
+swift run bear-mcp --help
 ```
+
+Current app build outputs:
+
+- Debug: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Bear MCP.app`
+- Release: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Bear MCP.app`
 
 ## Install The Built App
 
-Copy the Debug build into `~/Applications`:
+Example Debug install:
 
 ```sh
 mkdir -p "$HOME/Applications"
 ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Bear MCP.app" "$HOME/Applications/Bear MCP.app"
+open "$HOME/Applications/Bear MCP.app"
 ```
 
-Copy the Release build into `~/Applications`:
+Example Release install:
 
 ```sh
 mkdir -p "$HOME/Applications"
 ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Bear MCP.app" "$HOME/Applications/Bear MCP.app"
-```
-
-Open the installed app:
-
-```sh
 open "$HOME/Applications/Bear MCP.app"
 ```
 
-## Clean Install Reset
+Canonical install guidance still prefers `/Applications/Bear MCP.app`, but `~/Applications/Bear MCP.app` remains fully supported for local development and user-specific installs.
 
-If you want to test onboarding from the beginning, remove the app, config, Bear MCP runtime files, and the public launcher.
+## Current Runtime Paths
 
-Important:
+These are the current paths in code today:
 
-- deleting the app bundle alone does **not** remove Bear MCP's config
-- the selected-note token now lives in `~/.config/bear-mcp/config.json`
+- config root: `~/.config/bear-mcp`
+- config file: `~/.config/bear-mcp/config.json`
+- template: `~/.config/bear-mcp/template.md`
+- app support root: `~/Library/Application Support/bear-mcp`
+- debug log: `~/Library/Logs/bear-mcp/debug.log`
+- public launcher: `~/.local/bin/bear-mcp`
 
-Fully reset the local Bear MCP state:
+Planned cleanup:
+
+- config stays under `~/.config/bear-mcp`
+- runtime artifacts are expected to move to `~/Library/Application Support/Bear MCP`
+- debug logs are expected to move into that same Bear MCP support root
+
+## Clean Reset
+
+Use this when you want to test from a clean local starting point.
 
 ```sh
 pkill -f "/Bear MCP.app/Contents/MacOS/Bear MCP" 2>/dev/null || true
@@ -73,15 +80,17 @@ rm -rf "$HOME/Applications/Bear MCP.app"
 rm -rf "$HOME/.config/bear-mcp"
 rm -rf "$HOME/Library/Application Support/bear-mcp"
 rm -rf "$HOME/Library/Logs/bear-mcp"
-rm -f "$HOME/bin/bear-mcp"
-security delete-generic-password -s "com.ognistik.bear-mcp" -a "selected-note-token" 2>/dev/null || true
+rm -f "$HOME/.local/bin/bear-mcp"
 ```
 
-After that, launching the app should behave like a fresh install.
+Note:
 
-## Reinstall After A Clean Reset
+- deleting the app bundle alone does not remove Bear MCP state
+- the selected-note token is currently managed through Bear MCP's config flow, so there is no separate Keychain reset step in the current product shape
 
-One practical copy-paste flow for a fresh local test:
+## Reinstall After Reset
+
+One practical copy-paste flow:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
@@ -91,31 +100,29 @@ ditto ".build/BearMCPApp/Build/Products/Debug/Bear MCP.app" "$HOME/Applications/
 open "$HOME/Applications/Bear MCP.app"
 ```
 
-## Notes About The CLI
+## Current Direct CLI Commands
 
-The app now installs one shared launcher at:
+The public launcher installed by the app is:
 
 - `~/.local/bin/bear-mcp`
 
-That launcher is useful both for MCP host setup and for direct Bear workflows:
+Current utility commands:
 
 - `bear-mcp --new-note`
 - `bear-mcp --apply-template [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
 
-When `--apply-template` or `--delete-note` receive no note ids or titles, they target the currently selected Bear note. Passed note arguments resolve as exact note id first and then exact case-insensitive title. Quote titles with spaces.
+Current selector behavior:
 
-On a fresh install or after updating the app bundle, the dashboard overview now shows a proactive launcher attention card whenever that path is missing or stale, with direct install/repair actions.
+- `--apply-template` and `--delete-note` use the selected Bear note when no note ids or titles are passed
+- passed note arguments resolve as exact note id first, then exact case-insensitive title
+- quote titles with spaces
 
-On a normal dashboard launch, `Bear MCP.app` now also auto-installs or repairs the launcher at `~/.local/bin/bear-mcp` when the bundled CLI is available and the launcher is missing or stale.
+Planned next additions:
 
-If you are testing from a clean start, remove `~/.local/bin/bear-mcp` before reopening the app.
+- `bear-mcp --archive-note [note-id-or-title ...]`
+- richer override flags for `bear-mcp --new-note`
 
-## Notes About `--update-config`
+## Legacy Note
 
-`bear-mcp --update-config` still exists as a compatibility helper right now.
-
-Planned direction:
-
-- keep it only until the app provides a fully easy path for config migration and CLI refresh/update flows
-- remove it afterward rather than keeping dead compatibility code around
+`bear-mcp --update-config` is still present in the CLI today, but it is legacy compatibility behavior and should be removed after the app owns the remaining template/config maintenance flow.
