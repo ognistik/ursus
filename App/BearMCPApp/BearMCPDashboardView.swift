@@ -792,3 +792,6 @@ private func statusColor(for status: BearDoctorCheckStatus) -> Color {
         return .red
     }
 }
+#Preview {
+    BearMCPDashboardView(model: BearMCPAppModel())
+}
