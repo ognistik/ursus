@@ -7,34 +7,21 @@ enum BearSelectedNoteHelperRunner {
         bearURL: URL,
         timeout: Duration
     ) async throws -> String {
-        if let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() {
-            BearDebugLog.append(
-                "xcallback.resolve-selected-note host=helper helperPath=\(helperBundleURL.path)"
-            )
-            return try await resolveSelectedNoteID(
-                appBundleURL: helperBundleURL,
-                appName: BearSelectedNoteHelperLocator.appName,
-                bearURL: bearURL,
-                timeout: timeout,
-                terminateRunningInstancesBeforeLaunch: true
+        guard let helperBundleURL = BearSelectedNoteHelperLocator.installedAppBundleURL() else {
+            throw BearError.configuration(
+                "Selected-note targeting requires the embedded callback helper. \(BearSelectedNoteHelperLocator.installGuidance)"
             )
         }
 
-        if let appBundleURL = BearMCPAppLocator.installedAppBundleURL() {
-            BearDebugLog.append(
-                "xcallback.resolve-selected-note host=app-fallback reason=helper-missing appPath=\(appBundleURL.path)"
-            )
-            return try await resolveSelectedNoteID(
-                appBundleURL: appBundleURL,
-                appName: BearMCPAppLocator.appName,
-                bearURL: bearURL,
-                timeout: timeout,
-                terminateRunningInstancesBeforeLaunch: false
-            )
-        }
-
-        throw BearError.configuration(
-            "Selected-note targeting requires the embedded callback helper. \(BearSelectedNoteHelperLocator.installGuidance)"
+        BearDebugLog.append(
+            "xcallback.resolve-selected-note host=embedded-helper helperPath=\(helperBundleURL.path)"
+        )
+        return try await resolveSelectedNoteID(
+            appBundleURL: helperBundleURL,
+            appName: BearSelectedNoteHelperLocator.appName,
+            bearURL: bearURL,
+            timeout: timeout,
+            terminateRunningInstancesBeforeLaunch: true
         )
     }
 

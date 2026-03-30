@@ -33,7 +33,8 @@ Read [PROJECT_STATUS.md](/Users/ognistik/Documents/GitHubRepos/bear-mcp/PROJECT_
 - The current read adapter is real and queries the installed Bear database schema.
 - The current write adapter launches Bear URLs and uses best-effort DB polling for mutation receipts.
 - The MCP server should run as a single instance; startup now takes a process lock to prevent stale concurrent servers.
-- Temporary debug tracing may be written under `~/.config/bear-mcp/debug.log` while write behavior is being validated.
+- Runtime artifacts live under `~/Library/Application Support/Bear MCP`.
+- Temporary debug tracing may be written under `~/Library/Application Support/Bear MCP/Logs/debug.log` while write behavior is being validated.
 
 ## Working Style
 

@@ -92,3 +92,141 @@ func saveConfigurationOmitsMissingTokenField() throws {
     let updatedText = try String(contentsOf: configFileURL)
     #expect(!updatedText.contains("\"token\""))
 }
+
+@Test
+func prepareSupportFilesMigratesLegacyApplicationSupportRoot() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let legacyApplicationSupportDirectoryURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+    let applicationSupportDirectoryURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+
+    let legacyRuntimeDirectoryURL = legacyApplicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
+    let legacyBackupsDirectoryURL = legacyApplicationSupportDirectoryURL.appendingPathComponent("Backups", isDirectory: true)
+    let legacyBackupFileURL = legacyBackupsDirectoryURL.appendingPathComponent("snapshot.json", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try fileManager.createDirectory(at: legacyRuntimeDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: legacyBackupsDirectoryURL, withIntermediateDirectories: true)
+    try "123\n".write(
+        to: legacyRuntimeDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "{}".write(to: legacyBackupFileURL, atomically: true, encoding: .utf8)
+
+    try BearRuntimeBootstrap.prepareSupportFiles(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        applicationSupportDirectoryURL: applicationSupportDirectoryURL,
+        legacyApplicationSupportDirectoryURL: legacyApplicationSupportDirectoryURL
+    )
+
+    #expect(fileManager.fileExists(atPath: configFileURL.path))
+    #expect(fileManager.fileExists(atPath: templateURL.path))
+    #expect(
+        fileManager.fileExists(
+            atPath: applicationSupportDirectoryURL
+                .appendingPathComponent("Runtime", isDirectory: true)
+                .appendingPathComponent(".server.lock", isDirectory: false)
+                .path
+        )
+    )
+    #expect(
+        fileManager.fileExists(
+            atPath: applicationSupportDirectoryURL
+                .appendingPathComponent("Backups", isDirectory: true)
+                .appendingPathComponent("snapshot.json", isDirectory: false)
+                .path
+        )
+    )
+    #expect(fileManager.fileExists(atPath: legacyApplicationSupportDirectoryURL.path) == false)
+}
+
+@Test
+func prepareSupportFilesMovesLegacyBackupsIntoExistingNewSupportRoot() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let legacyApplicationSupportDirectoryURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: true)
+    let applicationSupportDirectoryURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+
+    let legacyBackupsDirectoryURL = legacyApplicationSupportDirectoryURL.appendingPathComponent("Backups", isDirectory: true)
+    let existingLogsDirectoryURL = applicationSupportDirectoryURL.appendingPathComponent("Logs", isDirectory: true)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try fileManager.createDirectory(at: existingLogsDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: legacyBackupsDirectoryURL, withIntermediateDirectories: true)
+    try """
+    {
+      "entries" : [
+        {
+          "capturedAt" : "2026-03-29T12:00:00Z",
+          "fileName" : "legacy-snapshot.json",
+          "modifiedAt" : "2026-03-29T11:00:00Z",
+          "noteID" : "note-1",
+          "operationGroupID" : "op-1",
+          "reason" : "replaceContent",
+          "snapshotID" : "snapshot-1",
+          "snippet" : "Legacy body",
+          "title" : "Legacy Note",
+          "version" : 7
+        }
+      ]
+    }
+    """.write(
+        to: legacyBackupsDirectoryURL.appendingPathComponent("index.json", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "{}".write(
+        to: legacyBackupsDirectoryURL.appendingPathComponent("legacy-snapshot.json", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
+
+    try BearRuntimeBootstrap.prepareSupportFiles(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        applicationSupportDirectoryURL: applicationSupportDirectoryURL,
+        legacyApplicationSupportDirectoryURL: legacyApplicationSupportDirectoryURL
+    )
+
+    let migratedIndexURL = applicationSupportDirectoryURL.appendingPathComponent("Backups/index.json", isDirectory: false)
+    let migratedIndexText = try String(contentsOf: migratedIndexURL, encoding: .utf8)
+
+    #expect(
+        fileManager.fileExists(
+            atPath: applicationSupportDirectoryURL
+                .appendingPathComponent("Backups", isDirectory: true)
+                .appendingPathComponent("legacy-snapshot.json", isDirectory: false)
+                .path
+        )
+    )
+    #expect(migratedIndexText.contains("\"snapshotID\" : \"snapshot-1\""))
+    #expect(fileManager.fileExists(atPath: legacyBackupsDirectoryURL.path) == false)
+}

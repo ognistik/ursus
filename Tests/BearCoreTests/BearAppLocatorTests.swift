@@ -20,11 +20,6 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
             forAppBundleURL: BearMCPAppLocator.userSpecificAppBundleURL
         ) == "supported user-specific install location"
     )
-    #expect(
-        BearSelectedNoteHelperLocator.installationLocationDescription(
-            forAppBundleURL: BearSelectedNoteHelperLocator.userSpecificAppBundleURL
-        ) == "supported user-specific install location"
-    )
 }
 
 @Test
@@ -135,9 +130,7 @@ func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
         preferredAppBundleURL: mainAppBundleURL,
-        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true),
-        preferredHelperBundleURL: applicationsDirectoryURL.appendingPathComponent("Bear MCP Helper.app", isDirectory: true),
-        userSpecificHelperBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP Helper.app", isDirectory: true)
+        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true)
     )
 
     #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
@@ -146,4 +139,27 @@ func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
             forAppBundleURL: embeddedHelperBundleURL
         ) == "embedded in \(mainAppBundleURL.path)"
     )
+}
+
+@Test
+func helperLocatorIgnoresStandaloneHelperBundleWithoutContainingApp() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let applicationsDirectoryURL = temporaryRoot.appendingPathComponent("Applications", isDirectory: true)
+    let standaloneHelperBundleURL = applicationsDirectoryURL.appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+    let userHomeURL = temporaryRoot.appendingPathComponent("home", isDirectory: true)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    try fileManager.createDirectory(at: standaloneHelperBundleURL, withIntermediateDirectories: true)
+
+    let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
+        fileManager: fileManager,
+        preferredAppBundleURL: applicationsDirectoryURL.appendingPathComponent("Bear MCP.app", isDirectory: true),
+        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true)
+    )
+
+    #expect(locatedURL == nil)
 }

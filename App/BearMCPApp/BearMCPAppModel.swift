@@ -1,17 +1,13 @@
 import AppKit
 import BearApplication
 import BearCore
-import Combine
 import Foundation
 
 @MainActor
 final class BearMCPAppModel: ObservableObject {
-    let runsHeadlessCallbackHost: Bool
-
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot(
         currentAppBundleURL: Bundle.main.bundleURL
     )
-    @Published private(set) var lastIncomingCallbackURL: URL?
     @Published var tokenDraft = ""
     @Published var revealsStoredToken = false
     @Published private(set) var tokenStatusMessage: String?
@@ -45,28 +41,13 @@ final class BearMCPAppModel: ObservableObject {
     @Published var backupRetentionDaysDraft = 30
     @Published private var disabledToolsDraft: Set<BearToolName> = []
 
-    private var cancellables: Set<AnyCancellable> = []
     private var configurationAutosaveTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
 
-    init(
-        runsHeadlessCallbackHost: Bool = BearSelectedNoteAppHost.shouldRunHeadless()
-    ) {
-        self.runsHeadlessCallbackHost = runsHeadlessCallbackHost
-
-        NotificationCenter.default.publisher(for: .bearMCPDidReceiveIncomingCallbackURL)
-            .compactMap { $0.object as? URL }
-            .sink { [weak self] url in
-                self?.recordIncomingCallback(url)
-            }
-            .store(in: &cancellables)
-
+    init() {
         applyDraft(from: dashboard.settings)
-
-        if !runsHeadlessCallbackHost {
-            reconcilePublicLauncherAutomatically()
-        }
+        reconcilePublicLauncherAutomatically()
         loadTemplateDraft()
         refreshStoredSelectedNoteToken()
     }
@@ -246,10 +227,6 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
-    func recordIncomingCallback(_ url: URL) {
-        lastIncomingCallbackURL = url
-    }
-
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
@@ -329,16 +306,6 @@ final class BearMCPAppModel: ObservableObject {
         let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
         let buildVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
         return "\(shortVersion) (\(buildVersion))"
-    }
-
-    var callbackSchemes: [String] {
-        guard let urlTypes = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]] else {
-            return []
-        }
-
-        return urlTypes
-            .flatMap { $0["CFBundleURLSchemes"] as? [String] ?? [] }
-            .sorted()
     }
 
     var maskedStoredSelectedNoteToken: String? {
@@ -479,8 +446,4 @@ final class BearMCPAppModel: ObservableObject {
             cliStatusError = localizedMessage(for: error)
         }
     }
-}
-
-extension Notification.Name {
-    static let bearMCPDidReceiveIncomingCallbackURL = Notification.Name("bear-mcp.did-receive-incoming-callback-url")
 }

@@ -59,15 +59,18 @@ These are the current paths in code today:
 - config root: `~/.config/bear-mcp`
 - config file: `~/.config/bear-mcp/config.json`
 - template: `~/.config/bear-mcp/template.md`
-- app support root: `~/Library/Application Support/bear-mcp`
-- debug log: `~/Library/Logs/bear-mcp/debug.log`
+- app support root: `~/Library/Application Support/Bear MCP`
+- backups: `~/Library/Application Support/Bear MCP/Backups`
+- runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
+- debug log: `~/Library/Application Support/Bear MCP/Logs/debug.log`
 - public launcher: `~/.local/bin/bear-mcp`
+- temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`
 
-Planned cleanup:
+Migration note:
 
 - config stays under `~/.config/bear-mcp`
-- runtime artifacts are expected to move to `~/Library/Application Support/Bear MCP`
-- debug logs are expected to move into that same Bear MCP support root
+- startup migrates legacy runtime state from `~/Library/Application Support/bear-mcp`
+- startup migrates legacy debug logs from `~/Library/Logs/bear-mcp`
 
 ## Clean Reset
 
@@ -78,6 +81,7 @@ pkill -f "/Bear MCP.app/Contents/MacOS/Bear MCP" 2>/dev/null || true
 rm -rf "/Applications/Bear MCP.app"
 rm -rf "$HOME/Applications/Bear MCP.app"
 rm -rf "$HOME/.config/bear-mcp"
+rm -rf "$HOME/Library/Application Support/Bear MCP"
 rm -rf "$HOME/Library/Application Support/bear-mcp"
 rm -rf "$HOME/Library/Logs/bear-mcp"
 rm -f "$HOME/.local/bin/bear-mcp"

@@ -11,7 +11,7 @@ That means:
 - `Bear MCP.app` stays the control center.
 - The bundled `bear-mcp` CLI stays the local stdio MCP server.
 - Host setup remains generic-first.
-- The standalone helper remains fallback-only.
+- The embedded helper remains the selected-note callback path.
 
 ## Decisions Locked In
 
@@ -40,29 +40,11 @@ The repo is at a good place to stop and simplify before adding more features.
 The main problems to address now are:
 
 - docs are too long and too historical
-- runtime naming is inconsistent across bundle id, Application Support, and logs
 - the direct CLI utility surface is useful, but not yet complete enough for automation-friendly note creation
 
 ## Recommended Order From Here
 
-### 1. Clean up naming and runtime paths together
-
-Goal:
-
-- make app-facing metadata and runtime storage feel like one coherent product
-
-Planned changes:
-
-- app bundle identifier: `com.aft.bearmcp`
-- Application Support root: `~/Library/Application Support/Bear MCP`
-- debug log location: inside that Bear MCP support root, not `~/Library/Logs`
-
-Migration note:
-
-- do this as one coordinated slice rather than piecemeal
-- keep `~/.config/bear-mcp` for config and `template.md`
-
-### 2. Expand the direct CLI utility surface
+### 1. Expand the direct CLI utility surface
 
 Goal:
 
@@ -87,7 +69,7 @@ Required behavior for the expanded `--new-note` flow:
 - if explicit mode is used without tags, default to inbox tags
 - append remains the default tag merge mode unless explicitly changed
 
-### 3. Simplify the app UI
+### 2. Simplify the app UI
 
 Goal:
 
@@ -109,8 +91,6 @@ Likely follow-up now that template editing is in the app:
 - `Sources/BearCore/BearPaths.swift`
 - `Sources/BearMCPCLI/BearCLICommand.swift`
 - `Sources/BearMCPCLI/BearMCPMain.swift`
-- `Support/app/Info.plist`
-- `BearMCPApp.xcodeproj/project.pbxproj`
 
 ## What Not To Do
 

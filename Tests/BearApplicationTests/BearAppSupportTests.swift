@@ -67,11 +67,11 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(launcherDiagnostic.value == launcherURL.path)
     #expect(launcherDiagnostic.detail == "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path.")
 
-    let callbackDiagnostic = try #require(diagnostic(named: "selected-note-callback-app", in: dashboard.diagnostics))
+    let callbackDiagnostic = try #require(diagnostic(named: "selected-note-app", in: dashboard.diagnostics))
     #expect(callbackDiagnostic.status == BearDoctorCheckStatus.missing)
     #expect(callbackDiagnostic.detail?.contains("install `Bear MCP.app` in `/Applications/Bear MCP.app` (preferred).") == true)
     #expect(callbackDiagnostic.detail?.contains("fully supported for user-specific installs") == true)
-    #expect(!dashboard.diagnostics.contains(where: { $0.key == "selected-note-helper-fallback" }))
+    #expect(!dashboard.diagnostics.contains(where: { $0.key == "selected-note-helper" }))
 }
 
 @Test
@@ -139,7 +139,7 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
         }
     )
 
-    let preferredAppDiagnostic = try #require(diagnostic(named: "selected-note-callback-app", in: dashboard.diagnostics))
+    let preferredAppDiagnostic = try #require(diagnostic(named: "selected-note-app", in: dashboard.diagnostics))
     #expect(preferredAppDiagnostic.status == BearDoctorCheckStatus.ok)
     #expect(preferredAppDiagnostic.value == appBundleURL.path)
 
@@ -157,9 +157,9 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
     #expect(dashboard.settings?.launcherStatusDetail == "Local MCP hosts and Terminal should use this one launcher path.")
     #expect(dashboard.settings?.cliMaintenancePrompt == nil)
 
-    let helperFallbackDiagnostic = try #require(diagnostic(named: "selected-note-helper-fallback", in: dashboard.diagnostics))
-    #expect(helperFallbackDiagnostic.status == BearDoctorCheckStatus.ok)
-    #expect(helperFallbackDiagnostic.value == helperBundleURL.path)
+    let helperDiagnostic = try #require(diagnostic(named: "selected-note-helper", in: dashboard.diagnostics))
+    #expect(helperDiagnostic.status == BearDoctorCheckStatus.ok)
+    #expect(helperDiagnostic.value == helperBundleURL.path)
 }
 
 @Test
@@ -810,102 +810,6 @@ func loadResolvedSelectedNoteTokenReadsConfigValue() throws {
 
     #expect(resolved?.value == "legacy-token")
     #expect(resolved?.source == .config)
-}
-
-@Test
-func selectedNoteAppHostDetectsHeadlessLaunchModeFromArguments() {
-    let detectsCallbackInvocation = BearSelectedNoteAppHost.shouldRunHeadless(
-        arguments: [
-            "Bear MCP",
-            "-url", "bear://x-callback-url/open-note?selected=yes&token=top-secret-token",
-            "-responseFile", "/tmp/selected-note.json",
-        ]
-    )
-    let detectsNormalLaunch = BearSelectedNoteAppHost.shouldRunHeadless(
-        arguments: [
-            "Bear MCP",
-        ]
-    )
-
-    #expect(detectsCallbackInvocation)
-    #expect(!detectsNormalLaunch)
-}
-
-@Test
-@MainActor
-func selectedNoteAppHostStartsAndCompletesCallbackSessionInsideDashboardInstance() throws {
-    let recorder = AppHostCallbackRecorder()
-    let responseFileURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString, isDirectory: false)
-        .appendingPathExtension("json")
-    defer { try? FileManager.default.removeItem(at: responseFileURL) }
-
-    let appHost = BearSelectedNoteAppHost(
-        arguments: ["Bear MCP"],
-        callbackHostFactory: { completion in
-            BearSelectedNoteCallbackHost(
-                callbackScheme: BearSelectedNoteCallbackHost.appCallbackScheme,
-                outputWriter: { data, channel in
-                    recorder.recordOutput(data, channel: channel)
-                },
-                urlOpener: { url, activateApp, openCompletion in
-                    recorder.recordOpen(url: url, activateApp: activateApp)
-                    openCompletion(nil)
-                },
-                terminator: {
-                    recorder.recordTermination()
-                    completion()
-                }
-            )
-        }
-    )
-
-    let request = BearSelectedNoteAppRequest(
-        requestURL: URL(string: "bear://x-callback-url/open-note?selected=yes&token=top-secret-token")!,
-        activateApp: false,
-        responseFileURL: responseFileURL
-    )
-
-    #expect(appHost.launchMode == .dashboard)
-    #expect(appHost.handleIncomingURL(request.url))
-
-    let started = recorder.snapshot()
-    guard let openedURL = started.openedURL else {
-        Issue.record("Expected dashboard app host to start a selected-note callback session.")
-        return
-    }
-
-    #expect(started.activateApp == false)
-
-    guard var callbackComponents = URLComponents(
-        string: try #require(
-            URLComponents(url: openedURL, resolvingAgainstBaseURL: false)?
-                .queryItems?
-                .first(where: { $0.name == "x-success" })?
-                .value
-        )
-    ) else {
-        Issue.record("Expected rewritten success callback URL.")
-        return
-    }
-
-    callbackComponents.queryItems = (callbackComponents.queryItems ?? []) + [
-        URLQueryItem(name: "identifier", value: "selected-note"),
-    ]
-    guard let callbackURL = callbackComponents.url else {
-        Issue.record("Expected valid success callback URL.")
-        return
-    }
-
-    #expect(appHost.handleIncomingURL(callbackURL))
-
-    let finished = recorder.snapshot()
-    #expect(finished.terminatedCount == 1)
-    #expect(finished.stdout.contains("selected-note"))
-    #expect(finished.stderr.isEmpty)
-
-    let payload = try parseAppHostPayload(Data(contentsOf: responseFileURL))
-    #expect(payload["identifier"] == "selected-note")
 }
 
 @Test

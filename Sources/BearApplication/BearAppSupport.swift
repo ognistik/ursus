@@ -894,16 +894,16 @@ public enum BearAppSupport {
                     let executableURL = try callbackAppExecutableURLResolver(callbackAppBundleURL, fileManager)
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-callback-app",
+                            key: "selected-note-app",
                             value: callbackAppBundleURL.path,
                             status: .ok,
-                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); dashboard app -> \(executableURL.path)"
+                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); embedded selected-note helper host app -> \(executableURL.path)"
                         )
                     )
                 } catch {
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-callback-app",
+                            key: "selected-note-app",
                             value: callbackAppBundleURL.path,
                             status: .invalid,
                             detail: "invalid: \(localizedMessage(for: error))"
@@ -913,7 +913,7 @@ public enum BearAppSupport {
             } else {
                 checks.append(
                     BearDoctorCheck(
-                        key: "selected-note-callback-app",
+                        key: "selected-note-app",
                         value: "not detected",
                         status: .missing,
                         detail: BearMCPAppLocator.installGuidance
@@ -926,16 +926,16 @@ public enum BearAppSupport {
                     let executableURL = try helperExecutableURLResolver(helperBundleURL, fileManager)
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-helper-fallback",
+                            key: "selected-note-helper",
                             value: helperBundleURL.path,
                             status: .ok,
-                            detail: "selected-note background helper; \(BearSelectedNoteHelperLocator.installationLocationDescription(forAppBundleURL: helperBundleURL)) -> \(executableURL.path)"
+                            detail: "embedded selected-note background helper; \(BearSelectedNoteHelperLocator.installationLocationDescription(forAppBundleURL: helperBundleURL)) -> \(executableURL.path)"
                         )
                     )
                 } catch {
                     checks.append(
                         BearDoctorCheck(
-                            key: "selected-note-helper-fallback",
+                            key: "selected-note-helper",
                             value: helperBundleURL.path,
                             status: .invalid,
                             detail: "invalid: \(localizedMessage(for: error))"
