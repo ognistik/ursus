@@ -19,6 +19,22 @@ The intended user-facing result is:
 - CLI subcommand: `bear-mcp bridge`
 - default endpoint shape: `http://127.0.0.1:<port>/mcp`
 
+## Current Status
+
+- Completed in the first slice:
+  - upgraded `swift-sdk` to `0.12.0`
+  - added bridge config/domain scaffolding, URL formatting, deterministic port selection, and LaunchAgent path/label constants
+  - added `bear-mcp bridge serve`, `bear-mcp bridge status`, and `bear-mcp bridge print-url`
+  - verified `swift test`, `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`, and a localhost smoke check for `bear-mcp bridge serve`
+- Important note from the SDK work:
+  - `0.11.0` is where the server HTTP transports appear, but `0.12.0` was the smallest clean upgrade on the current toolchain because `0.11.0` failed in the dependency with strict-concurrency diagnostics in `NetworkTransport`
+- Not done yet:
+  - LaunchAgent install/remove/status support
+  - app UI and dashboard bridge status
+  - bridge health checks and better status/error reporting
+- Cleanup still needed from the SDK upgrade:
+  - replace deprecated `Tool.Content.text(...)` calls in `Sources/BearMCP/BearMCPServer.swift` with `.text(text:annotations:_meta:)`
+
 ## Product Decisions Locked In
 
 - This feature is optional.
@@ -138,13 +154,7 @@ Why:
 - easier status reporting and diagnostics in the app
 - easier integration with your current launcher and config model
 
-The current repo is pinned to `swift-sdk` `0.9.0`, while the current SDK documentation describes built-in server HTTP transports. This feature likely needs an SDK upgrade as part of the implementation slice.
-
-Before coding the bridge runtime:
-
-1. evaluate the HTTP server transport APIs in the target `swift-sdk` version
-2. choose the smallest transport that cleanly exposes MCP over HTTP for localhost clients
-3. upgrade the SDK deliberately and run the full test/build baseline before layering bridge logic on top
+The repo now uses `swift-sdk` `0.12.0`. The first slice confirmed that the official Swift SDK server HTTP transports are workable here, and the current bridge runtime uses the stateful transport with a local SwiftNIO HTTP wrapper.
 
 ## Stateful vs Stateless
 
@@ -297,6 +307,10 @@ Goal:
 
 - confirm the native HTTP MCP transport approach and upgrade `swift-sdk` safely
 
+Status:
+
+- done
+
 Tasks:
 
 - inspect the current Swift MCP SDK transport APIs
@@ -317,6 +331,10 @@ Goal:
 
 - add configuration and path primitives without changing runtime behavior yet
 
+Status:
+
+- done
+
 Tasks:
 
 - add bridge config model with defaults
@@ -335,6 +353,10 @@ Exit criteria:
 Goal:
 
 - create a headless bridge runtime callable as `bear-mcp bridge serve`
+
+Status:
+
+- done
 
 Tasks:
 
@@ -356,6 +378,10 @@ Goal:
 
 - let the app install and remove a background bridge cleanly
 
+Status:
+
+- next
+
 Tasks:
 
 - generate expected LaunchAgent plist contents
@@ -375,6 +401,10 @@ Goal:
 
 - make the bridge understandable and easy for beginners
 
+Status:
+
+- pending after LaunchAgent work
+
 Tasks:
 
 - add `Remote MCP Bridge` UI
@@ -392,6 +422,10 @@ Exit criteria:
 Goal:
 
 - make failures predictable and visible
+
+Status:
+
+- pending after LaunchAgent and app UI
 
 Tasks:
 
@@ -491,13 +525,13 @@ Constraints:
 - keep the chosen port stable once selected
 - do not mix this work with the future `Ursus` rename
 
-Suggested first implementation slice:
+Suggested next implementation slice:
 
-1. upgrade the Swift MCP SDK as needed for native HTTP server transport support
-2. add bridge config types and CLI parsing
-3. implement `bear-mcp bridge serve`
-4. add LaunchAgent install/remove/status support in the app
-5. add the `Remote MCP Bridge` UI
+1. add `BearApplication` support for bridge LaunchAgent install/remove/status using the stable public launcher path
+2. generate and validate the expected plist contents for `~/Library/LaunchAgents/com.aft.bearmcp.bridge.plist`
+3. wire stdout/stderr logs into `~/Library/Application Support/Bear MCP/Logs/`
+4. expose bridge status/install/remove/copy actions in `Bear MCP.app`
+5. clean up the `Tool.Content.text(...)` deprecation warnings in `Sources/BearMCP/BearMCPServer.swift`
 
 ## Final Guidance
 

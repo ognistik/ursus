@@ -11,7 +11,15 @@ enum BearCLICommand {
         let newWindow: Bool?
     }
 
+    enum BridgeSubcommand: Hashable {
+        case serve
+        case status
+        case printURL
+        case help
+    }
+
     case mcp
+    case bridge(BridgeSubcommand)
     case doctor
     case paths
     case newNote(NewNoteOptions?)
@@ -31,6 +39,8 @@ enum BearCLICommand {
         case "mcp":
             try assertNoExtraArguments(remainingArguments, for: "mcp")
             return .mcp
+        case "bridge":
+            return try parseBridgeCommand(remainingArguments)
         case "doctor":
             try assertNoExtraArguments(remainingArguments, for: "doctor")
             return .doctor
@@ -57,6 +67,9 @@ enum BearCLICommand {
         Usage:
           bear-mcp
           bear-mcp mcp
+          bear-mcp bridge serve
+          bear-mcp bridge status
+          bear-mcp bridge print-url
           bear-mcp doctor
           bear-mcp paths
           bear-mcp --new-note
@@ -67,6 +80,9 @@ enum BearCLICommand {
 
         Notes:
           No command defaults to `mcp`.
+          `bridge serve` starts the optional localhost HTTP MCP bridge with the configured host and port.
+          `bridge status` prints the configured bridge state and endpoint.
+          `bridge print-url` prints the configured localhost MCP URL.
           `--new-note` with no extra flags preserves the current interactive editing-note flow.
           In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags and `--tag-merge-mode` defaults to `append`.
           `--tags` accepts a comma-separated list and may be passed more than once.
@@ -76,9 +92,48 @@ enum BearCLICommand {
         """
     }
 
+    static var bridgeUsageText: String {
+        """
+        Usage:
+          bear-mcp bridge serve
+          bear-mcp bridge status
+          bear-mcp bridge print-url
+
+        Notes:
+          `serve` starts the optional localhost HTTP MCP bridge using the configured host and port.
+          `status` reports the saved bridge configuration state.
+          `print-url` prints the configured MCP endpoint URL.
+        """
+    }
+
     private static func assertNoExtraArguments(_ arguments: [String], for command: String) throws {
         guard arguments.isEmpty else {
             throw BearError.invalidInput("Command '\(command)' does not accept extra arguments.\n\n\(usageText)")
+        }
+    }
+
+    private static func parseBridgeCommand(_ arguments: [String]) throws -> BearCLICommand {
+        guard let subcommand = arguments.first else {
+            return .bridge(.help)
+        }
+
+        let remainingArguments = Array(arguments.dropFirst())
+
+        switch subcommand {
+        case "serve":
+            try assertNoExtraArguments(remainingArguments, for: "bridge serve")
+            return .bridge(.serve)
+        case "status":
+            try assertNoExtraArguments(remainingArguments, for: "bridge status")
+            return .bridge(.status)
+        case "print-url":
+            try assertNoExtraArguments(remainingArguments, for: "bridge print-url")
+            return .bridge(.printURL)
+        case "--help", "-h", "help":
+            try assertNoExtraArguments(remainingArguments, for: "bridge help")
+            return .bridge(.help)
+        default:
+            throw BearError.invalidInput("Unknown bridge subcommand '\(subcommand)'.\n\n\(bridgeUsageText)")
         }
     }
 

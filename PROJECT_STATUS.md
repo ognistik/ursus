@@ -49,6 +49,9 @@ Current direct utility commands:
 - `bear-mcp --apply-template [note-id-or-title ...]`
 - `bear-mcp --archive-note [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
+- `bear-mcp bridge serve`
+- `bear-mcp bridge status`
+- `bear-mcp bridge print-url`
 
 Behavior already in place:
 
@@ -63,6 +66,8 @@ Behavior already in place:
 - In explicit `--new-note` mode, `--title` defaults to the same timestamp format, `--content` defaults to empty content, `--open-note` defaults to `createOpensNoteByDefault`, `--new-window` defaults to `openUsesNewWindowByDefault`, and edit mode follows `openNoteInEditModeByDefault` when the created note opens.
 - `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
+- `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `bear-mcp mcp`.
+- Bridge config now lives inside `~/.config/bear-mcp/config.json` with default localhost settings and a stable saved port.
 
 ### MCP
 
@@ -81,6 +86,7 @@ These paths describe the codebase as it exists today:
 - template: `~/.config/bear-mcp/template.md`
 - public launcher: `~/.local/bin/bear-mcp`
 - app support root: `~/Library/Application Support/Bear MCP`
+- bridge LaunchAgent plist path reserved for the next slice: `~/Library/LaunchAgents/com.aft.bearmcp.bridge.plist`
 - backups: `~/Library/Application Support/Bear MCP/Backups`
 - runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
 - temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`

@@ -36,6 +36,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var backupRetentionDays: Int
     public var disabledTools: [BearToolName]
     public var token: String?
+    public var bridge: BearBridgeConfiguration
 
     public init(
         databasePath: String,
@@ -53,7 +54,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         maxSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName] = [],
-        token: String? = nil
+        token: String? = nil,
+        bridge: BearBridgeConfiguration = .default
     ) {
         self.databasePath = databasePath
         self.inboxTags = inboxTags
@@ -71,6 +73,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.disabledTools = Self.normalizedDisabledTools(disabledTools)
         self.token = Self.normalizedToken(token)
+        self.bridge = bridge
     }
 
     public static var `default`: BearConfiguration {
@@ -90,7 +93,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: 1_000,
             backupRetentionDays: 30,
             disabledTools: [],
-            token: nil
+            token: nil,
+            bridge: .default
         )
     }
 
@@ -111,7 +115,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            token: token
+            token: token,
+            bridge: bridge
         )
     }
 
@@ -132,7 +137,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            token: token
+            token: token,
+            bridge: bridge
         )
     }
 
@@ -157,6 +163,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case backupRetentionDays
         case disabledTools
         case token
+        case bridge
     }
 
     public init(from decoder: Decoder) throws {
@@ -178,6 +185,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])
         token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
+        bridge = try container.decodeIfPresent(BearBridgeConfiguration.self, forKey: .bridge) ?? .default
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -200,6 +208,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         if let token {
             try container.encode(token, forKey: .token)
         }
+        try container.encode(bridge, forKey: .bridge)
     }
 
     public static func load(from url: URL = BearPaths.configFileURL) throws -> BearConfiguration {

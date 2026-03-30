@@ -20,6 +20,8 @@ struct BearMCPMain {
             switch command {
             case .help:
                 print(BearCLICommand.usageText)
+            case .bridge(.help):
+                print(BearCLICommand.bridgeUsageText)
             case .doctor:
                 print(BearRuntimeBootstrap.doctorReport(logger: logger))
             case .paths:
@@ -34,6 +36,14 @@ struct BearMCPMain {
                         BearPaths.defaultBearDatabaseURL.path,
                     ].joined(separator: "\n")
                 )
+            case .bridge(.status):
+                let configuration = try BearRuntimeBootstrap.loadConfiguration()
+                print(renderBridgeStatus(configuration.bridge))
+            case .bridge(.printURL):
+                let configuration = try BearRuntimeBootstrap.loadConfiguration()
+                print(try configuration.bridge.endpointURLString())
+            case .bridge(.serve):
+                try await runBridge(logger: logger)
             case .newNote(let options):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let receipt: MutationReceipt
@@ -104,6 +114,56 @@ struct BearMCPMain {
         await server.stop()
     }
 
+    private static func runBridge(logger: Logger) async throws {
+        let runtime = try makeRuntimeServices(logger: logger)
+        let bridge = try runtime.configuration.bridge.validated()
+
+        if !bridge.enabled {
+            logger.info("bear-mcp bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
+        }
+
+        let application = BearBridgeHTTPApplication(
+            configuration: .init(
+                host: bridge.host,
+                port: bridge.port,
+                endpoint: bridge.endpointPath
+            ),
+            serverFactory: { _ in
+                await BearMCPServer(
+                    service: runtime.service,
+                    configuration: runtime.configuration,
+                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: runtime.configuration)
+                ).makeServer()
+            },
+            logger: logger
+        )
+
+        try await withThrowingTaskGroup(of: BridgeShutdownReason.self) { group in
+            group.addTask {
+                try await application.start()
+                return .serverCompleted
+            }
+
+            group.addTask {
+                let signal = await BearTerminationSignalMonitor.waitForTerminationSignal()
+                return .signal(signal)
+            }
+
+            let firstReason = try await group.next() ?? .serverCompleted
+
+            switch firstReason {
+            case .serverCompleted:
+                logger.info("bear-mcp bridge server stopped.")
+            case .signal(let signal):
+                logger.info("bear-mcp bridge received signal \(signal); shutting down.")
+                await application.stop()
+                _ = try await group.next()
+            }
+
+            group.cancelAll()
+        }
+    }
+
     private static func makeRuntimeServices(logger: Logger) throws -> RuntimeServices {
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
         let databaseReader = try BearDatabaseReader(
@@ -145,6 +205,11 @@ struct BearMCPMain {
         case parentExited
     }
 
+    private enum BridgeShutdownReason {
+        case serverCompleted
+        case signal(Int32)
+    }
+
     private struct RuntimeServices {
         let configuration: BearConfiguration
         let service: BearService
@@ -173,6 +238,18 @@ struct BearMCPMain {
             let title = receipt.title ?? "Untitled"
             return "\(label(for: receipt.status, action: "apply-template")): \(title) (\(receipt.noteID))"
         }.joined(separator: "\n")
+    }
+
+    private static func renderBridgeStatus(_ bridge: BearBridgeConfiguration) -> String {
+        let status = bridge.enabled ? "enabled" : "disabled"
+        let url = (try? bridge.endpointURLString()) ?? "invalid bridge URL"
+
+        return [
+            "Bridge \(status)",
+            "Host: \(bridge.host)",
+            "Port: \(bridge.port)",
+            "URL: \(url)",
+        ].joined(separator: "\n")
     }
 
     private static func label(for status: String, action: String) -> String {

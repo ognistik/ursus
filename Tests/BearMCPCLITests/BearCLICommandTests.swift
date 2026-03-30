@@ -16,6 +16,30 @@ func parseNewNoteWithoutExtraFlagsKeepsInteractiveMode() throws {
 }
 
 @Test
+func parseBridgeServeCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["bridge", "serve"])
+
+    switch command {
+    case .bridge(.serve):
+        break
+    default:
+        Issue.record("Expected 'bridge serve' to parse as the bridge serve subcommand.")
+    }
+}
+
+@Test
+func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
+    let command = try BearCLICommand.parse(arguments: ["bridge"])
+
+    switch command {
+    case .bridge(.help):
+        break
+    default:
+        Issue.record("Expected bare 'bridge' to parse as bridge help.")
+    }
+}
+
+@Test
 func parseNewNoteExplicitFlagsCollectsOverrides() throws {
     let command = try BearCLICommand.parse(
         arguments: [

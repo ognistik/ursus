@@ -22,9 +22,10 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.9.0"),
+        .package(url: "https://github.com/modelcontextprotocol/swift-sdk.git", exact: "0.12.0"),
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.9.0"),
         .package(url: "https://github.com/apple/swift-log.git", from: "1.9.1"),
+        .package(url: "https://github.com/apple/swift-nio.git", from: "2.97.0"),
     ],
     targets: [
         .target(
@@ -67,6 +68,9 @@ let package = Package(
                 "BearApplication",
                 "BearMCP",
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "NIOCore", package: "swift-nio"),
+                .product(name: "NIOHTTP1", package: "swift-nio"),
+                .product(name: "NIOPosix", package: "swift-nio"),
             ]
         ),
         .executableTarget(

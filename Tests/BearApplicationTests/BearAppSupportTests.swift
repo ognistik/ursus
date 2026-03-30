@@ -477,6 +477,76 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     #expect(configuration.maxSnippetLength == 200)
     #expect(configuration.backupRetentionDays == 7)
     #expect(configuration.disabledTools == [.addTags, .findNotes])
+    #expect(configuration.bridge == .default)
+}
+
+@Test
+func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+
+    let initialConfiguration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+
+    let encodedConfiguration = try BearJSON.makeEncoder().encode(initialConfiguration)
+    try encodedConfiguration.write(to: configFileURL, options: .atomic)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.saveConfigurationDraft(
+        BearAppConfigurationDraft(
+            databasePath: "/tmp/updated.sqlite",
+            inboxTags: ["0-inbox", "next"],
+            defaultInsertPosition: .top,
+            templateManagementEnabled: false,
+            openNoteInEditModeByDefault: false,
+            createOpensNoteByDefault: false,
+            openUsesNewWindowByDefault: false,
+            createAddsInboxTagsByDefault: false,
+            tagsMergeMode: .replace,
+            defaultDiscoveryLimit: 5,
+            maxDiscoveryLimit: 25,
+            defaultSnippetLength: 50,
+            maxSnippetLength: 200,
+            backupRetentionDays: 7,
+            disabledTools: []
+        ),
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(configuration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205))
 }
 
 @Test

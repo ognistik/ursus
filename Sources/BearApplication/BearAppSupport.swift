@@ -565,7 +565,8 @@ public enum BearAppSupport {
             maxSnippetLength: maxSnippetLength,
             backupRetentionDays: max(0, draft.backupRetentionDays),
             disabledTools: draft.disabledTools,
-            token: currentConfiguration.token
+            token: currentConfiguration.token,
+            bridge: currentConfiguration.bridge
         )
 
         try BearRuntimeBootstrap.saveConfiguration(
