@@ -732,7 +732,7 @@ func dashboardSnapshotReportsConfigBackedTokenStatus() throws {
 }
 
 @Test
-func tokenManagementActionsSaveLoadAndRemoveUpdateConfig() throws {
+func tokenManagementActionsSaveLoadAndRemoveSelectedNoteTokenInConfig() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)

@@ -9,7 +9,7 @@
 - `BearXCallback`: Bear mutation URL construction, Bear app launching, and shared selected-note callback-host logic.
 - `BearApplication`: orchestration, mutation planning, optimistic-write guards, and bootstrap files.
 - `BearMCP`: MCP tool registration and argument decoding.
-- `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, `paths`, compatibility/config maintenance, and a small direct-user CLI utility surface.
+- `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, `paths`, and a small direct-user CLI utility surface.
 - `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI, inline `template.md` editing, and `bearmcp://` registration.
 
 ## Current v1 shape
@@ -57,7 +57,6 @@
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`, and the app edits that same `template.md` file directly with pre-save slot validation.
 - Durable backup snapshots live under `~/Library/Application Support/bear-mcp/Backups`, while process locks remain under the sibling `Runtime/` path.
-- `bear-mcp --update-config` still rewrites the config file into the latest canonical shape, preserving existing values and filling in missing keys, but it is now legacy compatibility behavior and should be removed after the app owns the remaining template/config maintenance flow.
 - Runtime artifacts are kept out of the config folder: durable backups live under `~/Library/Application Support/bear-mcp/Backups`, the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, temp-directory fallback locks are used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
 - The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
 - The terminal-facing CLI now also supports three direct utility flows outside MCP host usage: `--new-note` creates a templated editing note that prefers tags from the selected Bear note and otherwise falls back to configured inbox tags, `--apply-template [note-id-or-title ...]` normalizes the selected note or passed note ids/titles through the same template-application logic used by the MCP tool, and `--delete-note [note-id-or-title ...]` trashes the selected note or passed note ids/titles through a CLI-only Bear `trash` x-callback path that remains intentionally excluded from the MCP tool surface.

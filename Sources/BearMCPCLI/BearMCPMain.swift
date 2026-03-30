@@ -20,9 +20,6 @@ struct BearMCPMain {
             switch command {
             case .help:
                 print(BearCLICommand.usageText)
-            case .updateConfig:
-                _ = try BearRuntimeBootstrap.updateConfigurationFile()
-                print("Updated config: \(BearPaths.configFileURL.path)")
             case .doctor:
                 print(BearRuntimeBootstrap.doctorReport(logger: logger))
             case .paths:

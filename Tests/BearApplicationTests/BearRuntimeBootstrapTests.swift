@@ -4,7 +4,7 @@ import Foundation
 import Testing
 
 @Test
-func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws {
+func loadAndSaveConfigurationFillMissingKeysAndPreserveExistingValues() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -26,7 +26,14 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
         try? fileManager.removeItem(at: tempRoot)
     }
 
-    let configuration = try BearRuntimeBootstrap.updateConfigurationFile(
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+    try BearRuntimeBootstrap.saveConfiguration(
+        configuration,
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,
@@ -55,7 +62,7 @@ func updateConfigurationFileFillsMissingKeysAndPreservesExistingValues() throws 
 }
 
 @Test
-func updateConfigurationFileOmitsMissingLegacyTokenField() throws {
+func saveConfigurationOmitsMissingTokenField() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -68,7 +75,14 @@ func updateConfigurationFileOmitsMissingLegacyTokenField() throws {
         try? fileManager.removeItem(at: tempRoot)
     }
 
-    _ = try BearRuntimeBootstrap.updateConfigurationFile(
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+    try BearRuntimeBootstrap.saveConfiguration(
+        configuration,
         fileManager: fileManager,
         configDirectoryURL: configDirectoryURL,
         configFileURL: configFileURL,

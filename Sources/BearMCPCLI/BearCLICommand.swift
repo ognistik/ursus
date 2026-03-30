@@ -3,7 +3,6 @@ import Foundation
 
 enum BearCLICommand {
     case mcp
-    case updateConfig
     case doctor
     case paths
     case newNote
@@ -22,9 +21,6 @@ enum BearCLICommand {
         case "mcp":
             try assertNoExtraArguments(remainingArguments, for: "mcp")
             return .mcp
-        case "--update-config":
-            try assertNoExtraArguments(remainingArguments, for: "--update-config")
-            return .updateConfig
         case "doctor":
             try assertNoExtraArguments(remainingArguments, for: "doctor")
             return .doctor
@@ -52,7 +48,6 @@ enum BearCLICommand {
           bear-mcp mcp
           bear-mcp doctor
           bear-mcp paths
-          bear-mcp --update-config
           bear-mcp --new-note
           bear-mcp --delete-note [note-id-or-title ...]
           bear-mcp --apply-template [note-id-or-title ...]

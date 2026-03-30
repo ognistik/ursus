@@ -61,30 +61,6 @@ public enum BearRuntimeBootstrap {
         return configuration
     }
 
-    @discardableResult
-    public static func updateConfigurationFile(
-        fileManager: FileManager = .default,
-        configDirectoryURL: URL = BearPaths.configDirectoryURL,
-        configFileURL: URL = BearPaths.configFileURL,
-        templateURL: URL = BearPaths.noteTemplateURL
-    ) throws -> BearConfiguration {
-        let configuration = try loadConfiguration(
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
-        try saveConfiguration(
-            configuration,
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
-        BearDebugLog.append("config.updated path=\(configFileURL.path)")
-        return configuration
-    }
-
     public static func doctorReport(logger: Logger) -> String {
         let snapshot = BearAppSupport.loadDashboardSnapshot()
         let lines = snapshot.diagnostics.map(\.renderedLine)

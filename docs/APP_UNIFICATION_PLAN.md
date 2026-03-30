@@ -40,23 +40,12 @@ The repo is at a good place to stop and simplify before adding more features.
 The main problems to address now are:
 
 - docs are too long and too historical
-- `--update-config` is still hanging around as dead-looking compatibility code
 - runtime naming is inconsistent across bundle id, Application Support, and logs
 - the direct CLI utility surface is useful, but not yet complete enough for automation-friendly note creation
 
 ## Recommended Order From Here
 
-### 1. Remove `--update-config`
-
-Goal:
-
-- drop the legacy compatibility flag once the app fully owns the remaining config/template editing flow
-
-Requirement before removal:
-
-- the app must already provide an easy path for template/config management and launcher refresh
-
-### 2. Clean up naming and runtime paths together
+### 1. Clean up naming and runtime paths together
 
 Goal:
 
@@ -73,7 +62,7 @@ Migration note:
 - do this as one coordinated slice rather than piecemeal
 - keep `~/.config/bear-mcp` for config and `template.md`
 
-### 3. Expand the direct CLI utility surface
+### 2. Expand the direct CLI utility surface
 
 Goal:
 
@@ -98,7 +87,7 @@ Required behavior for the expanded `--new-note` flow:
 - if explicit mode is used without tags, default to inbox tags
 - append remains the default tag merge mode unless explicitly changed
 
-### 4. Simplify the app UI
+### 3. Simplify the app UI
 
 Goal:
 

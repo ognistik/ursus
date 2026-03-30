@@ -122,7 +122,3 @@ Planned next additions:
 
 - `bear-mcp --archive-note [note-id-or-title ...]`
 - richer override flags for `bear-mcp --new-note`
-
-## Legacy Note
-
-`bear-mcp --update-config` is still present in the CLI today, but it is legacy compatibility behavior and should be removed after the app owns the remaining template/config maintenance flow.

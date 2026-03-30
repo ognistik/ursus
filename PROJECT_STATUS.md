@@ -58,12 +58,6 @@ Behavior already in place:
 - `--apply-template` and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 
-Legacy maintenance command still present in code:
-
-- `bear-mcp --update-config`
-
-Treat that flag as temporary compatibility code. It should be removed once the app fully owns the remaining config/template management flows.
-
 ### MCP
 
 The main MCP surface is already broad and usable. Implemented tools include:
@@ -113,12 +107,11 @@ Helper-only release/testing duplication should not come back unless the fallback
 
 This is the intended order of work after the doc cleanup:
 
-1. Remove stale `--update-config` compatibility code now that the app owns the remaining config/template flow.
-2. Migrate the app bundle identifier to `com.aft.bearmcp`.
-3. Rename the Application Support root from `~/Library/Application Support/bear-mcp` to `~/Library/Application Support/Bear MCP`, with logs kept inside that root.
-4. Add `bear-mcp --archive-note [note-id-or-title ...]`, matching the same selector behavior used by `--delete-note` and `--apply-template`.
-5. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
-6. Simplify the app UI now that template management has moved into the app.
+1. Migrate the app bundle identifier to `com.aft.bearmcp`.
+2. Rename the Application Support root from `~/Library/Application Support/bear-mcp` to `~/Library/Application Support/Bear MCP`, with logs kept inside that root.
+3. Add `bear-mcp --archive-note [note-id-or-title ...]`, matching the same selector behavior used by `--delete-note` and `--apply-template`.
+4. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
+5. Simplify the app UI now that template management has moved into the app.
 
 ## Details For The Next Slice
 
