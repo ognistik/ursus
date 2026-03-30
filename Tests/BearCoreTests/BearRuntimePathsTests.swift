@@ -15,7 +15,7 @@ func runtimeArtifactsUseLibraryLocations() {
     #expect(BearPaths.processLockURL.path.hasSuffix("/Library/Application Support/Bear MCP/Runtime/.server.lock"))
     #expect(BearPaths.fallbackProcessLockURL.path.hasSuffix("/bear-mcp/Runtime/.server.lock"))
     #expect(BearPaths.processSpecificFallbackLockURL(processID: 123).path.hasSuffix("/bear-mcp/Runtime/locks/123.server.lock"))
-    #expect(BearBridgeLaunchAgent.plistURL.path.hasSuffix("/Library/LaunchAgents/com.aft.bearmcp.bridge.plist"))
+    #expect(BearBridgeLaunchAgent.plistURL.path.hasSuffix("/Library/LaunchAgents/com.aft.bear-mcp.plist"))
     #expect(BearBridgeLaunchAgent.standardOutputURL.path.hasSuffix("/Library/Application Support/Bear MCP/Logs/bridge.stdout.log"))
     #expect(BearBridgeLaunchAgent.standardErrorURL.path.hasSuffix("/Library/Application Support/Bear MCP/Logs/bridge.stderr.log"))
 }

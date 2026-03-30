@@ -1,6 +1,7 @@
 import BearApplication
 import BearCore
 import BearXCallback
+import Darwin
 import Foundation
 import Testing
 
@@ -57,6 +58,9 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [BearAppCLIMaintenanceAction.installLauncher])
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Stored in config.json")
+    #expect(dashboard.settings?.bridge.status == BearDoctorCheckStatus.missing)
+    #expect(dashboard.settings?.bridge.statusTitle == "Not installed")
+    #expect(dashboard.settings?.bridge.endpointURL == "http://127.0.0.1:6190/mcp")
 
     let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
     #expect(bundledCLIDiagnostic.status == BearDoctorCheckStatus.missing)
@@ -71,6 +75,10 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(callbackDiagnostic.status == BearDoctorCheckStatus.missing)
     #expect(callbackDiagnostic.detail?.contains("install `Bear MCP.app` in `/Applications/Bear MCP.app` (preferred).") == true)
     #expect(callbackDiagnostic.detail?.contains("fully supported for user-specific installs") == true)
+
+    let bridgeDiagnostic = try #require(diagnostic(named: "remote-mcp-bridge", in: dashboard.diagnostics))
+    #expect(bridgeDiagnostic.status == BearDoctorCheckStatus.missing)
+    #expect(bridgeDiagnostic.value == "http://127.0.0.1:6190/mcp")
     #expect(!dashboard.diagnostics.contains(where: { $0.key == "selected-note-helper" }))
 }
 
@@ -414,6 +422,286 @@ func reconcilePublicLauncherReturnsUnchangedWhenLauncherMatchesBundle() throws {
     #expect(result.status == BearAppPublicLauncherReconciliationStatus.unchanged)
     #expect(result.sourcePath == nil)
     #expect(result.destinationPath == nil)
+}
+
+@Test
+func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Logs", isDirectory: true)
+        .appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Logs", isDirectory: true)
+        .appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+
+    let initialConfiguration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205)
+    )
+    try BearJSON.makeEncoder().encode(initialConfiguration).write(to: configFileURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let recorder = LaunchctlRecorder()
+
+    let receipt = try BearAppSupport.installBridgeLaunchAgent(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: recorder.installRunner
+    )
+
+    let savedConfiguration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+    let writtenPlist = try BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL)
+
+    #expect(receipt.status == .installed)
+    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205))
+    #expect(writtenPlist == BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ))
+    #expect(fileManager.fileExists(atPath: launcherURL.path))
+    #expect(fileManager.fileExists(atPath: stdoutURL.path))
+    #expect(fileManager.fileExists(atPath: stderrURL.path))
+    #expect(recorder.commands == [
+        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
+    ])
+}
+
+@Test
+func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let snapshot = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: { arguments in
+            #expect(arguments == ["print", "gui/\(getuid())/com.aft.bear-mcp"])
+            return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
+        }
+    )
+
+    #expect(snapshot.status == .notConfigured)
+    #expect(snapshot.statusTitle == "Paused")
+    #expect(snapshot.installed == true)
+    #expect(snapshot.loaded == false)
+    #expect(snapshot.plistMatchesExpected == true)
+}
+
+@Test
+func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let recorder = LaunchctlRecorder(loaded: true)
+
+    let pauseReceipt = try BearAppSupport.pauseBridgeLaunchAgent(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        launchctlRunner: recorder.statefulRunner
+    )
+    #expect(pauseReceipt.status == .paused)
+    #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+
+    let resumeReceipt = try BearAppSupport.resumeBridgeLaunchAgent(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: recorder.statefulRunner
+    )
+    #expect(resumeReceipt.status == .resumed)
+    #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+
+    let removeReceipt = try BearAppSupport.removeBridgeLaunchAgent(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        launchctlRunner: recorder.statefulRunner
+    )
+    #expect(removeReceipt.status == .removed)
+    #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path) == false)
+
+    let savedConfiguration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205))
+    #expect(recorder.commands == [
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+    ])
 }
 
 @Test
@@ -1024,6 +1312,74 @@ private func diagnostic(named key: String, in diagnostics: [BearDoctorCheck]) ->
 
 private func hostSetup(named id: String, in setups: [BearHostAppSetupSnapshot]) -> BearHostAppSetupSnapshot? {
     setups.first(where: { $0.id == id })
+}
+
+private final class LaunchctlRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isLoaded: Bool
+    private(set) var commands: [[String]] = []
+
+    init(loaded: Bool = false) {
+        isLoaded = loaded
+    }
+
+    var installRunner: BearLaunchctlCommandRunner {
+        { [weak self] arguments in
+            guard let self else {
+                return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Recorder unavailable")
+            }
+            self.record(arguments)
+
+            switch arguments.first {
+            case "bootout":
+                return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
+            case "bootstrap":
+                return BearProcessExecutionResult(exitCode: 0, stdout: "", stderr: "")
+            default:
+                return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Unexpected launchctl command")
+            }
+        }
+    }
+
+    var statefulRunner: BearLaunchctlCommandRunner {
+        { [weak self] arguments in
+            guard let self else {
+                return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Recorder unavailable")
+            }
+            self.record(arguments)
+
+            guard let command = arguments.first else {
+                return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Missing launchctl command")
+            }
+
+            switch command {
+            case "print":
+                return self.isLoaded
+                    ? BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+                    : BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
+            case "bootout":
+                self.setLoaded(false)
+                return BearProcessExecutionResult(exitCode: 0, stdout: "", stderr: "")
+            case "bootstrap":
+                self.setLoaded(true)
+                return BearProcessExecutionResult(exitCode: 0, stdout: "", stderr: "")
+            default:
+                return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Unexpected launchctl command")
+            }
+        }
+    }
+
+    private func record(_ arguments: [String]) {
+        lock.lock()
+        commands.append(arguments)
+        lock.unlock()
+    }
+
+    private func setLoaded(_ loaded: Bool) {
+        lock.lock()
+        isLoaded = loaded
+        lock.unlock()
+    }
 }
 
 private struct AppHostCallbackSnapshot {

@@ -52,7 +52,7 @@ public final class BearMCPServer: Sendable {
             do {
                 return try await self.handleToolCall(params)
             } catch {
-                return .init(content: [.text(Self.renderError(error))], isError: true)
+                return .init(content: [.text(text: Self.renderError(error), annotations: nil, _meta: nil)], isError: true)
             }
         }
     }
@@ -320,7 +320,7 @@ public final class BearMCPServer: Sendable {
         let encoder = BearJSON.makeEncoder()
         let data = try encoder.encode(value)
         let text = String(decoding: data, as: UTF8.self)
-        return .init(content: [.text(text)], isError: false)
+        return .init(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
     }
 
     private func requiredString(_ object: [String: Value], _ key: String) throws -> String {

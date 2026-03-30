@@ -134,7 +134,7 @@ public enum BearBridgePortAllocator {
 }
 
 public enum BearBridgeLaunchAgent {
-    public static let label = "com.aft.bearmcp.bridge"
+    public static let label = "com.aft.bear-mcp"
     public static let standardOutputFileName = "bridge.stdout.log"
     public static let standardErrorFileName = "bridge.stderr.log"
 
@@ -154,5 +154,73 @@ public enum BearBridgeLaunchAgent {
 
     public static var standardErrorURL: URL {
         BearPaths.logsDirectoryURL.appendingPathComponent(standardErrorFileName, isDirectory: false)
+    }
+
+    public static var launcherURL: URL {
+        BearPaths.publicCLIExecutableURL
+    }
+
+    public static func serviceTarget(userIdentifier: uid_t = getuid()) -> String {
+        "gui/\(userIdentifier)/\(label)"
+    }
+
+    public static func expectedPlist(
+        launcherURL: URL = launcherURL,
+        standardOutputURL: URL = standardOutputURL,
+        standardErrorURL: URL = standardErrorURL
+    ) -> BearBridgeLaunchAgentPlist {
+        BearBridgeLaunchAgentPlist(
+            label: label,
+            programArguments: [launcherURL.path, "bridge", "serve"],
+            runAtLoad: true,
+            keepAlive: true,
+            standardOutPath: standardOutputURL.path,
+            standardErrorPath: standardErrorURL.path
+        )
+    }
+}
+
+public struct BearBridgeLaunchAgentPlist: Codable, Hashable, Sendable {
+    public let label: String
+    public let programArguments: [String]
+    public let runAtLoad: Bool
+    public let keepAlive: Bool
+    public let standardOutPath: String
+    public let standardErrorPath: String
+
+    public init(
+        label: String,
+        programArguments: [String],
+        runAtLoad: Bool,
+        keepAlive: Bool,
+        standardOutPath: String,
+        standardErrorPath: String
+    ) {
+        self.label = label
+        self.programArguments = programArguments
+        self.runAtLoad = runAtLoad
+        self.keepAlive = keepAlive
+        self.standardOutPath = standardOutPath
+        self.standardErrorPath = standardErrorPath
+    }
+
+    public func xmlData() throws -> Data {
+        let encoder = PropertyListEncoder()
+        encoder.outputFormat = .xml
+        return try encoder.encode(self)
+    }
+
+    public static func load(from url: URL) throws -> BearBridgeLaunchAgentPlist {
+        let data = try Data(contentsOf: url)
+        return try PropertyListDecoder().decode(BearBridgeLaunchAgentPlist.self, from: data)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case label = "Label"
+        case programArguments = "ProgramArguments"
+        case runAtLoad = "RunAtLoad"
+        case keepAlive = "KeepAlive"
+        case standardOutPath = "StandardOutPath"
+        case standardErrorPath = "StandardErrorPath"
     }
 }

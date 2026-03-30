@@ -14,6 +14,8 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var tokenStatusError: String?
     @Published private(set) var cliStatusMessage: String?
     @Published private(set) var cliStatusError: String?
+    @Published private(set) var bridgeStatusMessage: String?
+    @Published private(set) var bridgeStatusError: String?
     @Published private(set) var hostSetupStatusMessage: String?
     @Published private(set) var hostSetupStatusError: String?
     @Published private(set) var configurationStatusMessage: String?
@@ -227,6 +229,62 @@ final class BearMCPAppModel: ObservableObject {
         }
     }
 
+    func installBridge() {
+        do {
+            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: Bundle.main.bundleURL)
+            bridgeStatusMessage = receipt.status == .installed
+                ? "Bridge installed and started at \(receipt.endpointURL)."
+                : "Bridge repaired and restarted at \(receipt.endpointURL)."
+            bridgeStatusError = nil
+            reload()
+        } catch {
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func removeBridge() {
+        do {
+            let receipt = try BearAppSupport.removeBridgeLaunchAgent()
+            bridgeStatusMessage = receipt.status == .removed
+                ? "Bridge LaunchAgent removed."
+                : "Bridge LaunchAgent was already removed."
+            bridgeStatusError = nil
+            reload()
+        } catch {
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func pauseBridge() {
+        do {
+            let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
+            bridgeStatusMessage = receipt.status == .paused
+                ? "Bridge paused without deleting its LaunchAgent."
+                : "Bridge was already paused."
+            bridgeStatusError = nil
+            reload()
+        } catch {
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func resumeBridge() {
+        do {
+            let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
+            bridgeStatusMessage = receipt.status == .resumed
+                ? "Bridge resumed at \(receipt.endpointURL ?? bridgeEndpointURL)."
+                : "Bridge was already running."
+            bridgeStatusError = nil
+            reload()
+        } catch {
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
+        }
+    }
+
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
@@ -242,6 +300,14 @@ final class BearMCPAppModel: ObservableObject {
         pasteboard.setString(path, forType: .string)
         cliStatusMessage = "Copied launcher path: \(path)"
         cliStatusError = nil
+    }
+
+    func copyBridgeURL() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(bridgeEndpointURL, forType: .string)
+        bridgeStatusMessage = "Copied bridge MCP URL: \(bridgeEndpointURL)"
+        bridgeStatusError = nil
     }
 
     func copyHostSetupSnippet(_ setup: BearHostAppSetupSnapshot) {
@@ -336,6 +402,10 @@ final class BearMCPAppModel: ObservableObject {
 
     var templateHasUnsavedChanges: Bool {
         templateDraft != lastSavedTemplateDraft
+    }
+
+    var bridgeEndpointURL: String {
+        dashboard.settings?.bridge.endpointURL ?? "http://127.0.0.1:6190/mcp"
     }
 
     private var parsedInboxTags: [String] {

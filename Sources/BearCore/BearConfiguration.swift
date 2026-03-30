@@ -142,6 +142,28 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         )
     }
 
+    public func updatingBridge(_ bridge: BearBridgeConfiguration) -> BearConfiguration {
+        BearConfiguration(
+            databasePath: databasePath,
+            inboxTags: inboxTags,
+            defaultInsertPosition: defaultInsertPosition,
+            templateManagementEnabled: templateManagementEnabled,
+            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
+            createOpensNoteByDefault: createOpensNoteByDefault,
+            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
+            tagsMergeMode: tagsMergeMode,
+            defaultDiscoveryLimit: defaultDiscoveryLimit,
+            maxDiscoveryLimit: maxDiscoveryLimit,
+            defaultSnippetLength: defaultSnippetLength,
+            maxSnippetLength: maxSnippetLength,
+            backupRetentionDays: backupRetentionDays,
+            disabledTools: disabledTools,
+            token: token,
+            bridge: bridge
+        )
+    }
+
     public func isToolEnabled(_ tool: BearToolName) -> Bool {
         !disabledTools.contains(tool)
     }

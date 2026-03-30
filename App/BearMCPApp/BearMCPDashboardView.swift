@@ -46,6 +46,7 @@ private struct BearMCPOverviewView: View {
                 heroSection
                 if let settings = model.dashboard.settings {
                     cliSection(settings)
+                    bridgeSection(settings.bridge)
                     pathSection(settings)
                 }
                 diagnosticsSection
@@ -145,6 +146,95 @@ private struct BearMCPOverviewView: View {
                 pathRow("Bear Database", settings.databasePath)
                 pathRow("Backups", settings.backupsDirectoryPath)
                 pathRow("Debug Log", settings.debugLogPath)
+            }
+        }
+    }
+
+    private func bridgeSection(_ bridge: BearAppBridgeSnapshot) -> some View {
+        GroupBox("Remote MCP Bridge") {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Use this optional localhost HTTP bridge for apps that only support remote MCP URLs and cannot launch Bear MCP as a local stdio process.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Bridge status")
+                            .font(.headline)
+                        statusBadge(title: bridge.statusTitle, status: bridge.status)
+                    }
+
+                    Text(bridge.statusDetail)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+
+                labeledValue("MCP URL", bridge.endpointURL)
+                labeledValue("Launcher", bridge.launcherPath)
+                labeledValue("LaunchAgent", bridge.plistPath)
+
+                HStack(spacing: 10) {
+                    if let title = bridgePrimaryActionTitle(for: bridge) {
+                        Button(title) {
+                            model.installBridge()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.currentBundledCLIPath == nil)
+                    }
+
+                    if bridge.installed {
+                        if bridge.loaded {
+                            Button("Pause") {
+                                model.pauseBridge()
+                            }
+                            .buttonStyle(.bordered)
+                        } else {
+                            Button("Resume") {
+                                model.resumeBridge()
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        Button("Remove", role: .destructive) {
+                            model.removeBridge()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    Button("Copy MCP URL") {
+                        model.copyBridgeURL()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                HStack(spacing: 10) {
+                    Button("Reveal LaunchAgent") {
+                        model.reveal(path: bridge.plistPath)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Reveal Stdout Log") {
+                        model.reveal(path: bridge.standardOutputLogPath)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Reveal Stderr Log") {
+                        model.reveal(path: bridge.standardErrorLogPath)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if let message = model.bridgeStatusMessage {
+                    Text(message)
+                        .font(.callout)
+                        .foregroundStyle(.green)
+                }
+
+                if let error = model.bridgeStatusError {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                }
             }
         }
     }
@@ -768,6 +858,17 @@ private func launcherPrimaryActionTitle(for settings: BearAppSettingsSnapshot) -
         return "Repair Launcher"
     case .ok, .configured, .notConfigured, .failed:
         return nil
+    }
+}
+
+private func bridgePrimaryActionTitle(for bridge: BearAppBridgeSnapshot) -> String? {
+    switch bridge.status {
+    case .missing:
+        return "Install Bridge"
+    case .invalid, .failed:
+        return "Repair Bridge"
+    case .ok, .configured, .notConfigured:
+        return bridge.installed ? nil : "Install Bridge"
     }
 }
 

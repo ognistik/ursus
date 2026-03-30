@@ -39,6 +39,7 @@ The repo already has the app-centered architecture we wanted:
 - Configuration edits auto-save with validation.
 - Configuration now also includes inline template editing for `~/.config/bear-mcp/template.md`, with open/reveal actions and pre-save slot validation.
 - The app can install or repair the public launcher.
+- The app now also exposes the optional `Remote MCP Bridge` with install, remove, pause, resume, status, and copy-URL actions.
 - The app still exposes a lot of implementation detail and is ready for simplification.
 
 ### CLI
@@ -68,6 +69,7 @@ Behavior already in place:
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 - `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `bear-mcp mcp`.
 - Bridge config now lives inside `~/.config/bear-mcp/config.json` with default localhost settings and a stable saved port.
+- Bridge LaunchAgent management is now implemented natively in `BearApplication` and still targets the stable public launcher path.
 
 ### MCP
 
@@ -86,11 +88,13 @@ These paths describe the codebase as it exists today:
 - template: `~/.config/bear-mcp/template.md`
 - public launcher: `~/.local/bin/bear-mcp`
 - app support root: `~/Library/Application Support/Bear MCP`
-- bridge LaunchAgent plist path reserved for the next slice: `~/Library/LaunchAgents/com.aft.bearmcp.bridge.plist`
+- bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.bear-mcp.plist`
 - backups: `~/Library/Application Support/Bear MCP/Backups`
 - runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
 - temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`
 - debug log: `~/Library/Application Support/Bear MCP/Logs/debug.log`
+- bridge stdout log: `~/Library/Application Support/Bear MCP/Logs/bridge.stdout.log`
+- bridge stderr log: `~/Library/Application Support/Bear MCP/Logs/bridge.stderr.log`
 
 Startup now migrates legacy runtime state from `~/Library/Application Support/bear-mcp` and legacy debug logs from `~/Library/Logs/bear-mcp` into the current Bear MCP support root when possible.
 
@@ -121,7 +125,7 @@ Helper-only release/testing duplication should not come back unless the embedded
 This is the intended order of work after the doc cleanup:
 
 1. Simplify the app UI now that template management has moved into the app.
-2. Add the optional native `Remote MCP Bridge` feature managed by the app and exposed through `bear-mcp bridge`.
+2. Harden the optional native `Remote MCP Bridge` feature with deeper health checks and clearer recovery messaging.
 
 ## Details For The Next Slice
 
@@ -137,7 +141,7 @@ Desired behavior:
 
 Desired behavior:
 
-- let the app optionally install or remove a localhost HTTP MCP bridge for AI apps that cannot run local stdio MCPs
+- let the app optionally install, remove, pause, or resume a localhost HTTP MCP bridge for AI apps that cannot run local stdio MCPs
 - keep the bridge native to this project rather than depending on external proxy tooling
 - keep the bridge pointed at the stable public launcher path
 - keep the bridge localhost-only by default

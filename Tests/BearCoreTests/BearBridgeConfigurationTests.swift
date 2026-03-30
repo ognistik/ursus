@@ -49,3 +49,34 @@ func bridgePortAllocatorPrefersConfiguredPortAndScansDeterministically() throws 
 
     #expect(configured == 6205)
 }
+
+@Test
+func bridgeLaunchAgentExpectedPlistUsesStableLauncherAndLogs() throws {
+    let temporaryDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let launcherURL = temporaryDirectory.appendingPathComponent("bear-mcp", isDirectory: false)
+    let stdoutURL = temporaryDirectory.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = temporaryDirectory.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+    let plistURL = temporaryDirectory.appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+
+    defer {
+        try? FileManager.default.removeItem(at: temporaryDirectory)
+    }
+
+    let expected = BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    )
+
+    try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+    try expected.xmlData().write(to: plistURL, options: .atomic)
+
+    let decoded = try BearBridgeLaunchAgentPlist.load(from: plistURL)
+
+    #expect(decoded == expected)
+    #expect(decoded.label == "com.aft.bear-mcp")
+    #expect(decoded.programArguments == [launcherURL.path, "bridge", "serve"])
+    #expect(decoded.standardOutPath == stdoutURL.path)
+    #expect(decoded.standardErrorPath == stderrURL.path)
+}

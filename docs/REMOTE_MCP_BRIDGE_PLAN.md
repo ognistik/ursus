@@ -26,14 +26,17 @@ The intended user-facing result is:
   - added bridge config/domain scaffolding, URL formatting, deterministic port selection, and LaunchAgent path/label constants
   - added `bear-mcp bridge serve`, `bear-mcp bridge status`, and `bear-mcp bridge print-url`
   - verified `swift test`, `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`, and a localhost smoke check for `bear-mcp bridge serve`
+- Completed in the second slice:
+  - added native LaunchAgent install/remove/status/pause/resume support in `BearApplication`
+  - switched the expected LaunchAgent plist to `~/Library/LaunchAgents/com.aft.bear-mcp.plist`
+  - wired bridge stdout/stderr logs into `~/Library/Application Support/Bear MCP/Logs/`
+  - exposed bridge install/remove/pause/resume/copy/status actions in `Bear MCP.app`
+  - removed the deprecated `Tool.Content.text(...)` call sites in `Sources/BearMCP/BearMCPServer.swift`
 - Important note from the SDK work:
   - `0.11.0` is where the server HTTP transports appear, but `0.12.0` was the smallest clean upgrade on the current toolchain because `0.11.0` failed in the dependency with strict-concurrency diagnostics in `NetworkTransport`
 - Not done yet:
-  - LaunchAgent install/remove/status support
-  - app UI and dashboard bridge status
+  - bridge health probes beyond LaunchAgent/load-state validation
   - bridge health checks and better status/error reporting
-- Cleanup still needed from the SDK upgrade:
-  - replace deprecated `Tool.Content.text(...)` calls in `Sources/BearMCP/BearMCPServer.swift` with `.text(text:annotations:_meta:)`
 
 ## Product Decisions Locked In
 
@@ -79,7 +82,7 @@ Add a `Remote MCP Bridge` section or tab in `Bear MCP.app` with:
 - primary actions:
   - `Install Bridge`
   - `Remove Bridge`
-  - `Start` and `Stop` if practical
+  - `Pause` and `Resume`
   - `Copy MCP URL`
   - `Copy Example Config`
 - support text explaining that this is for apps that only support HTTP MCP connections
@@ -380,7 +383,7 @@ Goal:
 
 Status:
 
-- next
+- done
 
 Tasks:
 
@@ -403,7 +406,7 @@ Goal:
 
 Status:
 
-- pending after LaunchAgent work
+- done for install/remove/pause/resume/status/copy actions
 
 Tasks:
 
@@ -425,7 +428,7 @@ Goal:
 
 Status:
 
-- pending after LaunchAgent and app UI
+- next
 
 Tasks:
 

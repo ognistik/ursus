@@ -71,6 +71,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let selectedNoteTokenConfigured: Bool
     public let selectedNoteTokenStorageDescription: String
     public let selectedNoteTokenStatusDetail: String?
+    public let bridge: BearAppBridgeSnapshot
     public let toolToggles: [BearAppToolToggleSnapshot]
     public let hostAppSetups: [BearHostAppSetupSnapshot]
 }
@@ -271,7 +272,8 @@ public enum BearAppSupport {
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
-        helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL
+        helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL,
+        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
     ) -> BearAppDashboardSnapshot {
         do {
             let settings = try loadSettingsSnapshot(
@@ -281,7 +283,8 @@ public enum BearAppSupport {
                 templateURL: templateURL,
                 currentAppBundleURL: currentAppBundleURL,
                 launcherURL: launcherURL,
-                homeDirectoryURL: homeDirectoryURL
+                homeDirectoryURL: homeDirectoryURL,
+                launchctlRunner: launchctlRunner
             )
 
             return BearAppDashboardSnapshot(
@@ -331,7 +334,8 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
-        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
+        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
     ) throws -> BearAppSettingsSnapshot {
         let configuration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
@@ -345,6 +349,12 @@ public enum BearAppSupport {
             fileManager: fileManager,
             launcherURL: launcherURL,
             currentAppBundleURL: currentAppBundleURL
+        )
+        let bridge = bridgeSnapshot(
+            configuration: configuration,
+            fileManager: fileManager,
+            launcherURL: launcherURL,
+            launchctlRunner: launchctlRunner
         )
 
         return BearAppSettingsSnapshot(
@@ -379,6 +389,7 @@ public enum BearAppSupport {
             selectedNoteTokenConfigured: tokenStatus.isConfigured,
             selectedNoteTokenStorageDescription: tokenStorageDescription(for: tokenStatus),
             selectedNoteTokenStatusDetail: tokenStatusDetail(for: tokenStatus),
+            bridge: bridge,
             toolToggles: toolToggles(for: configuration),
             hostAppSetups: BearHostAppSupport.loadSetups(
                 fileManager: fileManager,
@@ -869,6 +880,17 @@ public enum BearAppSupport {
                 detail: launcherStatus.detail
             )
         )
+
+        if let configuration {
+            checks.append(
+                BearDoctorCheck(
+                    key: "remote-mcp-bridge",
+                    value: configuration.bridge.endpointURL,
+                    status: configuration.bridge.status,
+                    detail: configuration.bridge.statusDetail
+                )
+            )
+        }
 
         checks.append(
             contentsOf: BearHostAppSupport.diagnostics(
