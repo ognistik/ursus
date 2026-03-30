@@ -57,11 +57,32 @@ Likely next adjustments:
 - keep setup guidance focused on the reusable launcher path
 - continue trimming explicit maintenance ceremony
 
+### 2. Add the optional Remote MCP Bridge
+
+Goal:
+
+- let the app manage a localhost HTTP bridge for AI apps that cannot launch local stdio MCP servers
+
+High-level constraints:
+
+- keep the feature optional
+- keep it native to this project
+- keep it centered on the stable public launcher path
+- keep it localhost-only by default
+- keep the chosen port stable once selected
+- do not mix this slice with the later product rename
+
+Implementation handoff:
+
+- `docs/REMOTE_MCP_BRIDGE_PLAN.md`
+
 ## Likely Files For The Next Slices
 
 - `App/BearMCPApp/BearMCPDashboardView.swift`
 - `App/BearMCPApp/BearMCPAppModel.swift`
 - `Sources/BearApplication/BearAppSupport.swift`
+- `Sources/BearMCPCLI/BearCLICommand.swift`
+- `Sources/BearMCPCLI/BearMCPMain.swift`
 
 ## What Not To Do
 

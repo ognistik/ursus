@@ -104,6 +104,7 @@ This repo had started to accumulate too much historical planning text. The worki
 - `PROJECT_STATUS.md`: current truth and next queue
 - `docs/ARCHITECTURE.md`: current runtime and behavior shape
 - `docs/APP_UNIFICATION_PLAN.md`: short live roadmap
+- `docs/REMOTE_MCP_BRIDGE_PLAN.md`: implementation handoff for the optional localhost HTTP bridge
 - `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`: practical local build / reset guide
 - `docs/SELECTED_NOTE_HELPER.md`: short note about the embedded helper used for selected-note resolution
 
@@ -114,6 +115,7 @@ Helper-only release/testing duplication should not come back unless the embedded
 This is the intended order of work after the doc cleanup:
 
 1. Simplify the app UI now that template management has moved into the app.
+2. Add the optional native `Remote MCP Bridge` feature managed by the app and exposed through `bear-mcp bridge`.
 
 ## Details For The Next Slice
 
@@ -124,6 +126,21 @@ Desired behavior:
 - reduce overview clutter and implementation-detail leakage in `Bear MCP.app`
 - keep the app centered on configuration, template editing, host guidance, token state, and launcher repair
 - preserve the current CLI/MCP runtime split while simplifying what normal users see first
+
+### 2. Remote MCP Bridge
+
+Desired behavior:
+
+- let the app optionally install or remove a localhost HTTP MCP bridge for AI apps that cannot run local stdio MCPs
+- keep the bridge native to this project rather than depending on external proxy tooling
+- keep the bridge pointed at the stable public launcher path
+- keep the bridge localhost-only by default
+- keep the chosen port stable once selected
+- avoid mixing this slice with the later product rename
+
+Implementation handoff:
+
+- see `docs/REMOTE_MCP_BRIDGE_PLAN.md`
 
 ## Verification Baseline
 
