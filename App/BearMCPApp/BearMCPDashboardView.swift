@@ -484,11 +484,83 @@ private struct BearMCPConfigurationView: View {
                             model.reveal(path: settings.configFilePath)
                         }
                         .buttonStyle(.bordered)
+                    }
 
-                        Button("Reveal Template") {
-                            model.reveal(path: settings.templatePath)
+                    GroupBox("Template") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Edit the live `template.md` file here. This template is only the note body that appears below Bear's title line.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+
+                            labeledValue("Template Path", settings.templatePath)
+
+                            HStack(spacing: 10) {
+                                Button("Open Template") {
+                                    model.openFile(path: settings.templatePath)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("Reveal Template") {
+                                    model.reveal(path: settings.templatePath)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            Text("Required: `{{content}}`, `{{tags}}`.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+
+                            Text("Keep any spacing you want inside the template itself. Leading or trailing blank lines outside the template are trimmed.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+
+                            TextEditor(text: Binding(
+                                get: { model.templateDraft },
+                                set: { newValue in
+                                    model.templateDraft = newValue
+                                    model.templateDraftDidChange()
+                                }
+                            ))
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 220)
+                            .padding(8)
+                            .background(Color.secondary.opacity(0.06))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                            templateValidationMessages
+
+                            HStack(spacing: 10) {
+                                Button("Save Template") {
+                                    model.saveTemplate()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
+
+                                Button("Revert Changes") {
+                                    model.revertTemplateDraft()
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(!model.templateHasUnsavedChanges)
+                            }
+
+                            if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
+                                Text("Unsaved changes are only in this app until you save.")
+                                    .font(.callout)
+                                    .foregroundStyle(.orange)
+                            }
+
+                            if let message = model.templateStatusMessage {
+                                Text(message)
+                                    .font(.callout)
+                                    .foregroundStyle(model.templateValidation.warnings.isEmpty ? .green : .orange)
+                            }
+
+                            if let error = model.templateStatusError {
+                                Text(error)
+                                    .font(.callout)
+                                    .foregroundStyle(.red)
+                            }
                         }
-                        .buttonStyle(.bordered)
                     }
 
                     if let message = model.configurationStatusMessage {
@@ -539,6 +611,25 @@ private struct BearMCPConfigurationView: View {
                 model.configurationDraftDidChange()
             }
         )
+    }
+
+    @ViewBuilder
+    private var templateValidationMessages: some View {
+        if !model.templateValidation.issues.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(model.templateValidation.issues) { issue in
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .padding(.top, 1)
+                        Text(issue.message)
+                            .font(.caption)
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

@@ -23,6 +23,10 @@ final class BearMCPAppModel: ObservableObject {
     @Published private(set) var configurationStatusMessage: String?
     @Published private(set) var configurationStatusError: String?
     @Published private(set) var configurationValidation = BearAppConfigurationValidationReport()
+    @Published var templateDraft = ""
+    @Published private(set) var templateStatusMessage: String?
+    @Published private(set) var templateStatusError: String?
+    @Published private(set) var templateValidation = BearTemplateValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
 
     @Published var databasePathDraft = ""
@@ -44,6 +48,7 @@ final class BearMCPAppModel: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     private var configurationAutosaveTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
+    private var lastSavedTemplateDraft = ""
 
     init(
         runsHeadlessCallbackHost: Bool = BearSelectedNoteAppHost.shouldRunHeadless()
@@ -62,6 +67,7 @@ final class BearMCPAppModel: ObservableObject {
         if !runsHeadlessCallbackHost {
             reconcilePublicLauncherAutomatically()
         }
+        loadTemplateDraft()
         refreshStoredSelectedNoteToken()
     }
 
@@ -70,6 +76,7 @@ final class BearMCPAppModel: ObservableObject {
             currentAppBundleURL: Bundle.main.bundleURL
         )
         applyDraft(from: dashboard.settings)
+        loadTemplateDraft()
         refreshStoredSelectedNoteToken()
     }
 
@@ -130,6 +137,54 @@ final class BearMCPAppModel: ObservableObject {
 
     func configurationIssues(for field: BearAppConfigurationField) -> [BearAppConfigurationIssue] {
         configurationValidation.issues(for: field)
+    }
+
+    func templateDraftDidChange() {
+        templateValidation = validateCurrentTemplateDraft()
+
+        if templateValidation.hasErrors {
+            templateStatusMessage = nil
+            templateStatusError = "Fix the template errors before saving."
+            return
+        }
+
+        templateStatusError = nil
+        templateStatusMessage = templateValidation.warnings.isEmpty
+            ? nil
+            : "Review the template warnings before saving."
+    }
+
+    func saveTemplate() {
+        let validation = validateCurrentTemplateDraft()
+        templateValidation = validation
+
+        guard !validation.hasErrors else {
+            templateStatusMessage = nil
+            templateStatusError = "Fix the template errors before saving."
+            return
+        }
+
+        do {
+            try BearAppSupport.saveTemplateDraft(templateDraft)
+            dashboard = BearAppSupport.loadDashboardSnapshot(
+                currentAppBundleURL: Bundle.main.bundleURL
+            )
+            loadTemplateDraft()
+            templateStatusMessage = validation.warnings.isEmpty
+                ? "Template saved."
+                : "Template saved. Review the warnings below."
+            templateStatusError = nil
+        } catch {
+            templateStatusMessage = nil
+            templateStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func revertTemplateDraft() {
+        templateDraft = lastSavedTemplateDraft
+        templateValidation = validateCurrentTemplateDraft()
+        templateStatusMessage = nil
+        templateStatusError = nil
     }
 
     func updateDatabasePathDraft(_ value: String) {
@@ -312,6 +367,10 @@ final class BearMCPAppModel: ObservableObject {
         dashboard.settings?.launcherPath ?? BearMCPCLILocator.publicLauncherURL.path
     }
 
+    var templateHasUnsavedChanges: Bool {
+        templateDraft != lastSavedTemplateDraft
+    }
+
     private var parsedInboxTags: [String] {
         inboxTagsDraft
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
@@ -343,6 +402,10 @@ final class BearMCPAppModel: ObservableObject {
         BearAppSupport.validateConfigurationDraft(currentConfigurationDraft())
     }
 
+    private func validateCurrentTemplateDraft() -> BearTemplateValidationReport {
+        BearAppSupport.validateTemplateDraft(templateDraft)
+    }
+
     private func applyDraft(from settings: BearAppSettingsSnapshot?) {
         guard let settings else {
             return
@@ -366,6 +429,23 @@ final class BearMCPAppModel: ObservableObject {
         disabledToolsDraft = Set(settings.disabledTools)
         configurationValidation = validateCurrentConfigurationDraft()
         suppressConfigurationAutosave = false
+    }
+
+    private func loadTemplateDraft() {
+        do {
+            let draft = try BearAppSupport.loadTemplateDraft()
+            templateDraft = draft
+            lastSavedTemplateDraft = draft
+            templateValidation = BearAppSupport.validateTemplateDraft(draft)
+            templateStatusMessage = nil
+            templateStatusError = nil
+        } catch {
+            templateDraft = ""
+            lastSavedTemplateDraft = ""
+            templateValidation = BearTemplateValidationReport()
+            templateStatusMessage = nil
+            templateStatusError = localizedMessage(for: error)
+        }
     }
 
     private func localizedMessage(for error: Error) -> String {

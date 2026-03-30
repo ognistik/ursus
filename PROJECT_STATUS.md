@@ -36,6 +36,7 @@ The repo already has the app-centered architecture we wanted:
 
 - Overview, Hosts, Configuration, and Token tabs exist.
 - Configuration edits auto-save with validation.
+- Configuration now also includes inline template editing for `~/.config/bear-mcp/template.md`, with open/reveal actions and pre-save slot validation.
 - The app can install or repair the public launcher.
 - The app still exposes a lot of implementation detail and is ready for simplification.
 
@@ -112,28 +113,16 @@ Helper-only release/testing duplication should not come back unless the fallback
 
 This is the intended order of work after the doc cleanup:
 
-1. Add app-managed template editing and validation inside `Bear MCP.app`.
-2. Remove stale `--update-config` compatibility code once the app owns the remaining config/template flow.
-3. Migrate the app bundle identifier to `com.aft.bearmcp`.
-4. Rename the Application Support root from `~/Library/Application Support/bear-mcp` to `~/Library/Application Support/Bear MCP`, with logs kept inside that root.
-5. Add `bear-mcp --archive-note [note-id-or-title ...]`, matching the same selector behavior used by `--delete-note` and `--apply-template`.
-6. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
-7. Simplify the app UI once template management has moved into the app.
+1. Remove stale `--update-config` compatibility code now that the app owns the remaining config/template flow.
+2. Migrate the app bundle identifier to `com.aft.bearmcp`.
+3. Rename the Application Support root from `~/Library/Application Support/bear-mcp` to `~/Library/Application Support/Bear MCP`, with logs kept inside that root.
+4. Add `bear-mcp --archive-note [note-id-or-title ...]`, matching the same selector behavior used by `--delete-note` and `--apply-template`.
+5. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
+6. Simplify the app UI now that template management has moved into the app.
 
 ## Details For The Next Slice
 
-### 1. App-managed template editing
-
-Desired behavior:
-
-- show the real `template.md` path in the app
-- open / reveal that file from the app
-- support inline editing in the app, similar to config editing
-- validate that the template contains valid `{{content}}` and `{{tags}}` slots before save
-- show clear warnings and errors in the app
-- keep `~/.config/bear-mcp/template.md` as the source of truth
-
-### 2. `--new-note` expansion
+### 1. `--new-note` expansion
 
 Desired behavior:
 
@@ -143,7 +132,7 @@ Desired behavior:
 - if the user does not pass tags in that explicit path, the default should be inbox tags
 - append remains the default tag merge mode unless explicitly overridden
 
-### 3. Naming / path cleanup
+### 2. Naming / path cleanup
 
 Desired behavior:
 

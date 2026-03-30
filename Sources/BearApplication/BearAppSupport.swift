@@ -577,6 +577,48 @@ public enum BearAppSupport {
         )
     }
 
+    public static func loadTemplateDraft(
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws -> String {
+        try BearRuntimeBootstrap.prepareSupportFiles(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        return try String(contentsOf: templateURL, encoding: .utf8)
+    }
+
+    public static func saveTemplateDraft(
+        _ draft: String,
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL
+    ) throws {
+        let validation = validateTemplateDraft(draft)
+        if let firstError = validation.errors.first {
+            throw BearError.invalidInput(firstError.message)
+        }
+
+        try BearRuntimeBootstrap.prepareSupportFiles(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+
+        guard let data = draft.data(using: .utf8) else {
+            throw BearError.invalidInput("Template must be valid UTF-8 text.")
+        }
+
+        try data.write(to: templateURL, options: .atomic)
+        try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: templateURL.path)
+    }
+
     public static func validateConfigurationDraft(
         _ draft: BearAppConfigurationDraft,
         fileManager: FileManager = .default
@@ -676,6 +718,10 @@ public enum BearAppSupport {
         }
 
         return BearAppConfigurationValidationReport(issues: issues)
+    }
+
+    public static func validateTemplateDraft(_ draft: String) -> BearTemplateValidationReport {
+        BearTemplateValidator.validate(draft)
     }
 
     public static func removeSelectedNoteToken(

@@ -28,7 +28,7 @@ That means:
 These slices are already in place:
 
 - `Bear MCP.app` exists and links the shared package code.
-- The app can manage configuration, token state, and launcher repair.
+- The app can manage configuration, token state, launcher repair, and the live `template.md` file.
 - The app embeds the CLI and can install / repair the public launcher.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
 - The CLI already has a first direct utility surface with `--new-note`, `--apply-template`, and `--delete-note`.
@@ -40,43 +40,13 @@ The repo is at a good place to stop and simplify before adding more features.
 The main problems to address now are:
 
 - docs are too long and too historical
-- template management is still filesystem-first instead of app-first
 - `--update-config` is still hanging around as dead-looking compatibility code
 - runtime naming is inconsistent across bundle id, Application Support, and logs
 - the direct CLI utility surface is useful, but not yet complete enough for automation-friendly note creation
 
 ## Recommended Order From Here
 
-### 1. Finish the documentation cleanup
-
-Goal:
-
-- keep one concise status file and one concise roadmap
-- remove stale Keychain-era planning language
-- avoid helper-only release/testing duplication
-
-This cleanup should land before more feature work so future threads start from cleaner context.
-
-### 2. Move template editing into the app
-
-Goal:
-
-- make `Bear MCP.app` the place where users actually manage `template.md`
-
-Scope:
-
-- show the current template path
-- reveal/open the file from the app
-- add inline template editing
-- validate `{{content}}` and `{{tags}}` slots before save
-- surface clear warnings and errors
-
-Non-goal:
-
-- do not redesign storage
-- do not move the template out of `~/.config/bear-mcp/template.md`
-
-### 3. Remove `--update-config`
+### 1. Remove `--update-config`
 
 Goal:
 
@@ -86,7 +56,7 @@ Requirement before removal:
 
 - the app must already provide an easy path for template/config management and launcher refresh
 
-### 4. Clean up naming and runtime paths together
+### 2. Clean up naming and runtime paths together
 
 Goal:
 
@@ -103,7 +73,7 @@ Migration note:
 - do this as one coordinated slice rather than piecemeal
 - keep `~/.config/bear-mcp` for config and `template.md`
 
-### 5. Expand the direct CLI utility surface
+### 3. Expand the direct CLI utility surface
 
 Goal:
 
@@ -128,13 +98,13 @@ Required behavior for the expanded `--new-note` flow:
 - if explicit mode is used without tags, default to inbox tags
 - append remains the default tag merge mode unless explicitly changed
 
-### 6. Simplify the app UI
+### 4. Simplify the app UI
 
 Goal:
 
 - make the app feel like a control center instead of a diagnostics dump
 
-Likely follow-up after template editing lands:
+Likely follow-up now that template editing is in the app:
 
 - reduce overview clutter
 - move lower-value details out of the primary path

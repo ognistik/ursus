@@ -10,7 +10,7 @@
 - `BearApplication`: orchestration, mutation planning, optimistic-write guards, and bootstrap files.
 - `BearMCP`: MCP tool registration and argument decoding.
 - `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, `paths`, compatibility/config maintenance, and a small direct-user CLI utility surface.
-- `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI and registers `bearmcp://`.
+- `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI, inline `template.md` editing, and `bearmcp://` registration.
 
 ## Current v1 shape
 
@@ -55,7 +55,7 @@
 - `bear-mcp mcp` still prefers a shared runtime lock for stale-process detection and predictable diagnostics, but it falls back to temp per-launch locks when Codex opens additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
 - Batch inputs are supported at the MCP layer with `operations: []`.
-- Config and the create-note template live under `~/.config/bear-mcp`.
+- Config and the create-note template live under `~/.config/bear-mcp`, and the app edits that same `template.md` file directly with pre-save slot validation.
 - Durable backup snapshots live under `~/Library/Application Support/bear-mcp/Backups`, while process locks remain under the sibling `Runtime/` path.
 - `bear-mcp --update-config` still rewrites the config file into the latest canonical shape, preserving existing values and filling in missing keys, but it is now legacy compatibility behavior and should be removed after the app owns the remaining template/config maintenance flow.
 - Runtime artifacts are kept out of the config folder: durable backups live under `~/Library/Application Support/bear-mcp/Backups`, the preferred lock file lives under `~/Library/Application Support/bear-mcp/Runtime/.server.lock`, temp-directory fallback locks are used when sandbox policy blocks that path or when another live stdio launch already holds the shared lock, and debug traces live under `~/Library/Logs/bear-mcp/debug.log`.
