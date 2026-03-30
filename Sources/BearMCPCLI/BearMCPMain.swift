@@ -44,6 +44,12 @@ struct BearMCPMain {
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
                 print(renderMutationReceipts(receipts, action: "trash"))
+            case .archiveNote(let selectors):
+                let runtime = try makeRuntimeServices(logger: logger)
+                let receipts = try await runtime.service.archiveNoteTargets(
+                    selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
+                )
+                print(renderMutationReceipts(receipts, action: "archive"))
             case .applyTemplate(let selectors):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let receipts = try await runtime.service.applyTemplateToTargets(
@@ -163,6 +169,10 @@ struct BearMCPMain {
             return "Created note"
         case ("create", "submitted"):
             return "Submitted note"
+        case ("archive", "archived"):
+            return "Archived note"
+        case ("archive", "submitted"):
+            return "Submitted archive request"
         case ("trash", "trashed"):
             return "Trashed note"
         case ("trash", "already_trashed"):

@@ -162,6 +162,35 @@ func trashNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
     #expect(await transport.selectedNoteResolutionCount == 1)
 }
 
+@Test
+func archiveNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
+    let selected = makeCLIUtilityNote(id: "selected-note", title: "Selected", body: "Body")
+    let inbox = makeCLIUtilityNote(id: "note-1", title: "Inbox", body: "Body")
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .success("selected-note"))
+    let readStore = CLIUtilityReadStore(
+        noteByID: [
+            "selected-note": selected,
+            "note-1": inbox,
+        ],
+        notesByTitle: [
+            "inbox": [inbox],
+        ]
+    )
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    let receipts = try await service.archiveNoteTargets([.selected, .selector("Inbox")])
+
+    #expect(receipts.map(\.noteID) == ["selected-note", "note-1"])
+    #expect(await transport.archivedNoteIDs == ["selected-note", "note-1"])
+    #expect(await transport.archiveShowWindowValues == [true, true])
+    #expect(await transport.selectedNoteResolutionCount == 1)
+}
+
 private func makeCLIUtilityConfiguration(token: String? = nil) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -254,6 +283,8 @@ private actor CLIUtilityRecordingWriteTransport: BearWriteTransport {
 
     private(set) var createdRequests: [CreateNoteRequest] = []
     private(set) var replaceCalls: [ReplaceCall] = []
+    private(set) var archivedNoteIDs: [String] = []
+    private(set) var archiveShowWindowValues: [Bool] = []
     private(set) var trashedNoteIDs: [String] = []
     private(set) var selectedNoteResolutionCount = 0
     private let selectedNoteResult: Result<String, any Error>
@@ -302,7 +333,9 @@ private actor CLIUtilityRecordingWriteTransport: BearWriteTransport {
     }
 
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
-        MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
+        archivedNoteIDs.append(noteID)
+        archiveShowWindowValues.append(showWindow)
+        return MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
     }
 
     func trash(noteID: String) async throws -> MutationReceipt {

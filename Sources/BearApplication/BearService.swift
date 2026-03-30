@@ -631,11 +631,19 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    public func archiveNotes(_ noteSelectors: [String]) async throws -> [MutationReceipt] {
-        try await mutateEach(noteSelectors) { noteSelector in
-            let note = try self.resolveNoteSelector(noteSelector)
-            return try await self.writeTransport.archive(noteID: note.ref.identifier, showWindow: true)
+    public func archiveNoteTargets(_ targets: [NoteTarget]) async throws -> [MutationReceipt] {
+        let noteIDs = try await resolveConcreteNoteIDs(targets)
+        guard !noteIDs.isEmpty else {
+            throw BearError.invalidInput("Archive-note CLI requires one or more note targets.")
         }
+
+        return try await mutateEach(noteIDs) { noteID in
+            try await self.writeTransport.archive(noteID: noteID, showWindow: true)
+        }
+    }
+
+    public func archiveNotes(_ noteSelectors: [String]) async throws -> [MutationReceipt] {
+        try await archiveNoteTargets(noteSelectors.map(NoteTarget.selector))
     }
 
     public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {

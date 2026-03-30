@@ -47,6 +47,7 @@ Current direct utility commands:
 
 - `bear-mcp --new-note`
 - `bear-mcp --apply-template [note-id-or-title ...]`
+- `bear-mcp --archive-note [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
 
 Behavior already in place:
@@ -56,7 +57,7 @@ Behavior already in place:
 - Default create behavior uses `open_note=yes`, `new_window=no`, and `edit=yes`.
 - If a selected note is available, `--new-note` copies that note's tags.
 - If selected-note tags are unavailable, it falls back to configured inbox tags.
-- `--apply-template` and `--delete-note` target the selected Bear note when called without arguments.
+- `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 
 ### MCP
@@ -108,9 +109,8 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 This is the intended order of work after the doc cleanup:
 
-1. Add `bear-mcp --archive-note [note-id-or-title ...]`, matching the same selector behavior used by `--delete-note` and `--apply-template`.
-2. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
-3. Simplify the app UI now that template management has moved into the app.
+1. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
+2. Simplify the app UI now that template management has moved into the app.
 
 ## Details For The Next Slice
 

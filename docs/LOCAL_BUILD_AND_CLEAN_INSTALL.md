@@ -114,15 +114,15 @@ Current utility commands:
 
 - `bear-mcp --new-note`
 - `bear-mcp --apply-template [note-id-or-title ...]`
+- `bear-mcp --archive-note [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
 
 Current selector behavior:
 
-- `--apply-template` and `--delete-note` use the selected Bear note when no note ids or titles are passed
+- `--apply-template`, `--archive-note`, and `--delete-note` use the selected Bear note when no note ids or titles are passed
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces
 
 Planned next additions:
 
-- `bear-mcp --archive-note [note-id-or-title ...]`
 - richer override flags for `bear-mcp --new-note`

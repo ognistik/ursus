@@ -31,7 +31,7 @@ These slices are already in place:
 - The app can manage configuration, token state, launcher repair, and the live `template.md` file.
 - The app embeds the CLI and can install / repair the public launcher.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
-- The CLI already has a first direct utility surface with `--new-note`, `--apply-template`, and `--delete-note`.
+- The CLI already has a first direct utility surface with `--new-note`, `--apply-template`, `--archive-note`, and `--delete-note`.
 
 ## Current Cleanup Checkpoint
 
@@ -52,14 +52,7 @@ Goal:
 
 Next additions:
 
-- add `bear-mcp --archive-note [note-id-or-title ...]`
 - expand `bear-mcp --new-note` with override flags for title, tags, tag merge mode, content, and open/window behavior
-
-Required behavior for `--archive-note`:
-
-- no arguments targets the selected Bear note
-- passed arguments resolve exact note id first, then exact case-insensitive title
-- support one or many note arguments
 
 Required behavior for the expanded `--new-note` flow:
 

@@ -7,6 +7,7 @@ enum BearCLICommand {
     case paths
     case newNote
     case deleteNote([String])
+    case archiveNote([String])
     case applyTemplate([String])
     case help
 
@@ -32,6 +33,8 @@ enum BearCLICommand {
             return .newNote
         case "--delete-note":
             return .deleteNote(remainingArguments)
+        case "--archive-note":
+            return .archiveNote(remainingArguments)
         case "--apply-template":
             return .applyTemplate(remainingArguments)
         case "--help", "-h", "help":
@@ -50,11 +53,12 @@ enum BearCLICommand {
           bear-mcp paths
           bear-mcp --new-note
           bear-mcp --delete-note [note-id-or-title ...]
+          bear-mcp --archive-note [note-id-or-title ...]
           bear-mcp --apply-template [note-id-or-title ...]
 
         Notes:
           No command defaults to `mcp`.
-          `--delete-note` and `--apply-template` use the selected Bear note when no note ids or titles are passed.
+          `--delete-note`, `--archive-note`, and `--apply-template` use the selected Bear note when no note ids or titles are passed.
           Passed note arguments resolve as exact note id first, then exact case-insensitive title.
           Quote titles with spaces, for example: bear-mcp --apply-template "Project Notes"
         """
