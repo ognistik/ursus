@@ -267,6 +267,9 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
+        bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
+        bridgeStandardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
         callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
@@ -283,6 +286,9 @@ public enum BearAppSupport {
                 templateURL: templateURL,
                 currentAppBundleURL: currentAppBundleURL,
                 launcherURL: launcherURL,
+                bridgeLaunchAgentPlistURL: bridgeLaunchAgentPlistURL,
+                bridgeStandardOutputURL: bridgeStandardOutputURL,
+                bridgeStandardErrorURL: bridgeStandardErrorURL,
                 homeDirectoryURL: homeDirectoryURL,
                 launchctlRunner: launchctlRunner
             )
@@ -334,6 +340,9 @@ public enum BearAppSupport {
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
+        bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
+        bridgeStandardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
     ) throws -> BearAppSettingsSnapshot {
@@ -354,6 +363,9 @@ public enum BearAppSupport {
             configuration: configuration,
             fileManager: fileManager,
             launcherURL: launcherURL,
+            launchAgentPlistURL: bridgeLaunchAgentPlistURL,
+            standardOutputURL: bridgeStandardOutputURL,
+            standardErrorURL: bridgeStandardErrorURL,
             launchctlRunner: launchctlRunner
         )
 

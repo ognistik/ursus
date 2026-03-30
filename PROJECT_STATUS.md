@@ -70,6 +70,10 @@ Behavior already in place:
 - `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `bear-mcp mcp`.
 - Bridge config now lives inside `~/.config/bear-mcp/config.json` with default localhost settings and a stable saved port.
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and still targets the stable public launcher path.
+- The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
+- Repeated `initialize` requests against the running stateless bridge are now treated as compatibility handshakes, so hosts can remove and re-add the same MCP URL without reinstalling the bridge.
+- Bridge install/resume now wait for the localhost endpoint to accept connections before reporting success, and dashboard status now distinguishes `loaded` from `reachable`.
+- The app still does not expose editable bridge host/port controls before install; that remains follow-up UI polish from the bridge plan.
 
 ### MCP
 
@@ -106,6 +110,7 @@ Startup now migrates legacy runtime state from `~/Library/Application Support/be
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - Batch operations matter and should stay first-class.
+- Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 
 ## Documentation Cleanup Decisions
 
@@ -125,7 +130,7 @@ Helper-only release/testing duplication should not come back unless the embedded
 This is the intended order of work after the doc cleanup:
 
 1. Simplify the app UI now that template management has moved into the app.
-2. Harden the optional native `Remote MCP Bridge` feature with deeper health checks and clearer recovery messaging.
+2. Continue hardening the optional native `Remote MCP Bridge` feature, building on the new reachability probe and clearer startup diagnostics.
 
 ## Details For The Next Slice
 

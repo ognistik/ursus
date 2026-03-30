@@ -17,6 +17,22 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
         .appendingPathComponent("bear-mcp", isDirectory: false)
+    let bridgePlistURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let bridgeStandardOutputURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Logs", isDirectory: true)
+        .appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let bridgeStandardErrorURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Logs", isDirectory: true)
+        .appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
@@ -41,6 +57,9 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
         configFileURL: configFileURL,
         templateURL: templateURL,
         launcherURL: launcherURL,
+        bridgeLaunchAgentPlistURL: bridgePlistURL,
+        bridgeStandardOutputURL: bridgeStandardOutputURL,
+        bridgeStandardErrorURL: bridgeStandardErrorURL,
         homeDirectoryURL: homeDirectoryURL,
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
@@ -498,7 +517,8 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
         standardErrorURL: stderrURL,
-        launchctlRunner: recorder.installRunner
+        launchctlRunner: recorder.installRunner,
+        endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
     )
 
     let savedConfiguration = try BearRuntimeBootstrap.loadConfiguration(
@@ -520,7 +540,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     #expect(fileManager.fileExists(atPath: stdoutURL.path))
     #expect(fileManager.fileExists(atPath: stderrURL.path))
     #expect(recorder.commands == [
-        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
     ])
 }
@@ -587,6 +607,10 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         launchctlRunner: { arguments in
             #expect(arguments == ["print", "gui/\(getuid())/com.aft.bear-mcp"])
             return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
+        },
+        endpointProbe: { _, _ in
+            Issue.record("The endpoint probe should not run when the LaunchAgent is unloaded.")
+            return BearBridgeEndpointProbeResult(reachable: false)
         }
     )
 
@@ -671,7 +695,8 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
         standardErrorURL: stderrURL,
-        launchctlRunner: recorder.statefulRunner
+        launchctlRunner: recorder.statefulRunner,
+        endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
     )
     #expect(resumeReceipt.status == .resumed)
     #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
@@ -697,11 +722,184 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205))
     #expect(recorder.commands == [
         ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
         ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
         ["print", "gui/\(getuid())/com.aft.bear-mcp"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
         ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
     ])
+}
+
+@Test
+func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGone() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Resources", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    final class BootoutRaceRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private(set) var commands: [[String]] = []
+        private var printCount = 0
+
+        var runner: BearLaunchctlCommandRunner {
+            { [weak self] arguments in
+                guard let self else {
+                    return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Recorder unavailable")
+                }
+                self.lock.lock()
+                self.commands.append(arguments)
+                self.lock.unlock()
+
+                switch arguments.first {
+                case "print":
+                    self.lock.lock()
+                    self.printCount += 1
+                    let currentCount = self.printCount
+                    self.lock.unlock()
+                    return currentCount == 1
+                        ? BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+                        : BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
+                case "bootout":
+                    return BearProcessExecutionResult(
+                        exitCode: 5,
+                        stdout: "",
+                        stderr: "Boot-out failed: 5: Input/output error\nTry re-running the command as root for richer errors."
+                    )
+                case "bootstrap":
+                    return BearProcessExecutionResult(exitCode: 0, stdout: "", stderr: "")
+                default:
+                    return BearProcessExecutionResult(exitCode: 1, stdout: "", stderr: "Unexpected launchctl command")
+                }
+            }
+        }
+    }
+
+    let recorder = BootoutRaceRecorder()
+
+    let receipt = try BearAppSupport.installBridgeLaunchAgent(
+        fromAppBundleURL: appBundleURL,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: recorder.runner,
+        endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
+    )
+
+    #expect(receipt.status == .installed)
+    #expect(recorder.commands == [
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
+    ])
+}
+
+@Test
+func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let snapshot = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: { arguments in
+            #expect(arguments == ["print", "gui/\(getuid())/com.aft.bear-mcp"])
+            return BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: false, detail: "Connection refused")
+        }
+    )
+
+    #expect(snapshot.status == .failed)
+    #expect(snapshot.statusTitle == "Not reachable")
+    #expect(snapshot.statusDetail.contains("Connection refused"))
+    #expect(snapshot.loaded == true)
 }
 
 @Test
@@ -1331,6 +1529,8 @@ private final class LaunchctlRecorder: @unchecked Sendable {
             self.record(arguments)
 
             switch arguments.first {
+            case "print":
+                return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
             case "bootout":
                 return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
             case "bootstrap":

@@ -92,7 +92,23 @@ public struct BearBridgeLaunchAgentActionReceipt: Codable, Hashable, Sendable {
     public let endpointURL: String?
 }
 
+public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
+    public let reachable: Bool
+    public let detail: String?
+
+    public init(reachable: Bool, detail: String? = nil) {
+        self.reachable = reachable
+        self.detail = detail
+    }
+}
+
+public typealias BearBridgeEndpointProbe = @Sendable (_ host: String, _ port: Int) -> BearBridgeEndpointProbeResult
+
 public extension BearAppSupport {
+    static func defaultBridgeEndpointProbe(host: String, port: Int) -> BearBridgeEndpointProbeResult {
+        probeBridgeEndpoint(host: host, port: port)
+    }
+
     static func installBridgeLaunchAgent(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
@@ -104,6 +120,7 @@ public extension BearAppSupport {
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
+        endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe,
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
     ) throws -> BearBridgeLaunchAgentInstallReceipt {
         _ = try reconcilePublicLauncherIfNeeded(
@@ -164,6 +181,13 @@ public extension BearAppSupport {
             ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
             launchctlRunner: launchctlRunner,
             failureMessage: "Failed to start the Bear MCP bridge LaunchAgent."
+        )
+        try waitForBridgeEndpoint(
+            host: validatedBridge.host,
+            port: validatedBridge.port,
+            endpointURL: try validatedBridge.endpointURLString(),
+            standardErrorURL: standardErrorURL,
+            endpointProbe: endpointProbe
         )
 
         return BearBridgeLaunchAgentInstallReceipt(
@@ -267,7 +291,8 @@ public extension BearAppSupport {
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
-        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
+        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
+        endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
     ) throws -> BearBridgeLaunchAgentActionReceipt {
         let configuration = try BearRuntimeBootstrap.loadConfiguration(
             fileManager: fileManager,
@@ -301,6 +326,13 @@ public extension BearAppSupport {
                 launchctlRunner: launchctlRunner,
                 failureMessage: "Failed to resume the Bear MCP bridge LaunchAgent."
             )
+            try waitForBridgeEndpoint(
+                host: bridge.host,
+                port: bridge.port,
+                endpointURL: try bridge.endpointURLString(),
+                standardErrorURL: standardErrorURL,
+                endpointProbe: endpointProbe
+            )
         }
 
         return BearBridgeLaunchAgentActionReceipt(
@@ -317,7 +349,8 @@ public extension BearAppSupport {
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
-        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
+        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
+        endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
     ) -> BearAppBridgeSnapshot {
         let installed = fileManager.fileExists(atPath: launchAgentPlistURL.path)
         let bridge: BearBridgeConfiguration
@@ -365,6 +398,10 @@ public extension BearAppSupport {
             loadError = bridgeLocalizedMessage(for: error)
         }
 
+        let endpointProbeResult = loaded
+            ? endpointProbe(bridge.host, bridge.port)
+            : BearBridgeEndpointProbeResult(reachable: false)
+
         let state = bridgeState(
             configuration: bridge,
             launcherURL: launcherURL,
@@ -372,8 +409,12 @@ public extension BearAppSupport {
             launchAgentInstalled: installed,
             plistMatchesExpected: plistMatchesExpected,
             launchAgentLoaded: loaded,
+            endpointReachable: endpointProbeResult.reachable,
+            endpointProbeDetail: endpointProbeResult.detail,
             loadError: loadError,
             endpointURL: endpointURL,
+            standardOutputURL: standardOutputURL,
+            standardErrorURL: standardErrorURL,
             fileManager: fileManager
         )
 
@@ -440,12 +481,24 @@ private extension BearAppSupport {
         launchAgentPlistURL: URL,
         launchctlRunner: BearLaunchctlCommandRunner
     ) throws {
-        let result = try launchctlRunner(["bootout", launchdUserDomain(), launchAgentPlistURL.path])
-        guard result.exitCode == 0 || launchctlResultLooksMissing(result) else {
-            throw BearError.configuration(
-                "Failed to stop the Bear MCP bridge LaunchAgent. \(launchctlMessage(from: result))"
-            )
+        guard try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner) else {
+            return
         }
+
+        let result = try launchctlRunner(["bootout", launchdUserDomain(), launchAgentPlistURL.path])
+        if result.exitCode == 0 || launchctlResultLooksMissing(result) {
+            return
+        }
+
+        if launchctlResultLooksBootoutIOError(result),
+           (try? queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)) == false
+        {
+            return
+        }
+
+        throw BearError.configuration(
+            "Failed to stop the Bear MCP bridge LaunchAgent. \(launchctlMessage(from: result))"
+        )
     }
 
     static func queryLaunchAgentLoaded(
@@ -475,6 +528,124 @@ private extension BearAppSupport {
         }
     }
 
+    static func waitForBridgeEndpoint(
+        host: String,
+        port: Int,
+        endpointURL: String,
+        standardErrorURL: URL,
+        endpointProbe: BearBridgeEndpointProbe,
+        timeout: TimeInterval = 3,
+        interval: TimeInterval = 0.1
+    ) throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        var lastProbe = BearBridgeEndpointProbeResult(reachable: false)
+
+        repeat {
+            lastProbe = endpointProbe(host, port)
+            if lastProbe.reachable {
+                return
+            }
+
+            if Date() >= deadline {
+                break
+            }
+
+            Thread.sleep(forTimeInterval: interval)
+        } while true
+
+        let detail = lastProbe.detail.map { " \($0)" } ?? ""
+        throw BearError.configuration(
+            "The Bear MCP bridge LaunchAgent was started, but \(endpointURL) did not accept connections within \(Int(timeout.rounded())) seconds.\(detail) Check \(standardErrorURL.path) for bridge startup errors."
+        )
+    }
+
+    static func probeBridgeEndpoint(
+        host: String,
+        port: Int,
+        timeout: TimeInterval = 0.25
+    ) -> BearBridgeEndpointProbeResult {
+        let socketHandle = socket(AF_INET, SOCK_STREAM, 0)
+        guard socketHandle >= 0 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                detail: String(cString: strerror(errno))
+            )
+        }
+        defer { close(socketHandle) }
+
+        let currentFlags = fcntl(socketHandle, F_GETFL, 0)
+        if currentFlags >= 0 {
+            _ = fcntl(socketHandle, F_SETFL, currentFlags | O_NONBLOCK)
+        }
+
+        let normalizedHost = host == "localhost" ? BearBridgeConfiguration.defaultHost : host
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = in_port_t(UInt16(port).bigEndian)
+
+        let conversionResult = normalizedHost.withCString { hostPointer in
+            inet_pton(AF_INET, hostPointer, &address.sin_addr)
+        }
+        guard conversionResult == 1 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                detail: "The configured host `\(host)` is not a valid IPv4 address."
+            )
+        }
+
+        let connectResult = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { sockaddrPointer in
+                connect(socketHandle, sockaddrPointer, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+
+        if connectResult == 0 {
+            return BearBridgeEndpointProbeResult(reachable: true)
+        }
+
+        if errno != EINPROGRESS {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                detail: String(cString: strerror(errno))
+            )
+        }
+
+        var pollDescriptor = pollfd(
+            fd: socketHandle,
+            events: Int16(POLLOUT),
+            revents: 0
+        )
+        let pollTimeoutMilliseconds = max(1, Int32((timeout * 1_000).rounded()))
+        let pollResult = poll(&pollDescriptor, 1, pollTimeoutMilliseconds)
+        guard pollResult > 0 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                detail: pollResult == 0 ? "The connection attempt timed out." : String(cString: strerror(errno))
+            )
+        }
+
+        var socketError: Int32 = 0
+        var socketErrorSize = socklen_t(MemoryLayout<Int32>.size)
+        let socketOptionResult = getsockopt(
+            socketHandle,
+            SOL_SOCKET,
+            SO_ERROR,
+            &socketError,
+            &socketErrorSize
+        )
+        guard socketOptionResult == 0 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                detail: String(cString: strerror(errno))
+            )
+        }
+
+        return socketError == 0
+            ? BearBridgeEndpointProbeResult(reachable: true)
+            : BearBridgeEndpointProbeResult(reachable: false, detail: String(cString: strerror(socketError)))
+    }
+
     static func bridgeState(
         configuration: BearBridgeConfiguration,
         launcherURL: URL,
@@ -482,8 +653,12 @@ private extension BearAppSupport {
         launchAgentInstalled: Bool,
         plistMatchesExpected: Bool,
         launchAgentLoaded: Bool,
+        endpointReachable: Bool,
+        endpointProbeDetail: String?,
         loadError: String?,
         endpointURL: String,
+        standardOutputURL: URL,
+        standardErrorURL: URL,
         fileManager: FileManager
     ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
         if !configuration.enabled && !launchAgentInstalled {
@@ -535,6 +710,15 @@ private extension BearAppSupport {
         }
 
         if launchAgentLoaded {
+            guard endpointReachable else {
+                let detail = endpointProbeDetail ?? "The endpoint did not accept a TCP connection."
+                return (
+                    .failed,
+                    "Not reachable",
+                    "The Bear MCP bridge LaunchAgent appears loaded, but \(endpointURL) is not accepting connections yet. \(detail) Check \(standardErrorURL.path) and \(standardOutputURL.path) for startup errors."
+                )
+            }
+
             return (
                 .ok,
                 "Running",
@@ -560,6 +744,12 @@ private extension BearAppSupport {
             || output.contains("no such process")
             || output.contains("not loaded")
             || output.contains("could not find specified service")
+    }
+
+    static func launchctlResultLooksBootoutIOError(_ result: BearProcessExecutionResult) -> Bool {
+        let output = result.combinedOutput.lowercased()
+        return output.contains("boot-out failed")
+            && output.contains("input/output error")
     }
 
     static func launchctlMessage(from result: BearProcessExecutionResult) -> String {

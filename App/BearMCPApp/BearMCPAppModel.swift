@@ -230,13 +230,13 @@ final class BearMCPAppModel: ObservableObject {
     }
 
     func installBridge() {
+        defer { reload() }
         do {
             let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: Bundle.main.bundleURL)
             bridgeStatusMessage = receipt.status == .installed
                 ? "Bridge installed and started at \(receipt.endpointURL)."
                 : "Bridge repaired and restarted at \(receipt.endpointURL)."
             bridgeStatusError = nil
-            reload()
         } catch {
             bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
@@ -244,13 +244,13 @@ final class BearMCPAppModel: ObservableObject {
     }
 
     func removeBridge() {
+        defer { reload() }
         do {
             let receipt = try BearAppSupport.removeBridgeLaunchAgent()
             bridgeStatusMessage = receipt.status == .removed
                 ? "Bridge LaunchAgent removed."
                 : "Bridge LaunchAgent was already removed."
             bridgeStatusError = nil
-            reload()
         } catch {
             bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
@@ -258,13 +258,13 @@ final class BearMCPAppModel: ObservableObject {
     }
 
     func pauseBridge() {
+        defer { reload() }
         do {
             let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
             bridgeStatusMessage = receipt.status == .paused
                 ? "Bridge paused without deleting its LaunchAgent."
                 : "Bridge was already paused."
             bridgeStatusError = nil
-            reload()
         } catch {
             bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
@@ -272,13 +272,13 @@ final class BearMCPAppModel: ObservableObject {
     }
 
     func resumeBridge() {
+        defer { reload() }
         do {
             let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
             bridgeStatusMessage = receipt.status == .resumed
                 ? "Bridge resumed at \(receipt.endpointURL ?? bridgeEndpointURL)."
                 : "Bridge was already running."
             bridgeStatusError = nil
-            reload()
         } catch {
             bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)

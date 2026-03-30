@@ -26,7 +26,7 @@ actor BearBridgeHTTPApplication {
         }
     }
 
-    typealias ServerFactory = @Sendable (String) async throws -> Server
+    typealias ServerFactory = @Sendable () async throws -> Server
 
     private let configuration: Configuration
     private let serverFactory: ServerFactory
@@ -34,14 +34,9 @@ actor BearBridgeHTTPApplication {
 
     private var channel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
-    private var sessions: [String: SessionContext] = [:]
-
-    private struct SessionContext {
-        let server: Server
-        let transport: StatefulHTTPServerTransport
-        let createdAt: Date
-        var lastAccessedAt: Date
-    }
+    private var server: Server?
+    private var transport: StatelessHTTPServerTransport?
+    private var hasCompletedInitializationHandshake = false
 
     init(
         configuration: Configuration,
@@ -66,6 +61,13 @@ actor BearBridgeHTTPApplication {
         eventLoopGroup = group
 
         do {
+            let transport = StatelessHTTPServerTransport(logger: logger)
+            let server = try await serverFactory()
+            try await server.start(transport: transport)
+
+            self.transport = transport
+            self.server = server
+
             let bootstrap = ServerBootstrap(group: group)
                 .serverChannelOption(ChannelOptions.backlog, value: 256)
                 .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -82,10 +84,6 @@ actor BearBridgeHTTPApplication {
             let channel = try await bootstrap.bind(host: configuration.host, port: configuration.port).get()
             self.channel = channel
 
-            Task { [weak self] in
-                await self?.sessionCleanupLoop()
-            }
-
             try await channel.closeFuture.get()
         } catch {
             await teardown()
@@ -96,7 +94,6 @@ actor BearBridgeHTTPApplication {
     }
 
     func stop() async {
-        await closeAllSessions()
         if let channel {
             _ = try? await channel.close().get()
             self.channel = nil
@@ -106,127 +103,112 @@ actor BearBridgeHTTPApplication {
     }
 
     func handleHTTPRequest(_ request: HTTPRequest) async -> HTTPResponse {
-        let sessionID = request.header(HTTPHeaderName.sessionID)
-
-        if let sessionID, var session = sessions[sessionID] {
-            session.lastAccessedAt = Date()
-            sessions[sessionID] = session
-
-            let response = await session.transport.handleRequest(request)
-            if request.method.uppercased() == "DELETE", response.statusCode == 200 {
-                sessions.removeValue(forKey: sessionID)
-            }
-            return response
-        }
-
-        if request.method.uppercased() == "POST",
-           let body = request.body,
-           isInitializeRequest(body)
+        if hasCompletedInitializationHandshake,
+           let server,
+           let initializeRequest = Self.decodeInitializeRequest(from: request)
         {
-            return await createSessionAndHandle(request)
-        }
+            logger.info("Returning compatibility initialize response for already-initialized bridge")
 
-        if sessionID != nil {
-            return .error(statusCode: 404, .invalidRequest("Not Found: Session not found or expired"))
-        }
-
-        return .error(
-            statusCode: 400,
-            .invalidRequest("Bad Request: Missing \(HTTPHeaderName.sessionID) header")
-        )
-    }
-
-    private struct FixedSessionIDGenerator: SessionIDGenerator {
-        let sessionID: String
-
-        func generateSessionID() -> String {
-            sessionID
-        }
-    }
-
-    private func createSessionAndHandle(_ request: HTTPRequest) async -> HTTPResponse {
-        let sessionID = UUID().uuidString
-        let transport = StatefulHTTPServerTransport(
-            sessionIDGenerator: FixedSessionIDGenerator(sessionID: sessionID),
-            logger: logger
-        )
-
-        do {
-            let server = try await serverFactory(sessionID)
-            try await server.start(transport: transport)
-
-            sessions[sessionID] = SessionContext(
-                server: server,
-                transport: transport,
-                createdAt: Date(),
-                lastAccessedAt: Date()
-            )
-
-            let response = await transport.handleRequest(request)
-            if case .error = response {
-                sessions.removeValue(forKey: sessionID)
-                await transport.disconnect()
+            do {
+                return try await Self.makeInitializeResponse(
+                    for: initializeRequest,
+                    server: server
+                )
+            } catch {
+                logger.error(
+                    "Failed to build compatibility initialize response",
+                    metadata: ["error": "\(error)"]
+                )
+                return .error(
+                    statusCode: 500,
+                    .internalError("Failed to build initialize response")
+                )
             }
+        }
 
-            return response
-        } catch {
-            await transport.disconnect()
+        guard let transport else {
             return .error(
-                statusCode: 500,
-                .internalError("Failed to create bridge session: \(error.localizedDescription)")
+                statusCode: 503,
+                .internalError("Bear MCP bridge transport is not ready yet")
             )
         }
-    }
 
-    private func closeSession(_ sessionID: String) async {
-        guard let session = sessions.removeValue(forKey: sessionID) else {
-            return
+        let response = await transport.handleRequest(request)
+
+        if response.statusCode == 200,
+           Self.decodeInitializeRequest(from: request) != nil
+        {
+            hasCompletedInitializationHandshake = true
         }
 
-        await session.transport.disconnect()
-        await session.server.stop()
-        logger.info("Closed Bear MCP bridge session \(sessionID)")
-    }
-
-    private func closeAllSessions() async {
-        for sessionID in sessions.keys {
-            await closeSession(sessionID)
-        }
-    }
-
-    private func isInitializeRequest(_ body: Data) -> Bool {
-        guard
-            let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-            let method = object["method"] as? String
-        else {
-            return false
-        }
-
-        return method == "initialize"
-    }
-
-    private func sessionCleanupLoop() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(60))
-
-            let now = Date()
-            let expiredSessions = sessions.filter { _, context in
-                now.timeIntervalSince(context.lastAccessedAt) > configuration.sessionTimeout
-            }
-
-            for (sessionID, _) in expiredSessions {
-                logger.info("Expiring idle Bear MCP bridge session \(sessionID)")
-                await closeSession(sessionID)
-            }
-        }
+        return response
     }
 
     private func teardown() async {
+        if let transport {
+            await transport.disconnect()
+            self.transport = nil
+        }
+        if let server {
+            await server.stop()
+            self.server = nil
+        }
         if let group = eventLoopGroup {
             try? await group.shutdownGracefully()
             eventLoopGroup = nil
         }
         channel = nil
+        hasCompletedInitializationHandshake = false
+    }
+}
+
+extension BearBridgeHTTPApplication {
+    static func decodeInitializeRequest(from request: HTTPRequest) -> Request<Initialize>? {
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
+              let body = request.body,
+              !body.isEmpty,
+              let initializeRequest = try? JSONDecoder().decode(Request<Initialize>.self, from: body),
+              initializeRequest.method == Initialize.name
+        else {
+            return nil
+        }
+
+        return initializeRequest
+    }
+
+    static func makeInitializeResponse(
+        for request: Request<Initialize>,
+        server: Server
+    ) async throws -> HTTPResponse {
+        let negotiatedProtocolVersion = negotiatedProtocolVersion(
+            for: request.params.protocolVersion
+        )
+        let result = Initialize.Result(
+            protocolVersion: negotiatedProtocolVersion,
+            capabilities: await server.capabilities,
+            serverInfo: .init(
+                name: server.name,
+                version: server.version,
+                title: server.title
+            ),
+            instructions: server.instructions
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+
+        return .data(
+            try encoder.encode(Initialize.response(id: request.id, result: result)),
+            headers: [HTTPHeaderName.contentType: "application/json"]
+        )
+    }
+
+    static func negotiatedProtocolVersion(for clientRequestedVersion: String) -> String {
+        if Version.supported.contains(clientRequestedVersion) {
+            return clientRequestedVersion
+        }
+
+        return Version.latest
     }
 }
 

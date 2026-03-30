@@ -128,7 +128,7 @@ struct BearMCPMain {
                 port: bridge.port,
                 endpoint: bridge.endpointPath
             ),
-            serverFactory: { _ in
+            serverFactory: {
                 await BearMCPServer(
                     service: runtime.service,
                     configuration: runtime.configuration,

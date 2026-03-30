@@ -32,11 +32,18 @@ The intended user-facing result is:
   - wired bridge stdout/stderr logs into `~/Library/Application Support/Bear MCP/Logs/`
   - exposed bridge install/remove/pause/resume/copy/status actions in `Bear MCP.app`
   - removed the deprecated `Tool.Content.text(...)` call sites in `Sources/BearMCP/BearMCPServer.swift`
+- Completed in the hardening follow-up:
+  - bridge install/resume now wait for the localhost endpoint to accept TCP connections before reporting success
+  - dashboard bridge status now distinguishes LaunchAgent `loaded` from endpoint `reachable`
+  - LaunchAgent unload now skips benign `bootout` I/O failures when the service is already gone, avoiding false-negative installs with a leftover plist
+  - the bridge runtime now uses the SDK's stateless HTTP transport for better first-connect compatibility with request/response-oriented MCP clients
+  - repeated `initialize` requests against the running stateless bridge now return a fresh compatibility handshake instead of `Server is already initialized`, so hosts can remove and re-add the same URL without reinstalling the bridge
 - Important note from the SDK work:
   - `0.11.0` is where the server HTTP transports appear, but `0.12.0` was the smallest clean upgrade on the current toolchain because `0.11.0` failed in the dependency with strict-concurrency diagnostics in `NetworkTransport`
 - Not done yet:
-  - bridge health probes beyond LaunchAgent/load-state validation
-  - bridge health checks and better status/error reporting
+  - richer bridge diagnostics beyond TCP reachability, such as more direct surfacing of stderr/log-tail hints or protocol-level health
+  - any CLI-facing status expansion beyond the current config/status output
+  - app UI support for editing the bridge host/port before install, even though the saved port itself is already stable in config
 
 ## Product Decisions Locked In
 
@@ -157,7 +164,7 @@ Why:
 - easier status reporting and diagnostics in the app
 - easier integration with your current launcher and config model
 
-The repo now uses `swift-sdk` `0.12.0`. The first slice confirmed that the official Swift SDK server HTTP transports are workable here, and the current bridge runtime uses the stateful transport with a local SwiftNIO HTTP wrapper.
+The repo now uses `swift-sdk` `0.12.0`. The first slice confirmed that the official Swift SDK server HTTP transports are workable here, and the current bridge runtime uses the stateless transport with a local SwiftNIO HTTP wrapper.
 
 ## Stateful vs Stateless
 
@@ -407,6 +414,7 @@ Goal:
 Status:
 
 - done for install/remove/pause/resume/status/copy actions
+- host/port editing in the app UI is still open
 
 Tasks:
 
@@ -428,7 +436,7 @@ Goal:
 
 Status:
 
-- next
+- in progress
 
 Tasks:
 

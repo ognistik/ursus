@@ -110,6 +110,7 @@ let package = Package(
             dependencies: [
                 "BearMCPCLI",
                 "BearCore",
+                .product(name: "MCP", package: "swift-sdk"),
             ]
         ),
     ]
