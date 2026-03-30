@@ -42,6 +42,105 @@ func createInteractiveNoteUsesSelectedNoteTagsAndEditingPresentation() async thr
 }
 
 @Test
+func createCLINewNoteDoesNotConsultSelectedNoteAndDefaultsToInboxTags() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createCLINewNote(
+            title: nil,
+            content: nil,
+            tags: nil,
+            tagMergeMode: .append,
+            openNote: nil,
+            newWindow: nil,
+            at: try #require(makeCLIUtilityDate(year: 2024, month: 3, day: 28, hour: 17, minute: 5)),
+            timeZone: TimeZone(secondsFromGMT: 0)
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.title == "240328 - 05:05 PM")
+    #expect(request.tags == ["0-inbox", "daily"])
+    #expect(request.useOnlyRequestTags == true)
+    #expect(request.presentation.openNote == true)
+    #expect(request.presentation.openNoteOverride == nil)
+    #expect(request.presentation.newWindow == true)
+    #expect(request.presentation.newWindowOverride == nil)
+    #expect(request.presentation.edit == true)
+    #expect(await transport.selectedNoteResolutionCount == 0)
+}
+
+@Test
+func createCLINewNoteDefaultsToAppendEvenWhenCreateConfigWouldNot() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(
+            createAddsInboxTagsByDefault: false,
+            tagsMergeMode: .replace
+        ),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createCLINewNote(
+            title: "Automated Note",
+            content: "Body",
+            tags: ["project-x"],
+            tagMergeMode: .append,
+            openNote: nil,
+            newWindow: nil
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags == ["0-inbox", "daily", "project-x"])
+    #expect(request.useOnlyRequestTags == true)
+    #expect(await transport.selectedNoteResolutionCount == 0)
+}
+
+@Test
+func createCLINewNoteCanReplaceTagsAndApplyPresentationOverrides() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(
+            createOpensNoteByDefault: true,
+            openUsesNewWindowByDefault: true
+        ),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createCLINewNote(
+            title: "Explicit Title",
+            content: "# Explicit Title\n\nBody",
+            tags: ["project-x"],
+            tagMergeMode: .replace,
+            openNote: false,
+            newWindow: false
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags == ["project-x"])
+    #expect(request.content == "Body\n\n#project-x")
+    #expect(request.presentation.openNote == false)
+    #expect(request.presentation.openNoteOverride == false)
+    #expect(request.presentation.newWindow == false)
+    #expect(request.presentation.newWindowOverride == false)
+    #expect(request.presentation.edit == false)
+}
+
+@Test
 func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async throws {
     let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .success("selected-note"))
     let readStore = CLIUtilityReadStore(
@@ -191,17 +290,24 @@ func archiveNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
     #expect(await transport.selectedNoteResolutionCount == 1)
 }
 
-private func makeCLIUtilityConfiguration(token: String? = nil) -> BearConfiguration {
+private func makeCLIUtilityConfiguration(
+    token: String? = nil,
+    openNoteInEditModeByDefault: Bool = true,
+    createOpensNoteByDefault: Bool = true,
+    openUsesNewWindowByDefault: Bool = true,
+    createAddsInboxTagsByDefault: Bool = true,
+    tagsMergeMode: BearConfiguration.TagsMergeMode = .append
+) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
-        createOpensNoteByDefault: true,
-        openUsesNewWindowByDefault: true,
-        createAddsInboxTagsByDefault: true,
-        tagsMergeMode: .append,
+        openNoteInEditModeByDefault: openNoteInEditModeByDefault,
+        createOpensNoteByDefault: createOpensNoteByDefault,
+        openUsesNewWindowByDefault: openUsesNewWindowByDefault,
+        createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
+        tagsMergeMode: tagsMergeMode,
         defaultDiscoveryLimit: 20,
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,

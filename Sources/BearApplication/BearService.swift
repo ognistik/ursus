@@ -273,6 +273,44 @@ public final class BearService: @unchecked Sendable {
         return receipt
     }
 
+    public func createCLINewNote(
+        title: String?,
+        content: String?,
+        tags: [String]?,
+        tagMergeMode: BearConfiguration.TagsMergeMode,
+        openNote: Bool?,
+        newWindow: Bool?,
+        at date: Date = Date(),
+        timeZone: TimeZone? = nil
+    ) async throws -> MutationReceipt {
+        let effectiveOpenNote = openNote ?? configuration.createOpensNoteByDefault
+        let effectiveNewWindow = newWindow ?? configuration.openUsesNewWindowByDefault
+        let effectiveTitle = title ?? interactiveNoteTitle(for: date, timeZone: timeZone ?? self.timeZone)
+        let effectiveTags = explicitCreateTags(tags, mergeMode: tagMergeMode)
+        let receipts = try await createNotes([
+            CreateNoteRequest(
+                title: effectiveTitle,
+                content: content ?? "",
+                tags: effectiveTags,
+                useOnlyRequestTags: true,
+                presentation: BearPresentationOptions(
+                    openNote: effectiveOpenNote,
+                    openNoteOverride: openNote,
+                    newWindow: effectiveNewWindow,
+                    newWindowOverride: newWindow,
+                    showWindow: effectiveOpenNote,
+                    edit: effectiveOpenNote && configuration.openNoteInEditModeByDefault
+                )
+            ),
+        ])
+
+        guard let receipt = receipts.first else {
+            throw BearError.unsupported("CLI note creation did not produce a mutation receipt.")
+        }
+
+        return receipt
+    }
+
     public func insertText(_ requests: [InsertTextRequest]) async throws -> [MutationReceipt] {
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
@@ -870,10 +908,30 @@ public final class BearService: @unchecked Sendable {
             baseTags = requestTags
         }
 
+        return normalizedUniqueTags(baseTags)
+    }
+
+    private func explicitCreateTags(
+        _ requestTags: [String]?,
+        mergeMode: BearConfiguration.TagsMergeMode
+    ) -> [String] {
+        guard let requestTags else {
+            return normalizedUniqueTags(configuration.inboxTags)
+        }
+
+        switch mergeMode {
+        case .append:
+            return normalizedUniqueTags(configuration.inboxTags + requestTags)
+        case .replace:
+            return normalizedUniqueTags(requestTags)
+        }
+    }
+
+    private func normalizedUniqueTags(_ tags: [String]) -> [String] {
         var seen: Set<String> = []
         var merged: [String] = []
 
-        for tag in baseTags {
+        for tag in tags {
             let normalized = BearTag.normalizedName(tag)
             guard !normalized.isEmpty else {
                 continue

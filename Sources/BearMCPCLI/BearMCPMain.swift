@@ -34,9 +34,21 @@ struct BearMCPMain {
                         BearPaths.defaultBearDatabaseURL.path,
                     ].joined(separator: "\n")
                 )
-            case .newNote:
+            case .newNote(let options):
                 let runtime = try makeRuntimeServices(logger: logger)
-                let receipt = try await runtime.service.createInteractiveNote()
+                let receipt: MutationReceipt
+                if let options {
+                    receipt = try await runtime.service.createCLINewNote(
+                        title: options.title,
+                        content: options.content,
+                        tags: options.tags,
+                        tagMergeMode: options.tagMergeMode,
+                        openNote: options.openNote,
+                        newWindow: options.newWindow
+                    )
+                } else {
+                    receipt = try await runtime.service.createInteractiveNote()
+                }
                 print(renderNewNoteReceipt(receipt))
             case .deleteNote(let selectors):
                 let runtime = try makeRuntimeServices(logger: logger)

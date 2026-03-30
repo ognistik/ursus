@@ -31,7 +31,7 @@ These slices are already in place:
 - The app can manage configuration, token state, launcher repair, and the live `template.md` file.
 - The app embeds the CLI and can install / repair the public launcher.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
-- The CLI already has a first direct utility surface with `--new-note`, `--apply-template`, `--archive-note`, and `--delete-note`.
+- The CLI direct utility surface now includes `--new-note` override flags for title, tags, tag merge mode, content, and open/window behavior, plus `--apply-template`, `--archive-note`, and `--delete-note`.
 
 ## Current Cleanup Checkpoint
 
@@ -40,35 +40,17 @@ The repo is at a good place to stop and simplify before adding more features.
 The main problems to address now are:
 
 - docs are too long and too historical
-- the direct CLI utility surface is useful, but not yet complete enough for automation-friendly note creation
+- the app still shows too much implementation detail in its primary UI
 
 ## Recommended Order From Here
 
-### 1. Expand the direct CLI utility surface
-
-Goal:
-
-- make direct CLI usage strong enough for manual workflows and automations, not only for MCP hosts
-
-Next additions:
-
-- expand `bear-mcp --new-note` with override flags for title, tags, tag merge mode, content, and open/window behavior
-
-Required behavior for the expanded `--new-note` flow:
-
-- no extra flags preserves today's behavior exactly
-- explicit overrides allow automation-friendly note creation
-- explicit-override mode should not consult selected-note text
-- if explicit mode is used without tags, default to inbox tags
-- append remains the default tag merge mode unless explicitly changed
-
-### 2. Simplify the app UI
+### 1. Simplify the app UI
 
 Goal:
 
 - make the app feel like a control center instead of a diagnostics dump
 
-Likely follow-up now that template editing is in the app:
+Likely next adjustments:
 
 - reduce overview clutter
 - move lower-value details out of the primary path
@@ -80,10 +62,6 @@ Likely follow-up now that template editing is in the app:
 - `App/BearMCPApp/BearMCPDashboardView.swift`
 - `App/BearMCPApp/BearMCPAppModel.swift`
 - `Sources/BearApplication/BearAppSupport.swift`
-- `Sources/BearApplication/BearService.swift`
-- `Sources/BearCore/BearPaths.swift`
-- `Sources/BearMCPCLI/BearCLICommand.swift`
-- `Sources/BearMCPCLI/BearMCPMain.swift`
 
 ## What Not To Do
 

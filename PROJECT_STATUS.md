@@ -45,7 +45,7 @@ The repo already has the app-centered architecture we wanted:
 
 Current direct utility commands:
 
-- `bear-mcp --new-note`
+- `bear-mcp --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
 - `bear-mcp --apply-template [note-id-or-title ...]`
 - `bear-mcp --archive-note [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
@@ -57,6 +57,10 @@ Behavior already in place:
 - Default create behavior uses `open_note=yes`, `new_window=no`, and `edit=yes`.
 - If a selected note is available, `--new-note` copies that note's tags.
 - If selected-note tags are unavailable, it falls back to configured inbox tags.
+- `--new-note` with any explicit override flags skips selected-note lookup entirely.
+- In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags.
+- In explicit `--new-note` mode, `--tag-merge-mode` defaults to `append` regardless of the general create-note config, and `replace` is available as an explicit override.
+- In explicit `--new-note` mode, `--title` defaults to the same timestamp format, `--content` defaults to empty content, `--open-note` defaults to `createOpensNoteByDefault`, `--new-window` defaults to `openUsesNewWindowByDefault`, and edit mode follows `openNoteInEditModeByDefault` when the created note opens.
 - `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 
@@ -109,20 +113,17 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 This is the intended order of work after the doc cleanup:
 
-1. Expand `bear-mcp --new-note` so callers can override title, tags, tag-merge behavior, content, and open/window behavior from flags while preserving current no-argument behavior.
-2. Simplify the app UI now that template management has moved into the app.
+1. Simplify the app UI now that template management has moved into the app.
 
 ## Details For The Next Slice
 
-### 1. `--new-note` expansion
+### 1. App simplification
 
 Desired behavior:
 
-- `bear-mcp --new-note` with no extra flags should behave exactly as it does now
-- when explicit creation flags are passed, the user can override title, tags, tag merge mode, content, open-note behavior, and new-window behavior
-- in the explicit-flags path, selected-note text should not be consulted
-- if the user does not pass tags in that explicit path, the default should be inbox tags
-- append remains the default tag merge mode unless explicitly overridden
+- reduce overview clutter and implementation-detail leakage in `Bear MCP.app`
+- keep the app centered on configuration, template editing, host guidance, token state, and launcher repair
+- preserve the current CLI/MCP runtime split while simplifying what normal users see first
 
 ## Verification Baseline
 

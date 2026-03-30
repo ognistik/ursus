@@ -112,17 +112,16 @@ The public launcher installed by the app is:
 
 Current utility commands:
 
-- `bear-mcp --new-note`
+- `bear-mcp --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
 - `bear-mcp --apply-template [note-id-or-title ...]`
 - `bear-mcp --archive-note [note-id-or-title ...]`
 - `bear-mcp --delete-note [note-id-or-title ...]`
 
 Current selector behavior:
 
+- `--new-note` with no extra flags preserves the current interactive editing-note flow
+- explicit `--new-note` mode skips selected-note lookup, defaults omitted `--tags` to configured inbox tags, and defaults `--tag-merge-mode` to `append`
+- `--tags` accepts a comma-separated list and may be passed more than once
 - `--apply-template`, `--archive-note`, and `--delete-note` use the selected Bear note when no note ids or titles are passed
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces
-
-Planned next additions:
-
-- richer override flags for `bear-mcp --new-note`

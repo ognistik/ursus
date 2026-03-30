@@ -101,5 +101,12 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
             ]
         ),
+        .testTarget(
+            name: "BearMCPCLITests",
+            dependencies: [
+                "BearMCPCLI",
+                "BearCore",
+            ]
+        ),
     ]
 )
