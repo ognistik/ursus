@@ -212,7 +212,6 @@ enum BearHostAppSupport {
         }
 
         let hasUrsusSection = contents.contains("[mcp_servers.ursus]") || contents.contains("[mcp_servers.\"ursus\"]")
-        let hasLegacyBearSection = contents.contains("[mcp_servers.bear]") || contents.contains("[mcp_servers.\"bear\"]")
         let hasStablePath = contents.contains("command = \"\(cliPath)\"")
         let hasMCPArgs = contents.range(
             of: #"args\s*=\s*\[[^\]]*"mcp"[^\]]*\]"#,
@@ -262,31 +261,7 @@ enum BearHostAppSupport {
                     key: "host-codex",
                     value: configURL.path,
                     status: .invalid,
-                    detail: "Bear entry detected, but it is not aligned with the public launcher path at \(cliPath)"
-                )
-            )
-        }
-
-        if hasLegacyBearSection {
-            return HostAppResult(
-                setup: BearHostAppSetupSnapshot(
-                    id: "codex",
-                    appName: "Codex",
-                    configPath: configURL.path,
-                    status: .invalid,
-                    statusTitle: "Needs rename",
-                    detail: "Codex still uses a legacy `bear` server entry. Rename that section to `ursus` so the host config matches the Ursus server identity.",
-                    snippetTitle: "Rename the section to",
-                    snippetLanguage: "toml",
-                    snippet: snippet,
-                    mergeNote: "Rename the existing `bear` section to `ursus` and keep any other configured MCP servers.",
-                    checks: checks
-                ),
-                doctorCheck: BearDoctorCheck(
-                    key: "host-codex",
-                    value: configURL.path,
-                    status: .invalid,
-                    detail: "legacy `bear` server entry detected; rename it to `ursus`"
+                    detail: "`ursus` entry detected, but it is not aligned with the public launcher path at \(cliPath)"
                 )
             )
         }
@@ -403,7 +378,6 @@ enum BearHostAppSupport {
 
         let mcpServers = root["mcpServers"] as? [String: Any]
         let ursusServer = mcpServers?["ursus"] as? [String: Any]
-        let legacyBearServer = mcpServers?["bear"] as? [String: Any]
         let command = ursusServer?["command"] as? String
         let args = ursusServer?["args"] as? [String] ?? []
         let transportType = ursusServer?["type"] as? String
@@ -465,31 +439,7 @@ enum BearHostAppSupport {
                     key: "host-claude-desktop",
                     value: configURL.path,
                     status: .invalid,
-                    detail: "Bear entry detected, but it is not aligned with the public launcher path at \(cliPath)"
-                )
-            )
-        }
-
-        if legacyBearServer != nil {
-            return HostAppResult(
-                setup: BearHostAppSetupSnapshot(
-                    id: "claude-desktop",
-                    appName: "Claude Desktop",
-                    configPath: configURL.path,
-                    status: .invalid,
-                    statusTitle: "Needs rename",
-                    detail: "Claude Desktop still uses a legacy `bear` server entry. Rename that object to `ursus` so the host config matches the Ursus server identity.",
-                    snippetTitle: "Rename the server object to",
-                    snippetLanguage: "json",
-                    snippet: snippet,
-                    mergeNote: "Rename the existing `bear` object inside `mcpServers` to `ursus` and keep any other configured Claude servers.",
-                    checks: checks
-                ),
-                doctorCheck: BearDoctorCheck(
-                    key: "host-claude-desktop",
-                    value: configURL.path,
-                    status: .invalid,
-                    detail: "legacy `bear` server entry detected; rename it to `ursus`"
+                    detail: "`ursus` entry detected, but it is not aligned with the public launcher path at \(cliPath)"
                 )
             )
         }

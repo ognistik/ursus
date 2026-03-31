@@ -38,11 +38,11 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - The public launcher path is now `~/.local/bin/ursus`.
 - Launcher repair/install, bridge diagnostics, and CLI help/doctor/status output now point at the `ursus` launcher and `Ursus.app`.
 - Selected-note helper lookup now prefers the embedded helper in `/Applications/Ursus.app` but still falls back to `~/Applications/Ursus.app` when needed.
-- Host setup snippets and diagnostics now recommend `ursus` as the host-side server identity for Codex and Claude Desktop, while flagging legacy `bear` host entries for cleanup.
+- Host setup snippets and diagnostics now recommend `ursus` as the host-side server identity for Codex and Claude Desktop.
 - Broader app copy now presents the product as Ursus while keeping Bear wording only for Bear-specific domains like the Bear database, Bear notes, and Bear tokens.
 - Current docs, local build/reset guidance, and helper docs are aligned to the shipped Ursus identity.
 - Repo-internal app/container paths and product-facing internal type names now use Ursus branding where they represent the product shell rather than the Bear integration domain.
-- Repo identity search gates now catch accidental reintroduction of legacy product wording while allowing only intentional historical and compatibility exceptions.
+- Repo identity search gates now catch accidental reintroduction of old product wording outside the dedicated gate test.
 - Prerelease support-root and debug-log migration logic has been removed instead of carried forward.
 
 ## Current Working Surface
@@ -129,7 +129,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
 - Queue labels, logger labels, DB labels, and selected-note callback paths no longer use the old launcher identity.
-- A repo identity gate test now keeps legacy product strings limited to intentional historical, prerelease-cleanup, compatibility, and fixture exceptions.
+- A repo identity gate test now keeps old product strings isolated to the dedicated guard test.
 
 ## Documentation Cleanup Decisions
 
@@ -192,7 +192,7 @@ Phase 4 verification that passed on 2026-03-30:
 - `swift test`
 - `swift run ursus doctor`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
-- host setup guidance tests now verify `ursus` snippets for Codex and Claude Desktop plus explicit detection of legacy `bear` host entries that need renaming
+- host setup guidance tests now verify `ursus` snippets for Codex and Claude Desktop
 - `swift run ursus doctor` now reports `host-codex` / `host-claude-desktop` guidance in terms of `ursus` host entries
 - built app re-verified at `.build/UrsusApp/Build/Products/Debug/Ursus.app`
 
@@ -200,8 +200,8 @@ Phase 5 verification that passed on 2026-03-30:
 
 - `swift test`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
-- current-truth docs were updated to remove stale prerelease wording and to add explicit manual cleanup guidance for old prerelease artifacts
-- repo identity gate coverage now allows only intentional legacy product-string survivors such as prerelease cleanup examples, locked compatibility metadata, and legacy-fixture tests
+- current-truth docs were updated to remove stale prerelease wording from current workflows
+- repo identity gate coverage now keeps old product strings isolated to the dedicated guard test
 
 Phase 6 verification that passed on 2026-03-31:
 

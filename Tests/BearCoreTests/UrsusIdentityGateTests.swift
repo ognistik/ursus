@@ -70,7 +70,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             label: "legacy product phrase",
             pattern: #"Bear MCP"#,
             allowedRelativePaths: [
-                "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
                 currentTestFile,
             ]
         ),
@@ -78,11 +77,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             label: "legacy product slug",
             pattern: #"\bbear-mcp\b"#,
             allowedRelativePaths: [
-                "AGENTS.md",
-                "Package.swift",
-                "Tests/BearApplicationTests/BearRuntimeBootstrapTests.swift",
-                "Tests/BearCoreTests/BearRuntimePathsTests.swift",
-                "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
                 currentTestFile,
             ]
         ),
@@ -103,9 +97,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             |com\.aft\.bear-mcp
             """#,
             allowedRelativePaths: [
-                "Tests/BearApplicationTests/BearRuntimeBootstrapTests.swift",
-                "Tests/BearCoreTests/BearRuntimePathsTests.swift",
-                "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
                 currentTestFile,
             ]
         ),
@@ -113,8 +104,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             label: "legacy host server key",
             pattern: #"\[mcp_servers\.bear\]|"bear"\s*:"#,
             allowedRelativePaths: [
-                "Sources/BearApplication/BearHostAppSupport.swift",
-                "Tests/BearApplicationTests/BearAppSupportTests.swift",
                 currentTestFile,
             ]
         ),
