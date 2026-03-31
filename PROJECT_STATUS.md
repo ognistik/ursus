@@ -73,8 +73,8 @@ Behavior already in place:
 - `--new-note` creates a templated editing note.
 - Default title format is `yyMMdd - hh:mm a`.
 - Bare `--new-note` still opens an editing note in the foreground and seeds tags from the selected note when a Bear token is configured.
-- Bare `--new-note` now skips selected-note lookup entirely when no Bear token is configured and falls back directly to configured inbox tags.
-- Explicit `--new-note` mode always skips selected-note lookup, defaults omitted `--tags` to configured inbox tags, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed/background unless `--open-note` is passed.
+- Bare `--new-note` now skips selected-note lookup entirely when no Bear token is configured and falls back to configured inbox tags only when `Create adds inbox tags by default` is enabled.
+- Explicit `--new-note` mode always skips selected-note lookup, makes omitted `--tags` follow the `Create adds inbox tags by default` setting, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed/background unless `--open-note` is passed.
 - In explicit `--new-note` mode, `--new-window` is a presence flag and is only valid together with `--open-note`.
 - CLI-created empty notes now preserve one empty editable body line inside the templated `{{content}}` slot so the caret lands in the body without breaking template structure.
 - Short aliases now exist for explicit `--new-note` subflags: `-t`, `-c`, `-g`, `-rt`, `-on`, and `-nw`.

@@ -975,7 +975,14 @@ public final class BearService: @unchecked Sendable {
         mergeMode: BearConfiguration.TagsMergeMode
     ) -> [String] {
         guard let requestTags else {
+            guard configuration.createAddsInboxTagsByDefault else {
+                return []
+            }
             return normalizedUniqueTags(configuration.inboxTags)
+        }
+
+        guard configuration.createAddsInboxTagsByDefault else {
+            return normalizedUniqueTags(requestTags)
         }
 
         switch mergeMode {

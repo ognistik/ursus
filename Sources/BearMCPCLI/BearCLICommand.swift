@@ -89,7 +89,7 @@ enum BearCLICommand {
           `bridge status` prints saved bridge config plus LaunchAgent and health-check details.
           `bridge print-url` prints the configured localhost MCP URL.
           `--new-note` with no extra flags preserves the current interactive editing-note flow.
-          In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags, omitted open/window flags leave the note closed, and `--replace-tags` switches from append to replace.
+          In explicit `--new-note` mode, omitted `--tags` follows the create-adds-inbox-tags default: it uses configured inbox tags when enabled and stays empty when disabled. Omitted open/window flags leave the note closed, and `--replace-tags` switches from append to replace.
           `--title` also accepts `-t`, `--content` accepts `-c`, `--tags` accepts `-g`, `--replace-tags` accepts `-rt`, `--open-note` accepts `-on`, and `--new-window` accepts `-nw`.
           `--tags` accepts a comma-separated list and may be passed more than once.
           `--new-window` requires `--open-note`.

@@ -105,7 +105,34 @@ func createCLINewNotePreservesOneEmptyEditableLineWhenBodyAndTagsAreEmpty() asyn
 }
 
 @Test
-func createCLINewNoteDefaultsToAppendEvenWhenCreateConfigWouldNot() async throws {
+func createCLINewNoteOmittedTagsStayEmptyWhenCreateAddsInboxTagsDefaultIsDisabled() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(createAddsInboxTagsByDefault: false),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createCLINewNote(
+            title: "Config Off",
+            content: nil,
+            tags: nil,
+            tagMergeMode: .append,
+            openNote: false,
+            newWindow: false
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags.isEmpty)
+    #expect(request.content == "\n")
+    #expect(await transport.selectedNoteResolutionCount == 0)
+}
+
+@Test
+func createCLINewNoteAppendRespectsCreateAddsInboxTagsDefaultWhenDisabled() async throws {
     let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
     let service = BearService(
         configuration: makeCLIUtilityConfiguration(
@@ -129,7 +156,7 @@ func createCLINewNoteDefaultsToAppendEvenWhenCreateConfigWouldNot() async throws
     }
 
     let request = try #require(await transport.createdRequests.first)
-    #expect(request.tags == ["0-inbox", "daily", "project-x"])
+    #expect(request.tags == ["project-x"])
     #expect(request.useOnlyRequestTags == true)
     #expect(await transport.selectedNoteResolutionCount == 0)
 }
@@ -198,6 +225,42 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
     let request = try #require(await transport.createdRequests.first)
     #expect(request.tags == ["0-inbox", "daily"])
     #expect(request.content == "\n\n#0-inbox #daily")
+}
+
+@Test
+func createInteractiveNoteDoesNotFallBackToInboxTagsWhenDisabledAndSelectedNoteHasNoTags() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .success("selected-note"))
+    let readStore = CLIUtilityReadStore(
+        noteByID: [
+            "selected-note": makeCLIUtilityNote(
+                id: "selected-note",
+                title: "Context",
+                body: "Body",
+                tags: []
+            ),
+        ],
+        notesByTitle: [:]
+    )
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(
+            token: "secret-token",
+            createAddsInboxTagsByDefault: false
+        ),
+        readStore: readStore,
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createInteractiveNote(
+            at: try #require(makeCLIUtilityDate(year: 2024, month: 3, day: 28, hour: 17, minute: 5)),
+            timeZone: TimeZone(secondsFromGMT: 0)
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags.isEmpty)
+    #expect(request.content == "\n")
 }
 
 @Test
