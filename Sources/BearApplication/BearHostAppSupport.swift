@@ -152,14 +152,14 @@ enum BearHostAppSupport {
             .appendingPathComponent("config.toml", isDirectory: false)
         let cliPath = launcherURL.path
         let snippet = """
-        [mcp_servers.bear]
+        [mcp_servers.ursus]
         enabled = true
         command = "\(cliPath)"
         args = ["mcp"]
         """
         let checks = [
             "Use Ursus.app to install or repair the launcher at \(cliPath).",
-            "Add or update the `[mcp_servers.bear]` section in `\(configURL.path)` so `command` points at that launcher path and `args` contains `\"mcp\"`.",
+            "Add or update the `[mcp_servers.ursus]` section in `\(configURL.path)` so `command` points at that launcher path and `args` contains `\"mcp\"`.",
             "Restart Codex after saving the config so it reloads the Ursus MCP server definition.",
         ]
 
@@ -171,18 +171,18 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .missing,
                     statusTitle: "Config file not found",
-                    detail: "Create `\(configURL.path)` or let Codex create it, then add the `bear` server section below so Codex uses the public launcher instead of a repo-local build output.",
+                    detail: "Create `\(configURL.path)` or let Codex create it, then add the `ursus` server section below so Codex uses the public launcher instead of a repo-local build output.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "If you already have other MCP servers configured, keep them and append this `[mcp_servers.bear]` section.",
+                    mergeNote: "If you already have other MCP servers configured, keep them and append this `[mcp_servers.ursus]` section.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
                     key: "host-codex",
                     value: configURL.path,
                     status: .missing,
-                    detail: "config.toml not found; add the `bear` server entry pointing at \(cliPath)"
+                    detail: "config.toml not found; add the `ursus` server entry pointing at \(cliPath)"
                 )
             )
         }
@@ -195,11 +195,11 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Config file unreadable",
-                    detail: "Ursus.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.bear` at the public launcher.",
+                    detail: "Ursus.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.ursus` at the public launcher.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "Keep any existing Codex settings and MCP servers; just make sure the Bear section matches this command path.",
+                    mergeNote: "Keep any existing Codex settings and MCP servers; just make sure the Ursus section matches this command path.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
@@ -211,14 +211,15 @@ enum BearHostAppSupport {
             )
         }
 
-        let hasBearSection = contents.contains("[mcp_servers.bear]") || contents.contains("[mcp_servers.\"bear\"]")
+        let hasUrsusSection = contents.contains("[mcp_servers.ursus]") || contents.contains("[mcp_servers.\"ursus\"]")
+        let hasLegacyBearSection = contents.contains("[mcp_servers.bear]") || contents.contains("[mcp_servers.\"bear\"]")
         let hasStablePath = contents.contains("command = \"\(cliPath)\"")
         let hasMCPArgs = contents.range(
             of: #"args\s*=\s*\[[^\]]*"mcp"[^\]]*\]"#,
             options: .regularExpression
         ) != nil
 
-        if hasBearSection && hasStablePath && hasMCPArgs {
+        if hasUrsusSection && hasStablePath && hasMCPArgs {
             return HostAppResult(
                 setup: BearHostAppSetupSnapshot(
                     id: "codex",
@@ -226,7 +227,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .ok,
                     statusTitle: "Configured",
-                    detail: "Codex already points `mcp_servers.bear` at the public launcher path.",
+                    detail: "Codex already points `mcp_servers.ursus` at the public launcher path.",
                     snippetTitle: "Current recommended section",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -242,7 +243,7 @@ enum BearHostAppSupport {
             )
         }
 
-        if hasBearSection {
+        if hasUrsusSection {
             return HostAppResult(
                 setup: BearHostAppSetupSnapshot(
                     id: "codex",
@@ -250,11 +251,11 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Needs update",
-                    detail: "Codex already has a `bear` server entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
-                    snippetTitle: "Replace the `bear` section with",
+                    detail: "Codex already has an `ursus` server entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
+                    snippetTitle: "Replace the `ursus` section with",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "Update the existing `bear` section rather than adding a duplicate server entry.",
+                    mergeNote: "Update the existing `ursus` section rather than adding a duplicate server entry.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
@@ -266,15 +267,39 @@ enum BearHostAppSupport {
             )
         }
 
+        if hasLegacyBearSection {
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "codex",
+                    appName: "Codex",
+                    configPath: configURL.path,
+                    status: .invalid,
+                    statusTitle: "Needs rename",
+                    detail: "Codex still uses a legacy `bear` server entry. Rename that section to `ursus` so the host config matches the Ursus server identity.",
+                    snippetTitle: "Rename the section to",
+                    snippetLanguage: "toml",
+                    snippet: snippet,
+                    mergeNote: "Rename the existing `bear` section to `ursus` and keep any other configured MCP servers.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-codex",
+                    value: configURL.path,
+                    status: .invalid,
+                    detail: "legacy `bear` server entry detected; rename it to `ursus`"
+                )
+            )
+        }
+
         return HostAppResult(
             setup: BearHostAppSetupSnapshot(
                 id: "codex",
                 appName: "Codex",
                 configPath: configURL.path,
                 status: .notConfigured,
-                statusTitle: "Bear Server Not Added Yet",
-                detail: "Codex is installed, but `\(configURL.path)` does not yet contain a `bear` server entry for Ursus.",
-                snippetTitle: "Add this Codex section",
+                statusTitle: "Ursus Server Not Added Yet",
+                detail: "Codex is installed, but `\(configURL.path)` does not yet contain an `ursus` server entry.",
+                snippetTitle: "Add this Ursus section",
                 snippetLanguage: "toml",
                 snippet: snippet,
                 mergeNote: "Append this section to the existing file; do not remove other MCP server entries.",
@@ -284,7 +309,7 @@ enum BearHostAppSupport {
                 key: "host-codex",
                 value: configURL.path,
                 status: .notConfigured,
-                detail: "config.toml exists, but no `bear` server entry was detected"
+                detail: "config.toml exists, but no `ursus` server entry was detected"
             )
         )
     }
@@ -310,7 +335,7 @@ enum BearHostAppSupport {
         let snippet = """
         {
           "mcpServers": {
-            "bear": {
+            "ursus": {
               "type": "stdio",
               "command": "\(cliPath)",
               "args": ["mcp"],
@@ -321,7 +346,7 @@ enum BearHostAppSupport {
         """
         let checks = [
             "Use Ursus.app to install or repair the launcher at \(cliPath).",
-            "Add or merge the `bear` server entry into `mcpServers` inside `\(configURL.path)` so Claude Desktop launches the public launcher.",
+            "Add or merge the `ursus` server entry into `mcpServers` inside `\(configURL.path)` so Claude Desktop launches the public launcher.",
             "Restart Claude Desktop after saving the JSON so it reloads the local MCP server.",
         ]
 
@@ -333,18 +358,18 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .missing,
                     statusTitle: "Config file not found",
-                    detail: "Create `\(configURL.path)` or configure a local MCP server from Claude Desktop, then merge the Bear entry below so Claude uses the public launcher path.",
+                    detail: "Create `\(configURL.path)` or configure a local MCP server from Claude Desktop, then merge the Ursus entry below so Claude uses the public launcher path.",
                     snippetTitle: "Claude Desktop JSON example",
                     snippetLanguage: "json",
                     snippet: snippet,
-                    mergeNote: "If `claude_desktop_config.json` already contains other servers, merge just the `bear` object into the existing `mcpServers` dictionary instead of replacing the whole file.",
+                    mergeNote: "If `claude_desktop_config.json` already contains other servers, merge just the `ursus` object into the existing `mcpServers` dictionary instead of replacing the whole file.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
                     key: "host-claude-desktop",
                     value: configURL.path,
                     status: .missing,
-                    detail: "claude_desktop_config.json not found; add a `bear` stdio entry pointing at \(cliPath)"
+                    detail: "claude_desktop_config.json not found; add an `ursus` stdio entry pointing at \(cliPath)"
                 )
             )
         }
@@ -360,11 +385,11 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Config file invalid",
-                    detail: "`\(configURL.path)` could not be parsed as JSON. Fix the file, then merge the Bear stdio entry below.",
+                    detail: "`\(configURL.path)` could not be parsed as JSON. Fix the file, then merge the Ursus stdio entry below.",
                     snippetTitle: "Claude Desktop JSON example",
                     snippetLanguage: "json",
                     snippet: snippet,
-                    mergeNote: "The file needs to stay valid JSON after you add the Bear server object.",
+                    mergeNote: "The file needs to stay valid JSON after you add the Ursus server object.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
@@ -377,12 +402,13 @@ enum BearHostAppSupport {
         }
 
         let mcpServers = root["mcpServers"] as? [String: Any]
-        let bearServer = mcpServers?["bear"] as? [String: Any]
-        let command = bearServer?["command"] as? String
-        let args = bearServer?["args"] as? [String] ?? []
-        let transportType = bearServer?["type"] as? String
+        let ursusServer = mcpServers?["ursus"] as? [String: Any]
+        let legacyBearServer = mcpServers?["bear"] as? [String: Any]
+        let command = ursusServer?["command"] as? String
+        let args = ursusServer?["args"] as? [String] ?? []
+        let transportType = ursusServer?["type"] as? String
 
-        if bearServer != nil {
+        if ursusServer != nil {
             let commandMatches = command == cliPath
             let argsMatch = args.contains("mcp")
             let typeMatches = transportType == nil || transportType == "stdio"
@@ -395,7 +421,7 @@ enum BearHostAppSupport {
                         configPath: configURL.path,
                         status: .ok,
                         statusTitle: "Configured",
-                        detail: "Claude Desktop already has a Bear stdio server entry pointing at the public launcher path.",
+                        detail: "Claude Desktop already has an Ursus stdio server entry pointing at the public launcher path.",
                         snippetTitle: "Current recommended JSON",
                         snippetLanguage: "json",
                         snippet: snippet,
@@ -412,13 +438,13 @@ enum BearHostAppSupport {
             }
 
             let detail = if !commandMatches {
-                "Claude Desktop already has a Bear entry, but `command` is not `\(cliPath)` yet."
+                "Claude Desktop already has an Ursus entry, but `command` is not `\(cliPath)` yet."
             } else if !argsMatch {
-                "Claude Desktop already has a Bear entry, but `args` does not include `\"mcp\"` yet."
+                "Claude Desktop already has an Ursus entry, but `args` does not include `\"mcp\"` yet."
             } else if !typeMatches {
-                "Claude Desktop already has a Bear entry, but it is not marked as a stdio server."
+                "Claude Desktop already has an Ursus entry, but it is not marked as a stdio server."
             } else {
-                "Claude Desktop already has a Bear entry, but it does not match the current recommended shape."
+                "Claude Desktop already has an Ursus entry, but it does not match the current recommended shape."
             }
 
             return HostAppResult(
@@ -429,10 +455,10 @@ enum BearHostAppSupport {
                     status: .invalid,
                     statusTitle: "Needs update",
                     detail: detail,
-                    snippetTitle: "Update the Bear server entry to",
+                    snippetTitle: "Update the Ursus server entry to",
                     snippetLanguage: "json",
                     snippet: snippet,
-                    mergeNote: "Replace only the existing `bear` object inside `mcpServers`; keep any other configured Claude servers.",
+                    mergeNote: "Replace only the existing `ursus` object inside `mcpServers`; keep any other configured Claude servers.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
@@ -444,25 +470,49 @@ enum BearHostAppSupport {
             )
         }
 
+        if legacyBearServer != nil {
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "claude-desktop",
+                    appName: "Claude Desktop",
+                    configPath: configURL.path,
+                    status: .invalid,
+                    statusTitle: "Needs rename",
+                    detail: "Claude Desktop still uses a legacy `bear` server entry. Rename that object to `ursus` so the host config matches the Ursus server identity.",
+                    snippetTitle: "Rename the server object to",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "Rename the existing `bear` object inside `mcpServers` to `ursus` and keep any other configured Claude servers.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-claude-desktop",
+                    value: configURL.path,
+                    status: .invalid,
+                    detail: "legacy `bear` server entry detected; rename it to `ursus`"
+                )
+            )
+        }
+
         return HostAppResult(
             setup: BearHostAppSetupSnapshot(
                 id: "claude-desktop",
                 appName: "Claude Desktop",
                 configPath: configURL.path,
                 status: .notConfigured,
-                statusTitle: "Bear Server Not Added Yet",
-                detail: "Claude Desktop config exists, but no `mcpServers.bear` entry was detected.",
-                snippetTitle: "Add this `bear` server object",
+                statusTitle: "Ursus Server Not Added Yet",
+                detail: "Claude Desktop config exists, but no `mcpServers.ursus` entry was detected.",
+                snippetTitle: "Add this `ursus` server object",
                 snippetLanguage: "json",
                 snippet: snippet,
-                mergeNote: "Merge the `bear` object into the existing `mcpServers` dictionary rather than replacing the entire file.",
+                mergeNote: "Merge the `ursus` object into the existing `mcpServers` dictionary rather than replacing the entire file.",
                 checks: checks
             ),
             doctorCheck: BearDoctorCheck(
                 key: "host-claude-desktop",
                 value: configURL.path,
                 status: .notConfigured,
-                detail: "claude_desktop_config.json exists, but no `bear` server entry was detected"
+                detail: "claude_desktop_config.json exists, but no `ursus` server entry was detected"
             )
         )
     }

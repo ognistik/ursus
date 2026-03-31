@@ -92,7 +92,7 @@ public enum BearTemplateValidator {
             issues.append(
                 BearTemplateValidationIssue(
                     severity: .warning,
-                    message: "Bear MCP applies the template below the note title. Avoid `{{title}}` unless you intentionally want title text inside the body."
+                    message: "Ursus applies the template below Bear's note title. Avoid `{{title}}` unless you intentionally want title text inside the body."
                 )
             )
         }

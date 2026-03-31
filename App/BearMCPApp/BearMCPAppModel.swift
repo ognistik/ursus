@@ -103,7 +103,7 @@ final class BearMCPAppModel: ObservableObject {
 
         guard !configurationValidation.hasErrors else {
             configurationStatusMessage = nil
-            configurationStatusError = "Fix the highlighted configuration errors before Bear MCP can save."
+            configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
             return
         }
 
@@ -217,7 +217,7 @@ final class BearMCPAppModel: ObservableObject {
 
         guard !validation.hasErrors else {
             configurationStatusMessage = nil
-            configurationStatusError = "Fix the highlighted configuration errors before Bear MCP can save."
+            configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
             return
         }
 
@@ -387,7 +387,7 @@ final class BearMCPAppModel: ObservableObject {
             return value
         }
 
-        return "Bear MCP"
+        return "Ursus"
     }
 
     var bundleIdentifier: String {

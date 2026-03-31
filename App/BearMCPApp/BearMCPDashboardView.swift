@@ -58,7 +58,7 @@ private struct BearMCPOverviewView: View {
     private var heroSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Bear MCP")
+                Text("Ursus")
                     .font(.system(size: 28, weight: .semibold))
                 Text("One app for diagnostics, configuration, token management, and reusable local MCP setup across many host apps.")
                     .font(.callout)
@@ -77,7 +77,7 @@ private struct BearMCPOverviewView: View {
     private func cliSection(_ settings: BearAppSettingsSnapshot) -> some View {
         GroupBox("CLI Setup") {
             VStack(alignment: .leading, spacing: 18) {
-                Text("If you connect Bear MCP to Codex, Claude, or another local MCP app, use the one public launcher below. That same path also works from Terminal.")
+                Text("If you connect Ursus to Codex, Claude, or another local MCP app, use the one public launcher below. That same path also works from Terminal.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 Text("Ursus keeps this launcher aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
@@ -153,7 +153,7 @@ private struct BearMCPOverviewView: View {
     private func bridgeSection(_ bridge: BearAppBridgeSnapshot) -> some View {
         GroupBox("Remote MCP Bridge") {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Use this optional localhost HTTP bridge for apps that only support remote MCP URLs and cannot launch Bear MCP as a local stdio process.")
+                Text("Use this optional localhost HTTP bridge for apps that only support remote MCP URLs and cannot launch Ursus as a local stdio process.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -523,7 +523,7 @@ private struct BearMCPConfigurationView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Configuration")
                                 .font(.title3.weight(.semibold))
-                            Text("Changes save automatically. Bear MCP keeps the JSON file in sync for you and shows inline issues before anything invalid is written.")
+                            Text("Changes save automatically. Ursus keeps the JSON file in sync for you and shows inline issues before anything invalid is written.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
                         }
@@ -607,7 +607,7 @@ private struct BearMCPConfigurationView: View {
                             }
 
                             Section("Tool Availability") {
-                                Text("Some host apps do not let users hide tools. Use these toggles to control the MCP tool catalog directly inside Bear MCP.")
+                                Text("Some host apps do not let users hide tools. Use these toggles to control the MCP tool catalog directly inside Ursus.")
                                     .font(.callout)
                                     .foregroundStyle(.secondary)
 
@@ -864,7 +864,7 @@ private struct BearMCPTokenView: View {
                             SecureField(settings.selectedNoteTokenConfigured ? "Paste a new Bear API token to replace the current one" : "Paste Bear API token", text: $model.tokenDraft)
                                 .textFieldStyle(.roundedBorder)
 
-                            Text("Save stores the token in Bear MCP's config.json. The app keeps it hidden by default, but it is not stored in macOS Keychain.")
+                            Text("Save stores the token in Ursus's config.json. The app keeps it hidden by default, but it is not stored in macOS Keychain.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
 

@@ -25,7 +25,7 @@ This file is the concise handoff for future threads. It should describe the curr
 
 ## Current Product Shape
 
-Phases 1 through 3 of the Ursus identity reset are complete:
+Phases 1 through 4 of the Ursus identity reset are complete:
 
 - `Ursus.app` is now the product shell and control center.
 - The bundled local stdio/runtime executable is now `ursus`.
@@ -37,11 +37,13 @@ Phases 1 through 3 of the Ursus identity reset are complete:
 - The public launcher path is now `~/.local/bin/ursus`.
 - Launcher repair/install, bridge diagnostics, and CLI help/doctor/status output now point at the `ursus` launcher and `Ursus.app`.
 - Selected-note helper lookup now prefers the embedded helper in `/Applications/Ursus.app` but still falls back to `~/Applications/Ursus.app` when needed.
+- Host setup snippets and diagnostics now recommend `ursus` as the host-side server identity for Codex and Claude Desktop, while flagging legacy `bear` host entries for cleanup.
+- Broader app copy now presents the product as Ursus while keeping Bear wording only for Bear-specific domains like the Bear database, Bear notes, and Bear tokens.
 - Prerelease support-root and debug-log migration logic has been removed instead of carried forward.
 
 Intentional carry-over until later phases:
 
-- broader app/UI wording, host snippets, and old Bear MCP documentation cleanup are still pending
+- old Bear MCP documentation cleanup and repo-wide identity search gates are still pending
 
 ## Current Working Surface
 
@@ -116,9 +118,9 @@ These paths describe the codebase as it exists after Phase 3:
 
 ## Current Technical Truths
 
-- Phases 1 through 3 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, and the public launcher/locator wiring now points at `ursus` and `Ursus.app`.
+- Phases 1 through 4 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, launcher/locator wiring points at `ursus` and `Ursus.app`, and host snippets plus broader app copy now present Ursus consistently on user-facing surfaces.
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
-- The selected-note token is currently managed in Bear MCP's config flow, not in Keychain.
+- The selected-note token is currently managed in Ursus's config flow, not in Keychain.
 - Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
@@ -142,11 +144,10 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 ## Next Implementation Queue
 
-This is the intended order after Phase 3:
+This is the intended order after Phase 4:
 
-1. Phase 4: finish broader host snippets, app copy, and diagnostics cleanup so Ursus is presented consistently beyond the launcher/bridge-critical surfaces.
-2. Phase 5: finish docs/status cleanup and run the identity search gates.
-3. Phase 6: evaluate and, if explicitly approved for a higher-churn internal cleanup pass, rename repo-internal app/container paths such as `BearMCPApp.xcodeproj`, `App/BearMCPApp`, and other non-shipped internal naming leftovers while preserving locked package/tool surface rules unless that later phase intentionally broadens scope.
+1. Phase 5: finish docs/status cleanup and run the identity search gates.
+2. Phase 6: evaluate and, if explicitly approved for a higher-churn internal cleanup pass, rename repo-internal app/container paths such as `BearMCPApp.xcodeproj`, `App/BearMCPApp`, and other non-shipped internal naming leftovers while preserving locked package/tool surface rules unless that later phase intentionally broadens scope.
 
 ## Verification Baseline
 
@@ -180,5 +181,14 @@ Phase 3 verification that passed on 2026-03-30:
 - `swift run ursus doctor` and `swift run ursus bridge status` reported `~/.local/bin/ursus` plus Ursus-era launcher/bridge diagnostics
 - built outputs re-verified at `.build/BearMCPApp/Build/Products/Debug/Ursus.app`
 - bundled artifacts re-verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+
+Phase 4 verification that passed on 2026-03-30:
+
+- `swift test`
+- `swift run ursus doctor`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- host setup guidance tests now verify `ursus` snippets for Codex and Claude Desktop plus explicit detection of legacy `bear` host entries that need renaming
+- `swift run ursus doctor` now reports `host-codex` / `host-claude-desktop` guidance in terms of `ursus` host entries
+- built app re-verified at `.build/BearMCPApp/Build/Products/Debug/Ursus.app`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

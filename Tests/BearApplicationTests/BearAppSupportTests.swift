@@ -219,7 +219,7 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
     try """
-    [mcp_servers.bear]
+    [mcp_servers.ursus]
     enabled = true
     command = "\(launcherURL.path)"
     args = ["mcp"]
@@ -227,7 +227,7 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     try """
     {
       "mcpServers": {
-        "bear": {
+        "ursus": {
           "type": "stdio",
           "command": "\(launcherURL.path)",
           "args": ["mcp"],
@@ -259,10 +259,12 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     #expect(codexSetup.status == BearDoctorCheckStatus.ok)
     #expect(codexSetup.configPath == codexConfigURL.path)
     #expect(codexSetup.snippet?.contains(launcherURL.path) == true)
+    #expect(codexSetup.snippet?.contains("[mcp_servers.ursus]") == true)
 
     let claudeSetup = try #require(hostSetup(named: "claude-desktop", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(claudeSetup.status == BearDoctorCheckStatus.ok)
     #expect(claudeSetup.configPath == claudeConfigURL.path)
+    #expect(claudeSetup.snippet?.contains(#""ursus": {"#) == true)
 
     let chatGPTSetup = try #require(hostSetup(named: "chatgpt", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(chatGPTSetup.status == BearDoctorCheckStatus.notConfigured)
@@ -1351,7 +1353,7 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
     try """
-    [mcp_servers.bear]
+    [mcp_servers.ursus]
     enabled = true
     command = "/tmp/old-bear-mcp"
     args = ["mcp"]
@@ -1385,6 +1387,86 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
 
     let claudeDiagnostic = try #require(diagnostic(named: "host-claude-desktop", in: dashboard.diagnostics))
     #expect(claudeDiagnostic.status == BearDoctorCheckStatus.invalid)
+}
+
+@Test
+func dashboardSnapshotFlagsLegacyHostServerKeysForRename() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+    let codexConfigURL = homeDirectoryURL
+        .appendingPathComponent(".codex", isDirectory: true)
+        .appendingPathComponent("config.toml", isDirectory: false)
+    let claudeConfigURL = homeDirectoryURL
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Claude", isDirectory: true)
+        .appendingPathComponent("claude_desktop_config.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: claudeConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try """
+    [mcp_servers.bear]
+    enabled = true
+    command = "\(launcherURL.path)"
+    args = ["mcp"]
+    """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
+    try """
+    {
+      "mcpServers": {
+        "bear": {
+          "type": "stdio",
+          "command": "\(launcherURL.path)",
+          "args": ["mcp"],
+          "env": {}
+        }
+      }
+    }
+    """.write(to: claudeConfigURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let dashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    let codexSetup = try #require(hostSetup(named: "codex", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(codexSetup.status == BearDoctorCheckStatus.invalid)
+    #expect(codexSetup.statusTitle == "Needs rename")
+    #expect(codexSetup.detail.contains("legacy `bear` server entry") == true)
+    #expect(codexSetup.detail.contains("`ursus`") == true)
+
+    let claudeSetup = try #require(hostSetup(named: "claude-desktop", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(claudeSetup.status == BearDoctorCheckStatus.invalid)
+    #expect(claudeSetup.statusTitle == "Needs rename")
+    #expect(claudeSetup.detail.contains("legacy `bear` server entry") == true)
+    #expect(claudeSetup.detail.contains("`ursus`") == true)
+
+    let codexDiagnostic = try #require(diagnostic(named: "host-codex", in: dashboard.diagnostics))
+    #expect(codexDiagnostic.status == BearDoctorCheckStatus.invalid)
+    #expect(codexDiagnostic.detail == "legacy `bear` server entry detected; rename it to `ursus`")
+
+    let claudeDiagnostic = try #require(diagnostic(named: "host-claude-desktop", in: dashboard.diagnostics))
+    #expect(claudeDiagnostic.status == BearDoctorCheckStatus.invalid)
+    #expect(claudeDiagnostic.detail == "legacy `bear` server entry detected; rename it to `ursus`")
 }
 
 @Test

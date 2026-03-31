@@ -37,6 +37,7 @@ Status as of 2026-03-30:
 - Phase 1 is complete.
 - Phase 2 is complete.
 - Phase 3 is complete.
+- Phase 4 is complete.
 - Verified with `swift test`.
 - Verified with `swift run ursus paths`.
 - Verified with `swift run ursus --help`.
@@ -49,7 +50,7 @@ Status as of 2026-03-30:
 
 Intentional carry-over to later phases:
 
-- broad UI/host/docs wording cleanup is still pending
+- docs cleanup and repo-wide identity search gates are still pending
 
 ## Bear vs Ursus Boundary
 
@@ -283,6 +284,10 @@ Result:
 
 ### Phase 4: Host Integration and User-Facing Surface
 
+Status:
+
+- completed on 2026-03-30
+
 Goal:
 
 - make the product feel like one single product to end users and hosts
@@ -311,6 +316,13 @@ Verification:
 - verify host setup snippets show `ursus` server identity
 - verify doctor output and launcher guidance use Ursus branding consistently
 - verify Bear-domain tool names still remain `bear_*`
+
+Result:
+
+- Codex snippets and diagnostics now use `[mcp_servers.ursus]` and flag legacy `bear` sections as rename work rather than treating them as current.
+- Claude Desktop snippets and diagnostics now use `"ursus"` inside `mcpServers` and flag legacy `"bear"` objects as rename work.
+- The dashboard, configuration autosave messaging, token storage copy, and template warnings now present Ursus consistently while still keeping Bear wording for Bear-specific concepts.
+- `swift run ursus doctor` now surfaces host guidance in terms of `ursus` host entries.
 
 ### Phase 5: Docs, Tests, and Status Alignment
 
