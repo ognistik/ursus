@@ -170,8 +170,30 @@ private struct BearMCPOverviewView: View {
                 }
 
                 labeledValue("MCP URL", bridge.endpointURL)
+                labeledValue("Bridge host", bridge.host)
+                labeledValue("Bridge port", "\(bridge.port)")
+                labeledValue("Health probe", bridgeHealthSummary(bridge))
                 labeledValue("Launcher", bridge.launcherPath)
                 labeledValue("LaunchAgent", bridge.plistPath)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Bridge port")
+                        .font(.headline)
+                    Text("This value saves automatically to `config.json`. Set it before installing the bridge, or reinstall/resume it after edits so the running LaunchAgent picks up the new endpoint.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    Stepper(value: bridgePortBinding, in: 1024...65_535) {
+                        HStack {
+                            Text("Bridge port")
+                            Spacer()
+                            Text("\(model.bridgePortDraft)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    bridgeValidationMessages(for: .bridgePort)
+                }
 
                 HStack(spacing: 10) {
                     if let title = bridgePrimaryActionTitle(for: bridge) {
@@ -303,6 +325,55 @@ private struct BearMCPOverviewView: View {
             Text(path)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+        }
+    }
+
+    private func bridgeHealthSummary(_ bridge: BearAppBridgeSnapshot) -> String {
+        if bridge.endpointProtocolCompatible {
+            return "TCP + MCP initialize OK"
+        }
+
+        if bridge.endpointTransportReachable {
+            return "TCP OK, MCP initialize failed"
+        }
+
+        return "No healthy endpoint detected"
+    }
+
+    private func bridgeAutosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<BearMCPAppModel, Value>) -> Binding<Value> {
+        Binding(
+            get: { model[keyPath: keyPath] },
+            set: { newValue in
+                model[keyPath: keyPath] = newValue
+                model.configurationDraftDidChange()
+            }
+        )
+    }
+
+    private var bridgePortBinding: Binding<Int> {
+        Binding(
+            get: { model.bridgePortDraft },
+            set: { model.updateBridgePortDraft($0) }
+        )
+    }
+
+    @ViewBuilder
+    private func bridgeValidationMessages(for field: BearAppConfigurationField) -> some View {
+        let issues = model.configurationIssues(for: field)
+        if !issues.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(issues) { issue in
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .padding(.top, 1)
+                        Text(issue.message)
+                            .font(.caption)
+                            .foregroundStyle(issue.severity == .error ? .red : .orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
         }
     }
 }

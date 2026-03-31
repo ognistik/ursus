@@ -81,7 +81,7 @@ enum BearCLICommand {
         Notes:
           No command defaults to `mcp`.
           `bridge serve` starts the optional localhost HTTP MCP bridge with the configured host and port.
-          `bridge status` prints the configured bridge state and endpoint.
+          `bridge status` prints saved bridge config plus LaunchAgent and health-check details.
           `bridge print-url` prints the configured localhost MCP URL.
           `--new-note` with no extra flags preserves the current interactive editing-note flow.
           In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags and `--tag-merge-mode` defaults to `append`.
@@ -101,7 +101,7 @@ enum BearCLICommand {
 
         Notes:
           `serve` starts the optional localhost HTTP MCP bridge using the configured host and port.
-          `status` reports the saved bridge configuration state.
+          `status` reports saved bridge config plus LaunchAgent and health-check details.
           `print-url` prints the configured MCP endpoint URL.
         """
     }

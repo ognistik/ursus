@@ -1,16 +1,16 @@
 # bear-mcp Architecture
 
-`bear-mcp` is a local stdio MCP server for Bear on macOS.
+`bear-mcp` is a local macOS MCP runtime for Bear. The canonical server remains stdio, and the app can optionally install a localhost HTTP bridge for hosts that only speak MCP over HTTP.
 
 ## Layers
 
-- `BearCore`: domain types, config paths, template rendering, and shared errors.
+- `BearCore`: domain types, config paths, template rendering, bridge settings, and shared errors.
 - `BearDB`: read-only access to Bear's SQLite database through GRDB.
 - `BearXCallback`: Bear mutation URL construction, Bear app launching, and shared selected-note callback-host logic.
-- `BearApplication`: orchestration, mutation planning, optimistic-write guards, and bootstrap files.
+- `BearApplication`: orchestration, mutation planning, optimistic-write guards, bootstrap files, and bridge LaunchAgent/status management.
 - `BearMCP`: MCP tool registration and argument decoding.
-- `BearMCPCLI`: executable entrypoint for `mcp`, `doctor`, `paths`, and a small direct-user CLI utility surface.
-- `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI and inline `template.md` editing. Selected-note resolution runs through the embedded helper app instead of an app-host callback path.
+- `BearMCPCLI`: executable entrypoint for `mcp`, `bridge`, `doctor`, `paths`, and a small direct-user CLI utility surface.
+- `Bear MCP.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI, inline `template.md` editing, and optional bridge install/remove/pause/resume/copy actions. Selected-note resolution runs through the embedded helper app instead of an app-host callback path.
 
 ## Current v1 shape
 
@@ -54,6 +54,11 @@
 - Debug traces log the outgoing x-callback action plus a query summary that keeps behavioral flags visible while redacting large `text` and `file` payload values. Token-backed selected-note resolution also redacts callback URL/query values so token-bearing URLs do not leak into logs.
 - `bear-mcp mcp` still prefers a shared runtime lock for stale-process detection and predictable diagnostics, but it falls back to temp per-launch locks when Codex opens additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
+- The optional HTTP bridge runs through `bear-mcp bridge serve`, reuses the same internal Bear service stack as `bear-mcp mcp`, and exposes one localhost `/mcp` endpoint through the SDK's stateless HTTP transport.
+- The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.bear-mcp.plist`, targeting the stable public launcher path `~/.local/bin/bear-mcp bridge serve`, with stdout/stderr logs under `~/Library/Application Support/Bear MCP/Logs/`.
+- Bridge install/resume wait for the endpoint to pass an MCP `initialize` probe before reporting success, dashboard status distinguishes LaunchAgent state from endpoint health, and repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect or re-add the same URL cleanly.
+- Bridge diagnostics are layered: LaunchAgent status, TCP reachability, MCP `initialize` health, and a small recent stdout/stderr log hint for unhealthy bridges.
+- App-side bridge editing exposes only the saved port. The host stays localhost-oriented in the app, and advanced host overrides remain config-only. Port edits are saved through the shared config flow, auto-skip busy ports in the UI, and still fail clearly on install/resume if the chosen port is already in use.
 - Batch inputs are supported at the MCP layer with `operations: []`.
 - Config and the create-note template live under `~/.config/bear-mcp`, and the app edits that same `template.md` file directly with pre-save slot validation.
 - Durable backup snapshots live under `~/Library/Application Support/Bear MCP/Backups`, while process locks remain under the sibling `Runtime/` path.

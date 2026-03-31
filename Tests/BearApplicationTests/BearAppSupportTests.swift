@@ -900,6 +900,83 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
     #expect(snapshot.statusTitle == "Not reachable")
     #expect(snapshot.statusDetail.contains("Connection refused"))
     #expect(snapshot.loaded == true)
+    #expect(snapshot.endpointTransportReachable == false)
+    #expect(snapshot.endpointProtocolCompatible == false)
+}
+
+@Test
+func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("bear-mcp", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+    try "initialize probe returned HTTP 404\n".write(to: stderrURL, atomically: true, encoding: .utf8)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        openNoteInEditModeByDefault: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let snapshot = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the MCP initialize probe returned HTTP 404."
+            )
+        }
+    )
+
+    #expect(snapshot.status == .failed)
+    #expect(snapshot.statusTitle == "Protocol check failed")
+    #expect(snapshot.statusDetail.contains("HTTP 404"))
+    #expect(snapshot.statusDetail.contains("Recent stderr: initialize probe returned HTTP 404"))
+    #expect(snapshot.endpointTransportReachable == true)
+    #expect(snapshot.endpointProtocolCompatible == false)
 }
 
 @Test
@@ -921,6 +998,8 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
         BearAppConfigurationDraft(
             databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox", "next", "0-inbox"],
+            bridgeHost: "127.0.0.1",
+            bridgePort: 6190,
             defaultInsertPosition: .top,
             templateManagementEnabled: false,
             openNoteInEditModeByDefault: false,
@@ -1005,6 +1084,8 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
         BearAppConfigurationDraft(
             databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox", "next"],
+            bridgeHost: "127.0.0.1",
+            bridgePort: 6205,
             defaultInsertPosition: .top,
             templateManagementEnabled: false,
             openNoteInEditModeByDefault: false,
@@ -1036,6 +1117,57 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
 }
 
 @Test
+func saveConfigurationDraftUpdatesBridgeHostAndPort() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.saveConfigurationDraft(
+        BearAppConfigurationDraft(
+            databasePath: "/tmp/updated.sqlite",
+            inboxTags: ["0-inbox"],
+            bridgeHost: "localhost",
+            bridgePort: 6202,
+            defaultInsertPosition: .bottom,
+            templateManagementEnabled: true,
+            openNoteInEditModeByDefault: true,
+            createOpensNoteByDefault: true,
+            openUsesNewWindowByDefault: true,
+            createAddsInboxTagsByDefault: true,
+            tagsMergeMode: .append,
+            defaultDiscoveryLimit: 20,
+            maxDiscoveryLimit: 100,
+            defaultSnippetLength: 280,
+            maxSnippetLength: 1_000,
+            backupRetentionDays: 30,
+            disabledTools: []
+        ),
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(configuration.bridge == BearBridgeConfiguration(enabled: false, host: "localhost", port: 6202))
+}
+
+@Test
 func saveConfigurationDraftRejectsInvalidValues() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -1055,6 +1187,8 @@ func saveConfigurationDraftRejectsInvalidValues() throws {
             BearAppConfigurationDraft(
                 databasePath: "   ",
                 inboxTags: [],
+                bridgeHost: "127.0.0.1",
+                bridgePort: 6190,
                 defaultInsertPosition: .bottom,
                 templateManagementEnabled: true,
                 openNoteInEditModeByDefault: true,
@@ -1083,6 +1217,8 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
         BearAppConfigurationDraft(
             databasePath: "relative/path.sqlite",
             inboxTags: [],
+            bridgeHost: "localhost",
+            bridgePort: 90,
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
             openNoteInEditModeByDefault: true,
@@ -1101,6 +1237,7 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
 
     #expect(report.issues(for: .databasePath).count == 2)
     #expect(report.issues(for: .inboxTags).count == 1)
+    #expect(report.issues(for: .bridgePort).count == 1)
     #expect(report.issues(for: .maxDiscoveryLimit).count == 1)
     #expect(report.issues(for: .maxSnippetLength).count == 1)
     #expect(report.issues(for: .backupRetentionDays).count == 1)

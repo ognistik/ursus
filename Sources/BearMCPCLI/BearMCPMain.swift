@@ -38,7 +38,8 @@ struct BearMCPMain {
                 )
             case .bridge(.status):
                 let configuration = try BearRuntimeBootstrap.loadConfiguration()
-                print(renderBridgeStatus(configuration.bridge))
+                let snapshot = BearAppSupport.bridgeSnapshot(configuration: configuration)
+                print(renderBridgeStatus(snapshot))
             case .bridge(.printURL):
                 let configuration = try BearRuntimeBootstrap.loadConfiguration()
                 print(try configuration.bridge.endpointURLString())
@@ -240,15 +241,28 @@ struct BearMCPMain {
         }.joined(separator: "\n")
     }
 
-    private static func renderBridgeStatus(_ bridge: BearBridgeConfiguration) -> String {
+    static func renderBridgeStatus(_ bridge: BearAppBridgeSnapshot) -> String {
         let status = bridge.enabled ? "enabled" : "disabled"
-        let url = (try? bridge.endpointURLString()) ?? "invalid bridge URL"
-
+        let launchAgentInstalled = bridge.installed ? "yes" : "no"
+        let launchAgentLoaded = bridge.loaded ? "yes" : "no"
+        let plistMatchesExpected = bridge.plistMatchesExpected ? "yes" : "no"
+        let transportHealth = bridge.endpointTransportReachable ? "tcp-ok" : "tcp-failed"
+        let protocolHealth = bridge.endpointProtocolCompatible ? "initialize-ok" : "initialize-failed"
         return [
             "Bridge \(status)",
             "Host: \(bridge.host)",
             "Port: \(bridge.port)",
-            "URL: \(url)",
+            "URL: \(bridge.endpointURL)",
+            "Status: \(bridge.statusTitle)",
+            "Detail: \(bridge.statusDetail)",
+            "LaunchAgent installed: \(launchAgentInstalled)",
+            "LaunchAgent loaded: \(launchAgentLoaded)",
+            "LaunchAgent matches expected command: \(plistMatchesExpected)",
+            "Health: \(transportHealth), \(protocolHealth)",
+            "Launcher: \(bridge.launcherPath)",
+            "LaunchAgent plist: \(bridge.plistPath)",
+            "Stdout log: \(bridge.standardOutputLogPath)",
+            "Stderr log: \(bridge.standardErrorLogPath)",
         ].joined(separator: "\n")
     }
 

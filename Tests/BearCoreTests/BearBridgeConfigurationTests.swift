@@ -13,6 +13,16 @@ func bridgeConfigurationDefaultsToLocalhostWithStableURL() throws {
 }
 
 @Test
+func bridgeConfigurationValidationRequiresLocalLoopbackHosts() throws {
+    let localhost = try BearBridgeConfiguration(enabled: false, host: "localhost", port: 6190).validated()
+    #expect(localhost.host == "localhost")
+
+    #expect(throws: BearError.self) {
+        try BearBridgeConfiguration(enabled: false, host: "192.168.1.40", port: 6190).validated()
+    }
+}
+
+@Test
 func configurationDecodesLegacyJSONWithoutBridgeBlock() throws {
     let json = """
     {

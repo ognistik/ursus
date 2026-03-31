@@ -29,6 +29,8 @@ final class BearMCPAppModel: ObservableObject {
 
     @Published var databasePathDraft = ""
     @Published var inboxTagsDraft = ""
+    @Published var bridgeHostDraft = BearBridgeConfiguration.defaultHost
+    @Published var bridgePortDraft = BearBridgeConfiguration.preferredPort
     @Published var defaultInsertPositionDraft: BearConfiguration.InsertDefault = .bottom
     @Published var templateManagementEnabledDraft = true
     @Published var openNoteInEditModeByDefaultDraft = true
@@ -181,6 +183,30 @@ final class BearMCPAppModel: ObservableObject {
         }
 
         databasePathDraft = trimmed
+        configurationDraftDidChange()
+    }
+
+    func updateBridgePortDraft(_ value: Int) {
+        let requestedPort = min(max(value, 1024), 65_535)
+        let bridgeHost = bridgeHostDraft
+
+        guard requestedPort != bridgePortDraft else {
+            return
+        }
+
+        let selectedPort = selectBridgePortForDraft(
+            requestedPort: requestedPort,
+            currentPort: bridgePortDraft,
+            host: bridgeHost
+        )
+
+        bridgePortDraft = selectedPort
+
+        if selectedPort != requestedPort {
+            bridgeStatusMessage = "Port \(requestedPort) is already in use. Switched to \(selectedPort) instead."
+            bridgeStatusError = nil
+        }
+
         configurationDraftDidChange()
     }
 
@@ -419,6 +445,8 @@ final class BearMCPAppModel: ObservableObject {
         BearAppConfigurationDraft(
             databasePath: databasePathDraft,
             inboxTags: parsedInboxTags,
+            bridgeHost: bridgeHostDraft,
+            bridgePort: bridgePortDraft,
             defaultInsertPosition: defaultInsertPositionDraft,
             templateManagementEnabled: templateManagementEnabledDraft,
             openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
@@ -451,6 +479,8 @@ final class BearMCPAppModel: ObservableObject {
         suppressConfigurationAutosave = true
         databasePathDraft = settings.databasePath
         inboxTagsDraft = settings.inboxTags.joined(separator: ", ")
+        bridgeHostDraft = settings.bridge.host
+        bridgePortDraft = settings.bridge.port
         defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
         templateManagementEnabledDraft = settings.templateManagementEnabled
         openNoteInEditModeByDefaultDraft = settings.openNoteInEditModeByDefault
@@ -487,6 +517,54 @@ final class BearMCPAppModel: ObservableObject {
 
     private func localizedMessage(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+
+    private func selectBridgePortForDraft(
+        requestedPort: Int,
+        currentPort: Int,
+        host: String
+    ) -> Int {
+        if bridgePortIsSelectable(requestedPort, host: host) {
+            return requestedPort
+        }
+
+        let searchUpwardFirst = requestedPort >= currentPort
+
+        if searchUpwardFirst {
+            for candidate in requestedPort...65_535 where bridgePortIsSelectable(candidate, host: host) {
+                return candidate
+            }
+
+            if requestedPort > 1024 {
+                for candidate in stride(from: requestedPort - 1, through: 1024, by: -1) where bridgePortIsSelectable(candidate, host: host) {
+                    return candidate
+                }
+            }
+        } else {
+            for candidate in stride(from: requestedPort, through: 1024, by: -1) where bridgePortIsSelectable(candidate, host: host) {
+                return candidate
+            }
+
+            if requestedPort < 65_535 {
+                for candidate in (requestedPort + 1)...65_535 where bridgePortIsSelectable(candidate, host: host) {
+                    return candidate
+                }
+            }
+        }
+
+        return currentPort
+    }
+
+    private func bridgePortIsSelectable(_ port: Int, host: String) -> Bool {
+        if let bridge = dashboard.settings?.bridge,
+           bridge.loaded,
+           bridge.host == host,
+           bridge.port == port
+        {
+            return true
+        }
+
+        return BearBridgePortAllocator.isPortAvailable(host: host, port: port)
     }
 
     private func reconcilePublicLauncherAutomatically() {

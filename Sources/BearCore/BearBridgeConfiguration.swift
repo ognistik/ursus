@@ -34,6 +34,10 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
             throw BearError.invalidInput("Bridge host cannot be empty.")
         }
 
+        guard Self.isSupportedHost(normalizedHost) else {
+            throw BearError.invalidInput("Bridge host must be `localhost` or an IPv4 loopback address such as `127.0.0.1`.")
+        }
+
         try BearBridgePortAllocator.validate(port: port)
         return BearBridgeConfiguration(enabled: enabled, host: normalizedHost, port: port)
     }
@@ -55,6 +59,34 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
 
     public func endpointURLString() throws -> String {
         try endpointURL().absoluteString
+    }
+
+    public static func isSupportedHost(_ host: String) -> Bool {
+        let normalizedHost = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedHost.isEmpty else {
+            return false
+        }
+
+        if normalizedHost == "localhost" {
+            return true
+        }
+
+        let octets = normalizedHost.split(separator: ".", omittingEmptySubsequences: false)
+        guard octets.count == 4 else {
+            return false
+        }
+
+        guard let firstOctet = Int(octets[0]), firstOctet == 127 else {
+            return false
+        }
+
+        for octet in octets {
+            guard let value = Int(octet), (0...255).contains(value) else {
+                return false
+            }
+        }
+
+        return true
     }
 }
 

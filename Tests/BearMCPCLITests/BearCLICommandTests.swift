@@ -1,3 +1,4 @@
+import BearApplication
 import BearCore
 import Foundation
 import Testing
@@ -97,4 +98,36 @@ func parseNewNoteRejectsInvalidBooleanValues() throws {
             return false
         }
     }
+}
+
+@Test
+func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
+    let rendered = BearMCPMain.renderBridgeStatus(
+        BearAppBridgeSnapshot(
+            enabled: true,
+            host: "127.0.0.1",
+            port: 6190,
+            endpointURL: "http://127.0.0.1:6190/mcp",
+            launcherPath: "/tmp/bear-mcp",
+            launchAgentLabel: "com.aft.bear-mcp",
+            plistPath: "/tmp/com.aft.bear-mcp.plist",
+            standardOutputLogPath: "/tmp/bridge.stdout.log",
+            standardErrorLogPath: "/tmp/bridge.stderr.log",
+            installed: true,
+            loaded: true,
+            plistMatchesExpected: true,
+            endpointTransportReachable: true,
+            endpointProtocolCompatible: false,
+            endpointProbeDetail: "A TCP connection succeeded, but the MCP initialize probe returned HTTP 404.",
+            status: .failed,
+            statusTitle: "Protocol check failed",
+            statusDetail: "The bridge is reachable over TCP but failed the MCP initialize probe."
+        )
+    )
+
+    #expect(rendered.contains("Status: Protocol check failed"))
+    #expect(rendered.contains("LaunchAgent installed: yes"))
+    #expect(rendered.contains("LaunchAgent loaded: yes"))
+    #expect(rendered.contains("Health: tcp-ok, initialize-failed"))
+    #expect(rendered.contains("Stderr log: /tmp/bridge.stderr.log"))
 }

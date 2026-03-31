@@ -39,7 +39,7 @@ The repo already has the app-centered architecture we wanted:
 - Configuration edits auto-save with validation.
 - Configuration now also includes inline template editing for `~/.config/bear-mcp/template.md`, with open/reveal actions and pre-save slot validation.
 - The app can install or repair the public launcher.
-- The app now also exposes the optional `Remote MCP Bridge` with install, remove, pause, resume, status, and copy-URL actions.
+- The app now also exposes the optional `Remote MCP Bridge` with install, remove, pause, resume, status, copy-URL actions, and an editable saved port control before install.
 - The app still exposes a lot of implementation detail and is ready for simplification.
 
 ### CLI
@@ -72,8 +72,10 @@ Behavior already in place:
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and still targets the stable public launcher path.
 - The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
 - Repeated `initialize` requests against the running stateless bridge are now treated as compatibility handshakes, so hosts can remove and re-add the same MCP URL without reinstalling the bridge.
-- Bridge install/resume now wait for the localhost endpoint to accept connections before reporting success, and dashboard status now distinguishes `loaded` from `reachable`.
-- The app still does not expose editable bridge host/port controls before install; that remains follow-up UI polish from the bridge plan.
+- Bridge install/resume now wait for the localhost endpoint to pass an MCP `initialize` probe before reporting success, and dashboard status distinguishes `loaded` from healthy endpoint state.
+- Bridge diagnostics now go beyond TCP reachability: the app and CLI surface LaunchAgent state, protocol-health results, and recent stdout/stderr log hints for unhealthy bridges.
+- `bridge status` now prints saved config, LaunchAgent state, health-check detail, and relevant runtime paths.
+- App-side bridge configuration keeps the host non-editable and localhost-oriented, while the port control auto-skips busy ports and install/resume reject ports already in use.
 
 ### MCP
 
@@ -111,6 +113,7 @@ Startup now migrates legacy runtime state from `~/Library/Application Support/be
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - Batch operations matter and should stay first-class.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
+- Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
 
 ## Documentation Cleanup Decisions
 
@@ -119,7 +122,6 @@ This repo had started to accumulate too much historical planning text. The worki
 - `PROJECT_STATUS.md`: current truth and next queue
 - `docs/ARCHITECTURE.md`: current runtime and behavior shape
 - `docs/APP_UNIFICATION_PLAN.md`: short live roadmap
-- `docs/REMOTE_MCP_BRIDGE_PLAN.md`: implementation handoff for the optional localhost HTTP bridge
 - `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`: practical local build / reset guide
 - `docs/SELECTED_NOTE_HELPER.md`: short note about the embedded helper used for selected-note resolution
 
@@ -130,7 +132,7 @@ Helper-only release/testing duplication should not come back unless the embedded
 This is the intended order of work after the doc cleanup:
 
 1. Simplify the app UI now that template management has moved into the app.
-2. Continue hardening the optional native `Remote MCP Bridge` feature, building on the new reachability probe and clearer startup diagnostics.
+2. Keep docs and verification aligned as the app surface is simplified.
 
 ## Details For The Next Slice
 
@@ -144,18 +146,13 @@ Desired behavior:
 
 ### 2. Remote MCP Bridge
 
-Desired behavior:
+Current scope is complete:
 
-- let the app optionally install, remove, pause, or resume a localhost HTTP MCP bridge for AI apps that cannot run local stdio MCPs
-- keep the bridge native to this project rather than depending on external proxy tooling
-- keep the bridge pointed at the stable public launcher path
-- keep the bridge localhost-only by default
-- keep the chosen port stable once selected
-- avoid mixing this slice with the later product rename
-
-Implementation handoff:
-
-- see `docs/REMOTE_MCP_BRIDGE_PLAN.md`
+- optional localhost HTTP bridge is shipped in the app and CLI
+- LaunchAgent management is native and still targets `~/.local/bin/bear-mcp bridge serve`
+- health checks now verify MCP `initialize`, not just TCP reachability
+- `bridge status` now reports config, LaunchAgent state, health, and log paths
+- app port edits save before install, auto-skip busy ports, and are reused on the next install or resume
 
 ## Verification Baseline
 

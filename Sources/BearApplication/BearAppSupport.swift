@@ -144,6 +144,8 @@ public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiab
 public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let databasePath: String
     public let inboxTags: [String]
+    public let bridgeHost: String
+    public let bridgePort: Int
     public let defaultInsertPosition: BearConfiguration.InsertDefault
     public let templateManagementEnabled: Bool
     public let openNoteInEditModeByDefault: Bool
@@ -161,6 +163,8 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public init(
         databasePath: String,
         inboxTags: [String],
+        bridgeHost: String,
+        bridgePort: Int,
         defaultInsertPosition: BearConfiguration.InsertDefault,
         templateManagementEnabled: Bool,
         openNoteInEditModeByDefault: Bool,
@@ -177,6 +181,8 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     ) {
         self.databasePath = databasePath
         self.inboxTags = inboxTags
+        self.bridgeHost = bridgeHost.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.bridgePort = bridgePort
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
         self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
@@ -196,6 +202,8 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
 public enum BearAppConfigurationField: String, Codable, Hashable, Sendable {
     case databasePath
     case inboxTags
+    case bridgeHost
+    case bridgePort
     case defaultDiscoveryLimit
     case maxDiscoveryLimit
     case defaultSnippetLength
@@ -571,6 +579,11 @@ public enum BearAppSupport {
         let defaultSnippetLength = max(1, draft.defaultSnippetLength)
         let maxSnippetLength = max(defaultSnippetLength, draft.maxSnippetLength)
         let normalizedInboxTags = normalizedInboxTags(draft.inboxTags)
+        let validatedBridge = try BearBridgeConfiguration(
+            enabled: currentConfiguration.bridge.enabled,
+            host: draft.bridgeHost,
+            port: draft.bridgePort
+        ).validated()
 
         let updatedConfiguration = BearConfiguration(
             databasePath: normalizedDatabasePath,
@@ -589,7 +602,7 @@ public enum BearAppSupport {
             backupRetentionDays: max(0, draft.backupRetentionDays),
             disabledTools: draft.disabledTools,
             token: currentConfiguration.token,
-            bridge: currentConfiguration.bridge
+            bridge: validatedBridge
         )
 
         try BearRuntimeBootstrap.saveConfiguration(
@@ -650,6 +663,7 @@ public enum BearAppSupport {
         var issues: [BearAppConfigurationIssue] = []
         let normalizedDatabasePath = draft.databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedTags = normalizedInboxTags(draft.inboxTags)
+        let normalizedBridgeHost = draft.bridgeHost.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if normalizedDatabasePath.isEmpty {
             issues.append(
@@ -687,6 +701,36 @@ public enum BearAppSupport {
                     field: .inboxTags,
                     severity: .warning,
                     message: "Inbox tags are empty. Fallback note creation will not add inbox tags."
+                )
+            )
+        }
+
+        if normalizedBridgeHost.isEmpty {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .bridgeHost,
+                    severity: .error,
+                    message: "Bridge host cannot be empty."
+                )
+            )
+        } else if !BearBridgeConfiguration.isSupportedHost(normalizedBridgeHost) {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .bridgeHost,
+                    severity: .error,
+                    message: "Bridge host must stay local. Use `localhost` or an IPv4 loopback address such as `127.0.0.1`."
+                )
+            )
+        }
+
+        do {
+            try BearBridgePortAllocator.validate(port: draft.bridgePort)
+        } catch {
+            issues.append(
+                BearAppConfigurationIssue(
+                    field: .bridgePort,
+                    severity: .error,
+                    message: localizedMessage(for: error)
                 )
             )
         }

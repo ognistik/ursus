@@ -29,6 +29,7 @@ These slices are already in place:
 
 - `Bear MCP.app` exists and links the shared package code.
 - The app can manage configuration, token state, launcher repair, and the live `template.md` file.
+- The app can also manage the optional localhost HTTP bridge, including a saved port setting, LaunchAgent lifecycle, status, and copyable MCP URL output.
 - The app embeds the CLI and can install / repair the public launcher.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
 - The CLI direct utility surface now includes `--new-note` override flags for title, tags, tag merge mode, content, and open/window behavior, plus `--apply-template`, `--archive-note`, and `--delete-note`.
@@ -57,11 +58,11 @@ Likely next adjustments:
 - keep setup guidance focused on the reusable launcher path
 - continue trimming explicit maintenance ceremony
 
-### 2. Add the optional Remote MCP Bridge
+### 2. Remote MCP Bridge
 
 Goal:
 
-- let the app manage a localhost HTTP bridge for AI apps that cannot launch local stdio MCP servers
+- keep the shipped localhost HTTP bridge stable while the rest of the app is simplified
 
 High-level constraints:
 
@@ -72,9 +73,12 @@ High-level constraints:
 - keep the chosen port stable once selected
 - do not mix this slice with the later product rename
 
-Implementation handoff:
+Current scope is complete:
 
-- `docs/REMOTE_MCP_BRIDGE_PLAN.md`
+- native localhost HTTP bridge is shipped
+- bridge diagnostics now include MCP-health checks and log hints
+- `bear-mcp bridge status` now reports LaunchAgent and health detail
+- app users can edit the port before install and reuse the saved endpoint later, while host overrides stay config-only
 
 ## Likely Files For The Next Slices
 

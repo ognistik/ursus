@@ -1,4 +1,5 @@
 import BearCore
+import Dispatch
 import Darwin
 import Foundation
 
@@ -60,9 +61,52 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let installed: Bool
     public let loaded: Bool
     public let plistMatchesExpected: Bool
+    public let endpointTransportReachable: Bool
+    public let endpointProtocolCompatible: Bool
+    public let endpointProbeDetail: String?
     public let status: BearDoctorCheckStatus
     public let statusTitle: String
     public let statusDetail: String
+
+    public init(
+        enabled: Bool,
+        host: String,
+        port: Int,
+        endpointURL: String,
+        launcherPath: String,
+        launchAgentLabel: String,
+        plistPath: String,
+        standardOutputLogPath: String,
+        standardErrorLogPath: String,
+        installed: Bool,
+        loaded: Bool,
+        plistMatchesExpected: Bool,
+        endpointTransportReachable: Bool,
+        endpointProtocolCompatible: Bool,
+        endpointProbeDetail: String?,
+        status: BearDoctorCheckStatus,
+        statusTitle: String,
+        statusDetail: String
+    ) {
+        self.enabled = enabled
+        self.host = host
+        self.port = port
+        self.endpointURL = endpointURL
+        self.launcherPath = launcherPath
+        self.launchAgentLabel = launchAgentLabel
+        self.plistPath = plistPath
+        self.standardOutputLogPath = standardOutputLogPath
+        self.standardErrorLogPath = standardErrorLogPath
+        self.installed = installed
+        self.loaded = loaded
+        self.plistMatchesExpected = plistMatchesExpected
+        self.endpointTransportReachable = endpointTransportReachable
+        self.endpointProtocolCompatible = endpointProtocolCompatible
+        self.endpointProbeDetail = endpointProbeDetail
+        self.status = status
+        self.statusTitle = statusTitle
+        self.statusDetail = statusDetail
+    }
 }
 
 public enum BearBridgeLaunchAgentInstallStatus: String, Codable, Hashable, Sendable {
@@ -94,15 +138,30 @@ public struct BearBridgeLaunchAgentActionReceipt: Codable, Hashable, Sendable {
 
 public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
     public let reachable: Bool
+    public let transportReachable: Bool
+    public let protocolCompatible: Bool
     public let detail: String?
 
-    public init(reachable: Bool, detail: String? = nil) {
+    public init(
+        reachable: Bool,
+        transportReachable: Bool? = nil,
+        protocolCompatible: Bool? = nil,
+        detail: String? = nil
+    ) {
         self.reachable = reachable
+        self.transportReachable = transportReachable ?? reachable
+        self.protocolCompatible = protocolCompatible ?? reachable
         self.detail = detail
     }
 }
 
 public typealias BearBridgeEndpointProbe = @Sendable (_ host: String, _ port: Int) -> BearBridgeEndpointProbeResult
+
+private final class BearBridgeURLSessionProbeBox: @unchecked Sendable {
+    var data: Data?
+    var response: URLResponse?
+    var error: Error?
+}
 
 public extension BearAppSupport {
     static func defaultBridgeEndpointProbe(host: String, port: Int) -> BearBridgeEndpointProbeResult {
@@ -177,6 +236,7 @@ public extension BearAppSupport {
             launchAgentPlistURL: launchAgentPlistURL,
             launchctlRunner: launchctlRunner
         )
+        try assertBridgePortAvailable(host: validatedBridge.host, port: validatedBridge.port)
         try runLaunchctl(
             ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
             launchctlRunner: launchctlRunner,
@@ -321,6 +381,7 @@ public extension BearAppSupport {
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
         if !loaded {
+            try assertBridgePortAvailable(host: bridge.host, port: bridge.port)
             try runLaunchctl(
                 ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
                 launchctlRunner: launchctlRunner,
@@ -373,6 +434,9 @@ public extension BearAppSupport {
                 installed: installed,
                 loaded: false,
                 plistMatchesExpected: false,
+                endpointTransportReachable: false,
+                endpointProtocolCompatible: false,
+                endpointProbeDetail: nil,
                 status: .invalid,
                 statusTitle: "Invalid configuration",
                 statusDetail: bridgeLocalizedMessage(for: error)
@@ -400,7 +464,7 @@ public extension BearAppSupport {
 
         let endpointProbeResult = loaded
             ? endpointProbe(bridge.host, bridge.port)
-            : BearBridgeEndpointProbeResult(reachable: false)
+            : BearBridgeEndpointProbeResult(reachable: false, transportReachable: false, protocolCompatible: false)
 
         let state = bridgeState(
             configuration: bridge,
@@ -409,7 +473,9 @@ public extension BearAppSupport {
             launchAgentInstalled: installed,
             plistMatchesExpected: plistMatchesExpected,
             launchAgentLoaded: loaded,
+            endpointTransportReachable: endpointProbeResult.transportReachable,
             endpointReachable: endpointProbeResult.reachable,
+            endpointProtocolCompatible: endpointProbeResult.protocolCompatible,
             endpointProbeDetail: endpointProbeResult.detail,
             loadError: loadError,
             endpointURL: endpointURL,
@@ -431,6 +497,9 @@ public extension BearAppSupport {
             installed: installed,
             loaded: loaded,
             plistMatchesExpected: plistMatchesExpected,
+            endpointTransportReachable: endpointProbeResult.transportReachable,
+            endpointProtocolCompatible: endpointProbeResult.protocolCompatible,
+            endpointProbeDetail: endpointProbeResult.detail,
             status: state.status,
             statusTitle: state.title,
             statusDetail: state.detail
@@ -517,6 +586,14 @@ private extension BearAppSupport {
         )
     }
 
+    static func assertBridgePortAvailable(host: String, port: Int) throws {
+        guard BearBridgePortAllocator.isPortAvailable(host: host, port: port) else {
+            throw BearError.configuration(
+                "Bridge port \(port) on \(host) is already in use. Choose another port before installing or resuming the bridge."
+            )
+        }
+    }
+
     static func runLaunchctl(
         _ arguments: [String],
         launchctlRunner: BearLaunchctlCommandRunner,
@@ -555,7 +632,7 @@ private extension BearAppSupport {
 
         let detail = lastProbe.detail.map { " \($0)" } ?? ""
         throw BearError.configuration(
-            "The Bear MCP bridge LaunchAgent was started, but \(endpointURL) did not accept connections within \(Int(timeout.rounded())) seconds.\(detail) Check \(standardErrorURL.path) for bridge startup errors."
+            "The Bear MCP bridge LaunchAgent was started, but \(endpointURL) did not become MCP-ready within \(Int(timeout.rounded())) seconds.\(detail) Check \(standardErrorURL.path) for bridge startup errors."
         )
     }
 
@@ -601,12 +678,14 @@ private extension BearAppSupport {
         }
 
         if connectResult == 0 {
-            return BearBridgeEndpointProbeResult(reachable: true)
+            return probeBridgeProtocol(host: normalizedHost, port: port, timeout: timeout)
         }
 
         if errno != EINPROGRESS {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
+                transportReachable: false,
+                protocolCompatible: false,
                 detail: String(cString: strerror(errno))
             )
         }
@@ -621,6 +700,8 @@ private extension BearAppSupport {
         guard pollResult > 0 else {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
+                transportReachable: false,
+                protocolCompatible: false,
                 detail: pollResult == 0 ? "The connection attempt timed out." : String(cString: strerror(errno))
             )
         }
@@ -637,13 +718,22 @@ private extension BearAppSupport {
         guard socketOptionResult == 0 else {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
+                transportReachable: false,
+                protocolCompatible: false,
                 detail: String(cString: strerror(errno))
             )
         }
 
-        return socketError == 0
-            ? BearBridgeEndpointProbeResult(reachable: true)
-            : BearBridgeEndpointProbeResult(reachable: false, detail: String(cString: strerror(socketError)))
+        guard socketError == 0 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: false,
+                protocolCompatible: false,
+                detail: String(cString: strerror(socketError))
+            )
+        }
+
+        return probeBridgeProtocol(host: normalizedHost, port: port, timeout: timeout)
     }
 
     static func bridgeState(
@@ -653,7 +743,9 @@ private extension BearAppSupport {
         launchAgentInstalled: Bool,
         plistMatchesExpected: Bool,
         launchAgentLoaded: Bool,
+        endpointTransportReachable: Bool,
         endpointReachable: Bool,
+        endpointProtocolCompatible: Bool,
         endpointProbeDetail: String?,
         loadError: String?,
         endpointURL: String,
@@ -711,18 +803,26 @@ private extension BearAppSupport {
 
         if launchAgentLoaded {
             guard endpointReachable else {
-                let detail = endpointProbeDetail ?? "The endpoint did not accept a TCP connection."
+                let detail = endpointProbeDetail ?? "The endpoint did not complete the MCP initialize probe."
+                let logHint = recentBridgeLogHint(
+                    fileManager: fileManager,
+                    standardOutputURL: standardOutputURL,
+                    standardErrorURL: standardErrorURL
+                )
+                let failureTitle = endpointTransportReachable
+                    ? (endpointProtocolCompatible ? "Not reachable" : "Protocol check failed")
+                    : "Not reachable"
                 return (
                     .failed,
-                    "Not reachable",
-                    "The Bear MCP bridge LaunchAgent appears loaded, but \(endpointURL) is not accepting connections yet. \(detail) Check \(standardErrorURL.path) and \(standardOutputURL.path) for startup errors."
+                    failureTitle,
+                    "The Bear MCP bridge LaunchAgent appears loaded, but \(endpointURL) is not healthy yet. \(detail)\(logHint) Check \(standardErrorURL.path) and \(standardOutputURL.path) for startup errors."
                 )
             }
 
             return (
                 .ok,
                 "Running",
-                "The Bear MCP bridge LaunchAgent is loaded and should be serving \(endpointURL)."
+                "The Bear MCP bridge LaunchAgent is loaded and passed an MCP initialize probe at \(endpointURL)."
             )
         }
 
@@ -731,6 +831,178 @@ private extension BearAppSupport {
             "Paused",
             "The bridge LaunchAgent is installed but currently unloaded. Resume it to serve \(endpointURL) again."
         )
+    }
+
+    static func probeBridgeProtocol(
+        host: String,
+        port: Int,
+        timeout: TimeInterval
+    ) -> BearBridgeEndpointProbeResult {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = timeout
+        configuration.timeoutIntervalForResource = timeout
+        configuration.waitsForConnectivity = false
+
+        guard let url = try? BearBridgeConfiguration(
+            enabled: true,
+            host: host,
+            port: port
+        ).endpointURL() else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "The configured bridge endpoint URL could not be constructed."
+            )
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bridgeHealthCheckRequestBody()
+
+        let session = URLSession(configuration: configuration)
+        defer {
+            session.finishTasksAndInvalidate()
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        let probeBox = BearBridgeURLSessionProbeBox()
+
+        let task = session.dataTask(with: request) { data, urlResponse, error in
+            probeBox.data = data
+            probeBox.response = urlResponse
+            probeBox.error = error
+            semaphore.signal()
+        }
+        task.resume()
+
+        let waitResult = semaphore.wait(timeout: .now() + timeout + 0.1)
+        if waitResult == .timedOut {
+            task.cancel()
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the MCP initialize probe timed out."
+            )
+        }
+
+        if let responseError = probeBox.error {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the MCP initialize probe failed: \(bridgeLocalizedMessage(for: responseError))"
+            )
+        }
+
+        guard let httpResponse = probeBox.response as? HTTPURLResponse else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the bridge did not return an HTTP response."
+            )
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the MCP initialize probe returned HTTP \(httpResponse.statusCode)."
+            )
+        }
+
+        guard let responseData = probeBox.data else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the bridge returned an empty initialize response."
+            )
+        }
+
+        guard bridgeInitializeResponseLooksHealthy(responseData) else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the bridge returned an invalid MCP initialize response."
+            )
+        }
+
+        return BearBridgeEndpointProbeResult(
+            reachable: true,
+            transportReachable: true,
+            protocolCompatible: true
+        )
+    }
+
+    static func bridgeHealthCheckRequestBody() -> Data {
+        Data(
+            """
+            {"jsonrpc":"2.0","id":"bridge-health-check","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"bear-mcp-health-check","version":"1.0"}}}
+            """.utf8
+        )
+    }
+
+    static func bridgeInitializeResponseLooksHealthy(_ data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["jsonrpc"] as? String == "2.0",
+              let result = object["result"] as? [String: Any],
+              result["protocolVersion"] as? String != nil,
+              result["serverInfo"] as? [String: Any] != nil
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    static func recentBridgeLogHint(
+        fileManager: FileManager,
+        standardOutputURL: URL,
+        standardErrorURL: URL
+    ) -> String {
+        if let stderrLine = lastNonEmptyLine(in: standardErrorURL, fileManager: fileManager) {
+            return " Recent stderr: \(stderrLine)"
+        }
+
+        if let stdoutLine = lastNonEmptyLine(in: standardOutputURL, fileManager: fileManager) {
+            return " Recent stdout: \(stdoutLine)"
+        }
+
+        return ""
+    }
+
+    static func lastNonEmptyLine(
+        in url: URL,
+        fileManager: FileManager,
+        maxCharacters: Int = 240
+    ) -> String? {
+        guard fileManager.fileExists(atPath: url.path),
+              let contents = try? String(contentsOf: url, encoding: .utf8)
+        else {
+            return nil
+        }
+
+        guard let line = contents
+            .split(whereSeparator: { $0.isNewline })
+            .map({ String($0).trimmingCharacters(in: .whitespacesAndNewlines) })
+            .last(where: { !$0.isEmpty })
+        else {
+            return nil
+        }
+
+        if line.count <= maxCharacters {
+            return line
+        }
+
+        let endIndex = line.index(line.startIndex, offsetBy: maxCharacters)
+        return String(line[..<endIndex]) + "..."
     }
 
     static func launchdUserDomain() -> String {
