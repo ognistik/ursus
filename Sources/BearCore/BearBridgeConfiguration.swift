@@ -166,7 +166,7 @@ public enum BearBridgePortAllocator {
 }
 
 public enum BearBridgeLaunchAgent {
-    public static let label = "com.aft.bear-mcp"
+    public static let label = "com.aft.ursus"
     public static let standardOutputFileName = "bridge.stdout.log"
     public static let standardErrorFileName = "bridge.stderr.log"
 

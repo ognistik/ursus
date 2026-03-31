@@ -12,7 +12,7 @@ public struct BearPublicCLILauncherInstallReceipt: Codable, Hashable, Sendable {
 }
 
 public enum BearMCPCLILocator {
-    public static let executableName = "bear-mcp"
+    public static let executableName = "ursus"
     public static let bundledRelativePath = "Contents/Resources/bin/\(executableName)"
 
     public static var publicLauncherURL: URL {
@@ -32,7 +32,7 @@ public enum BearMCPCLILocator {
         fileManager: FileManager = .default
     ) throws -> URL {
         guard fileManager.fileExists(atPath: bundleURL.path) else {
-            throw BearError.configuration("Bear MCP app was not found at `\(bundleURL.path)`.")
+            throw BearError.configuration("Ursus app was not found at `\(bundleURL.path)`.")
         }
 
         let executableURL = bundleURL
@@ -80,7 +80,7 @@ public enum BearMCPCLILocator {
         let loopEntries = candidatePaths
             .map { "  \($0)" }
             .joined(separator: " \\\n")
-        let installGuidance = "Open Bear MCP.app once to repair the launcher, or reinstall the app in /Applications/Bear MCP.app or ~/Applications/Bear MCP.app."
+        let installGuidance = "Open Ursus.app once to repair the launcher, or reinstall the app in /Applications/Ursus.app or ~/Applications/Ursus.app."
 
         return """
         #!/bin/sh
@@ -94,7 +94,7 @@ public enum BearMCPCLILocator {
           fi
         done
 
-        printf '%s\\n' 'Bear MCP launcher could not find the bundled CLI. \(installGuidance)' >&2
+        printf '%s\\n' 'Ursus launcher could not find the bundled CLI. \(installGuidance)' >&2
         exit 1
         """
     }

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum BearSelectedNoteHelperLocator {
-    public static let appName = "Bear MCP Helper.app"
+    public static let appName = "Ursus Helper.app"
     public static let embeddedRelativePath = "Contents/Library/Helpers/\(appName)"
 
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {

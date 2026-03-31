@@ -20,17 +20,17 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let bridgePlistURL = homeDirectoryURL
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let bridgeStandardOutputURL = homeDirectoryURL
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let bridgeStandardErrorURL = homeDirectoryURL
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -92,7 +92,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
 
     let callbackDiagnostic = try #require(diagnostic(named: "selected-note-app", in: dashboard.diagnostics))
     #expect(callbackDiagnostic.status == BearDoctorCheckStatus.missing)
-    #expect(callbackDiagnostic.detail?.contains("install `Bear MCP.app` in `/Applications/Bear MCP.app` (preferred).") == true)
+    #expect(callbackDiagnostic.detail?.contains("install `Ursus.app` in `/Applications/Ursus.app` (preferred).") == true)
     #expect(callbackDiagnostic.detail?.contains("fully supported for user-specific installs") == true)
 
     let bridgeDiagnostic = try #require(diagnostic(named: "remote-mcp-bridge", in: dashboard.diagnostics))
@@ -108,13 +108,13 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
-    let helperBundleURL = tempRoot.appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
+    let helperBundleURL = tempRoot.appendingPathComponent("Ursus Helper.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -148,21 +148,21 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("Resources", isDirectory: true)
                 .appendingPathComponent("bin", isDirectory: true)
-                .appendingPathComponent("bear-mcp", isDirectory: false)
+                .appendingPathComponent("ursus", isDirectory: false)
         },
         callbackAppBundleURLProvider: { _ in appBundleURL },
         callbackAppExecutableURLResolver: { bundleURL, _ in
             bundleURL
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("MacOS", isDirectory: true)
-                .appendingPathComponent("Bear MCP", isDirectory: false)
+                .appendingPathComponent("Ursus", isDirectory: false)
         },
         helperBundleURLProvider: { _ in helperBundleURL },
         helperExecutableURLResolver: { bundleURL, _ in
             bundleURL
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("MacOS", isDirectory: true)
-                .appendingPathComponent("bear-mcp-helper", isDirectory: false)
+                .appendingPathComponent("ursus-helper", isDirectory: false)
         }
     )
 
@@ -280,12 +280,12 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -316,7 +316,7 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
                 .appendingPathComponent("Contents", isDirectory: true)
                 .appendingPathComponent("Resources", isDirectory: true)
                 .appendingPathComponent("bin", isDirectory: true)
-                .appendingPathComponent("bear-mcp", isDirectory: false)
+                .appendingPathComponent("ursus", isDirectory: false)
         },
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
@@ -336,12 +336,12 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
 func reconcilePublicLauncherInstallsMissingLauncher() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -365,19 +365,19 @@ func reconcilePublicLauncherInstallsMissingLauncher() throws {
     #expect(result.destinationPath == launcherURL.path)
     #expect(fileManager.fileExists(atPath: launcherURL.path))
     #expect(fileManager.isExecutableFile(atPath: launcherURL.path))
-    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Bear MCP launcher"))
+    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Ursus launcher"))
 }
 
 @Test
 func reconcilePublicLauncherRepairsStaleLauncher() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -402,19 +402,19 @@ func reconcilePublicLauncherRepairsStaleLauncher() throws {
     #expect(result.status == BearAppPublicLauncherReconciliationStatus.refreshed)
     #expect(result.sourcePath == bundledCLIURL.path)
     #expect(result.destinationPath == launcherURL.path)
-    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Bear MCP launcher"))
+    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Ursus launcher"))
 }
 
 @Test
 func reconcilePublicLauncherReturnsUnchangedWhenLauncherMatchesBundle() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -450,12 +450,12 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -463,17 +463,17 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
         .appendingPathComponent("Logs", isDirectory: true)
         .appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -540,7 +540,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     #expect(fileManager.fileExists(atPath: stdoutURL.path))
     #expect(fileManager.fileExists(atPath: stderrURL.path))
     #expect(recorder.commands == [
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
     ])
 }
@@ -559,7 +559,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -605,7 +605,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         standardOutputURL: stdoutURL,
         standardErrorURL: stderrURL,
         launchctlRunner: { arguments in
-            #expect(arguments == ["print", "gui/\(getuid())/com.aft.bear-mcp"])
+            #expect(arguments == ["print", "gui/\(getuid())/com.aft.ursus"])
             return BearProcessExecutionResult(exitCode: 3, stdout: "", stderr: "Could not find service")
         },
         endpointProbe: { _, _ in
@@ -635,7 +635,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -721,12 +721,12 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
 
     #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205))
     #expect(recorder.commands == [
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
     ])
 }
@@ -738,7 +738,7 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
     let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
     let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
-    let appBundleURL = tempRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
@@ -751,7 +751,7 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -821,9 +821,9 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
 
     #expect(receipt.status == .installed)
     #expect(recorder.commands == [
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
-        ["print", "gui/\(getuid())/com.aft.bear-mcp"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
     ])
 }
@@ -842,7 +842,7 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
 
@@ -888,7 +888,7 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
         standardOutputURL: stdoutURL,
         standardErrorURL: stderrURL,
         launchctlRunner: { arguments in
-            #expect(arguments == ["print", "gui/\(getuid())/com.aft.bear-mcp"])
+            #expect(arguments == ["print", "gui/\(getuid())/com.aft.ursus"])
             return BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
         },
         endpointProbe: { _, _ in
@@ -915,7 +915,7 @@ func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
-        .appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
     let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
 

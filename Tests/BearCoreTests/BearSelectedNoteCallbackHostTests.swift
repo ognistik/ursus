@@ -27,7 +27,7 @@ func callbackHostRewritesCallbackURLsAndPersistsSuccessPayload() throws {
 
     host.start(
         arguments: [
-            "bear-mcp-helper",
+            "ursus-helper",
             "-url", "bear://x-callback-url/open-note?selected=yes&token=top-secret-token",
             "-activateApp", "NO",
             "-responseFile", responseFileURL.path,
@@ -54,8 +54,8 @@ func callbackHostRewritesCallbackURLsAndPersistsSuccessPayload() throws {
         return
     }
 
-    #expect(successValue.hasPrefix("bearmcphelper://x-callback-url/handle-success?state="))
-    #expect(errorValue.hasPrefix("bearmcphelper://x-callback-url/handle-error?state="))
+    #expect(successValue.hasPrefix("ursushelper://x-callback-url/handle-success?state="))
+    #expect(errorValue.hasPrefix("ursushelper://x-callback-url/handle-error?state="))
 
     guard var callbackComponents = URLComponents(string: successValue) else {
         Issue.record("Expected success callback URL to parse cleanly.")
@@ -116,7 +116,7 @@ func callbackHostCanAuthorizeTokenlessSelectedNoteRequestsBeforeOpeningBear() th
 
     host.start(
         arguments: [
-            "Bear MCP",
+            "Ursus",
             "-url", "bear://x-callback-url/open-note?selected=yes&open_note=no&show_window=no",
             "-activateApp", "NO",
             "-responseFile", responseFileURL.path,
@@ -149,7 +149,7 @@ func callbackHostReportsInvalidInvocationWithoutLaunchingBear() {
         }
     )
 
-    host.start(arguments: ["bear-mcp-helper"])
+    host.start(arguments: ["ursus-helper"])
 
     let snapshot = recorder.snapshot()
     #expect(host.exitCode == 1)
@@ -177,7 +177,7 @@ func callbackHostTimesOutIfBearNeverCallsBack() async throws {
 
     host.start(
         arguments: [
-            "bear-mcp-helper",
+            "ursus-helper",
             "-url", "bear://x-callback-url/open-note?selected=yes&token=top-secret-token",
             "-timeoutSeconds", "0.01",
         ]

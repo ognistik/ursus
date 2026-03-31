@@ -13,11 +13,11 @@ let package = Package(
             targets: ["BearApplication"]
         ),
         .executable(
-            name: "bear-mcp",
+            name: "ursus",
             targets: ["BearMCPCLI"]
         ),
         .executable(
-            name: "bear-mcp-helper",
+            name: "ursus-helper",
             targets: ["BearSelectedNoteHelper"]
         ),
     ],

@@ -4,10 +4,12 @@ This file is the concise handoff for future threads. It should describe the curr
 
 ## Project Identity
 
-- Swift package / CLI name: `bear-mcp`
-- MCP server name exposed to clients: `bear`
-- Product shell: `Bear MCP.app`
-- App bundle identifier: `com.aft.bearmcp`
+- Swift package executable / CLI name: `ursus`
+- Selected-note helper executable: `ursus-helper`
+- MCP server name exposed to clients: `ursus`
+- Product shell: `Ursus.app`
+- App bundle identifier: `com.aft.ursus`
+- Helper bundle identifier: `com.aft.ursus-helper`
 - Platform: local macOS only
 
 ## Locked Product Rules
@@ -23,13 +25,20 @@ This file is the concise handoff for future threads. It should describe the curr
 
 ## Current Product Shape
 
-The repo already has the app-centered architecture we wanted:
+Phase 1 of the Ursus identity reset is complete:
 
-- `Bear MCP.app` is the control center for diagnostics, host guidance, token/config management, and launcher repair.
-- The bundled `bear-mcp` CLI remains the canonical local stdio MCP runtime.
-- The app installs or repairs one public launcher at `~/.local/bin/bear-mcp`.
-- Selected-note resolution uses the embedded helper bundled inside the installed app.
-- Host guidance is generic-first, with Codex and Claude Desktop treated as convenience integrations rather than the product definition.
+- `Ursus.app` is now the product shell and control center.
+- The bundled local stdio/runtime executable is now `ursus`.
+- The embedded selected-note helper is now `Ursus Helper.app` / `ursus-helper`.
+- MCP `initialize` now reports server name `ursus`.
+- The bridge LaunchAgent label is now `com.aft.ursus`.
+
+Intentional carry-over until later phases:
+
+- config and template still live under `~/.config/bear-mcp`
+- app support, logs, backups, and runtime locks still live under `~/Library/Application Support/Bear MCP`
+- the public launcher path is still `~/.local/bin/bear-mcp` until Phase 3
+- broader app/UI wording, host snippets, and old Bear MCP documentation cleanup are still pending
 
 ## Current Working Surface
 
@@ -46,13 +55,13 @@ The repo already has the app-centered architecture we wanted:
 
 Current direct utility commands:
 
-- `bear-mcp --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
-- `bear-mcp --apply-template [note-id-or-title ...]`
-- `bear-mcp --archive-note [note-id-or-title ...]`
-- `bear-mcp --delete-note [note-id-or-title ...]`
-- `bear-mcp bridge serve`
-- `bear-mcp bridge status`
-- `bear-mcp bridge print-url`
+- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
+- `ursus --apply-template [note-id-or-title ...]`
+- `ursus --archive-note [note-id-or-title ...]`
+- `ursus --delete-note [note-id-or-title ...]`
+- `ursus bridge serve`
+- `ursus bridge status`
+- `ursus bridge print-url`
 
 Behavior already in place:
 
@@ -67,7 +76,7 @@ Behavior already in place:
 - In explicit `--new-note` mode, `--title` defaults to the same timestamp format, `--content` defaults to empty content, `--open-note` defaults to `createOpensNoteByDefault`, `--new-window` defaults to `openUsesNewWindowByDefault`, and edit mode follows `openNoteInEditModeByDefault` when the created note opens.
 - `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
-- `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `bear-mcp mcp`.
+- `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
 - Bridge config now lives inside `~/.config/bear-mcp/config.json` with default localhost settings and a stable saved port.
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and still targets the stable public launcher path.
 - The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
@@ -88,13 +97,13 @@ The main MCP surface is already broad and usable. Implemented tools include:
 
 ## Current Runtime Paths
 
-These paths describe the codebase as it exists today:
+These paths describe the codebase as it exists after Phase 1. Identity is partially cut over; storage paths remain for Phase 2:
 
 - config file: `~/.config/bear-mcp/config.json`
 - template: `~/.config/bear-mcp/template.md`
 - public launcher: `~/.local/bin/bear-mcp`
 - app support root: `~/Library/Application Support/Bear MCP`
-- bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.bear-mcp.plist`
+- bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.ursus.plist`
 - backups: `~/Library/Application Support/Bear MCP/Backups`
 - runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
 - temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`
@@ -106,6 +115,7 @@ Startup now migrates legacy runtime state from `~/Library/Application Support/be
 
 ## Current Technical Truths
 
+- Phase 1 renamed the shipped product/app/helper/server identities but intentionally did not move storage roots yet.
 - Config and template editing are JSON / file based under `~/.config/bear-mcp`.
 - The selected-note token is currently managed in Bear MCP's config flow, not in Keychain.
 - Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
@@ -129,36 +139,26 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 ## Next Implementation Queue
 
-This is the intended order of work after the doc cleanup:
+This is the intended order after Phase 1:
 
-1. Simplify the app UI now that template management has moved into the app.
-2. Keep docs and verification aligned as the app surface is simplified.
-
-## Details For The Next Slice
-
-### 1. App simplification
-
-Desired behavior:
-
-- reduce overview clutter and implementation-detail leakage in `Bear MCP.app`
-- keep the app centered on configuration, template editing, host guidance, token state, and launcher repair
-- preserve the current CLI/MCP runtime split while simplifying what normal users see first
-
-### 2. Remote MCP Bridge
-
-Current scope is complete:
-
-- optional localhost HTTP bridge is shipped in the app and CLI
-- LaunchAgent management is native and still targets `~/.local/bin/bear-mcp bridge serve`
-- health checks now verify MCP `initialize`, not just TCP reachability
-- `bridge status` now reports config, LaunchAgent state, health, and log paths
-- app port edits save before install, auto-skip busy ports, and are reused on the next install or resume
+1. Phase 2: move config/template/logs/backups/runtime locks into `~/Library/Application Support/Ursus` and remove prerelease migration logic instead of translating it.
+2. Phase 3: rename the public launcher path to `~/.local/bin/ursus` and finish the app/helper/bridge locator wiring around the new product identity.
+3. Phase 4: update host snippets, app copy, CLI wording, and diagnostics to present Ursus consistently.
+4. Phase 5: finish docs/status cleanup and run the identity search gates.
 
 ## Verification Baseline
 
-When the next implementation slice lands, the standard verification should include:
+Phase 1 verification that already passed:
 
 - `swift test`
-- `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- built outputs verified at `.build/BearMCPApp/Build/Products/Debug/Ursus.app`
+- bundled artifacts verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+- HTTP MCP `initialize` probe returned `serverInfo.name = "ursus"`
+
+For the next implementation slice, the standard verification should include:
+
+- `swift test`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		BEA0000A2F00000100000003 /* Bear MCP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Bear MCP.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BEA0000A2F00000100000003 /* Ursus.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Ursus.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,7 +45,7 @@
 		BEA0000A2F00000100000007 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BEA0000A2F00000100000003 /* Bear MCP.app */,
+				BEA0000A2F00000100000003 /* Ursus.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,9 +53,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BEA0000A2F00000100000008 /* Bear MCP */ = {
+		BEA0000A2F00000100000008 /* Ursus */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Bear MCP" */;
+			buildConfigurationList = BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Ursus" */;
 			buildPhases = (
 				BEA0000A2F0000010000000A /* Sources */,
 				BEA0000A2F00000100000005 /* Frameworks */,
@@ -68,12 +68,12 @@
 			fileSystemSynchronizedGroups = (
 				BEA0000A2F00000100000004 /* BearMCPApp */,
 			);
-			name = "Bear MCP";
+			name = Ursus;
 			packageProductDependencies = (
 				BEA0000A2F00000100000002 /* BearApplication */,
 			);
-			productName = "Bear MCP";
-			productReference = BEA0000A2F00000100000003 /* Bear MCP.app */;
+			productName = Ursus;
+			productReference = BEA0000A2F00000100000003 /* Ursus.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -108,7 +108,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BEA0000A2F00000100000008 /* Bear MCP */,
+				BEA0000A2F00000100000008 /* Ursus */,
 			);
 		};
 /* End PBXProject section */
@@ -189,8 +189,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aft.bearmcp;
-				PRODUCT_NAME = "Bear MCP";
+				PRODUCT_BUNDLE_IDENTIFIER = com.aft.ursus;
+				PRODUCT_NAME = Ursus;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -209,8 +209,8 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.2.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aft.bearmcp;
-				PRODUCT_NAME = "Bear MCP";
+				PRODUCT_BUNDLE_IDENTIFIER = com.aft.ursus;
+				PRODUCT_NAME = Ursus;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -228,7 +228,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Bear MCP" */ = {
+		BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Ursus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BEA0000A2F00000100000011 /* Debug */,

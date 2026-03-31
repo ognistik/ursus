@@ -4,8 +4,8 @@ import Testing
 
 @Test
 func appLocatorGuidanceMarksSystemApplicationsAsPreferred() {
-    #expect(BearMCPAppLocator.preferredAppBundleURL.path == "/Applications/Bear MCP.app")
-    #expect(BearMCPAppLocator.installGuidance.contains("`/Applications/Bear MCP.app` (preferred)"))
+    #expect(BearMCPAppLocator.preferredAppBundleURL.path == "/Applications/Ursus.app")
+    #expect(BearMCPAppLocator.installGuidance.contains("`/Applications/Ursus.app` (preferred)"))
     #expect(
         BearMCPAppLocator.installationLocationDescription(
             forAppBundleURL: BearMCPAppLocator.preferredAppBundleURL
@@ -24,7 +24,7 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
 
 @Test
 func cliLocatorGuidancePointsHostsAtPublicLauncherPath() {
-    #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/bear-mcp")
+    #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/ursus")
     #expect(
         BearMCPCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/bear-mcp")
     )
@@ -36,12 +36,12 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = temporaryRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = temporaryRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let installedCLIURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -74,12 +74,12 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let appBundleURL = temporaryRoot.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let appBundleURL = temporaryRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -104,7 +104,7 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     #expect(receipt.destinationPath == launcherURL.path)
     #expect(fileManager.fileExists(atPath: launcherURL.path))
     #expect(fileManager.isExecutableFile(atPath: launcherURL.path))
-    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Bear MCP launcher"))
+    #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Ursus launcher"))
     #expect(!BearMCPCLILocator.hasIndirectFilesystemEntry(at: launcherURL))
 }
 
@@ -115,12 +115,12 @@ func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let applicationsDirectoryURL = temporaryRoot.appendingPathComponent("Applications", isDirectory: true)
     let userHomeURL = temporaryRoot.appendingPathComponent("home", isDirectory: true)
-    let mainAppBundleURL = applicationsDirectoryURL.appendingPathComponent("Bear MCP.app", isDirectory: true)
+    let mainAppBundleURL = applicationsDirectoryURL.appendingPathComponent("Ursus.app", isDirectory: true)
     let embeddedHelperBundleURL = mainAppBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Helpers", isDirectory: true)
-        .appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+        .appendingPathComponent("Ursus Helper.app", isDirectory: true)
 
     try fileManager.createDirectory(at: embeddedHelperBundleURL, withIntermediateDirectories: true)
     defer {
@@ -130,7 +130,7 @@ func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
         preferredAppBundleURL: mainAppBundleURL,
-        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true)
+        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true)
     )
 
     #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
@@ -147,7 +147,7 @@ func helperLocatorIgnoresStandaloneHelperBundleWithoutContainingApp() throws {
     let temporaryRoot = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let applicationsDirectoryURL = temporaryRoot.appendingPathComponent("Applications", isDirectory: true)
-    let standaloneHelperBundleURL = applicationsDirectoryURL.appendingPathComponent("Bear MCP Helper.app", isDirectory: true)
+    let standaloneHelperBundleURL = applicationsDirectoryURL.appendingPathComponent("Ursus Helper.app", isDirectory: true)
     let userHomeURL = temporaryRoot.appendingPathComponent("home", isDirectory: true)
     defer {
         try? fileManager.removeItem(at: temporaryRoot)
@@ -157,8 +157,8 @@ func helperLocatorIgnoresStandaloneHelperBundleWithoutContainingApp() throws {
 
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
-        preferredAppBundleURL: applicationsDirectoryURL.appendingPathComponent("Bear MCP.app", isDirectory: true),
-        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Bear MCP.app", isDirectory: true)
+        preferredAppBundleURL: applicationsDirectoryURL.appendingPathComponent("Ursus.app", isDirectory: true),
+        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true)
     )
 
     #expect(locatedURL == nil)

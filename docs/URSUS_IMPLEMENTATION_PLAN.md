@@ -30,6 +30,23 @@ Non-goals:
 - MCP tool names remain `bear_*`
 - Clean install is acceptable; do not preserve prerelease migrations by default
 
+## Progress
+
+Status as of 2026-03-30:
+
+- Phase 1 is complete.
+- Verified with `swift test`.
+- Verified with `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`.
+- Verified built outputs are `Ursus.app`, bundled `ursus`, and embedded `Ursus Helper.app`.
+- Verified MCP `initialize` returns `serverInfo.name = "ursus"` through the built HTTP bridge.
+
+Intentional carry-over to later phases:
+
+- config/template still live under `~/.config/bear-mcp`
+- runtime artifacts still live under `~/Library/Application Support/Bear MCP`
+- public launcher path still remains `~/.local/bin/bear-mcp`
+- broad UI/host/docs wording cleanup is still pending
+
 ## Bear vs Ursus Boundary
 
 Use `Ursus` for:
@@ -120,6 +137,10 @@ The work should be done in phases with hard verification gates. Do not blend all
 
 ### Phase 1: Freeze Identity Constants
 
+Status:
+
+- completed on 2026-03-30
+
 Goal:
 
 - define the final shipped identity in code and metadata before touching docs/UI drift
@@ -143,14 +164,14 @@ Primary files:
 - `BearMCPApp.xcodeproj/xcshareddata/xcschemes/...`
 - `Support/app/Info.plist`
 - `Support/helper/Info.plist`
-- `Support/scripts/build-bear-mcp-app.sh`
-- `Support/scripts/build-selected-note-helper-app.sh`
+- `Support/scripts/build-ursus-app.sh`
+- `Support/scripts/build-ursus-helper-app.sh`
 - `Sources/BearMCP/BearMCPServer.swift`
 
 Verification:
 
 - `swift test`
-- `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - verify built outputs are `Ursus.app`, bundled `ursus`, and embedded `Ursus Helper.app`
 - verify MCP initialize reports server name `ursus`
 
@@ -285,7 +306,7 @@ Primary files:
 Verification:
 
 - `swift test`
-- `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - repo-wide search returns only intentional Bear-domain uses
 
 ## Search Gates

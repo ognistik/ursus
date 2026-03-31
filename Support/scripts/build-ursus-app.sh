@@ -19,14 +19,14 @@ esac
 
 DERIVED_DATA_DIR="$ROOT_DIR/.build/BearMCPApp"
 PROJECT_PATH="$ROOT_DIR/BearMCPApp.xcodeproj"
-SCHEME_NAME="Bear MCP"
+SCHEME_NAME="Ursus"
 
 SWIFT_BUILD_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"
-APP_BUNDLE_PATH="$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/Bear MCP.app"
-BUNDLED_CLI_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/bear-mcp"
-BUNDLED_CLI_DESTINATION="$APP_BUNDLE_PATH/Contents/Resources/bin/bear-mcp"
-EMBEDDED_HELPER_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/Bear MCP Helper.app"
-EMBEDDED_HELPER_DESTINATION="$APP_BUNDLE_PATH/Contents/Library/Helpers/Bear MCP Helper.app"
+APP_BUNDLE_PATH="$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/Ursus.app"
+BUNDLED_CLI_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/ursus"
+BUNDLED_CLI_DESTINATION="$APP_BUNDLE_PATH/Contents/Resources/bin/ursus"
+EMBEDDED_HELPER_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/Ursus Helper.app"
+EMBEDDED_HELPER_DESTINATION="$APP_BUNDLE_PATH/Contents/Library/Helpers/Ursus Helper.app"
 
 xcodebuild \
   -project "$PROJECT_PATH" \
@@ -38,13 +38,13 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   build
 
-CONFIGURATION="$SWIFT_BUILD_CONFIGURATION" "$ROOT_DIR/Support/scripts/build-selected-note-helper-app.sh" >/dev/null
+CONFIGURATION="$SWIFT_BUILD_CONFIGURATION" "$ROOT_DIR/Support/scripts/build-ursus-helper-app.sh" >/dev/null
 sh "$ROOT_DIR/Support/scripts/patch-swift-sdk-networktransport.sh"
 
 swift build \
   --package-path "$ROOT_DIR" \
   --configuration "$SWIFT_BUILD_CONFIGURATION" \
-  --product bear-mcp
+  --product ursus
 
 mkdir -p "$(dirname "$BUNDLED_CLI_DESTINATION")"
 cp "$BUNDLED_CLI_SOURCE" "$BUNDLED_CLI_DESTINATION"

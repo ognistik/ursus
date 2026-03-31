@@ -8,14 +8,14 @@ From the repo root:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
-CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh
+CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 ```
 
 For a Release build:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
-CONFIGURATION=Release Support/scripts/build-bear-mcp-app.sh
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 ```
 
 Useful verification:
@@ -23,14 +23,14 @@ Useful verification:
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 swift test
-swift run bear-mcp doctor
-swift run bear-mcp --help
+swift run ursus doctor
+swift run ursus --help
 ```
 
 Current app build outputs:
 
-- Debug: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Bear MCP.app`
-- Release: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Bear MCP.app`
+- Debug: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Ursus.app`
+- Release: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Ursus.app`
 
 ## Install The Built App
 
@@ -38,19 +38,19 @@ Example Debug install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Bear MCP.app" "$HOME/Applications/Bear MCP.app"
-open "$HOME/Applications/Bear MCP.app"
+ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+open "$HOME/Applications/Ursus.app"
 ```
 
 Example Release install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Bear MCP.app" "$HOME/Applications/Bear MCP.app"
-open "$HOME/Applications/Bear MCP.app"
+ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
+open "$HOME/Applications/Ursus.app"
 ```
 
-Canonical install guidance still prefers `/Applications/Bear MCP.app`, but `~/Applications/Bear MCP.app` remains fully supported for local development and user-specific installs.
+Canonical install guidance now prefers `/Applications/Ursus.app`, but `~/Applications/Ursus.app` remains fully supported for local development and user-specific installs.
 
 ## Current Runtime Paths
 
@@ -77,9 +77,9 @@ Migration note:
 Use this when you want to test from a clean local starting point.
 
 ```sh
-pkill -f "/Bear MCP.app/Contents/MacOS/Bear MCP" 2>/dev/null || true
-rm -rf "/Applications/Bear MCP.app"
-rm -rf "$HOME/Applications/Bear MCP.app"
+pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
+rm -rf "/Applications/Ursus.app"
+rm -rf "$HOME/Applications/Ursus.app"
 rm -rf "$HOME/.config/bear-mcp"
 rm -rf "$HOME/Library/Application Support/Bear MCP"
 rm -rf "$HOME/Library/Application Support/bear-mcp"
@@ -98,10 +98,10 @@ One practical copy-paste flow:
 
 ```sh
 cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
-CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh
+CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 mkdir -p "$HOME/Applications"
-ditto ".build/BearMCPApp/Build/Products/Debug/Bear MCP.app" "$HOME/Applications/Bear MCP.app"
-open "$HOME/Applications/Bear MCP.app"
+ditto ".build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+open "$HOME/Applications/Ursus.app"
 ```
 
 ## Current Direct CLI Commands
@@ -112,10 +112,10 @@ The public launcher installed by the app is:
 
 Current utility commands:
 
-- `bear-mcp --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
-- `bear-mcp --apply-template [note-id-or-title ...]`
-- `bear-mcp --archive-note [note-id-or-title ...]`
-- `bear-mcp --delete-note [note-id-or-title ...]`
+- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
+- `ursus --apply-template [note-id-or-title ...]`
+- `ursus --archive-note [note-id-or-title ...]`
+- `ursus --delete-note [note-id-or-title ...]`
 
 Current selector behavior:
 

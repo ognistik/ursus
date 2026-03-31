@@ -28,7 +28,7 @@ func decodeInitializeRequestRejectsNonInitializePayloads() throws {
 @Test
 func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async throws {
     let server = Server(
-        name: "bear",
+        name: "ursus",
         version: "0.1.0",
         capabilities: .init(
             resources: .init(listChanged: false),
@@ -76,7 +76,7 @@ func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async
 
     #expect(initializeResponse.id == .string("re-init-1"))
     #expect(result.protocolVersion == "2025-11-25")
-    #expect(result.serverInfo.name == "bear")
+    #expect(result.serverInfo.name == "ursus")
     #expect(result.serverInfo.version == "0.1.0")
     #expect(result.capabilities.tools?.listChanged == false)
     #expect(result.capabilities.resources?.listChanged == false)
@@ -84,7 +84,7 @@ func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async
 
 @Test
 func repeatedInitializeResponseFallsBackToLatestProtocolVersion() async throws {
-    let server = Server(name: "bear", version: "0.1.0")
+    let server = Server(name: "ursus", version: "0.1.0")
     let body = try JSONSerialization.data(
         withJSONObject: [
             "jsonrpc": "2.0",

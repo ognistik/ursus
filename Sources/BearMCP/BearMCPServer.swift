@@ -20,7 +20,7 @@ public final class BearMCPServer: Sendable {
 
     public func makeServer() async -> Server {
         let server = Server(
-            name: "bear",
+            name: "ursus",
             version: "0.1.0",
             capabilities: .init(
                 resources: .init(listChanged: false),

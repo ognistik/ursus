@@ -67,7 +67,7 @@ func bridgeLaunchAgentExpectedPlistUsesStableLauncherAndLogs() throws {
     let launcherURL = temporaryDirectory.appendingPathComponent("bear-mcp", isDirectory: false)
     let stdoutURL = temporaryDirectory.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = temporaryDirectory.appendingPathComponent("bridge.stderr.log", isDirectory: false)
-    let plistURL = temporaryDirectory.appendingPathComponent("com.aft.bear-mcp.plist", isDirectory: false)
+    let plistURL = temporaryDirectory.appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
 
     defer {
         try? FileManager.default.removeItem(at: temporaryDirectory)
@@ -85,7 +85,7 @@ func bridgeLaunchAgentExpectedPlistUsesStableLauncherAndLogs() throws {
     let decoded = try BearBridgeLaunchAgentPlist.load(from: plistURL)
 
     #expect(decoded == expected)
-    #expect(decoded.label == "com.aft.bear-mcp")
+    #expect(decoded.label == "com.aft.ursus")
     #expect(decoded.programArguments == [launcherURL.path, "bridge", "serve"])
     #expect(decoded.standardOutPath == stdoutURL.path)
     #expect(decoded.standardErrorPath == stderrURL.path)

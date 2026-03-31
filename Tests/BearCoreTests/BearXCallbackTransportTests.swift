@@ -431,7 +431,7 @@ func debugDescriptionRedactsSelectedNoteTokenAndCallbackURLs() async throws {
 @Test
 func selectedNoteHelperLaunchArgumentsKeepHostHidden() {
     let arguments = BearSelectedNoteHelperRunner.launchArguments(
-        appBundleURL: URL(fileURLWithPath: "/Applications/Bear MCP.app", isDirectory: true),
+        appBundleURL: URL(fileURLWithPath: "/Applications/Ursus.app", isDirectory: true),
         bearURL: URL(string: "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no")!,
         responseFileURL: URL(fileURLWithPath: "/tmp/selected-note.json", isDirectory: false)
     )
@@ -439,7 +439,7 @@ func selectedNoteHelperLaunchArgumentsKeepHostHidden() {
     #expect(arguments == [
         "-g",
         "-j",
-        "-a", "/Applications/Bear MCP.app",
+        "-a", "/Applications/Ursus.app",
         "--args",
         "-url", "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no",
         "-activateApp", "NO",

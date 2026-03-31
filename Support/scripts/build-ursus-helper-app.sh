@@ -8,8 +8,8 @@ if [ "$CONFIGURATION" = "release" ]; then
   SWIFT_BUILD_ARGS="-c release"
 fi
 BUILD_DIR="$ROOT_DIR/.build"
-APP_NAME="Bear MCP Helper.app"
-PRODUCT_NAME="bear-mcp-helper"
+APP_NAME="Ursus Helper.app"
+PRODUCT_NAME="ursus-helper"
 EXECUTABLE_SOURCE="$BUILD_DIR/$CONFIGURATION/$PRODUCT_NAME"
 APP_DIR="$BUILD_DIR/$CONFIGURATION/$APP_NAME"
 

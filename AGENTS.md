@@ -4,7 +4,7 @@ Read [PROJECT_STATUS.md](/Users/ognistik/Documents/GitHubRepos/bear-mcp/PROJECT_
 
 ## Project Identity
 
-- Current MCP server name exposed to clients is `bear`.
+- Current MCP server name exposed to clients is `ursus`.
 - Do not rename package targets, binary names, config paths, or MCP tool names unless the user explicitly asks for that migration.
 
 ## Product Rules

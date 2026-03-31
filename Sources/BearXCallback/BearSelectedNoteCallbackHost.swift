@@ -9,7 +9,7 @@ public enum BearSelectedNoteCallbackOutputChannel {
 
 @MainActor
 public final class BearSelectedNoteCallbackHost {
-    nonisolated public static let helperCallbackScheme = "bearmcphelper"
+    nonisolated public static let helperCallbackScheme = "ursushelper"
     nonisolated public static let defaultCallbackScheme = helperCallbackScheme
     nonisolated public static let defaultTimeoutSeconds: TimeInterval = 8
 

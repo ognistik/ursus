@@ -1,7 +1,7 @@
 import Foundation
 
 public enum BearMCPAppLocator {
-    public static let appName = "Bear MCP.app"
+    public static let appName = "Ursus.app"
     public static let preferredInstallDirectoryPath = "/Applications"
 
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
@@ -46,17 +46,17 @@ public enum BearMCPAppLocator {
         fileManager: FileManager
     ) throws -> URL {
         guard fileManager.fileExists(atPath: bundleURL.path) else {
-            throw BearError.configuration("Bear MCP app was not found at `\(bundleURL.path)`.")
+            throw BearError.configuration("Ursus app was not found at `\(bundleURL.path)`.")
         }
 
         guard let bundle = Bundle(url: bundleURL) else {
-            throw BearError.configuration("Bear MCP app path `\(bundleURL.path)` is not a valid app bundle.")
+            throw BearError.configuration("Ursus app path `\(bundleURL.path)` is not a valid app bundle.")
         }
 
         guard let executableName = bundle.object(forInfoDictionaryKey: "CFBundleExecutable") as? String,
               !executableName.isEmpty
         else {
-            throw BearError.configuration("Bear MCP app at `\(bundleURL.path)` is missing `CFBundleExecutable`.")
+            throw BearError.configuration("Ursus app at `\(bundleURL.path)` is missing `CFBundleExecutable`.")
         }
 
         let executableURL = bundleURL
@@ -65,11 +65,11 @@ public enum BearMCPAppLocator {
             .appendingPathComponent(executableName, isDirectory: false)
 
         guard fileManager.fileExists(atPath: executableURL.path) else {
-            throw BearError.configuration("Bear MCP executable was not found inside `\(bundleURL.path)`.")
+            throw BearError.configuration("Ursus executable was not found inside `\(bundleURL.path)`.")
         }
 
         guard fileManager.isExecutableFile(atPath: executableURL.path) else {
-            throw BearError.configuration("Bear MCP executable inside `\(bundleURL.path)` is not executable.")
+            throw BearError.configuration("Ursus executable inside `\(bundleURL.path)` is not executable.")
         }
 
         return executableURL
