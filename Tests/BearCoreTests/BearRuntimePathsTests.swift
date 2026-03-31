@@ -4,20 +4,21 @@ import Testing
 
 @Test
 func runtimeArtifactsUseLibraryLocations() {
-    #expect(BearPaths.configFileURL.path.hasSuffix("/.config/bear-mcp/config.json"))
-    #expect(BearPaths.noteTemplateURL.path.hasSuffix("/.config/bear-mcp/template.md"))
-    #expect(BearPaths.applicationSupportDirectoryURL.path.hasSuffix("/Library/Application Support/Bear MCP"))
-    #expect(BearPaths.debugLogURL.path.hasSuffix("/Library/Application Support/Bear MCP/Logs/debug.log"))
-    #expect(BearPaths.backupsDirectoryURL.path.hasSuffix("/Library/Application Support/Bear MCP/Backups"))
-    #expect(BearPaths.backupsIndexURL.path.hasSuffix("/Library/Application Support/Bear MCP/Backups/index.json"))
+    #expect(BearPaths.configDirectoryURL == BearPaths.applicationSupportDirectoryURL)
+    #expect(BearPaths.configFileURL.path.hasSuffix("/Library/Application Support/Ursus/config.json"))
+    #expect(BearPaths.noteTemplateURL.path.hasSuffix("/Library/Application Support/Ursus/template.md"))
+    #expect(BearPaths.applicationSupportDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus"))
+    #expect(BearPaths.debugLogURL.path.hasSuffix("/Library/Application Support/Ursus/Logs/debug.log"))
+    #expect(BearPaths.backupsDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus/Backups"))
+    #expect(BearPaths.backupsIndexURL.path.hasSuffix("/Library/Application Support/Ursus/Backups/index.json"))
     #expect(BearPaths.publicCLIDirectoryURL.path.hasSuffix("/.local/bin"))
     #expect(BearPaths.publicCLIExecutableURL.path.hasSuffix("/.local/bin/bear-mcp"))
-    #expect(BearPaths.processLockURL.path.hasSuffix("/Library/Application Support/Bear MCP/Runtime/.server.lock"))
-    #expect(BearPaths.fallbackProcessLockURL.path.hasSuffix("/bear-mcp/Runtime/.server.lock"))
-    #expect(BearPaths.processSpecificFallbackLockURL(processID: 123).path.hasSuffix("/bear-mcp/Runtime/locks/123.server.lock"))
+    #expect(BearPaths.processLockURL.path.hasSuffix("/Library/Application Support/Ursus/Runtime/.server.lock"))
+    #expect(BearPaths.fallbackProcessLockURL.path.hasSuffix("/ursus/Runtime/.server.lock"))
+    #expect(BearPaths.processSpecificFallbackLockURL(processID: 123).path.hasSuffix("/ursus/Runtime/locks/123.server.lock"))
     #expect(BearBridgeLaunchAgent.plistURL.path.hasSuffix("/Library/LaunchAgents/com.aft.ursus.plist"))
-    #expect(BearBridgeLaunchAgent.standardOutputURL.path.hasSuffix("/Library/Application Support/Bear MCP/Logs/bridge.stdout.log"))
-    #expect(BearBridgeLaunchAgent.standardErrorURL.path.hasSuffix("/Library/Application Support/Bear MCP/Logs/bridge.stderr.log"))
+    #expect(BearBridgeLaunchAgent.standardOutputURL.path.hasSuffix("/Library/Application Support/Ursus/Logs/bridge.stdout.log"))
+    #expect(BearBridgeLaunchAgent.standardErrorURL.path.hasSuffix("/Library/Application Support/Ursus/Logs/bridge.stderr.log"))
 }
 
 @Test
@@ -26,7 +27,6 @@ func debugLogRotatesAfterSizeThreshold() throws {
     let temporaryDirectory = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
     let logDirectoryURL = temporaryDirectory.appendingPathComponent("Logs", isDirectory: true)
-    let legacyLogsDirectoryURL = temporaryDirectory.appendingPathComponent("LegacyLogs", isDirectory: true)
     let logURL = logDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
     try fileManager.createDirectory(at: logDirectoryURL, withIntermediateDirectories: true)
     defer {
@@ -40,8 +40,7 @@ func debugLogRotatesAfterSizeThreshold() throws {
         "rotation-check",
         fileManager: fileManager,
         logURL: logURL,
-        logsDirectoryURL: logDirectoryURL,
-        legacyLogsDirectoryURL: legacyLogsDirectoryURL
+        logsDirectoryURL: logDirectoryURL
     )
 
     let firstArchive = logDirectoryURL.appendingPathComponent("debug.log.1", isDirectory: false)
@@ -53,7 +52,7 @@ func debugLogRotatesAfterSizeThreshold() throws {
 }
 
 @Test
-func debugLogMigratesLegacyLogsIntoApplicationSupport() throws {
+func debugLogIgnoresLegacyPreReleaseLogs() throws {
     let fileManager = FileManager.default
     let temporaryDirectory = fileManager.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -64,7 +63,7 @@ func debugLogMigratesLegacyLogsIntoApplicationSupport() throws {
     let logsDirectoryURL = temporaryDirectory
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("Application Support", isDirectory: true)
-        .appendingPathComponent("Bear MCP", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
         .appendingPathComponent("Logs", isDirectory: true)
     let logURL = logsDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
 
@@ -82,14 +81,15 @@ func debugLogMigratesLegacyLogsIntoApplicationSupport() throws {
         "migration-check",
         fileManager: fileManager,
         logURL: logURL,
-        logsDirectoryURL: logsDirectoryURL,
-        legacyLogsDirectoryURL: legacyLogsDirectoryURL
+        logsDirectoryURL: logsDirectoryURL
     )
 
     #expect(fileManager.fileExists(atPath: logURL.path))
-    #expect(fileManager.fileExists(atPath: legacyLogsDirectoryURL.path) == false)
+    #expect(fileManager.fileExists(atPath: legacyLogsDirectoryURL.path))
 
-    let migratedContents = try String(contentsOf: logURL, encoding: .utf8)
-    #expect(migratedContents.contains("legacy log line"))
-    #expect(migratedContents.contains("migration-check"))
+    let logContents = try String(contentsOf: logURL, encoding: .utf8)
+    let legacyContents = try String(contentsOf: legacyLogsDirectoryURL.appendingPathComponent("debug.log"), encoding: .utf8)
+    #expect(logContents.contains("migration-check"))
+    #expect(logContents.contains("legacy log line") == false)
+    #expect(legacyContents.contains("legacy log line"))
 }

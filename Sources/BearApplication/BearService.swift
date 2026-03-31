@@ -1803,13 +1803,13 @@ public final class BearService: @unchecked Sendable {
     private func requiredApplyTemplate(loadedTemplate: String?, noteTitle: String) throws -> String {
         guard let template = loadedTemplate else {
             throw BearError.configuration(
-                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md, but the file is missing. Restore the current template before applying it to notes."
+                "The `bear_apply_template` tool requires \(BearPaths.noteTemplateURL.path), but the file is missing. Restore the current template before applying it to notes."
             )
         }
 
         guard let descriptor = templatePattern(for: template, title: noteTitle), descriptor.tagsCaptureIndex != nil else {
             throw BearError.configuration(
-                "The `bear_apply_template` tool requires ~/.config/bear-mcp/template.md to provide valid `{{content}}` and `{{tags}}` slots. Fix the template before applying it to notes."
+                "The `bear_apply_template` tool requires \(BearPaths.noteTemplateURL.path) to provide valid `{{content}}` and `{{tags}}` slots. Fix the template before applying it to notes."
             )
         }
 
@@ -1819,12 +1819,12 @@ public final class BearService: @unchecked Sendable {
     private func invalidTagTemplateError(missingFile: Bool) -> BearError {
         if missingFile {
             return BearError.configuration(
-                "Template management is enabled, but ~/.config/bear-mcp/template.md is missing. Restore a template with a `{{tags}}` slot before adding tags to this note."
+                "Template management is enabled, but \(BearPaths.noteTemplateURL.path) is missing. Restore a template with a `{{tags}}` slot before adding tags to this note."
             )
         }
 
         return BearError.configuration(
-            "Template management is enabled, but ~/.config/bear-mcp/template.md does not provide a valid `{{tags}}` slot. Fix the template before adding tags to this note."
+            "Template management is enabled, but \(BearPaths.noteTemplateURL.path) does not provide a valid `{{tags}}` slot. Fix the template before adding tags to this note."
         )
     }
 
@@ -2229,7 +2229,9 @@ public final class BearService: @unchecked Sendable {
         if let inboxTagsMode = operation.inboxTagsMode {
             let inboxTags = normalizedTags(configuration.inboxTags)
             guard !inboxTags.isEmpty else {
-                throw BearError.configuration("The inbox tag list is empty. Add tags to ~/.config/bear-mcp/config.json first.")
+                throw BearError.configuration(
+                    "The inbox tag list is empty. Add tags to \(BearPaths.configFileURL.path) first."
+                )
             }
 
             switch inboxTagsMode {

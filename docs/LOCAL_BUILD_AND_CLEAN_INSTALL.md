@@ -56,21 +56,15 @@ Canonical install guidance now prefers `/Applications/Ursus.app`, but `~/Applica
 
 These are the current paths in code today:
 
-- config root: `~/.config/bear-mcp`
-- config file: `~/.config/bear-mcp/config.json`
-- template: `~/.config/bear-mcp/template.md`
-- app support root: `~/Library/Application Support/Bear MCP`
-- backups: `~/Library/Application Support/Bear MCP/Backups`
-- runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
-- debug log: `~/Library/Application Support/Bear MCP/Logs/debug.log`
+- config root: `~/Library/Application Support/Ursus`
+- config file: `~/Library/Application Support/Ursus/config.json`
+- template: `~/Library/Application Support/Ursus/template.md`
+- app support root: `~/Library/Application Support/Ursus`
+- backups: `~/Library/Application Support/Ursus/Backups`
+- runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
+- debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
 - public launcher: `~/.local/bin/bear-mcp`
-- temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`
-
-Migration note:
-
-- config stays under `~/.config/bear-mcp`
-- startup migrates legacy runtime state from `~/Library/Application Support/bear-mcp`
-- startup migrates legacy debug logs from `~/Library/Logs/bear-mcp`
+- temp fallback locks: `TMPDIR/ursus/Runtime/...`
 
 ## Clean Reset
 
@@ -80,16 +74,13 @@ Use this when you want to test from a clean local starting point.
 pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
 rm -rf "/Applications/Ursus.app"
 rm -rf "$HOME/Applications/Ursus.app"
-rm -rf "$HOME/.config/bear-mcp"
-rm -rf "$HOME/Library/Application Support/Bear MCP"
-rm -rf "$HOME/Library/Application Support/bear-mcp"
-rm -rf "$HOME/Library/Logs/bear-mcp"
+rm -rf "$HOME/Library/Application Support/Ursus"
 rm -f "$HOME/.local/bin/bear-mcp"
 ```
 
 Note:
 
-- deleting the app bundle alone does not remove Bear MCP state
+- deleting the app bundle alone does not remove Ursus state
 - the selected-note token is currently managed through Bear MCP's config flow, so there is no separate Keychain reset step in the current product shape
 
 ## Reinstall After Reset

@@ -35,15 +35,16 @@ Non-goals:
 Status as of 2026-03-30:
 
 - Phase 1 is complete.
+- Phase 2 is complete.
 - Verified with `swift test`.
+- Verified with `swift run ursus paths`.
 - Verified with `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`.
 - Verified built outputs are `Ursus.app`, bundled `ursus`, and embedded `Ursus Helper.app`.
 - Verified MCP `initialize` returns `serverInfo.name = "ursus"` through the built HTTP bridge.
+- Verified `ursus paths` prints only Ursus-era storage roots plus the intentional Phase 3 survivor `~/.local/bin/bear-mcp`.
 
 Intentional carry-over to later phases:
 
-- config/template still live under `~/.config/bear-mcp`
-- runtime artifacts still live under `~/Library/Application Support/Bear MCP`
 - public launcher path still remains `~/.local/bin/bear-mcp`
 - broad UI/host/docs wording cleanup is still pending
 
@@ -177,6 +178,10 @@ Verification:
 
 ### Phase 2: Canonical Storage Cutover
 
+Status:
+
+- completed on 2026-03-30
+
 Goal:
 
 - move the runtime to one canonical `Application Support/Ursus` root
@@ -208,6 +213,13 @@ Verification:
 - confirm `ursus paths` prints only Ursus-era paths
 - confirm first launch creates only the new runtime locations
 - confirm template/config editing in the app uses the new root only
+
+Result:
+
+- `BearPaths` now points config, template, logs, backups, and runtime locks at `~/Library/Application Support/Ursus`.
+- Fallback temp runtime locks now use `TMPDIR/ursus/Runtime/...`.
+- Prerelease support-root migration, legacy-log migration, and backup-merge migration helpers were removed instead of translated.
+- User-facing template/config path errors now reference the new canonical Ursus root.
 
 ### Phase 3: Launcher, App Locator, Bridge, and Helper Wiring
 

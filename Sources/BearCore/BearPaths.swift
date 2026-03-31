@@ -1,17 +1,12 @@
 import Foundation
 
 public enum BearPaths {
-    public static let configurationDirectoryName = "bear-mcp"
-    public static let applicationSupportDirectoryName = "Bear MCP"
-    public static let legacyApplicationSupportDirectoryName = "bear-mcp"
+    public static let applicationSupportDirectoryName = "Ursus"
     public static let logsDirectoryName = "Logs"
-    public static let legacyLogsDirectoryName = "bear-mcp"
-    public static let fallbackRuntimeDirectoryName = "bear-mcp"
+    public static let fallbackRuntimeDirectoryName = "ursus"
 
     public static var configDirectoryURL: URL {
-        homeDirectoryURL
-            .appendingPathComponent(".config", isDirectory: true)
-            .appendingPathComponent(configurationDirectoryName, isDirectory: true)
+        applicationSupportDirectoryURL
     }
 
     public static var configFileURL: URL {
@@ -30,26 +25,10 @@ public enum BearPaths {
         logsDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
     }
 
-    public static var legacyLogsDirectoryURL: URL {
-        libraryDirectoryURL
-            .appendingPathComponent("Logs", isDirectory: true)
-            .appendingPathComponent(legacyLogsDirectoryName, isDirectory: true)
-    }
-
-    public static var legacyDebugLogURL: URL {
-        legacyLogsDirectoryURL.appendingPathComponent("debug.log", isDirectory: false)
-    }
-
     public static var applicationSupportDirectoryURL: URL {
         libraryDirectoryURL
             .appendingPathComponent("Application Support", isDirectory: true)
             .appendingPathComponent(applicationSupportDirectoryName, isDirectory: true)
-    }
-
-    public static var legacyApplicationSupportDirectoryURL: URL {
-        libraryDirectoryURL
-            .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent(legacyApplicationSupportDirectoryName, isDirectory: true)
     }
 
     public static var backupsDirectoryURL: URL {

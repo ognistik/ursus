@@ -8,8 +8,8 @@ Keep the product app-centered without turning the GUI into the MCP runtime.
 
 That means:
 
-- `Bear MCP.app` stays the control center.
-- The bundled `bear-mcp` CLI stays the local stdio MCP server.
+- `Ursus.app` stays the control center.
+- The bundled `ursus` CLI stays the local stdio MCP server.
 - Host setup remains generic-first.
 - The embedded helper remains the selected-note callback path.
 
@@ -17,7 +17,7 @@ That means:
 
 - Keep the current package layers.
 - Keep reads in SQLite and writes through Bear x-callback URLs.
-- Keep config and the single-file template under `~/.config/bear-mcp`.
+- Keep config and the single-file template under `~/Library/Application Support/Ursus`.
 - Keep the public launcher path at `~/.local/bin/bear-mcp`.
 - Keep trash CLI-only for now.
 - Do not bring back the old AppleScript / Shortcuts bridge.
@@ -27,7 +27,7 @@ That means:
 
 These slices are already in place:
 
-- `Bear MCP.app` exists and links the shared package code.
+- `Ursus.app` exists and links the shared package code.
 - The app can manage configuration, token state, launcher repair, and the live `template.md` file.
 - The app can also manage the optional localhost HTTP bridge, including a saved port setting, LaunchAgent lifecycle, status, and copyable MCP URL output.
 - The app embeds the CLI and can install / repair the public launcher.
@@ -77,7 +77,7 @@ Current scope is complete:
 
 - native localhost HTTP bridge is shipped
 - bridge diagnostics now include MCP-health checks and log hints
-- `bear-mcp bridge status` now reports LaunchAgent and health detail
+- `ursus bridge status` now reports LaunchAgent and health detail
 - app users can edit the port before install and reuse the saved endpoint later, while host overrides stay config-only
 
 ## Likely Files For The Next Slices
@@ -101,4 +101,4 @@ Current scope is complete:
 For the next implementation slices, keep the baseline checks:
 
 - `swift test`
-- `CONFIGURATION=Debug Support/scripts/build-bear-mcp-app.sh`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`

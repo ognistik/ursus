@@ -20,23 +20,24 @@ This file is the concise handoff for future threads. It should describe the curr
 - Do not rebuild the old AppleScript / Shortcuts bridge into this runtime.
 - Keep the MCP surface explicit and batch-friendly rather than collapsing into one giant action tool.
 - Keep the current layered structure: `BearCore`, `BearDB`, `BearXCallback`, `BearApplication`, `BearMCP`, `BearMCPCLI`.
-- Keep template storage as one real file at `~/.config/bear-mcp/template.md`.
+- Keep template storage as one real file at `~/Library/Application Support/Ursus/template.md`.
 - Trash stays CLI-only for now unless the user explicitly asks to expose it through MCP.
 
 ## Current Product Shape
 
-Phase 1 of the Ursus identity reset is complete:
+Phases 1 and 2 of the Ursus identity reset are complete:
 
 - `Ursus.app` is now the product shell and control center.
 - The bundled local stdio/runtime executable is now `ursus`.
 - The embedded selected-note helper is now `Ursus Helper.app` / `ursus-helper`.
 - MCP `initialize` now reports server name `ursus`.
 - The bridge LaunchAgent label is now `com.aft.ursus`.
+- Config, template, logs, backups, and runtime locks now live under `~/Library/Application Support/Ursus`.
+- Temp fallback runtime locks now live under `TMPDIR/ursus/Runtime/...`.
+- Prerelease support-root and debug-log migration logic has been removed instead of carried forward.
 
 Intentional carry-over until later phases:
 
-- config and template still live under `~/.config/bear-mcp`
-- app support, logs, backups, and runtime locks still live under `~/Library/Application Support/Bear MCP`
 - the public launcher path is still `~/.local/bin/bear-mcp` until Phase 3
 - broader app/UI wording, host snippets, and old Bear MCP documentation cleanup are still pending
 
@@ -46,7 +47,7 @@ Intentional carry-over until later phases:
 
 - Overview, Hosts, Configuration, and Token tabs exist.
 - Configuration edits auto-save with validation.
-- Configuration now also includes inline template editing for `~/.config/bear-mcp/template.md`, with open/reveal actions and pre-save slot validation.
+- Configuration now also includes inline template editing for `~/Library/Application Support/Ursus/template.md`, with open/reveal actions and pre-save slot validation.
 - The app can install or repair the public launcher.
 - The app now also exposes the optional `Remote MCP Bridge` with install, remove, pause, resume, status, copy-URL actions, and an editable saved port control before install.
 - The app still exposes a lot of implementation detail and is ready for simplification.
@@ -77,7 +78,7 @@ Behavior already in place:
 - `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 - `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
-- Bridge config now lives inside `~/.config/bear-mcp/config.json` with default localhost settings and a stable saved port.
+- Bridge config now lives inside `~/Library/Application Support/Ursus/config.json` with default localhost settings and a stable saved port.
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and still targets the stable public launcher path.
 - The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
 - Repeated `initialize` requests against the running stateless bridge are now treated as compatibility handshakes, so hosts can remove and re-add the same MCP URL without reinstalling the bridge.
@@ -97,31 +98,30 @@ The main MCP surface is already broad and usable. Implemented tools include:
 
 ## Current Runtime Paths
 
-These paths describe the codebase as it exists after Phase 1. Identity is partially cut over; storage paths remain for Phase 2:
+These paths describe the codebase as it exists after Phase 2:
 
-- config file: `~/.config/bear-mcp/config.json`
-- template: `~/.config/bear-mcp/template.md`
+- config file: `~/Library/Application Support/Ursus/config.json`
+- template: `~/Library/Application Support/Ursus/template.md`
 - public launcher: `~/.local/bin/bear-mcp`
-- app support root: `~/Library/Application Support/Bear MCP`
+- app support root: `~/Library/Application Support/Ursus`
 - bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.ursus.plist`
-- backups: `~/Library/Application Support/Bear MCP/Backups`
-- runtime lock: `~/Library/Application Support/Bear MCP/Runtime/.server.lock`
-- temp fallback locks: `TMPDIR/bear-mcp/Runtime/...`
-- debug log: `~/Library/Application Support/Bear MCP/Logs/debug.log`
-- bridge stdout log: `~/Library/Application Support/Bear MCP/Logs/bridge.stdout.log`
-- bridge stderr log: `~/Library/Application Support/Bear MCP/Logs/bridge.stderr.log`
-
-Startup now migrates legacy runtime state from `~/Library/Application Support/bear-mcp` and legacy debug logs from `~/Library/Logs/bear-mcp` into the current Bear MCP support root when possible.
+- backups: `~/Library/Application Support/Ursus/Backups`
+- runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
+- temp fallback locks: `TMPDIR/ursus/Runtime/...`
+- debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
+- bridge stdout log: `~/Library/Application Support/Ursus/Logs/bridge.stdout.log`
+- bridge stderr log: `~/Library/Application Support/Ursus/Logs/bridge.stderr.log`
 
 ## Current Technical Truths
 
-- Phase 1 renamed the shipped product/app/helper/server identities but intentionally did not move storage roots yet.
-- Config and template editing are JSON / file based under `~/.config/bear-mcp`.
+- Phases 1 and 2 are complete: shipped identities are cut over and runtime storage is unified under `~/Library/Application Support/Ursus`.
+- Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The selected-note token is currently managed in Bear MCP's config flow, not in Keychain.
 - Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - Batch operations matter and should stay first-class.
+- No prerelease support-root or legacy-log migration path is preserved in startup anymore.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
 
@@ -139,12 +139,11 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 ## Next Implementation Queue
 
-This is the intended order after Phase 1:
+This is the intended order after Phase 2:
 
-1. Phase 2: move config/template/logs/backups/runtime locks into `~/Library/Application Support/Ursus` and remove prerelease migration logic instead of translating it.
-2. Phase 3: rename the public launcher path to `~/.local/bin/ursus` and finish the app/helper/bridge locator wiring around the new product identity.
-3. Phase 4: update host snippets, app copy, CLI wording, and diagnostics to present Ursus consistently.
-4. Phase 5: finish docs/status cleanup and run the identity search gates.
+1. Phase 3: rename the public launcher path to `~/.local/bin/ursus` and finish the app/helper/bridge locator wiring around the new product identity.
+2. Phase 4: update host snippets, app copy, CLI wording, and diagnostics to present Ursus consistently.
+3. Phase 5: finish docs/status cleanup and run the identity search gates.
 
 ## Verification Baseline
 
@@ -156,9 +155,13 @@ Phase 1 verification that already passed:
 - bundled artifacts verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
 - HTTP MCP `initialize` probe returned `serverInfo.name = "ursus"`
 
-For the next implementation slice, the standard verification should include:
+Phase 2 verification that passed on 2026-03-30:
 
 - `swift test`
+- `swift run ursus paths`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- `swift run ursus paths` printed only Ursus-era storage roots plus the intentional Phase 3 survivor `~/.local/bin/bear-mcp`
+- built outputs verified at `.build/BearMCPApp/Build/Products/Debug/Ursus.app`
+- bundled artifacts re-verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

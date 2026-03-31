@@ -28,13 +28,13 @@ Read [PROJECT_STATUS.md](/Users/ognistik/Documents/GitHubRepos/bear-mcp/PROJECT_
 
 ## Current Technical Direction
 
-- Config and templates currently live under `~/.config/bear-mcp`.
+- Config and templates currently live under `~/Library/Application Support/Ursus`.
 - Create-note templates are currently single-file `template.md`, not separate header/footer files.
 - The current read adapter is real and queries the installed Bear database schema.
 - The current write adapter launches Bear URLs and uses best-effort DB polling for mutation receipts.
 - The MCP server should run as a single instance; startup now takes a process lock to prevent stale concurrent servers.
-- Runtime artifacts live under `~/Library/Application Support/Bear MCP`.
-- Temporary debug tracing may be written under `~/Library/Application Support/Bear MCP/Logs/debug.log` while write behavior is being validated.
+- Runtime artifacts live under `~/Library/Application Support/Ursus`.
+- Temporary debug tracing may be written under `~/Library/Application Support/Ursus/Logs/debug.log` while write behavior is being validated.
 
 ## Working Style
 

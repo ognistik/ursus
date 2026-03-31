@@ -8,15 +8,9 @@ public enum BearDebugLog {
         _ message: String,
         fileManager: FileManager = .default,
         logURL: URL = BearPaths.debugLogURL,
-        logsDirectoryURL: URL = BearPaths.logsDirectoryURL,
-        legacyLogsDirectoryURL: URL = BearPaths.legacyLogsDirectoryURL
+        logsDirectoryURL: URL = BearPaths.logsDirectoryURL
     ) {
         do {
-            try migrateLegacyLogsIfNeeded(
-                fileManager: fileManager,
-                logsDirectoryURL: logsDirectoryURL,
-                legacyLogsDirectoryURL: legacyLogsDirectoryURL
-            )
             try fileManager.createDirectory(at: logsDirectoryURL, withIntermediateDirectories: true)
             let timestamp = ISO8601DateFormatter().string(from: Date())
             let line = "[\(timestamp)] \(message)\n"
@@ -79,95 +73,5 @@ public enum BearDebugLog {
 
     private static func archivedLogURL(index: Int, logsDirectoryURL: URL) -> URL {
         logsDirectoryURL.appendingPathComponent("debug.log.\(index)", isDirectory: false)
-    }
-
-    private static func migrateLegacyLogsIfNeeded(
-        fileManager: FileManager,
-        logsDirectoryURL: URL,
-        legacyLogsDirectoryURL: URL
-    ) throws {
-        guard logsDirectoryURL.standardizedFileURL != legacyLogsDirectoryURL.standardizedFileURL else {
-            return
-        }
-
-        guard fileManager.fileExists(atPath: legacyLogsDirectoryURL.path) else {
-            return
-        }
-
-        try fileManager.createDirectory(
-            at: logsDirectoryURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-
-        guard fileManager.fileExists(atPath: logsDirectoryURL.path) else {
-            try fileManager.moveItem(at: legacyLogsDirectoryURL, to: logsDirectoryURL)
-            return
-        }
-
-        let legacyEntries = try fileManager.contentsOfDirectory(
-            at: legacyLogsDirectoryURL,
-            includingPropertiesForKeys: nil
-        )
-
-        for legacyEntry in legacyEntries {
-            let preferredDestinationURL = logsDirectoryURL
-                .appendingPathComponent(legacyEntry.lastPathComponent, isDirectory: false)
-
-            if !fileManager.fileExists(atPath: preferredDestinationURL.path) {
-                try fileManager.moveItem(at: legacyEntry, to: preferredDestinationURL)
-                continue
-            }
-
-            if fileManager.contentsEqual(atPath: legacyEntry.path, andPath: preferredDestinationURL.path) {
-                try fileManager.removeItem(at: legacyEntry)
-                continue
-            }
-
-            let migratedDestinationURL = uniqueLogDestinationURL(
-                for: legacyEntry.lastPathComponent,
-                logsDirectoryURL: logsDirectoryURL,
-                fileManager: fileManager
-            )
-            try fileManager.moveItem(at: legacyEntry, to: migratedDestinationURL)
-        }
-
-        try removeDirectoryIfEmpty(legacyLogsDirectoryURL, fileManager: fileManager)
-    }
-
-    private static func uniqueLogDestinationURL(
-        for fileName: String,
-        logsDirectoryURL: URL,
-        fileManager: FileManager
-    ) -> URL {
-        let fileExtension = URL(fileURLWithPath: fileName).pathExtension
-        let baseName = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
-        var attempt = 1
-
-        while true {
-            let candidateName: String
-            if fileExtension.isEmpty {
-                candidateName = "legacy-\(baseName)-\(attempt)"
-            } else {
-                candidateName = "legacy-\(baseName)-\(attempt).\(fileExtension)"
-            }
-            let candidateURL = logsDirectoryURL.appendingPathComponent(candidateName, isDirectory: false)
-            if !fileManager.fileExists(atPath: candidateURL.path) {
-                return candidateURL
-            }
-            attempt += 1
-        }
-    }
-
-    private static func removeDirectoryIfEmpty(_ directoryURL: URL, fileManager: FileManager) throws {
-        guard fileManager.fileExists(atPath: directoryURL.path) else {
-            return
-        }
-
-        let contents = try fileManager.contentsOfDirectory(atPath: directoryURL.path)
-        guard contents.isEmpty else {
-            return
-        }
-
-        try fileManager.removeItem(at: directoryURL)
     }
 }
