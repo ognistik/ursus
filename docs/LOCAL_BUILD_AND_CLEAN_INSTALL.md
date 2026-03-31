@@ -7,21 +7,18 @@ This document is the practical local build, install, and reset guide for the cur
 From the repo root:
 
 ```sh
-cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 ```
 
 For a Release build:
 
 ```sh
-cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 ```
 
 Useful verification:
 
 ```sh
-cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 swift test
 swift run ursus doctor
 swift run ursus --help
@@ -29,8 +26,8 @@ swift run ursus --help
 
 Current app build outputs:
 
-- Debug: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Ursus.app`
-- Release: `/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Ursus.app`
+- Debug: `./.build/BearMCPApp/Build/Products/Debug/Ursus.app`
+- Release: `./.build/BearMCPApp/Build/Products/Release/Ursus.app`
 
 ## Install The Built App
 
@@ -38,7 +35,7 @@ Example Debug install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+ditto ".build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
 ```
 
@@ -46,7 +43,7 @@ Example Release install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto "/Users/ognistik/Documents/GitHubRepos/bear-mcp/.build/BearMCPApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
+ditto ".build/BearMCPApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
 ```
 
@@ -75,6 +72,7 @@ pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
 rm -rf "/Applications/Ursus.app"
 rm -rf "$HOME/Applications/Ursus.app"
 rm -rf "$HOME/Library/Application Support/Ursus"
+rm -f "$HOME/Library/LaunchAgents/com.aft.ursus.plist"
 rm -f "$HOME/.local/bin/ursus"
 ```
 
@@ -83,12 +81,27 @@ Note:
 - deleting the app bundle alone does not remove Ursus state
 - the selected-note token is currently managed through Ursus's config flow, so there is no separate Keychain reset step in the current product shape
 
+## Optional Prerelease Cleanup
+
+If you are resetting a machine that previously ran the prerelease identity, it is acceptable to remove those old artifacts manually before verifying the current Ursus build:
+
+```sh
+rm -rf "/Applications/Bear MCP.app"
+rm -rf "$HOME/Applications/Bear MCP.app"
+rm -rf "$HOME/Library/Application Support/Bear MCP"
+rm -rf "$HOME/Library/Application Support/bear-mcp"
+rm -rf "$HOME/Library/Logs/bear-mcp"
+rm -f "$HOME/Library/LaunchAgents/com.aft.bear-mcp.plist"
+rm -f "$HOME/.local/bin/bear-mcp"
+```
+
+This is a manual cleanup aid only, not a supported migration path.
+
 ## Reinstall After Reset
 
 One practical copy-paste flow:
 
 ```sh
-cd /Users/ognistik/Documents/GitHubRepos/bear-mcp
 CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 mkdir -p "$HOME/Applications"
 ditto ".build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"

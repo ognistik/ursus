@@ -12,6 +12,8 @@
 - `BearMCPCLI`: executable entrypoint for `mcp`, `bridge`, `doctor`, `paths`, and a small direct-user CLI utility surface.
 - `Ursus.app`: native macOS shell target in `BearMCPApp.xcodeproj` that links `BearApplication` for diagnostics/settings UI, inline `template.md` editing, and optional bridge install/remove/pause/resume/copy actions. Selected-note resolution runs through the embedded helper app instead of an app-host callback path.
 
+Repo-internal container names such as `BearMCPApp.xcodeproj` are still intentional non-shipped survivors for now and are tracked separately from the shipped Ursus identity.
+
 ## Current v1 shape
 
 - Reads come directly from Bear's local SQLite database.

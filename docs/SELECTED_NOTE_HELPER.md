@@ -12,6 +12,7 @@ Most contributors can ignore it unless they are working specifically on selected
 
 - shared callback-host runtime lives in package code
 - `Ursus.app` is the container for the embedded helper
+- the helper bundle is shipped as `Ursus Helper.app` with the `ursushelper://` callback scheme
 - the embedded helper remains a thin shell around the shared callback-host logic
 - the helper is background-only and on-demand
 
@@ -26,7 +27,7 @@ Support/scripts/build-ursus-helper-app.sh
 For release mode:
 
 ```sh
-CONFIGURATION=release Support/scripts/build-ursus-helper-app.sh
+CONFIGURATION=Release Support/scripts/build-ursus-helper-app.sh
 ```
 
 ## When To Care About It

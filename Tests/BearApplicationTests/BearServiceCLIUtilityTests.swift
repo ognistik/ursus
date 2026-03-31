@@ -472,7 +472,7 @@ private func withTemporaryCLIUtilityTemplate<T: Sendable>(_ template: String, op
 
 private func withSharedCLIUtilityTemplateFileLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
     let fileManager = FileManager.default
-    let lockURL = fileManager.temporaryDirectory.appendingPathComponent("bear-mcp-tests-template.lock", isDirectory: true)
+    let lockURL = fileManager.temporaryDirectory.appendingPathComponent("ursus-tests-template.lock", isDirectory: true)
 
     while true {
         do {

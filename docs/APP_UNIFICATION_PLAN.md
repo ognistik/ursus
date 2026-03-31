@@ -35,15 +35,16 @@ These slices are already in place:
 - Host setup snippets now recommend `ursus` consistently for Codex and Claude Desktop, and diagnostics flag legacy `bear` host entries for cleanup.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
 - The CLI direct utility surface now includes `--new-note` override flags for title, tags, tag merge mode, content, and open/window behavior, plus `--apply-template`, `--archive-note`, and `--delete-note`.
+- Current status/build/helper docs are aligned to the shipped Ursus identity, and automated identity-gate tests now protect those current-truth surfaces from drifting back toward prerelease product wording.
 
 ## Current Cleanup Checkpoint
 
-The repo is at a good place to stop and simplify before adding more features.
+The repo is at a good place to simplify before adding more features.
 
-The main problems to address now are:
+The main remaining cleanup themes are:
 
-- docs are too long and too historical
 - the app still shows too much implementation detail in its primary UI
+- repo-internal container names such as `BearMCPApp.xcodeproj` and `App/BearMCPApp` are still intentionally deferred
 
 ## Recommended Order From Here
 
@@ -81,6 +82,18 @@ Current scope is complete:
 - bridge diagnostics now include MCP-health checks and log hints
 - `ursus bridge status` now reports LaunchAgent and health detail
 - app users can edit the port before install and reuse the saved endpoint later, while host overrides stay config-only
+
+### 3. Optional Internal Naming Cleanup
+
+Goal:
+
+- decide whether the deferred repo-internal BearMCP container names are worth a separate higher-churn cleanup pass
+
+Constraints:
+
+- keep shipped/runtime identities unchanged
+- keep `bear_*` MCP tool names unchanged
+- keep package/module/tool/runtime compatibility rules explicit before renaming any internal container
 
 ## Likely Files For The Next Slices
 

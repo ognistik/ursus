@@ -554,7 +554,7 @@ private func withTemporaryMCPNoteTemplate<T: Sendable>(_ template: String?, oper
 
 private func withSharedMCPTemplateFileLock<T: Sendable>(_ operation: @Sendable () async throws -> T) async throws -> T {
     let fileManager = FileManager.default
-    let lockURL = fileManager.temporaryDirectory.appendingPathComponent("bear-mcp-tests-template.lock", isDirectory: true)
+    let lockURL = fileManager.temporaryDirectory.appendingPathComponent("ursus-tests-template.lock", isDirectory: true)
 
     while true {
         do {

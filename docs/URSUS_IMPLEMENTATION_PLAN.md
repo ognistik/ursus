@@ -38,6 +38,7 @@ Status as of 2026-03-30:
 - Phase 2 is complete.
 - Phase 3 is complete.
 - Phase 4 is complete.
+- Phase 5 is complete.
 - Verified with `swift test`.
 - Verified with `swift run ursus paths`.
 - Verified with `swift run ursus --help`.
@@ -47,10 +48,12 @@ Status as of 2026-03-30:
 - Verified built outputs are `Ursus.app`, bundled `ursus`, and embedded `Ursus Helper.app`.
 - Verified MCP `initialize` returns `serverInfo.name = "ursus"` through the built HTTP bridge.
 - Verified `ursus paths` prints only Ursus-era storage roots, including `~/.local/bin/ursus`.
+- Verified current-truth docs were updated to the shipped Ursus identity and now include explicit manual prerelease cleanup guidance.
+- Verified an automated repo identity gate now limits legacy product strings to intentional historical, fixture, and deferred-internal exceptions.
 
 Intentional carry-over to later phases:
 
-- docs cleanup and repo-wide identity search gates are still pending
+- repo-internal container and file naming cleanup is still pending
 
 ## Bear vs Ursus Boundary
 
@@ -326,6 +329,10 @@ Result:
 
 ### Phase 5: Docs, Tests, and Status Alignment
 
+Status:
+
+- completed on 2026-03-30
+
 Goal:
 
 - eliminate drift so future threads inherit the correct product truth
@@ -352,6 +359,12 @@ Verification:
 - `swift test`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - repo-wide search returns only intentional Bear-domain uses
+
+Result:
+
+- `PROJECT_STATUS.md`, `docs/APP_UNIFICATION_PLAN.md`, `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`, and `docs/SELECTED_NOTE_HELPER.md` now reflect the shipped Ursus identity instead of stale prerelease wording.
+- Local reset guidance now includes an explicit manual cleanup section for old prerelease Bear MCP artifacts without reintroducing automatic migration logic.
+- Automated identity-gate coverage now lives in `swift test`, keeping legacy product strings limited to historical implementation-plan references, manual prerelease cleanup examples, explicit legacy-fixture tests, and the intentionally deferred internal container names queued for Phase 6.
 
 ### Phase 6: Internal Container and Repo Naming Cleanup
 
@@ -384,6 +397,8 @@ Verification:
 ## Search Gates
 
 Before closing the work, run focused searches to prove the identity reset is clean.
+
+This repo now also keeps an automated version of these checks in `swift test` so future edits catch accidental identity drift early.
 
 These should be near-zero or intentional-only:
 

@@ -1355,7 +1355,7 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     try """
     [mcp_servers.ursus]
     enabled = true
-    command = "/tmp/old-bear-mcp"
+    command = "/tmp/not-ursus-launcher"
     args = ["mcp"]
     """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
     try "{ invalid json".write(to: claudeConfigURL, atomically: true, encoding: .utf8)
