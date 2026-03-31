@@ -208,7 +208,6 @@ private func makeInsertConfiguration(templateManagementEnabled: Bool) -> BearCon
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

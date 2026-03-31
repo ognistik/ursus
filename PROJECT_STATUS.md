@@ -76,6 +76,7 @@ Behavior already in place:
 - Bare `--new-note` now skips selected-note lookup entirely when no Bear token is configured and falls back directly to configured inbox tags.
 - Explicit `--new-note` mode always skips selected-note lookup, defaults omitted `--tags` to configured inbox tags, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed/background unless `--open-note` is passed.
 - In explicit `--new-note` mode, `--new-window` is a presence flag and is only valid together with `--open-note`.
+- CLI-created empty notes now preserve one empty editable body line inside the templated `{{content}}` slot so the caret lands in the body without breaking template structure.
 - Short aliases now exist for explicit `--new-note` subflags: `-t`, `-c`, `-g`, `-rt`, `-on`, and `-nw`.
 - `--backup-note` captures one durable backup snapshot per selected or explicitly targeted note and prints machine-friendly receipt lines that include both `note_id` and `snapshot_id`.
 - `--restore-note` restores one or more explicit `NOTE_ID SNAPSHOT_ID` pairs, requires exact note ids rather than title selectors, and reports per-pair receipts.
@@ -121,6 +122,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Phases 1 through 6 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, launcher/locator wiring points at `ursus` and `Ursus.app`, repo-internal app containers and product-facing internal types now use Ursus-branded names, and the status/build/helper docs now match that product truth.
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The selected-note token is currently managed in Ursus's config flow, not in Keychain.
+- Opened notes now always request Bear edit mode; that default is no longer user-configurable in config.
 - Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.

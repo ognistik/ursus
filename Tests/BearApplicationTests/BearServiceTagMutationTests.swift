@@ -120,7 +120,6 @@ private func makeTagMutationConfiguration() -> BearConfiguration {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

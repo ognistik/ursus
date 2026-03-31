@@ -57,7 +57,6 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let inboxTags: [String]
     public let defaultInsertPosition: String
     public let templateManagementEnabled: Bool
-    public let openNoteInEditModeByDefault: Bool
     public let createOpensNoteByDefault: Bool
     public let openUsesNewWindowByDefault: Bool
     public let createAddsInboxTagsByDefault: Bool
@@ -148,7 +147,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let bridgePort: Int
     public let defaultInsertPosition: BearConfiguration.InsertDefault
     public let templateManagementEnabled: Bool
-    public let openNoteInEditModeByDefault: Bool
     public let createOpensNoteByDefault: Bool
     public let openUsesNewWindowByDefault: Bool
     public let createAddsInboxTagsByDefault: Bool
@@ -167,7 +165,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         bridgePort: Int,
         defaultInsertPosition: BearConfiguration.InsertDefault,
         templateManagementEnabled: Bool,
-        openNoteInEditModeByDefault: Bool,
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
         createAddsInboxTagsByDefault: Bool,
@@ -185,7 +182,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         self.bridgePort = bridgePort
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
-        self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
         self.createOpensNoteByDefault = createOpensNoteByDefault
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
         self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
@@ -395,7 +391,6 @@ public enum BearAppSupport {
             inboxTags: configuration.inboxTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
             templateManagementEnabled: configuration.templateManagementEnabled,
-            openNoteInEditModeByDefault: configuration.openNoteInEditModeByDefault,
             createOpensNoteByDefault: configuration.createOpensNoteByDefault,
             openUsesNewWindowByDefault: configuration.openUsesNewWindowByDefault,
             createAddsInboxTagsByDefault: configuration.createAddsInboxTagsByDefault,
@@ -590,7 +585,6 @@ public enum BearAppSupport {
             inboxTags: normalizedInboxTags,
             defaultInsertPosition: draft.defaultInsertPosition,
             templateManagementEnabled: draft.templateManagementEnabled,
-            openNoteInEditModeByDefault: draft.openNoteInEditModeByDefault,
             createOpensNoteByDefault: draft.createOpensNoteByDefault,
             openUsesNewWindowByDefault: draft.openUsesNewWindowByDefault,
             createAddsInboxTagsByDefault: draft.createAddsInboxTagsByDefault,

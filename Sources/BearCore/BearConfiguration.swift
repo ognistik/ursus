@@ -24,7 +24,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var inboxTags: [String]
     public var defaultInsertPosition: InsertDefault
     public var templateManagementEnabled: Bool
-    public var openNoteInEditModeByDefault: Bool
     public var createOpensNoteByDefault: Bool
     public var openUsesNewWindowByDefault: Bool
     public var createAddsInboxTagsByDefault: Bool
@@ -43,7 +42,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         inboxTags: [String],
         defaultInsertPosition: InsertDefault,
         templateManagementEnabled: Bool,
-        openNoteInEditModeByDefault: Bool,
         createOpensNoteByDefault: Bool,
         openUsesNewWindowByDefault: Bool,
         createAddsInboxTagsByDefault: Bool,
@@ -61,7 +59,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.inboxTags = inboxTags
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
-        self.openNoteInEditModeByDefault = openNoteInEditModeByDefault
         self.createOpensNoteByDefault = createOpensNoteByDefault
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
         self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
@@ -82,7 +79,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             inboxTags: ["0-inbox"],
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
-            openNoteInEditModeByDefault: true,
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsInboxTagsByDefault: true,
@@ -104,7 +100,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
-            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
@@ -126,7 +121,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
-            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
@@ -148,7 +142,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
-            openNoteInEditModeByDefault: openNoteInEditModeByDefault,
             createOpensNoteByDefault: createOpensNoteByDefault,
             openUsesNewWindowByDefault: openUsesNewWindowByDefault,
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
@@ -173,7 +166,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case inboxTags
         case defaultInsertPosition
         case templateManagementEnabled
-        case openNoteInEditModeByDefault
         case createOpensNoteByDefault
         case openUsesNewWindowByDefault
         case createAddsInboxTagsByDefault
@@ -195,7 +187,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         inboxTags = try container.decodeIfPresent([String].self, forKey: .inboxTags) ?? ["0-inbox"]
         defaultInsertPosition = try container.decodeIfPresent(InsertDefault.self, forKey: .defaultInsertPosition) ?? .bottom
         templateManagementEnabled = try container.decodeIfPresent(Bool.self, forKey: .templateManagementEnabled) ?? true
-        openNoteInEditModeByDefault = try container.decodeIfPresent(Bool.self, forKey: .openNoteInEditModeByDefault) ?? true
         createOpensNoteByDefault = try container.decodeIfPresent(Bool.self, forKey: .createOpensNoteByDefault) ?? true
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
         createAddsInboxTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsInboxTagsByDefault) ?? true
@@ -216,7 +207,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(inboxTags, forKey: .inboxTags)
         try container.encode(defaultInsertPosition, forKey: .defaultInsertPosition)
         try container.encode(templateManagementEnabled, forKey: .templateManagementEnabled)
-        try container.encode(openNoteInEditModeByDefault, forKey: .openNoteInEditModeByDefault)
         try container.encode(createOpensNoteByDefault, forKey: .createOpensNoteByDefault)
         try container.encode(openUsesNewWindowByDefault, forKey: .openUsesNewWindowByDefault)
         try container.encode(createAddsInboxTagsByDefault, forKey: .createAddsInboxTagsByDefault)

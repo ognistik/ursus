@@ -491,7 +491,6 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -578,7 +577,6 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -617,7 +615,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         }
     )
 
-    #expect(snapshot.status == .notConfigured)
+    #expect(snapshot.status == BearDoctorCheckStatus.notConfigured)
     #expect(snapshot.statusTitle == "Paused")
     #expect(snapshot.installed == true)
     #expect(snapshot.loaded == false)
@@ -654,7 +652,6 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -861,7 +858,6 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -933,7 +929,6 @@ func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -1005,7 +1000,6 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
             bridgePort: 6190,
             defaultInsertPosition: .top,
             templateManagementEnabled: false,
-            openNoteInEditModeByDefault: false,
             createOpensNoteByDefault: false,
             openUsesNewWindowByDefault: false,
             createAddsInboxTagsByDefault: false,
@@ -1034,7 +1028,6 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     #expect(configuration.inboxTags == ["0-inbox", "next"])
     #expect(configuration.defaultInsertPosition == .top)
     #expect(configuration.templateManagementEnabled == false)
-    #expect(configuration.openNoteInEditModeByDefault == false)
     #expect(configuration.createOpensNoteByDefault == false)
     #expect(configuration.openUsesNewWindowByDefault == false)
     #expect(configuration.createAddsInboxTagsByDefault == false)
@@ -1063,7 +1056,6 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
@@ -1091,7 +1083,6 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
             bridgePort: 6205,
             defaultInsertPosition: .top,
             templateManagementEnabled: false,
-            openNoteInEditModeByDefault: false,
             createOpensNoteByDefault: false,
             openUsesNewWindowByDefault: false,
             createAddsInboxTagsByDefault: false,
@@ -1142,7 +1133,6 @@ func saveConfigurationDraftUpdatesBridgeHostAndPort() throws {
             bridgePort: 6202,
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
-            openNoteInEditModeByDefault: true,
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsInboxTagsByDefault: true,
@@ -1194,7 +1184,6 @@ func saveConfigurationDraftRejectsInvalidValues() throws {
                 bridgePort: 6190,
                 defaultInsertPosition: .bottom,
                 templateManagementEnabled: true,
-                openNoteInEditModeByDefault: true,
                 createOpensNoteByDefault: true,
                 openUsesNewWindowByDefault: true,
                 createAddsInboxTagsByDefault: true,
@@ -1224,7 +1213,6 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
             bridgePort: 90,
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
-            openNoteInEditModeByDefault: true,
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsInboxTagsByDefault: true,

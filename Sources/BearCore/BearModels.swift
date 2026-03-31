@@ -794,6 +794,7 @@ public struct CreateNoteRequest: Codable, Hashable, Sendable {
     public let content: String
     public let tags: [String]
     public let useOnlyRequestTags: Bool?
+    public let preserveEmptyContentLine: Bool
     public let presentation: BearPresentationOptions
 
     public init(
@@ -801,12 +802,14 @@ public struct CreateNoteRequest: Codable, Hashable, Sendable {
         content: String,
         tags: [String],
         useOnlyRequestTags: Bool? = nil,
+        preserveEmptyContentLine: Bool = false,
         presentation: BearPresentationOptions
     ) {
         self.title = title
         self.content = content
         self.tags = tags
         self.useOnlyRequestTags = useOnlyRequestTags
+        self.preserveEmptyContentLine = preserveEmptyContentLine
         self.presentation = presentation
     }
 }

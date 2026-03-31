@@ -226,9 +226,12 @@ public final class BearService: @unchecked Sendable {
             let tags = mergedCreateTags(request.tags, useOnlyRequestTagsOverride: request.useOnlyRequestTags)
             let sanitizedContent = sanitizedCreateContent(title: title, content: request.content)
             let content = configuration.templateManagementEnabled
-                ? TemplateRenderer.renderDocument(
-                    context: TemplateContext(title: title, content: sanitizedContent, tags: tags),
-                    template: noteTemplate
+                ? renderedCreateContent(
+                    title: title,
+                    sanitizedContent: sanitizedContent,
+                    tags: tags,
+                    template: noteTemplate,
+                    preserveEmptyContentLine: request.preserveEmptyContentLine
                 )
                 : sanitizedContent
 
@@ -241,6 +244,7 @@ public final class BearService: @unchecked Sendable {
                 content: content,
                 tags: tags,
                 useOnlyRequestTags: request.useOnlyRequestTags,
+                preserveEmptyContentLine: request.preserveEmptyContentLine,
                 presentation: request.presentation
             )
             receipts.append(try await writeTransport.create(effective))
@@ -256,6 +260,7 @@ public final class BearService: @unchecked Sendable {
                 content: "",
                 tags: seedTags,
                 useOnlyRequestTags: true,
+                preserveEmptyContentLine: true,
                 presentation: BearPresentationOptions(
                     openNote: true,
                     newWindow: false,
@@ -291,11 +296,12 @@ public final class BearService: @unchecked Sendable {
                 content: content ?? "",
                 tags: effectiveTags,
                 useOnlyRequestTags: true,
+                preserveEmptyContentLine: true,
                 presentation: BearPresentationOptions(
                     openNote: openNote,
                     newWindow: newWindow,
                     showWindow: openNote,
-                    edit: openNote && configuration.openNoteInEditModeByDefault
+                    edit: openNote
                 )
             ),
         ])
@@ -1042,6 +1048,20 @@ public final class BearService: @unchecked Sendable {
         }
 
         return trimmed
+    }
+
+    private func renderedCreateContent(
+        title: String,
+        sanitizedContent: String,
+        tags: [String],
+        template: String?,
+        preserveEmptyContentLine: Bool
+    ) -> String {
+        TemplateRenderer.renderDocument(
+            context: TemplateContext(title: title, content: sanitizedContent, tags: tags),
+            template: template,
+            preserveEmptyContentLine: preserveEmptyContentLine
+        )
     }
 
     private func validateReplaceContentRequest(_ request: ReplaceContentRequest) throws {

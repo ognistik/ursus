@@ -563,7 +563,6 @@ private struct UrsusConfigurationView: View {
 
                             Section("Defaults") {
                                 Toggle("Template management enabled", isOn: autosavingBinding(\.templateManagementEnabledDraft))
-                                Toggle("Open notes in edit mode by default", isOn: autosavingBinding(\.openNoteInEditModeByDefaultDraft))
                                 Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
                                 Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
                                 Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))

@@ -251,7 +251,6 @@ private func makeGetNotesConfiguration(
         inboxTags: inboxTags,
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

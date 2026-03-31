@@ -15,9 +15,14 @@ public struct TemplateContext: Hashable, Sendable {
 public enum TemplateRenderer {
     public static func renderDocument(
         context: TemplateContext,
-        template: String?
+        template: String?,
+        preserveEmptyContentLine: Bool = false
     ) -> String {
-        render(template: template ?? "{{content}}", context: context)
+        if preserveEmptyContentLine && context.content.isEmpty {
+            return renderDocumentPreservingEmptyContentLine(context: context, template: template)
+        }
+
+        return render(template: template ?? "{{content}}", context: context)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -32,5 +37,18 @@ public enum TemplateRenderer {
         tags
             .compactMap(BearTag.render)
             .joined(separator: " ")
+    }
+
+    private static func renderDocumentPreservingEmptyContentLine(
+        context: TemplateContext,
+        template: String?
+    ) -> String {
+        let marker = "__URSUS_EMPTY_CONTENT_\(UUID().uuidString)__"
+        let markedContext = TemplateContext(title: context.title, content: marker, tags: context.tags)
+        let rendered = render(template: template ?? "{{content}}", context: markedContext)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: marker, with: "")
+
+        return rendered.isEmpty ? "\n" : rendered
     }
 }

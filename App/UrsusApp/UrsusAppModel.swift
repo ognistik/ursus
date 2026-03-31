@@ -33,7 +33,6 @@ final class UrsusAppModel: ObservableObject {
     @Published var bridgePortDraft = BearBridgeConfiguration.preferredPort
     @Published var defaultInsertPositionDraft: BearConfiguration.InsertDefault = .bottom
     @Published var templateManagementEnabledDraft = true
-    @Published var openNoteInEditModeByDefaultDraft = true
     @Published var createOpensNoteByDefaultDraft = true
     @Published var openUsesNewWindowByDefaultDraft = true
     @Published var createAddsInboxTagsByDefaultDraft = true
@@ -449,7 +448,6 @@ final class UrsusAppModel: ObservableObject {
             bridgePort: bridgePortDraft,
             defaultInsertPosition: defaultInsertPositionDraft,
             templateManagementEnabled: templateManagementEnabledDraft,
-            openNoteInEditModeByDefault: openNoteInEditModeByDefaultDraft,
             createOpensNoteByDefault: createOpensNoteByDefaultDraft,
             openUsesNewWindowByDefault: openUsesNewWindowByDefaultDraft,
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefaultDraft,
@@ -483,7 +481,6 @@ final class UrsusAppModel: ObservableObject {
         bridgePortDraft = settings.bridge.port
         defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
         templateManagementEnabledDraft = settings.templateManagementEnabled
-        openNoteInEditModeByDefaultDraft = settings.openNoteInEditModeByDefault
         createOpensNoteByDefaultDraft = settings.createOpensNoteByDefault
         openUsesNewWindowByDefaultDraft = settings.openUsesNewWindowByDefault
         createAddsInboxTagsByDefaultDraft = settings.createAddsInboxTagsByDefault

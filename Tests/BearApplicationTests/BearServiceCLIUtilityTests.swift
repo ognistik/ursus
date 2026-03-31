@@ -67,12 +67,41 @@ func createCLINewNoteDoesNotConsultSelectedNoteAndDefaultsToInboxTags() async th
     let request = try #require(await transport.createdRequests.first)
     #expect(request.title == "240328 - 05:05 PM")
     #expect(request.tags == ["0-inbox", "daily"])
+    #expect(request.content == "\n\n#0-inbox #daily")
     #expect(request.useOnlyRequestTags == true)
     #expect(request.presentation.openNote == false)
     #expect(request.presentation.newWindow == false)
     #expect(request.presentation.showWindow == false)
     #expect(request.presentation.edit == false)
     #expect(await transport.selectedNoteResolutionCount == 0)
+}
+
+@Test
+func createCLINewNotePreservesOneEmptyEditableLineWhenBodyAndTagsAreEmpty() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(createAddsInboxTagsByDefault: false),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createCLINewNote(
+            title: "Empty Body",
+            content: nil,
+            tags: [],
+            tagMergeMode: .replace,
+            openNote: true,
+            newWindow: false
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags.isEmpty)
+    #expect(request.content == "\n")
+    #expect(request.presentation.openNote == true)
+    #expect(request.presentation.edit == true)
 }
 
 @Test
@@ -168,6 +197,7 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
 
     let request = try #require(await transport.createdRequests.first)
     #expect(request.tags == ["0-inbox", "daily"])
+    #expect(request.content == "\n\n#0-inbox #daily")
 }
 
 @Test
@@ -312,7 +342,6 @@ func archiveNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
 
 private func makeCLIUtilityConfiguration(
     token: String? = nil,
-    openNoteInEditModeByDefault: Bool = true,
     createOpensNoteByDefault: Bool = true,
     openUsesNewWindowByDefault: Bool = true,
     createAddsInboxTagsByDefault: Bool = true,
@@ -323,7 +352,6 @@ private func makeCLIUtilityConfiguration(
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: openNoteInEditModeByDefault,
         createOpensNoteByDefault: createOpensNoteByDefault,
         openUsesNewWindowByDefault: openUsesNewWindowByDefault,
         createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,

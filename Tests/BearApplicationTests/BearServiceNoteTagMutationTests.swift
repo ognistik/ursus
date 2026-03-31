@@ -824,7 +824,6 @@ private func makeNoteTagConfiguration(
         inboxTags: ["0-inbox"],
         defaultInsertPosition: defaultInsertPosition,
         templateManagementEnabled: templateManagementEnabled,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

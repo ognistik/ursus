@@ -206,7 +206,6 @@ private func makeReplaceContentConfiguration(templateManagementEnabled: Bool) ->
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

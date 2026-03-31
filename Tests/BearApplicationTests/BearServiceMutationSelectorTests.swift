@@ -203,7 +203,6 @@ private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConf
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
-        openNoteInEditModeByDefault: true,
         createOpensNoteByDefault: true,
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,

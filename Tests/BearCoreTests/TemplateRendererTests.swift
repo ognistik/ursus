@@ -34,6 +34,23 @@ func templateRendererWrapsTagsThatContainSpaces() {
 }
 
 @Test
+func templateRendererCanPreserveOneEmptyContentLineWhileTrimmingOuterTemplateWhitespace() {
+    let context = TemplateContext(
+        title: "Test",
+        content: "",
+        tags: []
+    )
+
+    let rendered = TemplateRenderer.renderDocument(
+        context: context,
+        template: "{{content}}\n\n{{tags}}\n",
+        preserveEmptyContentLine: true
+    )
+
+    #expect(rendered == "\n")
+}
+
+@Test
 func bearTextParsesTitleAndBody() {
     let parsed = BearText.parse(rawText: "# Example\n\nBody line", fallbackTitle: "Fallback")
 

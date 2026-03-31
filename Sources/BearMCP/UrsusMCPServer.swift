@@ -139,7 +139,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -158,7 +158,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -177,7 +177,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -195,7 +195,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: configuration.createOpensNoteByDefault,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
                 CreateNoteRequest(
@@ -213,7 +213,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -234,7 +234,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -256,7 +256,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -277,7 +277,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: true,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
@@ -298,7 +298,7 @@ public final class UrsusMCPServer: Sendable {
                 openNote: false,
                 newWindow: configuration.openUsesNewWindowByDefault,
                 showWindow: true,
-                edit: configuration.openNoteInEditModeByDefault
+                edit: true
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
