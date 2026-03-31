@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read [PROJECT_STATUS.md](/Users/ognistik/Documents/GitHubRepos/bear-mcp/PROJECT_STATUS.md) before making substantial changes.
+Read [PROJECT_STATUS.md](./PROJECT_STATUS.md) before making substantial changes.
 
 ## Project Identity
 

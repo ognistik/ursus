@@ -4,7 +4,7 @@ import BearCore
 import Foundation
 
 @MainActor
-final class BearMCPAppModel: ObservableObject {
+final class UrsusAppModel: ObservableObject {
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot(
         currentAppBundleURL: Bundle.main.bundleURL
     )
@@ -419,11 +419,11 @@ final class BearMCPAppModel: ObservableObject {
     }
 
     var currentBundledCLIPath: String? {
-        try? BearMCPCLILocator.bundledExecutableURL(forAppBundleURL: Bundle.main.bundleURL).path
+        try? UrsusCLILocator.bundledExecutableURL(forAppBundleURL: Bundle.main.bundleURL).path
     }
 
     var launcherPath: String {
-        dashboard.settings?.launcherPath ?? BearMCPCLILocator.publicLauncherURL.path
+        dashboard.settings?.launcherPath ?? UrsusCLILocator.publicLauncherURL.path
     }
 
     var templateHasUnsavedChanges: Bool {

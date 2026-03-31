@@ -4,11 +4,11 @@ import Testing
 
 @Test
 func appLocatorGuidanceMarksSystemApplicationsAsPreferred() {
-    #expect(BearMCPAppLocator.preferredAppBundleURL.path == "/Applications/Ursus.app")
-    #expect(BearMCPAppLocator.installGuidance.contains("`/Applications/Ursus.app` (preferred)"))
+    #expect(UrsusAppLocator.preferredAppBundleURL.path == "/Applications/Ursus.app")
+    #expect(UrsusAppLocator.installGuidance.contains("`/Applications/Ursus.app` (preferred)"))
     #expect(
-        BearMCPAppLocator.installationLocationDescription(
-            forAppBundleURL: BearMCPAppLocator.preferredAppBundleURL
+        UrsusAppLocator.installationLocationDescription(
+            forAppBundleURL: UrsusAppLocator.preferredAppBundleURL
         ) == "preferred install location"
     )
 }
@@ -16,19 +16,19 @@ func appLocatorGuidanceMarksSystemApplicationsAsPreferred() {
 @Test
 func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
     #expect(
-        BearMCPAppLocator.installationLocationDescription(
-            forAppBundleURL: BearMCPAppLocator.userSpecificAppBundleURL
+        UrsusAppLocator.installationLocationDescription(
+            forAppBundleURL: UrsusAppLocator.userSpecificAppBundleURL
         ) == "supported user-specific install location"
     )
 }
 
 @Test
 func cliLocatorGuidancePointsHostsAtPublicLauncherPath() {
-    #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/ursus")
+    #expect(UrsusCLILocator.bundledRelativePath == "Contents/Resources/bin/ursus")
     #expect(
-        BearMCPCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/ursus")
+        UrsusCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/ursus")
     )
-    #expect(BearMCPCLILocator.publicLauncherGuidance.contains("Local MCP hosts and Terminal should use that same path"))
+    #expect(UrsusCLILocator.publicLauncherGuidance.contains("Local MCP hosts and Terminal should use that same path"))
 }
 
 @Test
@@ -54,7 +54,7 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
         try? fileManager.removeItem(at: temporaryRoot)
     }
 
-    let receipt = try BearMCPCLILocator.installPublicLauncher(
+    let receipt = try UrsusCLILocator.installPublicLauncher(
         fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
         destinationURL: installedCLIURL
@@ -94,7 +94,7 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
         try? fileManager.removeItem(at: temporaryRoot)
     }
 
-    let receipt = try BearMCPCLILocator.installPublicLauncher(
+    let receipt = try UrsusCLILocator.installPublicLauncher(
         fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
         destinationURL: launcherURL
@@ -105,7 +105,7 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     #expect(fileManager.fileExists(atPath: launcherURL.path))
     #expect(fileManager.isExecutableFile(atPath: launcherURL.path))
     #expect(try String(contentsOf: launcherURL, encoding: .utf8).contains("Ursus launcher"))
-    #expect(!BearMCPCLILocator.hasIndirectFilesystemEntry(at: launcherURL))
+    #expect(!UrsusCLILocator.hasIndirectFilesystemEntry(at: launcherURL))
 }
 
 @Test

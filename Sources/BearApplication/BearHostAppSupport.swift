@@ -44,7 +44,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
 enum BearHostAppSupport {
     static func loadSetups(
         fileManager: FileManager = .default,
-        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) -> [BearHostAppSetupSnapshot] {
         makeResults(
@@ -56,7 +56,7 @@ enum BearHostAppSupport {
 
     static func diagnostics(
         fileManager: FileManager = .default,
-        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
     ) -> [BearDoctorCheck] {
         makeResults(

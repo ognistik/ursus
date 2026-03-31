@@ -26,8 +26,8 @@ swift run ursus --help
 
 Current app build outputs:
 
-- Debug: `./.build/BearMCPApp/Build/Products/Debug/Ursus.app`
-- Release: `./.build/BearMCPApp/Build/Products/Release/Ursus.app`
+- Debug: `./.build/UrsusApp/Build/Products/Debug/Ursus.app`
+- Release: `./.build/UrsusApp/Build/Products/Release/Ursus.app`
 
 ## Install The Built App
 
@@ -35,7 +35,7 @@ Example Debug install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto ".build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
 ```
 
@@ -43,7 +43,7 @@ Example Release install:
 
 ```sh
 mkdir -p "$HOME/Applications"
-ditto ".build/BearMCPApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
+ditto ".build/UrsusApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
 ```
 
@@ -104,7 +104,7 @@ One practical copy-paste flow:
 ```sh
 CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 mkdir -p "$HOME/Applications"
-ditto ".build/BearMCPApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
 ```
 

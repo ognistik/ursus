@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "bear-mcp",
+    name: "ursus",
     platforms: [
         .macOS(.v14),
     ],

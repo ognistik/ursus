@@ -2,27 +2,27 @@ import BearApplication
 import BearCore
 import SwiftUI
 
-struct BearMCPDashboardView: View {
-    @ObservedObject var model: BearMCPAppModel
+struct UrsusDashboardView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
         TabView {
-            BearMCPOverviewView(model: model)
+            UrsusOverviewView(model: model)
                 .tabItem {
                     Label("Overview", systemImage: "rectangle.grid.2x2")
                 }
 
-            BearMCPHostsView(model: model)
+            UrsusHostsView(model: model)
                 .tabItem {
                     Label("Hosts", systemImage: "desktopcomputer")
                 }
 
-            BearMCPConfigurationView(model: model)
+            UrsusConfigurationView(model: model)
                 .tabItem {
                     Label("Configuration", systemImage: "slider.horizontal.3")
                 }
 
-            BearMCPTokenView(model: model)
+            UrsusTokenView(model: model)
                 .tabItem {
                     Label("Token", systemImage: "key")
                 }
@@ -37,8 +37,8 @@ struct BearMCPDashboardView: View {
     }
 }
 
-private struct BearMCPOverviewView: View {
-    @ObservedObject var model: BearMCPAppModel
+private struct UrsusOverviewView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
         ScrollView {
@@ -340,7 +340,7 @@ private struct BearMCPOverviewView: View {
         return "No healthy endpoint detected"
     }
 
-    private func bridgeAutosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<BearMCPAppModel, Value>) -> Binding<Value> {
+    private func bridgeAutosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<UrsusAppModel, Value>) -> Binding<Value> {
         Binding(
             get: { model[keyPath: keyPath] },
             set: { newValue in
@@ -378,8 +378,8 @@ private struct BearMCPOverviewView: View {
     }
 }
 
-private struct BearMCPHostsView: View {
-    @ObservedObject var model: BearMCPAppModel
+private struct UrsusHostsView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
         ScrollView {
@@ -504,16 +504,16 @@ private struct BearMCPHostsView: View {
     }
 }
 
-struct BearMCPSettingsView: View {
-    @ObservedObject var model: BearMCPAppModel
+struct UrsusSettingsView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
-        BearMCPConfigurationView(model: model)
+        UrsusConfigurationView(model: model)
     }
 }
 
-private struct BearMCPConfigurationView: View {
-    @ObservedObject var model: BearMCPAppModel
+private struct UrsusConfigurationView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
         ScrollView {
@@ -764,7 +764,7 @@ private struct BearMCPConfigurationView: View {
         }
     }
 
-    private func autosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<BearMCPAppModel, Value>) -> Binding<Value> {
+    private func autosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<UrsusAppModel, Value>) -> Binding<Value> {
         Binding(
             get: { model[keyPath: keyPath] },
             set: { newValue in
@@ -814,8 +814,8 @@ private struct BearMCPConfigurationView: View {
     }
 }
 
-private struct BearMCPTokenView: View {
-    @ObservedObject var model: BearMCPAppModel
+private struct UrsusTokenView: View {
+    @ObservedObject var model: UrsusAppModel
 
     var body: some View {
         ScrollView {
@@ -965,5 +965,5 @@ private func statusColor(for status: BearDoctorCheckStatus) -> Color {
     }
 }
 #Preview {
-    BearMCPDashboardView(model: BearMCPAppModel())
+    UrsusDashboardView(model: UrsusAppModel())
 }

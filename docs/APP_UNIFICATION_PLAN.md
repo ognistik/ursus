@@ -44,7 +44,7 @@ The repo is at a good place to simplify before adding more features.
 The main remaining cleanup themes are:
 
 - the app still shows too much implementation detail in its primary UI
-- repo-internal container names such as `BearMCPApp.xcodeproj` and `App/BearMCPApp` are still intentionally deferred
+- keep post-Phase-6 naming consistency intact while future work stays focused on UX and bridge behavior
 
 ## Recommended Order From Here
 
@@ -74,7 +74,6 @@ High-level constraints:
 - keep it centered on the stable public launcher path
 - keep it localhost-only by default
 - keep the chosen port stable once selected
-- do not mix this slice with the later product rename
 
 Current scope is complete:
 
@@ -83,25 +82,13 @@ Current scope is complete:
 - `ursus bridge status` now reports LaunchAgent and health detail
 - app users can edit the port before install and reuse the saved endpoint later, while host overrides stay config-only
 
-### 3. Optional Internal Naming Cleanup
-
-Goal:
-
-- decide whether the deferred repo-internal BearMCP container names are worth a separate higher-churn cleanup pass
-
-Constraints:
-
-- keep shipped/runtime identities unchanged
-- keep `bear_*` MCP tool names unchanged
-- keep package/module/tool/runtime compatibility rules explicit before renaming any internal container
-
 ## Likely Files For The Next Slices
 
-- `App/BearMCPApp/BearMCPDashboardView.swift`
-- `App/BearMCPApp/BearMCPAppModel.swift`
+- `App/UrsusApp/UrsusDashboardView.swift`
+- `App/UrsusApp/UrsusAppModel.swift`
 - `Sources/BearApplication/BearAppSupport.swift`
 - `Sources/BearMCPCLI/BearCLICommand.swift`
-- `Sources/BearMCPCLI/BearMCPMain.swift`
+- `Sources/BearMCPCLI/UrsusMain.swift`
 
 ## What Not To Do
 

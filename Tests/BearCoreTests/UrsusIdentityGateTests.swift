@@ -71,7 +71,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             pattern: #"Bear MCP"#,
             allowedRelativePaths: [
                 "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
-                "docs/URSUS_IMPLEMENTATION_PLAN.md",
                 currentTestFile,
             ]
         ),
@@ -84,7 +83,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
                 "Tests/BearApplicationTests/BearRuntimeBootstrapTests.swift",
                 "Tests/BearCoreTests/BearRuntimePathsTests.swift",
                 "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
-                "docs/URSUS_IMPLEMENTATION_PLAN.md",
                 currentTestFile,
             ]
         ),
@@ -92,7 +90,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             label: "legacy helper callback scheme",
             pattern: #"\bbearmcphelper\b"#,
             allowedRelativePaths: [
-                "docs/URSUS_IMPLEMENTATION_PLAN.md",
                 currentTestFile,
             ]
         ),
@@ -109,7 +106,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
                 "Tests/BearApplicationTests/BearRuntimeBootstrapTests.swift",
                 "Tests/BearCoreTests/BearRuntimePathsTests.swift",
                 "docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md",
-                "docs/URSUS_IMPLEMENTATION_PLAN.md",
                 currentTestFile,
             ]
         ),
@@ -119,7 +115,6 @@ private func legacyIdentityGates() throws -> [LegacyIdentityGate] {
             allowedRelativePaths: [
                 "Sources/BearApplication/BearHostAppSupport.swift",
                 "Tests/BearApplicationTests/BearAppSupportTests.swift",
-                "docs/URSUS_IMPLEMENTATION_PLAN.md",
                 currentTestFile,
             ]
         ),

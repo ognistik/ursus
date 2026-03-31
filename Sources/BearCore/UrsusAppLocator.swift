@@ -1,6 +1,6 @@
 import Foundation
 
-public enum BearMCPAppLocator {
+public enum UrsusAppLocator {
     public static let appName = "Ursus.app"
     public static let preferredInstallDirectoryPath = "/Applications"
 

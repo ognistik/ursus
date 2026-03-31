@@ -17,8 +17,8 @@ case "$RAW_CONFIGURATION" in
     ;;
 esac
 
-DERIVED_DATA_DIR="$ROOT_DIR/.build/BearMCPApp"
-PROJECT_PATH="$ROOT_DIR/BearMCPApp.xcodeproj"
+DERIVED_DATA_DIR="$ROOT_DIR/.build/UrsusApp"
+PROJECT_PATH="$ROOT_DIR/UrsusApp.xcodeproj"
 SCHEME_NAME="Ursus"
 
 SWIFT_BUILD_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lower:]')"

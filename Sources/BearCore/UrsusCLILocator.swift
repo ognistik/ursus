@@ -11,7 +11,7 @@ public struct BearPublicCLILauncherInstallReceipt: Codable, Hashable, Sendable {
     }
 }
 
-public enum BearMCPCLILocator {
+public enum UrsusCLILocator {
     public static let executableName = "ursus"
     public static let bundledRelativePath = "Contents/Resources/bin/\(executableName)"
 
@@ -20,11 +20,11 @@ public enum BearMCPCLILocator {
     }
 
     public static var publicLauncherGuidance: String {
-        "Use `\(BearMCPAppLocator.appName)` to install or repair the public launcher at `\(publicLauncherURL.path)`. Local MCP hosts and Terminal should use that same path."
+        "Use `\(UrsusAppLocator.appName)` to install or repair the public launcher at `\(publicLauncherURL.path)`. Local MCP hosts and Terminal should use that same path."
     }
 
     public static var bundledExecutableGuidance: String {
-        "Build or reinstall `\(BearMCPAppLocator.appName)` so it contains `\(bundledRelativePath)`."
+        "Build or reinstall `\(UrsusAppLocator.appName)` so it contains `\(bundledRelativePath)`."
     }
 
     public static func bundledExecutableURL(
@@ -170,8 +170,8 @@ public enum BearMCPCLILocator {
     ) -> [String] {
         var paths = [shellSingleQuoted(primaryBundledCLIURL.path)]
         let fallbackBundleURLs = [
-            BearMCPAppLocator.preferredAppBundleURL,
-            BearMCPAppLocator.userSpecificAppBundleURL,
+            UrsusAppLocator.preferredAppBundleURL,
+            UrsusAppLocator.userSpecificAppBundleURL,
         ]
 
         for bundleURL in fallbackBundleURLs where bundleURL.standardizedFileURL.path != primaryAppBundleURL.standardizedFileURL.path {
@@ -184,7 +184,7 @@ public enum BearMCPCLILocator {
             paths.append(shellSingleQuoted(bundledCLIPath))
         }
 
-        let homeRelativePath = "Applications/\(BearMCPAppLocator.appName)/Contents/Resources/bin/\(executableName)"
+        let homeRelativePath = "Applications/\(UrsusAppLocator.appName)/Contents/Resources/bin/\(executableName)"
         let homeCandidate = "\"$HOME/\(homeRelativePath)\""
         if !paths.contains(homeCandidate) {
             paths.append(homeCandidate)

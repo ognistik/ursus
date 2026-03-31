@@ -27,7 +27,7 @@ enum BearSelectedNoteHelperRunner {
 
     static func resolveSelectedNoteID(
         appBundleURL: URL,
-        appName: String = BearMCPAppLocator.appName,
+        appName: String = UrsusAppLocator.appName,
         bearURL: URL,
         timeout: Duration,
         terminateRunningInstancesBeforeLaunch: Bool = false

@@ -83,7 +83,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
 
     let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
     #expect(bundledCLIDiagnostic.status == BearDoctorCheckStatus.missing)
-    #expect(bundledCLIDiagnostic.detail == BearMCPCLILocator.bundledExecutableGuidance)
+    #expect(bundledCLIDiagnostic.detail == UrsusCLILocator.bundledExecutableGuidance)
 
     let launcherDiagnostic = try #require(diagnostic(named: "public-cli-launcher", in: dashboard.diagnostics))
     #expect(launcherDiagnostic.status == BearDoctorCheckStatus.missing)
@@ -127,7 +127,7 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
     try "#!/bin/sh\nexit 0\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
-    _ = try BearMCPCLILocator.installPublicLauncher(
+    _ = try UrsusCLILocator.installPublicLauncher(
         fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
         destinationURL: launcherURL
@@ -425,7 +425,7 @@ func reconcilePublicLauncherReturnsUnchangedWhenLauncherMatchesBundle() throws {
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
-    _ = try BearMCPCLILocator.installPublicLauncher(
+    _ = try UrsusCLILocator.installPublicLauncher(
         fromAppBundleURL: appBundleURL,
         fileManager: fileManager,
         destinationURL: launcherURL
@@ -484,6 +484,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
     try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    let bridgePort = try availableLoopbackPort()
 
     let initialConfiguration = BearConfiguration(
         databasePath: "/tmp/original.sqlite",
@@ -500,7 +501,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
         backupRetentionDays: 30,
-        bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205)
+        bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: bridgePort)
     )
     try BearJSON.makeEncoder().encode(initialConfiguration).write(to: configFileURL, options: .atomic)
     defer {
@@ -532,7 +533,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let writtenPlist = try BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL)
 
     #expect(receipt.status == .installed)
-    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205))
+    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: bridgePort))
     #expect(writtenPlist == BearBridgeLaunchAgent.expectedPlist(
         launcherURL: launcherURL,
         standardOutputURL: stdoutURL,
@@ -1854,4 +1855,40 @@ private final class AppHostCallbackRecorder: @unchecked Sendable {
             terminatedCount: terminatedCount
         )
     }
+}
+
+private func availableLoopbackPort() throws -> Int {
+    let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+    guard descriptor >= 0 else {
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+    defer { close(descriptor) }
+
+    var address = sockaddr_in()
+    address.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
+    address.sin_family = sa_family_t(AF_INET)
+    address.sin_port = in_port_t(0).bigEndian
+    address.sin_addr = in_addr(s_addr: inet_addr("127.0.0.1"))
+
+    let bindResult = withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.stride))
+        }
+    }
+    guard bindResult == 0 else {
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
+    var boundAddress = sockaddr_in()
+    var length = socklen_t(MemoryLayout<sockaddr_in>.stride)
+    let nameResult = withUnsafeMutablePointer(to: &boundAddress) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            getsockname(descriptor, $0, &length)
+        }
+    }
+    guard nameResult == 0 else {
+        throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+    }
+
+    return Int(UInt16(bigEndian: boundAddress.sin_port))
 }

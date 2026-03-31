@@ -18,7 +18,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
         urlOpener: (@Sendable (URL) async throws -> Void)? = nil,
         selectedNoteResolveTimeout: Duration = .seconds(4),
         selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil,
-        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { BearMCPAppLocator.installedAppBundleURL() != nil },
+        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { UrsusAppLocator.installedAppBundleURL() != nil },
         helperInstalledProvider: @escaping @Sendable () -> Bool = { BearSelectedNoteHelperLocator.installedAppBundleURL() != nil }
     ) {
         self.builder = builder
@@ -42,7 +42,7 @@ public actor BearXCallbackTransport: BearWriteTransport {
         urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void,
         selectedNoteResolveTimeout: Duration = .seconds(4),
         selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil,
-        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { BearMCPAppLocator.installedAppBundleURL() != nil },
+        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { UrsusAppLocator.installedAppBundleURL() != nil },
         helperInstalledProvider: @escaping @Sendable () -> Bool = { BearSelectedNoteHelperLocator.installedAppBundleURL() != nil }
     ) {
         self.builder = builder

@@ -18,7 +18,7 @@
                BlueprintIdentifier = "BEA0000A2F00000100000008"
                BuildableName = "Ursus.app"
                BlueprintName = "Ursus"
-               ReferencedContainer = "container:BearMCPApp.xcodeproj">
+               ReferencedContainer = "container:UrsusApp.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -48,7 +48,7 @@
             BlueprintIdentifier = "BEA0000A2F00000100000008"
             BuildableName = "Ursus.app"
             BlueprintName = "Ursus"
-            ReferencedContainer = "container:BearMCPApp.xcodeproj">
+            ReferencedContainer = "container:UrsusApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -65,7 +65,7 @@
             BlueprintIdentifier = "BEA0000A2F00000100000008"
             BuildableName = "Ursus.app"
             BlueprintName = "Ursus"
-            ReferencedContainer = "container:BearMCPApp.xcodeproj">
+            ReferencedContainer = "container:UrsusApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

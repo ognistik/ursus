@@ -15,9 +15,9 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BEA0000A2F00000100000004 /* BearMCPApp */ = {
+		BEA0000A2F00000100000004 /* UrsusApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = App/BearMCPApp;
+			path = App/UrsusApp;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -37,7 +37,7 @@
 		BEA0000A2F00000100000006 = {
 			isa = PBXGroup;
 			children = (
-				BEA0000A2F00000100000004 /* BearMCPApp */,
+				BEA0000A2F00000100000004 /* UrsusApp */,
 				BEA0000A2F00000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,7 +66,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				BEA0000A2F00000100000004 /* BearMCPApp */,
+				BEA0000A2F00000100000004 /* UrsusApp */,
 			);
 			name = Ursus;
 			packageProductDependencies = (
@@ -91,7 +91,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BEA0000A2F0000010000000D /* Build configuration list for PBXProject "BearMCPApp" */;
+			buildConfigurationList = BEA0000A2F0000010000000D /* Build configuration list for PBXProject "UrsusApp" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -219,7 +219,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BEA0000A2F0000010000000D /* Build configuration list for PBXProject "BearMCPApp" */ = {
+		BEA0000A2F0000010000000D /* Build configuration list for PBXProject "UrsusApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BEA0000A2F0000010000000F /* Debug */,

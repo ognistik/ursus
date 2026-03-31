@@ -3,26 +3,26 @@ import BearApplication
 import SwiftUI
 
 @main
-struct BearMCPApp: App {
-    @NSApplicationDelegateAdaptor(BearMCPAppDelegate.self) private var appDelegate
-    @StateObject private var model = BearMCPAppModel()
+struct UrsusApp: App {
+    @NSApplicationDelegateAdaptor(UrsusAppDelegate.self) private var appDelegate
+    @StateObject private var model = UrsusAppModel()
 
     var body: some Scene {
         WindowGroup {
-            BearMCPDashboardView(model: model)
+            UrsusDashboardView(model: model)
                 .frame(minWidth: 860, minHeight: 620)
         }
         .defaultSize(width: 980, height: 720)
 
         Settings {
-            BearMCPSettingsView(model: model)
+            UrsusSettingsView(model: model)
                 .frame(minWidth: 560, minHeight: 520)
         }
     }
 }
 
 @MainActor
-final class BearMCPAppDelegate: NSObject, NSApplicationDelegate {
+final class UrsusAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
     }

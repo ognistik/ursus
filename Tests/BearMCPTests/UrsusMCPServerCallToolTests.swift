@@ -50,7 +50,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
-        logger: Logger(label: "BearMCPServerCallToolTests")
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
     let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
@@ -58,7 +58,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -141,7 +141,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
-        logger: Logger(label: "BearMCPServerCallToolTests")
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
     let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
@@ -149,7 +149,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -234,7 +234,7 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
-        logger: Logger(label: "BearMCPServerCallToolTests")
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
     let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
@@ -242,7 +242,7 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -328,7 +328,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
-        logger: Logger(label: "BearMCPServerCallToolTests")
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
     let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
@@ -336,7 +336,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -414,7 +414,7 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
         configuration: configuration,
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
-        logger: Logger(label: "BearMCPServerCallToolTests")
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
     let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
@@ -422,7 +422,7 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await BearMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {

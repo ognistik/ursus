@@ -3,7 +3,7 @@ import BearCore
 import Foundation
 import MCP
 
-public final class BearMCPServer: Sendable {
+public final class UrsusMCPServer: Sendable {
     private let service: BearService
     private let configuration: BearConfiguration
     private let selectedNoteTokenConfigured: Bool

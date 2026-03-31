@@ -180,7 +180,7 @@ public extension BearAppSupport {
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
         endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe,
-        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL
     ) throws -> BearBridgeLaunchAgentInstallReceipt {
         _ = try reconcilePublicLauncherIfNeeded(
             fromAppBundleURL: appBundleURL,

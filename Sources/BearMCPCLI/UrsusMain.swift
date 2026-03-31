@@ -9,7 +9,7 @@ import Logging
 import MCP
 
 @main
-struct BearMCPMain {
+struct UrsusMain {
     static func main() async {
         LoggingSystem.bootstrap(StreamLogHandler.standardError)
         let logger = Logger(label: "ursus")
@@ -96,7 +96,7 @@ struct BearMCPMain {
         let configuration = runtime.configuration
         let service = runtime.service
 
-        let server = await BearMCPServer(
+        let server = await UrsusMCPServer(
             service: service,
             configuration: configuration,
             selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: configuration)
@@ -130,7 +130,7 @@ struct BearMCPMain {
                 endpoint: bridge.endpointPath
             ),
             serverFactory: {
-                await BearMCPServer(
+                await UrsusMCPServer(
                     service: runtime.service,
                     configuration: runtime.configuration,
                     selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: runtime.configuration)

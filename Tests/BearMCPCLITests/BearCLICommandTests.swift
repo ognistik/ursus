@@ -102,7 +102,7 @@ func parseNewNoteRejectsInvalidBooleanValues() throws {
 
 @Test
 func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
-    let rendered = BearMCPMain.renderBridgeStatus(
+    let rendered = UrsusMain.renderBridgeStatus(
         BearAppBridgeSnapshot(
             enabled: true,
             host: "127.0.0.1",

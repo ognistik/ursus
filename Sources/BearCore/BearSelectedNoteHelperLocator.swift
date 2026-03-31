@@ -7,8 +7,8 @@ public enum BearSelectedNoteHelperLocator {
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
         installedAppBundleURL(
             fileManager: fileManager,
-            preferredAppBundleURL: BearMCPAppLocator.preferredAppBundleURL,
-            userSpecificAppBundleURL: BearMCPAppLocator.userSpecificAppBundleURL
+            preferredAppBundleURL: UrsusAppLocator.preferredAppBundleURL,
+            userSpecificAppBundleURL: UrsusAppLocator.userSpecificAppBundleURL
         )
     }
 
@@ -31,7 +31,7 @@ public enum BearSelectedNoteHelperLocator {
     }
 
     public static var installGuidance: String {
-        "install or reinstall `\(BearMCPAppLocator.appName)` so it contains the embedded selected-note helper. `\(BearMCPAppLocator.preferredAppBundleURL.path)` is preferred, and `\(BearMCPAppLocator.userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
+        "install or reinstall `\(UrsusAppLocator.appName)` so it contains the embedded selected-note helper. `\(UrsusAppLocator.preferredAppBundleURL.path)` is preferred, and `\(UrsusAppLocator.userSpecificAppBundleURL.path)` is also fully supported for user-specific installs."
     }
 
     public static func installationLocationDescription(forAppBundleURL bundleURL: URL) -> String {
@@ -50,7 +50,7 @@ public enum BearSelectedNoteHelperLocator {
     ) throws -> URL {
         guard let bundleURL = installedAppBundleURL(fileManager: fileManager) else {
             throw BearError.configuration(
-                "Selected-note targeting requires the embedded selected-note helper inside `\(BearMCPAppLocator.appName)`. \(installGuidance)"
+                "Selected-note targeting requires the embedded selected-note helper inside `\(UrsusAppLocator.appName)`. \(installGuidance)"
             )
         }
 

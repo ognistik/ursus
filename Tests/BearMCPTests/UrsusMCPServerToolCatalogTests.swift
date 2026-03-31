@@ -23,7 +23,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         token: "secret-token"
     )
 
-    let tools = BearMCPServer.toolCatalog(configuration: configuration)
+    let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
     let createDescription = try #require(create.description)
@@ -132,7 +132,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
         token: nil
     )
 
-    let tools = BearMCPServer.toolCatalog(configuration: configuration)
+    let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
     #expect(propertyDescription(named: "limit", in: find)?.contains("Omitted uses `11`") == true)
@@ -172,7 +172,7 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
         token: nil
     )
 
-    let tools = BearMCPServer.toolCatalog(
+    let tools = UrsusMCPServer.toolCatalog(
         configuration: configuration,
         selectedNoteTokenConfigured: true
     )
@@ -186,7 +186,7 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
 func toolCatalogOmitsDisabledToolsFromConfiguration() {
     let configuration = BearConfiguration.default.updatingDisabledTools([.addTags, .deleteTags, .findNotes])
 
-    let tools = BearMCPServer.toolCatalog(configuration: configuration)
+    let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
 
     #expect(tool(named: "bear_add_tags", in: tools) == nil)
     #expect(tool(named: "bear_delete_tags", in: tools) == nil)

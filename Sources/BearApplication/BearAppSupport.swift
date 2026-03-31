@@ -274,14 +274,14 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
-        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         bridgeStandardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
-        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
-        callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
-        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = UrsusAppLocator.installedAppBundleURL,
+        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
@@ -347,7 +347,7 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
-        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         bridgeStandardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
@@ -462,9 +462,9 @@ public enum BearAppSupport {
     public static func installPublicLauncher(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
-        destinationURL: URL = BearMCPCLILocator.publicLauncherURL
+        destinationURL: URL = UrsusCLILocator.publicLauncherURL
     ) throws -> BearPublicCLILauncherInstallReceipt {
-        try BearMCPCLILocator.installPublicLauncher(
+        try UrsusCLILocator.installPublicLauncher(
             fromAppBundleURL: appBundleURL,
             fileManager: fileManager,
             destinationURL: destinationURL
@@ -475,8 +475,8 @@ public enum BearAppSupport {
     public static func reconcilePublicLauncherIfNeeded(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
-        destinationURL: URL = BearMCPCLILocator.publicLauncherURL,
-        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
+        destinationURL: URL = UrsusCLILocator.publicLauncherURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL
     ) throws -> BearAppPublicLauncherReconciliationResult {
         do {
             _ = try bundledCLIExecutableURLResolver(appBundleURL, fileManager)
@@ -503,7 +503,7 @@ public enum BearAppSupport {
 
         let launcherScript: String
         do {
-            launcherScript = try BearMCPCLILocator.launcherScript(
+            launcherScript = try UrsusCLILocator.launcherScript(
                 forAppBundleURL: appBundleURL,
                 fileManager: fileManager
             )
@@ -513,7 +513,7 @@ public enum BearAppSupport {
 
         let contentsMatch: Bool
         do {
-            contentsMatch = try BearMCPCLILocator.launcherMatches(
+            contentsMatch = try UrsusCLILocator.launcherMatches(
                 expectedScript: launcherScript,
                 destinationURL: destinationURL,
             )
@@ -835,11 +835,11 @@ public enum BearAppSupport {
         configuration: BearAppSettingsSnapshot? = nil,
         configLoadError: String? = nil,
         currentAppBundleURL: URL? = nil,
-        launcherURL: URL = BearMCPCLILocator.publicLauncherURL,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
-        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL,
-        callbackAppBundleURLProvider: (FileManager) -> URL? = BearMCPAppLocator.installedAppBundleURL,
-        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPAppLocator.executableURL,
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = UrsusAppLocator.installedAppBundleURL,
+        callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusAppLocator.executableURL,
         helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL
     ) -> [BearDoctorCheck] {
@@ -917,7 +917,7 @@ public enum BearAppSupport {
                     key: "bundled-cli",
                     value: "not detected",
                     status: .missing,
-                    detail: BearMCPCLILocator.bundledExecutableGuidance
+                    detail: UrsusCLILocator.bundledExecutableGuidance
                 )
             )
         }
@@ -976,7 +976,7 @@ public enum BearAppSupport {
                             key: "selected-note-app",
                             value: callbackAppBundleURL.path,
                             status: .ok,
-                            detail: "\(BearMCPAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); embedded selected-note helper host app -> \(executableURL.path)"
+                            detail: "\(UrsusAppLocator.installationLocationDescription(forAppBundleURL: callbackAppBundleURL)); embedded selected-note helper host app -> \(executableURL.path)"
                         )
                     )
                 } catch {
@@ -995,7 +995,7 @@ public enum BearAppSupport {
                         key: "selected-note-app",
                         value: "not detected",
                         status: .missing,
-                        detail: BearMCPAppLocator.installGuidance
+                        detail: UrsusAppLocator.installGuidance
                     )
                 )
             }
@@ -1089,7 +1089,7 @@ public enum BearAppSupport {
         fileManager: FileManager,
         launcherURL: URL,
         currentAppBundleURL: URL?,
-        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = BearMCPCLILocator.bundledExecutableURL
+        bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL
     ) -> (status: BearDoctorCheckStatus, title: String, detail: String) {
         let launcherPath = launcherURL.path
 
@@ -1119,11 +1119,11 @@ public enum BearAppSupport {
 
         do {
             _ = try bundledCLIExecutableURLResolver(currentAppBundleURL, fileManager)
-            let expectedLauncherScript = try BearMCPCLILocator.launcherScript(
+            let expectedLauncherScript = try UrsusCLILocator.launcherScript(
                 forAppBundleURL: currentAppBundleURL,
                 fileManager: fileManager
             )
-            guard try BearMCPCLILocator.launcherMatches(
+            guard try UrsusCLILocator.launcherMatches(
                 expectedScript: expectedLauncherScript,
                 destinationURL: launcherURL
             ) else {
