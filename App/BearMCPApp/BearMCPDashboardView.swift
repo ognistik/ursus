@@ -80,7 +80,7 @@ private struct BearMCPOverviewView: View {
                 Text("If you connect Bear MCP to Codex, Claude, or another local MCP app, use the one public launcher below. That same path also works from Terminal.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-                Text("Bear MCP keeps this launcher aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
+                Text("Ursus keeps this launcher aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
@@ -114,7 +114,7 @@ private struct BearMCPOverviewView: View {
                 }
 
                 if model.currentBundledCLIPath != nil {
-                    Text("This app installs one launcher at `~/.local/bin/bear-mcp` and routes it to the bundled `bear-mcp` binary inside the current app.")
+                    Text("This app installs one launcher at `~/.local/bin/ursus` and routes it to the bundled `ursus` binary inside the current app.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {

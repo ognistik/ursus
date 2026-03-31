@@ -65,7 +65,7 @@ public enum BearRuntimeBootstrap {
         let snapshot = BearAppSupport.loadDashboardSnapshot()
         let lines = snapshot.diagnostics.map(\.renderedLine)
 
-        logger.info("Generated bear-mcp doctor report.")
+        logger.info("Generated ursus doctor report.")
         return lines.joined(separator: "\n")
     }
 

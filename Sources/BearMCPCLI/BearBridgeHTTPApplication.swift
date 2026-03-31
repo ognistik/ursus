@@ -79,7 +79,7 @@ actor BearBridgeHTTPApplication {
                 .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
                 .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 1)
 
-            logger.info("Starting Bear MCP bridge at http://\(configuration.host):\(configuration.port)\(configuration.endpoint)")
+            logger.info("Starting Ursus bridge at http://\(configuration.host):\(configuration.port)\(configuration.endpoint)")
 
             let channel = try await bootstrap.bind(host: configuration.host, port: configuration.port).get()
             self.channel = channel
@@ -99,7 +99,7 @@ actor BearBridgeHTTPApplication {
             self.channel = nil
         }
         await teardown()
-        logger.info("Bear MCP bridge stopped")
+        logger.info("Ursus bridge stopped")
     }
 
     func handleHTTPRequest(_ request: HTTPRequest) async -> HTTPResponse {
@@ -129,7 +129,7 @@ actor BearBridgeHTTPApplication {
         guard let transport else {
             return .error(
                 statusCode: 503,
-                .internalError("Bear MCP bridge transport is not ready yet")
+                .internalError("Ursus bridge transport is not ready yet")
             )
         }
 

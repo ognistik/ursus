@@ -1,4 +1,4 @@
-# Bear MCP App Unification Plan
+# Ursus App Unification Plan
 
 This document is now a short live roadmap. Historical phase-by-phase detail was intentionally removed so future threads can load one current plan instead of re-reading superseded implementation history.
 
@@ -18,7 +18,7 @@ That means:
 - Keep the current package layers.
 - Keep reads in SQLite and writes through Bear x-callback URLs.
 - Keep config and the single-file template under `~/Library/Application Support/Ursus`.
-- Keep the public launcher path at `~/.local/bin/bear-mcp`.
+- Keep the public launcher path at `~/.local/bin/ursus`.
 - Keep trash CLI-only for now.
 - Do not bring back the old AppleScript / Shortcuts bridge.
 - Do not redesign template storage into header/footer files.
@@ -31,6 +31,7 @@ These slices are already in place:
 - The app can manage configuration, token state, launcher repair, and the live `template.md` file.
 - The app can also manage the optional localhost HTTP bridge, including a saved port setting, LaunchAgent lifecycle, status, and copyable MCP URL output.
 - The app embeds the CLI and can install / repair the public launcher.
+- The public launcher now lives at `~/.local/bin/ursus`.
 - Selected-note resolution prefers the installed app path and preserves the response-file contract.
 - The CLI direct utility surface now includes `--new-note` override flags for title, tags, tag merge mode, content, and open/window behavior, plus `--apply-template`, `--archive-note`, and `--delete-note`.
 

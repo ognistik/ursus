@@ -12,7 +12,7 @@ func runtimeArtifactsUseLibraryLocations() {
     #expect(BearPaths.backupsDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus/Backups"))
     #expect(BearPaths.backupsIndexURL.path.hasSuffix("/Library/Application Support/Ursus/Backups/index.json"))
     #expect(BearPaths.publicCLIDirectoryURL.path.hasSuffix("/.local/bin"))
-    #expect(BearPaths.publicCLIExecutableURL.path.hasSuffix("/.local/bin/bear-mcp"))
+    #expect(BearPaths.publicCLIExecutableURL.path.hasSuffix("/.local/bin/ursus"))
     #expect(BearPaths.processLockURL.path.hasSuffix("/Library/Application Support/Ursus/Runtime/.server.lock"))
     #expect(BearPaths.fallbackProcessLockURL.path.hasSuffix("/ursus/Runtime/.server.lock"))
     #expect(BearPaths.processSpecificFallbackLockURL(processID: 123).path.hasSuffix("/ursus/Runtime/locks/123.server.lock"))

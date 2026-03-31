@@ -108,7 +108,7 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
             host: "127.0.0.1",
             port: 6190,
             endpointURL: "http://127.0.0.1:6190/mcp",
-            launcherPath: "/tmp/bear-mcp",
+            launcherPath: "/tmp/ursus",
             launchAgentLabel: "com.aft.ursus",
             plistPath: "/tmp/com.aft.ursus.plist",
             standardOutputLogPath: "/tmp/bridge.stdout.log",

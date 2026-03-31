@@ -240,7 +240,7 @@ public extension BearAppSupport {
         try runLaunchctl(
             ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
             launchctlRunner: launchctlRunner,
-            failureMessage: "Failed to start the Bear MCP bridge LaunchAgent."
+            failureMessage: "Failed to start the Ursus bridge LaunchAgent."
         )
         try waitForBridgeEndpoint(
             host: validatedBridge.host,
@@ -324,7 +324,7 @@ public extension BearAppSupport {
         let bridge = try configuration.bridge.validated()
 
         guard fileManager.fileExists(atPath: launchAgentPlistURL.path) else {
-            throw BearError.configuration("Install the Bear MCP bridge before trying to pause it.")
+            throw BearError.configuration("Install the Ursus bridge before trying to pause it.")
         }
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
@@ -363,11 +363,11 @@ public extension BearAppSupport {
         let bridge = try configuration.bridge.validated()
 
         guard bridge.enabled else {
-            throw BearError.configuration("Install the Bear MCP bridge before trying to resume it.")
+            throw BearError.configuration("Install the Ursus bridge before trying to resume it.")
         }
 
         guard fileManager.fileExists(atPath: launchAgentPlistURL.path) else {
-            throw BearError.configuration("The Bear MCP bridge LaunchAgent is not installed. Install it again from the app.")
+            throw BearError.configuration("The Ursus bridge LaunchAgent is not installed. Install it again from the app.")
         }
 
         let expectedPlist = BearBridgeLaunchAgent.expectedPlist(
@@ -376,7 +376,7 @@ public extension BearAppSupport {
             standardErrorURL: standardErrorURL
         )
         guard try BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL) == expectedPlist else {
-            throw BearError.configuration("The Bear MCP bridge LaunchAgent needs repair before it can be resumed.")
+            throw BearError.configuration("The Ursus bridge LaunchAgent needs repair before it can be resumed.")
         }
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
@@ -385,7 +385,7 @@ public extension BearAppSupport {
             try runLaunchctl(
                 ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
                 launchctlRunner: launchctlRunner,
-                failureMessage: "Failed to resume the Bear MCP bridge LaunchAgent."
+                failureMessage: "Failed to resume the Ursus bridge LaunchAgent."
             )
             try waitForBridgeEndpoint(
                 host: bridge.host,
@@ -566,7 +566,7 @@ private extension BearAppSupport {
         }
 
         throw BearError.configuration(
-            "Failed to stop the Bear MCP bridge LaunchAgent. \(launchctlMessage(from: result))"
+            "Failed to stop the Ursus bridge LaunchAgent. \(launchctlMessage(from: result))"
         )
     }
 
@@ -582,7 +582,7 @@ private extension BearAppSupport {
         }
 
         throw BearError.configuration(
-            "Failed to inspect the Bear MCP bridge LaunchAgent. \(launchctlMessage(from: result))"
+            "Failed to inspect the Ursus bridge LaunchAgent. \(launchctlMessage(from: result))"
         )
     }
 
@@ -632,7 +632,7 @@ private extension BearAppSupport {
 
         let detail = lastProbe.detail.map { " \($0)" } ?? ""
         throw BearError.configuration(
-            "The Bear MCP bridge LaunchAgent was started, but \(endpointURL) did not become MCP-ready within \(Int(timeout.rounded())) seconds.\(detail) Check \(standardErrorURL.path) for bridge startup errors."
+            "The Ursus bridge LaunchAgent was started, but \(endpointURL) did not become MCP-ready within \(Int(timeout.rounded())) seconds.\(detail) Check \(standardErrorURL.path) for bridge startup errors."
         )
     }
 
@@ -789,7 +789,7 @@ private extension BearAppSupport {
             return (
                 .invalid,
                 "Needs repair",
-                "The bridge LaunchAgent plist does not match the expected `bear-mcp bridge serve` command or log paths. Repair it from this app."
+                "The bridge LaunchAgent plist does not match the expected `ursus bridge serve` command or log paths. Repair it from this app."
             )
         }
 
@@ -815,14 +815,14 @@ private extension BearAppSupport {
                 return (
                     .failed,
                     failureTitle,
-                    "The Bear MCP bridge LaunchAgent appears loaded, but \(endpointURL) is not healthy yet. \(detail)\(logHint) Check \(standardErrorURL.path) and \(standardOutputURL.path) for startup errors."
+                    "The Ursus bridge LaunchAgent appears loaded, but \(endpointURL) is not healthy yet. \(detail)\(logHint) Check \(standardErrorURL.path) and \(standardOutputURL.path) for startup errors."
                 )
             }
 
             return (
                 .ok,
                 "Running",
-                "The Bear MCP bridge LaunchAgent is loaded and passed an MCP initialize probe at \(endpointURL)."
+                "The Ursus bridge LaunchAgent is loaded and passed an MCP initialize probe at \(endpointURL)."
             )
         }
 
@@ -944,7 +944,7 @@ private extension BearAppSupport {
     static func bridgeHealthCheckRequestBody() -> Data {
         Data(
             """
-            {"jsonrpc":"2.0","id":"bridge-health-check","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"bear-mcp-health-check","version":"1.0"}}}
+            {"jsonrpc":"2.0","id":"bridge-health-check","method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ursus-health-check","version":"1.0"}}}
             """.utf8
         )
     }

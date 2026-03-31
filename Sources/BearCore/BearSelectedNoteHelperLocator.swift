@@ -18,15 +18,16 @@ public enum BearSelectedNoteHelperLocator {
         userSpecificAppBundleURL: URL
     ) -> URL? {
         let candidateMainAppBundleURLs = [preferredAppBundleURL, userSpecificAppBundleURL]
-
-        guard let mainAppBundleURL = candidateMainAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) }) else {
-            return nil
+        for mainAppBundleURL in candidateMainAppBundleURLs where fileManager.fileExists(atPath: mainAppBundleURL.path) {
+            if let helperBundleURL = embeddedAppBundleURL(
+                inAppBundleURL: mainAppBundleURL,
+                fileManager: fileManager
+            ) {
+                return helperBundleURL
+            }
         }
 
-        return embeddedAppBundleURL(
-            inAppBundleURL: mainAppBundleURL,
-            fileManager: fileManager
-        )
+        return nil
     }
 
     public static var installGuidance: String {

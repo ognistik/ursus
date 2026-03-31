@@ -63,7 +63,7 @@ These are the current paths in code today:
 - backups: `~/Library/Application Support/Ursus/Backups`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
 - debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
-- public launcher: `~/.local/bin/bear-mcp`
+- public launcher: `~/.local/bin/ursus`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
 
 ## Clean Reset
@@ -75,13 +75,13 @@ pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
 rm -rf "/Applications/Ursus.app"
 rm -rf "$HOME/Applications/Ursus.app"
 rm -rf "$HOME/Library/Application Support/Ursus"
-rm -f "$HOME/.local/bin/bear-mcp"
+rm -f "$HOME/.local/bin/ursus"
 ```
 
 Note:
 
 - deleting the app bundle alone does not remove Ursus state
-- the selected-note token is currently managed through Bear MCP's config flow, so there is no separate Keychain reset step in the current product shape
+- the selected-note token is currently managed through Ursus's config flow, so there is no separate Keychain reset step in the current product shape
 
 ## Reinstall After Reset
 
@@ -99,7 +99,7 @@ open "$HOME/Applications/Ursus.app"
 
 The public launcher installed by the app is:
 
-- `~/.local/bin/bear-mcp`
+- `~/.local/bin/ursus`
 
 Current utility commands:
 

@@ -48,7 +48,7 @@ actor BearSelectedNoteCallbackSession {
                 await self.handleConnection(connection)
             }
         }
-        listener.start(queue: DispatchQueue(label: "bear-mcp.selected-note-callback"))
+        listener.start(queue: DispatchQueue(label: "ursus.selected-note-callback"))
 
         return try await withCheckedThrowingContinuation { continuation in
             readyContinuation = continuation
@@ -95,7 +95,7 @@ actor BearSelectedNoteCallbackSession {
                 return
             }
 
-            let basePath = "/bear-mcp/\(requestID)"
+            let basePath = "/ursus/\(requestID)"
             guard
                 let successURL = URL(string: "http://\(host):\(port)\(basePath)/success?state=\(stateToken)"),
                 let errorURL = URL(string: "http://\(host):\(port)\(basePath)/error?state=\(stateToken)")
@@ -123,7 +123,7 @@ actor BearSelectedNoteCallbackSession {
     }
 
     private func handleConnection(_ connection: NWConnection) {
-        connection.start(queue: DispatchQueue(label: "bear-mcp.selected-note-connection"))
+        connection.start(queue: DispatchQueue(label: "ursus.selected-note-connection"))
         connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { data, _, _, error in
             Task {
                 var responseStatus: String
@@ -188,7 +188,7 @@ actor BearSelectedNoteCallbackSession {
     }
 
     private func consumeCallback(_ callback: CallbackRequest) async throws {
-        guard callback.path.hasPrefix("/bear-mcp/\(requestID)/") else {
+        guard callback.path.hasPrefix("/ursus/\(requestID)/") else {
             throw BearError.xCallback("Selected-note callback path did not match the current request.")
         }
 

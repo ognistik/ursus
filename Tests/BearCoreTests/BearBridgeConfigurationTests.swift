@@ -64,7 +64,7 @@ func bridgePortAllocatorPrefersConfiguredPortAndScansDeterministically() throws 
 func bridgeLaunchAgentExpectedPlistUsesStableLauncherAndLogs() throws {
     let temporaryDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString, isDirectory: true)
-    let launcherURL = temporaryDirectory.appendingPathComponent("bear-mcp", isDirectory: false)
+    let launcherURL = temporaryDirectory.appendingPathComponent("ursus", isDirectory: false)
     let stdoutURL = temporaryDirectory.appendingPathComponent("bridge.stdout.log", isDirectory: false)
     let stderrURL = temporaryDirectory.appendingPathComponent("bridge.stderr.log", isDirectory: false)
     let plistURL = temporaryDirectory.appendingPathComponent("com.aft.ursus.plist", isDirectory: false)

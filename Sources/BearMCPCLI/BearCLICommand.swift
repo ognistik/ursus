@@ -65,18 +65,18 @@ enum BearCLICommand {
     static var usageText: String {
         """
         Usage:
-          bear-mcp
-          bear-mcp mcp
-          bear-mcp bridge serve
-          bear-mcp bridge status
-          bear-mcp bridge print-url
-          bear-mcp doctor
-          bear-mcp paths
-          bear-mcp --new-note
-          bear-mcp --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]
-          bear-mcp --delete-note [note-id-or-title ...]
-          bear-mcp --archive-note [note-id-or-title ...]
-          bear-mcp --apply-template [note-id-or-title ...]
+          ursus
+          ursus mcp
+          ursus bridge serve
+          ursus bridge status
+          ursus bridge print-url
+          ursus doctor
+          ursus paths
+          ursus --new-note
+          ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]
+          ursus --delete-note [note-id-or-title ...]
+          ursus --archive-note [note-id-or-title ...]
+          ursus --apply-template [note-id-or-title ...]
 
         Notes:
           No command defaults to `mcp`.
@@ -88,16 +88,16 @@ enum BearCLICommand {
           `--tags` accepts a comma-separated list and may be passed more than once.
           `--delete-note`, `--archive-note`, and `--apply-template` use the selected Bear note when no note ids or titles are passed.
           Passed note arguments resolve as exact note id first, then exact case-insensitive title.
-          Quote titles with spaces, for example: bear-mcp --apply-template "Project Notes"
+          Quote titles with spaces, for example: ursus --apply-template "Project Notes"
         """
     }
 
     static var bridgeUsageText: String {
         """
         Usage:
-          bear-mcp bridge serve
-          bear-mcp bridge status
-          bear-mcp bridge print-url
+          ursus bridge serve
+          ursus bridge status
+          ursus bridge print-url
 
         Notes:
           `serve` starts the optional localhost HTTP MCP bridge using the configured host and port.

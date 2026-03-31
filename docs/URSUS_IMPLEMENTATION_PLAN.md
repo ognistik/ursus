@@ -36,16 +36,19 @@ Status as of 2026-03-30:
 
 - Phase 1 is complete.
 - Phase 2 is complete.
+- Phase 3 is complete.
 - Verified with `swift test`.
 - Verified with `swift run ursus paths`.
+- Verified with `swift run ursus --help`.
+- Verified with `swift run ursus doctor`.
+- Verified with `swift run ursus bridge status`.
 - Verified with `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`.
 - Verified built outputs are `Ursus.app`, bundled `ursus`, and embedded `Ursus Helper.app`.
 - Verified MCP `initialize` returns `serverInfo.name = "ursus"` through the built HTTP bridge.
-- Verified `ursus paths` prints only Ursus-era storage roots plus the intentional Phase 3 survivor `~/.local/bin/bear-mcp`.
+- Verified `ursus paths` prints only Ursus-era storage roots, including `~/.local/bin/ursus`.
 
 Intentional carry-over to later phases:
 
-- public launcher path still remains `~/.local/bin/bear-mcp`
 - broad UI/host/docs wording cleanup is still pending
 
 ## Bear vs Ursus Boundary
@@ -131,6 +134,12 @@ Reason:
 - shipped identity matters more than internal symbol cleanup for this release
 
 Revisit later only if there is clear value in a second internal cleanup pass.
+
+That later pass should explicitly include repo-internal container names that still leak the old brand, for example:
+
+- `BearMCPApp.xcodeproj`
+- `App/BearMCPApp/...`
+- internal file/type/container names under `Sources/` that still use `BearMCP` as product branding rather than Bear-integration meaning
 
 ## Execution Strategy
 
@@ -223,6 +232,10 @@ Result:
 
 ### Phase 3: Launcher, App Locator, Bridge, and Helper Wiring
 
+Status:
+
+- completed on 2026-03-30
+
 Goal:
 
 - make install/repair behavior coherent under the new identity
@@ -254,12 +267,19 @@ Primary files:
 
 Verification:
 
-- install/repair launcher from app
+- launcher install/repair covered by automated tests plus CLI verification of the generated path
 - run `ursus --help`
 - run `ursus doctor`
 - run `ursus bridge status`
-- install/remove/resume/pause bridge from app
-- verify selected-note helper still resolves a selected note
+- verify selected-note helper locator still prefers the embedded helper in `Ursus.app` and falls back to `~/Applications/Ursus.app` when needed
+
+Result:
+
+- the stable public launcher path is now `~/.local/bin/ursus`
+- launcher script generation and validation now target `ursus` and `Ursus.app`
+- helper lookup no longer stops at the first installed app bundle if that copy is missing the embedded helper
+- bridge LaunchAgent validation now expects the `ursus bridge serve` command
+- queue labels, logger labels, DB labels, and callback listener paths no longer leak `bear-mcp`
 
 ### Phase 4: Host Integration and User-Facing Surface
 
@@ -320,6 +340,34 @@ Verification:
 - `swift test`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - repo-wide search returns only intentional Bear-domain uses
+
+### Phase 6: Internal Container and Repo Naming Cleanup
+
+Goal:
+
+- finish the brand cleanup for repo-internal containers that are still intentionally deferred after the shipped-surface reset
+
+Work:
+
+- evaluate renaming `BearMCPApp.xcodeproj` to an Ursus-branded project container
+- evaluate renaming `App/BearMCPApp/...` files and folders to Ursus-branded names
+- evaluate whether any `Sources/...` file/type/container names are product-brand leftovers rather than legitimate Bear-domain integration names
+- keep package/module/tool/runtime compatibility rules explicit before changing any internal targets or target names
+- separate low-risk file/folder renames from higher-risk SwiftPM/Xcode target/module renames if needed
+
+Primary files:
+
+- `BearMCPApp.xcodeproj`
+- `App/BearMCPApp/...`
+- selected repo-internal files under `Sources/`
+- related tests, schemes, and build scripts as needed
+
+Verification:
+
+- `swift test`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- verify Xcode project/scheme discovery still works after any container rename
+- verify shipped binary/app/helper/tool identities remain `ursus`, `Ursus.app`, and `ursus-helper`
 
 ## Search Gates
 

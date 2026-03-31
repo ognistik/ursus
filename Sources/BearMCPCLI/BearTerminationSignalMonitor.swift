@@ -8,7 +8,7 @@ enum BearTerminationSignalMonitor {
             signal(SIGINT, SIG_IGN)
             signal(SIGTERM, SIG_IGN)
 
-            let queue = DispatchQueue(label: "bear-mcp.signal-monitor")
+            let queue = DispatchQueue(label: "ursus.signal-monitor")
             var resumed = false
             var sources: [DispatchSourceSignal] = []
 

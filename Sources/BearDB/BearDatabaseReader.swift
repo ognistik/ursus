@@ -13,7 +13,7 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
     public init(databaseURL: URL) throws {
         var configuration = Configuration()
         configuration.readonly = true
-        configuration.label = "bear-mcp.db"
+        configuration.label = "ursus.db"
         self.databaseQueue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
     }
 

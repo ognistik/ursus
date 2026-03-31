@@ -1050,7 +1050,7 @@ public enum BearAppSupport {
 
     private static func tokenStatusDetail(for status: BearSelectedNoteTokenStatus) -> String? {
         if status.tokenPresent {
-            return "The Bear API token is stored in Bear MCP's config.json and hidden by default in the app UI."
+            return "The Bear API token is stored in Ursus's config.json and hidden by default in the app UI."
         }
 
         return nil
@@ -1097,7 +1097,7 @@ public enum BearAppSupport {
             return (
                 .missing,
                 "Not installed",
-                "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path."
+                "Install the public launcher once so local MCP hosts and Terminal can run Ursus from one shared path."
             )
         }
 
@@ -1137,7 +1137,7 @@ public enum BearAppSupport {
             return (
                 .invalid,
                 "Invalid launcher",
-                "This app could not validate its launcher against the bundled CLI. Rebuild or reinstall Bear MCP.app."
+                "This app could not validate its launcher against the bundled CLI. Rebuild or reinstall Ursus.app."
             )
         }
 

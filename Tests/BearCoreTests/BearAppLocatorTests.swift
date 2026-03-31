@@ -26,7 +26,7 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
 func cliLocatorGuidancePointsHostsAtPublicLauncherPath() {
     #expect(BearMCPCLILocator.bundledRelativePath == "Contents/Resources/bin/ursus")
     #expect(
-        BearMCPCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/bear-mcp")
+        BearMCPCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/ursus")
     )
     #expect(BearMCPCLILocator.publicLauncherGuidance.contains("Local MCP hosts and Terminal should use that same path"))
 }
@@ -45,7 +45,7 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     let installedCLIURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
@@ -83,7 +83,7 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     let launcherURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -162,4 +162,35 @@ func helperLocatorIgnoresStandaloneHelperBundleWithoutContainingApp() throws {
     )
 
     #expect(locatedURL == nil)
+}
+
+@Test
+func helperLocatorFallsBackToUserInstallWhenPreferredAppLacksEmbeddedHelper() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let applicationsDirectoryURL = temporaryRoot.appendingPathComponent("Applications", isDirectory: true)
+    let userHomeURL = temporaryRoot.appendingPathComponent("home", isDirectory: true)
+    let preferredAppBundleURL = applicationsDirectoryURL.appendingPathComponent("Ursus.app", isDirectory: true)
+    let userAppBundleURL = userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true)
+    let embeddedHelperBundleURL = userAppBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent("Ursus Helper.app", isDirectory: true)
+
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    try fileManager.createDirectory(at: preferredAppBundleURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: embeddedHelperBundleURL, withIntermediateDirectories: true)
+
+    let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
+        fileManager: fileManager,
+        preferredAppBundleURL: preferredAppBundleURL,
+        userSpecificAppBundleURL: userAppBundleURL
+    )
+
+    #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
 }

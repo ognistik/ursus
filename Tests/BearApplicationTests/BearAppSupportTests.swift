@@ -16,7 +16,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let bridgePlistURL = homeDirectoryURL
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -73,7 +73,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.launcherPath == launcherURL.path)
     #expect(dashboard.settings?.launcherStatus == BearDoctorCheckStatus.missing)
     #expect(dashboard.settings?.launcherStatusTitle == "Not installed")
-    #expect(dashboard.settings?.launcherStatusDetail == "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path.")
+    #expect(dashboard.settings?.launcherStatusDetail == "Install the public launcher once so local MCP hosts and Terminal can run Ursus from one shared path.")
     #expect(dashboard.settings?.cliMaintenancePrompt?.actions == [BearAppCLIMaintenanceAction.installLauncher])
     #expect(dashboard.settings?.selectedNoteTokenConfigured == true)
     #expect(dashboard.settings?.selectedNoteTokenStorageDescription == "Stored in config.json")
@@ -88,7 +88,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     let launcherDiagnostic = try #require(diagnostic(named: "public-cli-launcher", in: dashboard.diagnostics))
     #expect(launcherDiagnostic.status == BearDoctorCheckStatus.missing)
     #expect(launcherDiagnostic.value == launcherURL.path)
-    #expect(launcherDiagnostic.detail == "Install the public launcher once so local MCP hosts and Terminal can run Bear MCP from one shared path.")
+    #expect(launcherDiagnostic.detail == "Install the public launcher once so local MCP hosts and Terminal can run Ursus from one shared path.")
 
     let callbackDiagnostic = try #require(diagnostic(named: "selected-note-app", in: dashboard.diagnostics))
     #expect(callbackDiagnostic.status == BearDoctorCheckStatus.missing)
@@ -118,7 +118,7 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -200,7 +200,7 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let codexConfigURL = homeDirectoryURL
         .appendingPathComponent(".codex", isDirectory: true)
         .appendingPathComponent("config.toml", isDirectory: false)
@@ -289,7 +289,7 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -345,7 +345,7 @@ func reconcilePublicLauncherInstallsMissingLauncher() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
@@ -381,7 +381,7 @@ func reconcilePublicLauncherRepairsStaleLauncher() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -418,7 +418,7 @@ func reconcilePublicLauncherReturnsUnchangedWhenLauncherMatchesBundle() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
 
     try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try "#!/bin/sh\necho bundled\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
@@ -459,7 +459,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -555,7 +555,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -631,7 +631,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -743,11 +743,11 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
         .appendingPathComponent("Contents", isDirectory: true)
         .appendingPathComponent("Resources", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -838,7 +838,7 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -911,7 +911,7 @@ func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let launchAgentPlistURL = tempRoot
         .appendingPathComponent("Library", isDirectory: true)
         .appendingPathComponent("LaunchAgents", isDirectory: true)
@@ -1335,7 +1335,7 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("bear-mcp", isDirectory: false)
+        .appendingPathComponent("ursus", isDirectory: false)
     let codexConfigURL = homeDirectoryURL
         .appendingPathComponent(".codex", isDirectory: true)
         .appendingPathComponent("config.toml", isDirectory: false)

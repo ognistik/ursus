@@ -92,9 +92,9 @@ enum BearHostAppSupport {
         }
         """
         let checks = [
-            "Install or repair the public launcher at \(cliPath) from Bear MCP.app.",
+            "Install or repair the public launcher at \(cliPath) from Ursus.app.",
             "In any local stdio MCP host, point `command` at that path and set `args` to `[\"mcp\"]`.",
-            "Restart the host app after saving so it reloads the Bear server definition.",
+            "Restart the host app after saving so it reloads the Ursus server definition.",
         ]
 
         if fileManager.fileExists(atPath: cliPath), fileManager.isExecutableFile(atPath: cliPath) {
@@ -130,7 +130,7 @@ enum BearHostAppSupport {
                 snippetTitle: "Generic stdio example",
                 snippetLanguage: "json",
                 snippet: snippet,
-                mergeNote: "Bear MCP.app should stay host-agnostic here: copy the command and args into whichever local MCP host you use.",
+                mergeNote: "Ursus.app should stay host-agnostic here: copy the command and args into whichever local MCP host you use.",
                 checks: checks
             ),
             doctorCheck: BearDoctorCheck(
@@ -158,9 +158,9 @@ enum BearHostAppSupport {
         args = ["mcp"]
         """
         let checks = [
-            "Use Bear MCP.app to install or repair the launcher at \(cliPath).",
+            "Use Ursus.app to install or repair the launcher at \(cliPath).",
             "Add or update the `[mcp_servers.bear]` section in `\(configURL.path)` so `command` points at that launcher path and `args` contains `\"mcp\"`.",
-            "Restart Codex after saving the config so it reloads the MCP server definition.",
+            "Restart Codex after saving the config so it reloads the Ursus MCP server definition.",
         ]
 
         guard fileManager.fileExists(atPath: configURL.path) else {
@@ -171,7 +171,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .missing,
                     statusTitle: "Config file not found",
-                    detail: "Create `\(configURL.path)` or let Codex create it, then add the Bear MCP section below so Codex uses the public launcher instead of a repo-local build output.",
+                    detail: "Create `\(configURL.path)` or let Codex create it, then add the `bear` server section below so Codex uses the public launcher instead of a repo-local build output.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -182,7 +182,7 @@ enum BearHostAppSupport {
                     key: "host-codex",
                     value: configURL.path,
                     status: .missing,
-                    detail: "config.toml not found; add the Bear server entry pointing at \(cliPath)"
+                    detail: "config.toml not found; add the `bear` server entry pointing at \(cliPath)"
                 )
             )
         }
@@ -195,7 +195,7 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Config file unreadable",
-                    detail: "Bear MCP.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.bear` at the public launcher.",
+                    detail: "Ursus.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.bear` at the public launcher.",
                     snippetTitle: "Codex `config.toml` section",
                     snippetLanguage: "toml",
                     snippet: snippet,
@@ -206,7 +206,7 @@ enum BearHostAppSupport {
                     key: "host-codex",
                     value: configURL.path,
                     status: .invalid,
-                    detail: "config.toml exists but Bear MCP.app could not read it"
+                    detail: "config.toml exists but Ursus.app could not read it"
                 )
             )
         }
@@ -230,14 +230,14 @@ enum BearHostAppSupport {
                     snippetTitle: "Current recommended section",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "No change is needed unless you want to repair the launcher from Bear MCP.app.",
+                    mergeNote: "No change is needed unless you want to repair the launcher from Ursus.app.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
                     key: "host-codex",
                     value: configURL.path,
                     status: .ok,
-                    detail: "configured to launch Bear MCP from the public launcher path"
+                    detail: "configured to launch Ursus from the public launcher path"
                 )
             )
         }
@@ -250,11 +250,11 @@ enum BearHostAppSupport {
                     configPath: configURL.path,
                     status: .invalid,
                     statusTitle: "Needs update",
-                    detail: "Codex already has a Bear MCP entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
-                    snippetTitle: "Replace the Bear section with",
+                    detail: "Codex already has a `bear` server entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
+                    snippetTitle: "Replace the `bear` section with",
                     snippetLanguage: "toml",
                     snippet: snippet,
-                    mergeNote: "Update the existing Bear section rather than adding a duplicate server entry.",
+                    mergeNote: "Update the existing `bear` section rather than adding a duplicate server entry.",
                     checks: checks
                 ),
                 doctorCheck: BearDoctorCheck(
@@ -272,8 +272,8 @@ enum BearHostAppSupport {
                 appName: "Codex",
                 configPath: configURL.path,
                 status: .notConfigured,
-                statusTitle: "Bear MCP not added yet",
-                detail: "Codex is installed, but `\(configURL.path)` does not yet contain a Bear MCP server entry.",
+                statusTitle: "Bear Server Not Added Yet",
+                detail: "Codex is installed, but `\(configURL.path)` does not yet contain a `bear` server entry for Ursus.",
                 snippetTitle: "Add this Codex section",
                 snippetLanguage: "toml",
                 snippet: snippet,
@@ -284,7 +284,7 @@ enum BearHostAppSupport {
                 key: "host-codex",
                 value: configURL.path,
                 status: .notConfigured,
-                detail: "config.toml exists, but no Bear MCP server entry was detected"
+                detail: "config.toml exists, but no `bear` server entry was detected"
             )
         )
     }
@@ -320,7 +320,7 @@ enum BearHostAppSupport {
         }
         """
         let checks = [
-            "Use Bear MCP.app to install or repair the launcher at \(cliPath).",
+            "Use Ursus.app to install or repair the launcher at \(cliPath).",
             "Add or merge the `bear` server entry into `mcpServers` inside `\(configURL.path)` so Claude Desktop launches the public launcher.",
             "Restart Claude Desktop after saving the JSON so it reloads the local MCP server.",
         ]
@@ -344,7 +344,7 @@ enum BearHostAppSupport {
                     key: "host-claude-desktop",
                     value: configURL.path,
                     status: .missing,
-                    detail: "claude_desktop_config.json not found; add a Bear stdio entry pointing at \(cliPath)"
+                    detail: "claude_desktop_config.json not found; add a `bear` stdio entry pointing at \(cliPath)"
                 )
             )
         }
@@ -399,14 +399,14 @@ enum BearHostAppSupport {
                         snippetTitle: "Current recommended JSON",
                         snippetLanguage: "json",
                         snippet: snippet,
-                        mergeNote: "No change is needed unless you want to repair the public launcher from Bear MCP.app.",
+                        mergeNote: "No change is needed unless you want to repair the public launcher from Ursus.app.",
                         checks: checks
                     ),
                     doctorCheck: BearDoctorCheck(
                         key: "host-claude-desktop",
                         value: configURL.path,
                         status: .ok,
-                        detail: "configured to launch Bear MCP from the public launcher path"
+                        detail: "configured to launch Ursus from the public launcher path"
                     )
                 )
             }
@@ -450,9 +450,9 @@ enum BearHostAppSupport {
                 appName: "Claude Desktop",
                 configPath: configURL.path,
                 status: .notConfigured,
-                statusTitle: "Bear MCP not added yet",
+                statusTitle: "Bear Server Not Added Yet",
                 detail: "Claude Desktop config exists, but no `mcpServers.bear` entry was detected.",
-                snippetTitle: "Add this Bear server object",
+                snippetTitle: "Add this `bear` server object",
                 snippetLanguage: "json",
                 snippet: snippet,
                 mergeNote: "Merge the `bear` object into the existing `mcpServers` dictionary rather than replacing the entire file.",
@@ -462,16 +462,16 @@ enum BearHostAppSupport {
                 key: "host-claude-desktop",
                 value: configURL.path,
                 status: .notConfigured,
-                detail: "claude_desktop_config.json exists, but no Bear MCP server entry was detected"
+                detail: "claude_desktop_config.json exists, but no `bear` server entry was detected"
             )
         )
     }
 
     private static func chatGPTResult() -> HostAppResult {
         let checks = [
-            "Do not point ChatGPT at the local Bear MCP launcher path; current ChatGPT MCP support is remote-only.",
+            "Do not point ChatGPT at the local Ursus launcher path; current ChatGPT MCP support is remote-only.",
             "If you want Bear in ChatGPT, deploy a remote MCP server over streaming HTTP or SSE instead of using the local stdio binary.",
-            "Use Bear MCP.app for local host apps like Codex and Claude Desktop, and treat ChatGPT as a separate remote-connector path for now.",
+            "Use Ursus.app for local host apps like Codex and Claude Desktop, and treat ChatGPT as a separate remote-connector path for now.",
         ]
 
         return HostAppResult(
@@ -480,7 +480,7 @@ enum BearHostAppSupport {
                 appName: "ChatGPT",
                 status: .notConfigured,
                 statusTitle: "Remote MCP only",
-                detail: "ChatGPT developer mode currently supports remote MCP servers, not local stdio binaries, so the Bear MCP launcher path is not the right integration target here.",
+                detail: "ChatGPT developer mode currently supports remote MCP servers, not local stdio binaries, so the Ursus launcher path is not the right integration target here.",
                 checks: checks
             ),
             doctorCheck: BearDoctorCheck(

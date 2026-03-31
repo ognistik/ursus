@@ -50,7 +50,7 @@ public final class BearProcessLock: @unchecked Sendable {
         }
 
         let reason = unusableMessages.joined(separator: " ")
-        throw BearError.configuration("Unable to acquire Bear MCP process lock. \(reason)")
+        throw BearError.configuration("Unable to acquire Ursus process lock. \(reason)")
     }
 
     private static func acquire(at lockURL: URL) throws -> BearProcessLock {

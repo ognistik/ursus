@@ -46,7 +46,7 @@ public enum BearPaths {
     }
 
     public static var publicCLIExecutableURL: URL {
-        publicCLIDirectoryURL.appendingPathComponent("bear-mcp", isDirectory: false)
+        publicCLIDirectoryURL.appendingPathComponent("ursus", isDirectory: false)
     }
 
     public static var runtimeLockDirectoryURL: URL {

@@ -12,7 +12,7 @@ import MCP
 struct BearMCPMain {
     static func main() async {
         LoggingSystem.bootstrap(StreamLogHandler.standardError)
-        let logger = Logger(label: "bear-mcp")
+        let logger = Logger(label: "ursus")
 
         do {
             let command = try BearCLICommand.parse(arguments: Array(CommandLine.arguments.dropFirst()))
@@ -85,13 +85,13 @@ struct BearMCPMain {
             }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-            fputs("bear-mcp failed: \(message)\n", stderr)
+            fputs("ursus failed: \(message)\n", stderr)
             Foundation.exit(1)
         }
     }
 
     private static func runMCP(logger: Logger, processLock: BearProcessLock) async throws {
-        logger.info("bear-mcp acquired process lock at \(processLock.lockURL.path)")
+        logger.info("ursus acquired process lock at \(processLock.lockURL.path)")
         let runtime = try makeRuntimeServices(logger: logger)
         let configuration = runtime.configuration
         let service = runtime.service
@@ -107,9 +107,9 @@ struct BearMCPMain {
 
         switch shutdownReason {
         case .serverCompleted:
-            logger.info("bear-mcp stdio transport closed; shutting down server.")
+            logger.info("ursus stdio transport closed; shutting down server.")
         case .parentExited:
-            logger.info("bear-mcp parent process exited; shutting down orphaned stdio server.")
+            logger.info("ursus parent process exited; shutting down orphaned stdio server.")
         }
 
         await server.stop()
@@ -120,7 +120,7 @@ struct BearMCPMain {
         let bridge = try runtime.configuration.bridge.validated()
 
         if !bridge.enabled {
-            logger.info("bear-mcp bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
+            logger.info("ursus bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
         }
 
         let application = BearBridgeHTTPApplication(
@@ -154,9 +154,9 @@ struct BearMCPMain {
 
             switch firstReason {
             case .serverCompleted:
-                logger.info("bear-mcp bridge server stopped.")
+                logger.info("ursus bridge server stopped.")
             case .signal(let signal):
-                logger.info("bear-mcp bridge received signal \(signal); shutting down.")
+                logger.info("ursus bridge received signal \(signal); shutting down.")
                 await application.stop()
                 _ = try await group.next()
             }
