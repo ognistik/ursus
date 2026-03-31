@@ -57,8 +57,8 @@ func createCLINewNoteDoesNotConsultSelectedNoteAndDefaultsToInboxTags() async th
             content: nil,
             tags: nil,
             tagMergeMode: .append,
-            openNote: nil,
-            newWindow: nil,
+            openNote: false,
+            newWindow: false,
             at: try #require(makeCLIUtilityDate(year: 2024, month: 3, day: 28, hour: 17, minute: 5)),
             timeZone: TimeZone(secondsFromGMT: 0)
         )
@@ -68,11 +68,10 @@ func createCLINewNoteDoesNotConsultSelectedNoteAndDefaultsToInboxTags() async th
     #expect(request.title == "240328 - 05:05 PM")
     #expect(request.tags == ["0-inbox", "daily"])
     #expect(request.useOnlyRequestTags == true)
-    #expect(request.presentation.openNote == true)
-    #expect(request.presentation.openNoteOverride == nil)
-    #expect(request.presentation.newWindow == true)
-    #expect(request.presentation.newWindowOverride == nil)
-    #expect(request.presentation.edit == true)
+    #expect(request.presentation.openNote == false)
+    #expect(request.presentation.newWindow == false)
+    #expect(request.presentation.showWindow == false)
+    #expect(request.presentation.edit == false)
     #expect(await transport.selectedNoteResolutionCount == 0)
 }
 
@@ -95,8 +94,8 @@ func createCLINewNoteDefaultsToAppendEvenWhenCreateConfigWouldNot() async throws
             content: "Body",
             tags: ["project-x"],
             tagMergeMode: .append,
-            openNote: nil,
-            newWindow: nil
+            openNote: false,
+            newWindow: false
         )
     }
 
@@ -125,7 +124,7 @@ func createCLINewNoteCanReplaceTagsAndApplyPresentationOverrides() async throws 
             content: "# Explicit Title\n\nBody",
             tags: ["project-x"],
             tagMergeMode: .replace,
-            openNote: false,
+            openNote: true,
             newWindow: false
         )
     }
@@ -133,11 +132,10 @@ func createCLINewNoteCanReplaceTagsAndApplyPresentationOverrides() async throws 
     let request = try #require(await transport.createdRequests.first)
     #expect(request.tags == ["project-x"])
     #expect(request.content == "Body\n\n#project-x")
-    #expect(request.presentation.openNote == false)
-    #expect(request.presentation.openNoteOverride == false)
+    #expect(request.presentation.openNote == true)
     #expect(request.presentation.newWindow == false)
-    #expect(request.presentation.newWindowOverride == false)
-    #expect(request.presentation.edit == false)
+    #expect(request.presentation.showWindow == true)
+    #expect(request.presentation.edit == true)
 }
 
 @Test
@@ -170,6 +168,28 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
 
     let request = try #require(await transport.createdRequests.first)
     #expect(request.tags == ["0-inbox", "daily"])
+}
+
+@Test
+func createInteractiveNoteSkipsSelectedNoteLookupWhenTokenIsMissing() async throws {
+    let transport = CLIUtilityRecordingWriteTransport(selectedNoteResult: .failure(BearError.invalidInput("should not resolve")))
+    let service = BearService(
+        configuration: makeCLIUtilityConfiguration(),
+        readStore: CLIUtilityReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceCLIUtilityTests")
+    )
+
+    try await withTemporaryCLIUtilityTemplate("{{content}}\n\n{{tags}}\n") {
+        _ = try await service.createInteractiveNote(
+            at: try #require(makeCLIUtilityDate(year: 2024, month: 3, day: 28, hour: 17, minute: 5)),
+            timeZone: TimeZone(secondsFromGMT: 0)
+        )
+    }
+
+    let request = try #require(await transport.createdRequests.first)
+    #expect(request.tags == ["0-inbox", "daily"])
+    #expect(await transport.selectedNoteResolutionCount == 0)
 }
 
 @Test

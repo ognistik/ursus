@@ -5,10 +5,15 @@ enum BearCLICommand {
     struct NewNoteOptions: Hashable {
         let title: String?
         let tags: [String]?
-        let tagMergeMode: BearConfiguration.TagsMergeMode
+        let replaceTags: Bool
         let content: String?
-        let openNote: Bool?
-        let newWindow: Bool?
+        let openNote: Bool
+        let newWindow: Bool
+    }
+
+    struct RestoreNoteRequest: Hashable {
+        let noteID: String
+        let snapshotID: String
     }
 
     enum BridgeSubcommand: Hashable {
@@ -23,8 +28,8 @@ enum BearCLICommand {
     case doctor
     case paths
     case newNote(NewNoteOptions?)
-    case deleteNote([String])
-    case archiveNote([String])
+    case backupNote([String])
+    case restoreNote([RestoreNoteRequest])
     case applyTemplate([String])
     case help
 
@@ -49,10 +54,10 @@ enum BearCLICommand {
             return .paths
         case "--new-note":
             return .newNote(try parseNewNoteOptions(remainingArguments))
-        case "--delete-note":
-            return .deleteNote(remainingArguments)
-        case "--archive-note":
-            return .archiveNote(remainingArguments)
+        case "--backup-note":
+            return .backupNote(remainingArguments)
+        case "--restore-note":
+            return .restoreNote(try parseRestoreNoteRequests(remainingArguments))
         case "--apply-template":
             return .applyTemplate(remainingArguments)
         case "--help", "-h", "help":
@@ -73,9 +78,9 @@ enum BearCLICommand {
           ursus doctor
           ursus paths
           ursus --new-note
-          ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]
-          ursus --delete-note [note-id-or-title ...]
-          ursus --archive-note [note-id-or-title ...]
+          ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]
+          ursus --backup-note [note-id-or-title ...]
+          ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]
           ursus --apply-template [note-id-or-title ...]
 
         Notes:
@@ -84,9 +89,12 @@ enum BearCLICommand {
           `bridge status` prints saved bridge config plus LaunchAgent and health-check details.
           `bridge print-url` prints the configured localhost MCP URL.
           `--new-note` with no extra flags preserves the current interactive editing-note flow.
-          In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags and `--tag-merge-mode` defaults to `append`.
+          In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags, omitted open/window flags leave the note closed, and `--replace-tags` switches from append to replace.
+          `--title` also accepts `-t`, `--content` accepts `-c`, `--tags` accepts `-g`, `--replace-tags` accepts `-rt`, `--open-note` accepts `-on`, and `--new-window` accepts `-nw`.
           `--tags` accepts a comma-separated list and may be passed more than once.
-          `--delete-note`, `--archive-note`, and `--apply-template` use the selected Bear note when no note ids or titles are passed.
+          `--new-window` requires `--open-note`.
+          `--backup-note` and `--apply-template` use the selected Bear note when no note ids or titles are passed.
+          `--restore-note` requires exact note-id/snapshot-id pairs.
           Passed note arguments resolve as exact note id first, then exact case-insensitive title.
           Quote titles with spaces, for example: ursus --apply-template "Project Notes"
         """
@@ -138,38 +146,39 @@ enum BearCLICommand {
     }
 
     private static func parseNewNoteOptions(_ arguments: [String]) throws -> NewNoteOptions? {
-        guard !arguments.isEmpty else {
+        guard arguments.isEmpty == false else {
             return nil
         }
 
         var index = 0
         var title: String?
         var tags: [String]?
-        var tagMergeMode: BearConfiguration.TagsMergeMode = .append
-        var tagMergeModeExplicitlySet = false
+        var replaceTags = false
         var content: String?
-        var openNote: Bool?
-        var newWindow: Bool?
+        var openNote = false
+        var openNoteExplicitlySet = false
+        var newWindow = false
+        var newWindowExplicitlySet = false
 
         while index < arguments.count {
             let argument = arguments[index]
 
             switch argument {
-            case "--title":
+            case "--title", "-t":
                 title = try parseSingularValueFlag(
                     name: "--title",
                     currentValue: title,
                     arguments: arguments,
                     index: &index
                 )
-            case "--content":
+            case "--content", "-c":
                 content = try parseSingularValueFlag(
                     name: "--content",
                     currentValue: content,
                     arguments: arguments,
                     index: &index
                 )
-            case "--tags":
+            case "--tags", "-g":
                 let rawValue = try parseRequiredFlagValue(name: "--tags", arguments: arguments, index: &index)
                 let parsedTags = parseTags(rawValue)
                 if tags != nil {
@@ -177,28 +186,23 @@ enum BearCLICommand {
                 } else {
                     tags = parsedTags
                 }
-            case "--tag-merge-mode":
-                let rawValue = try parseRequiredFlagValue(name: "--tag-merge-mode", arguments: arguments, index: &index)
-                guard !tagMergeModeExplicitlySet else {
-                    throw BearError.invalidInput("Flag '--tag-merge-mode' may only be passed once.\n\n\(usageText)")
+            case "--replace-tags", "-rt":
+                guard replaceTags == false else {
+                    throw BearError.invalidInput("Flag '--replace-tags' may only be passed once.\n\n\(usageText)")
                 }
-                guard let parsedMode = BearConfiguration.TagsMergeMode(rawValue: rawValue.lowercased()) else {
-                    throw BearError.invalidInput("Flag '--tag-merge-mode' must be 'append' or 'replace'.\n\n\(usageText)")
-                }
-                tagMergeMode = parsedMode
-                tagMergeModeExplicitlySet = true
-            case "--open-note":
-                let rawValue = try parseRequiredFlagValue(name: "--open-note", arguments: arguments, index: &index)
-                guard openNote == nil else {
+                replaceTags = true
+            case "--open-note", "-on":
+                guard openNoteExplicitlySet == false else {
                     throw BearError.invalidInput("Flag '--open-note' may only be passed once.\n\n\(usageText)")
                 }
-                openNote = try parseBoolFlagValue(rawValue, for: "--open-note")
-            case "--new-window":
-                let rawValue = try parseRequiredFlagValue(name: "--new-window", arguments: arguments, index: &index)
-                guard newWindow == nil else {
+                openNote = true
+                openNoteExplicitlySet = true
+            case "--new-window", "-nw":
+                guard newWindowExplicitlySet == false else {
                     throw BearError.invalidInput("Flag '--new-window' may only be passed once.\n\n\(usageText)")
                 }
-                newWindow = try parseBoolFlagValue(rawValue, for: "--new-window")
+                newWindow = true
+                newWindowExplicitlySet = true
             default:
                 throw BearError.invalidInput("Unknown flag '\(argument)' for '--new-note'.\n\n\(usageText)")
             }
@@ -206,16 +210,46 @@ enum BearCLICommand {
             index += 1
         }
 
-        let options = NewNoteOptions(
+        guard openNote || newWindow == false else {
+            throw BearError.invalidInput("Flag '--new-window' requires '--open-note'.\n\n\(usageText)")
+        }
+
+        return NewNoteOptions(
             title: title,
             tags: tags,
-            tagMergeMode: tagMergeMode,
+            replaceTags: replaceTags,
             content: content,
             openNote: openNote,
             newWindow: newWindow
         )
+    }
 
-        return options
+    private static func parseRestoreNoteRequests(_ arguments: [String]) throws -> [RestoreNoteRequest] {
+        guard arguments.isEmpty == false else {
+            throw BearError.invalidInput("Command '--restore-note' requires NOTE_ID SNAPSHOT_ID pairs.\n\n\(usageText)")
+        }
+
+        guard arguments.count.isMultiple(of: 2) else {
+            throw BearError.invalidInput("Command '--restore-note' requires an even number of arguments as NOTE_ID SNAPSHOT_ID pairs.\n\n\(usageText)")
+        }
+
+        var requests: [RestoreNoteRequest] = []
+        requests.reserveCapacity(arguments.count / 2)
+
+        var index = 0
+        while index < arguments.count {
+            let noteID = arguments[index].trimmingCharacters(in: .whitespacesAndNewlines)
+            let snapshotID = arguments[index + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+
+            guard noteID.isEmpty == false, snapshotID.isEmpty == false else {
+                throw BearError.invalidInput("Command '--restore-note' requires non-empty NOTE_ID SNAPSHOT_ID pairs.\n\n\(usageText)")
+            }
+
+            requests.append(RestoreNoteRequest(noteID: noteID, snapshotID: snapshotID))
+            index += 2
+        }
+
+        return requests
     }
 
     private static func parseSingularValueFlag(
@@ -241,17 +275,6 @@ enum BearCLICommand {
         }
         index = nextIndex
         return arguments[nextIndex]
-    }
-
-    private static func parseBoolFlagValue(_ rawValue: String, for flagName: String) throws -> Bool {
-        switch rawValue.lowercased() {
-        case "yes", "true", "1":
-            return true
-        case "no", "false", "0":
-            return false
-        default:
-            throw BearError.invalidInput("Flag '\(flagName)' must be yes/no, true/false, or 1/0.\n\n\(usageText)")
-        }
     }
 
     private static func parseTags(_ rawValue: String) -> [String] {

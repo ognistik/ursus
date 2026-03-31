@@ -41,17 +41,17 @@ func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
 }
 
 @Test
-func parseNewNoteExplicitFlagsCollectsOverrides() throws {
+func parseNewNoteExplicitFlagsCollectsOverridesAndAliases() throws {
     let command = try BearCLICommand.parse(
         arguments: [
             "--new-note",
-            "--title", "Daily Capture",
-            "--tags", "project-x, deep work",
+            "-t", "Daily Capture",
+            "-g", "project-x, deep work",
             "--tags", "ops",
-            "--tag-merge-mode", "replace",
-            "--content", "# Daily Capture\n\nBody",
-            "--open-note", "no",
-            "--new-window", "false",
+            "-rt",
+            "-c", "# Daily Capture\n\nBody",
+            "-on",
+            "-nw",
         ]
     )
 
@@ -60,8 +60,23 @@ func parseNewNoteExplicitFlagsCollectsOverrides() throws {
         let options = try #require(options)
         #expect(options.title == "Daily Capture")
         #expect(options.tags == ["project-x", "deep work", "ops"])
-        #expect(options.tagMergeMode == .replace)
+        #expect(options.replaceTags)
         #expect(options.content == "# Daily Capture\n\nBody")
+        #expect(options.openNote)
+        #expect(options.newWindow)
+    default:
+        Issue.record("Expected explicit '--new-note' arguments to parse as .newNote(options).")
+    }
+}
+
+@Test
+func parseNewNoteExplicitModeDefaultsToClosedAppendBehavior() throws {
+    let command = try BearCLICommand.parse(arguments: ["--new-note", "--content", "Body"])
+
+    switch command {
+    case .newNote(let options):
+        let options = try #require(options)
+        #expect(options.replaceTags == false)
         #expect(options.openNote == false)
         #expect(options.newWindow == false)
     default:
@@ -70,22 +85,9 @@ func parseNewNoteExplicitFlagsCollectsOverrides() throws {
 }
 
 @Test
-func parseNewNoteTreatsExplicitAppendAsExplicitMode() throws {
-    let command = try BearCLICommand.parse(arguments: ["--new-note", "--tag-merge-mode", "append"])
-
-    switch command {
-    case .newNote(let options):
-        let options = try #require(options)
-        #expect(options.tagMergeMode == .append)
-    default:
-        Issue.record("Expected '--tag-merge-mode append' to stay in explicit mode.")
-    }
-}
-
-@Test
-func parseNewNoteRejectsInvalidBooleanValues() throws {
+func parseNewNoteRejectsNewWindowWithoutOpenNote() throws {
     #expect {
-        try BearCLICommand.parse(arguments: ["--new-note", "--open-note", "maybe"])
+        try BearCLICommand.parse(arguments: ["--new-note", "--new-window"])
     } throws: { error in
         guard let bearError = error as? BearError else {
             return false
@@ -93,10 +95,48 @@ func parseNewNoteRejectsInvalidBooleanValues() throws {
 
         switch bearError {
         case .invalidInput(let message):
-            return message.contains("--open-note")
+            return message.contains("--new-window") && message.contains("--open-note")
         default:
             return false
         }
+    }
+}
+
+@Test
+func parseRestoreNoteRequiresEvenPairs() throws {
+    #expect {
+        try BearCLICommand.parse(arguments: ["--restore-note", "note-1", "snapshot-1", "note-2"])
+    } throws: { error in
+        guard let bearError = error as? BearError else {
+            return false
+        }
+
+        switch bearError {
+        case .invalidInput(let message):
+            return message.contains("NOTE_ID SNAPSHOT_ID")
+        default:
+            return false
+        }
+    }
+}
+
+@Test
+func parseRestoreNoteBuildsPairRequests() throws {
+    let command = try BearCLICommand.parse(arguments: [
+        "--restore-note",
+        "note-1", "snapshot-1",
+        "note-2", "snapshot-2",
+    ])
+
+    switch command {
+    case .restoreNote(let requests):
+        #expect(requests.count == 2)
+        #expect(requests[0].noteID == "note-1")
+        #expect(requests[0].snapshotID == "snapshot-1")
+        #expect(requests[1].noteID == "note-2")
+        #expect(requests[1].snapshotID == "snapshot-2")
+    default:
+        Issue.record("Expected '--restore-note' arguments to parse as restore requests.")
     }
 }
 

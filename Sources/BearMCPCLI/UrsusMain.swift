@@ -53,7 +53,7 @@ struct UrsusMain {
                         title: options.title,
                         content: options.content,
                         tags: options.tags,
-                        tagMergeMode: options.tagMergeMode,
+                        tagMergeMode: options.replaceTags ? .replace : .append,
                         openNote: options.openNote,
                         newWindow: options.newWindow
                     )
@@ -61,18 +61,24 @@ struct UrsusMain {
                     receipt = try await runtime.service.createInteractiveNote()
                 }
                 print(renderNewNoteReceipt(receipt))
-            case .deleteNote(let selectors):
+            case .backupNote(let selectors):
                 let runtime = try makeRuntimeServices(logger: logger)
-                let receipts = try await runtime.service.trashNoteTargets(
+                let summaries = try await runtime.service.backupNoteTargets(
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
-                print(renderMutationReceipts(receipts, action: "trash"))
-            case .archiveNote(let selectors):
+                print(renderBackupSummaries(summaries))
+            case .restoreNote(let requests):
                 let runtime = try makeRuntimeServices(logger: logger)
-                let receipts = try await runtime.service.archiveNoteTargets(
-                    selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
+                let receipts = try await runtime.service.restoreCLIBackups(
+                    requests.map {
+                        RestoreBackupRequest(
+                            noteID: $0.noteID,
+                            snapshotID: $0.snapshotID,
+                            presentation: BearPresentationOptions()
+                        )
+                    }
                 )
-                print(renderMutationReceipts(receipts, action: "archive"))
+                print(renderRestoreBackupReceipts(receipts))
             case .applyTemplate(let selectors):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let receipts = try await runtime.service.applyTemplateToTargets(
@@ -234,6 +240,28 @@ struct UrsusMain {
         }.joined(separator: "\n")
     }
 
+    private static func renderBackupSummaries(_ summaries: [BearBackupSummary]) -> String {
+        summaries.map { summary in
+            [
+                "status=backed_up",
+                "note_id=\(summary.noteID)",
+                "snapshot_id=\(summary.snapshotID)",
+                "title=\(shellQuoted(summary.title))",
+            ].joined(separator: " ")
+        }.joined(separator: "\n")
+    }
+
+    private static func renderRestoreBackupReceipts(_ receipts: [RestoreBackupReceipt]) -> String {
+        receipts.map { receipt in
+            [
+                "status=\(receipt.status)",
+                "note_id=\(receipt.noteID)",
+                "snapshot_id=\(receipt.snapshotID)",
+                "title=\(shellQuoted(receipt.title ?? "Untitled"))",
+            ].joined(separator: " ")
+        }.joined(separator: "\n")
+    }
+
     private static func renderApplyTemplateReceipts(_ receipts: [ApplyTemplateReceipt]) -> String {
         receipts.map { receipt in
             let title = receipt.title ?? "Untitled"
@@ -272,16 +300,6 @@ struct UrsusMain {
             return "Created note"
         case ("create", "submitted"):
             return "Submitted note"
-        case ("archive", "archived"):
-            return "Archived note"
-        case ("archive", "submitted"):
-            return "Submitted archive request"
-        case ("trash", "trashed"):
-            return "Trashed note"
-        case ("trash", "already_trashed"):
-            return "Note already trashed"
-        case ("trash", "submitted"):
-            return "Submitted trash request"
         case ("apply-template", "applied"):
             return "Applied template"
         case ("apply-template", "unchanged"):
@@ -289,5 +307,12 @@ struct UrsusMain {
         default:
             return status.replacingOccurrences(of: "_", with: " ").capitalized
         }
+    }
+
+    private static func shellQuoted(_ text: String) -> String {
+        let escaped = text
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 }

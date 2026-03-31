@@ -60,10 +60,10 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 
 Current direct utility commands:
 
-- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
+- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
+- `ursus --backup-note [note-id-or-title ...]`
+- `ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
 - `ursus --apply-template [note-id-or-title ...]`
-- `ursus --archive-note [note-id-or-title ...]`
-- `ursus --delete-note [note-id-or-title ...]`
 - `ursus bridge serve`
 - `ursus bridge status`
 - `ursus bridge print-url`
@@ -72,14 +72,14 @@ Behavior already in place:
 
 - `--new-note` creates a templated editing note.
 - Default title format is `yyMMdd - hh:mm a`.
-- Default create behavior uses `open_note=yes`, `new_window=no`, and `edit=yes`.
-- If a selected note is available, `--new-note` copies that note's tags.
-- If selected-note tags are unavailable, it falls back to configured inbox tags.
-- `--new-note` with any explicit override flags skips selected-note lookup entirely.
-- In explicit `--new-note` mode, omitted `--tags` defaults to configured inbox tags.
-- In explicit `--new-note` mode, `--tag-merge-mode` defaults to `append` regardless of the general create-note config, and `replace` is available as an explicit override.
-- In explicit `--new-note` mode, `--title` defaults to the same timestamp format, `--content` defaults to empty content, `--open-note` defaults to `createOpensNoteByDefault`, `--new-window` defaults to `openUsesNewWindowByDefault`, and edit mode follows `openNoteInEditModeByDefault` when the created note opens.
-- `--apply-template`, `--archive-note`, and `--delete-note` target the selected Bear note when called without arguments.
+- Bare `--new-note` still opens an editing note in the foreground and seeds tags from the selected note when a Bear token is configured.
+- Bare `--new-note` now skips selected-note lookup entirely when no Bear token is configured and falls back directly to configured inbox tags.
+- Explicit `--new-note` mode always skips selected-note lookup, defaults omitted `--tags` to configured inbox tags, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed/background unless `--open-note` is passed.
+- In explicit `--new-note` mode, `--new-window` is a presence flag and is only valid together with `--open-note`.
+- Short aliases now exist for explicit `--new-note` subflags: `-t`, `-c`, `-g`, `-rt`, `-on`, and `-nw`.
+- `--backup-note` captures one durable backup snapshot per selected or explicitly targeted note and prints machine-friendly receipt lines that include both `note_id` and `snapshot_id`.
+- `--restore-note` restores one or more explicit `NOTE_ID SNAPSHOT_ID` pairs, requires exact note ids rather than title selectors, and reports per-pair receipts.
+- `--apply-template` and `--backup-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 - `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
 - Bridge config now lives inside `~/Library/Application Support/Ursus/config.json` with default localhost settings and a stable saved port.

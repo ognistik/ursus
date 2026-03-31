@@ -114,6 +114,72 @@ func restoreBackupsUsesRequestedSnapshotAndCapturesCurrentState() async throws {
 }
 
 @Test
+func backupNoteTargetsCapturesSnapshotsAndReturnsSummaries() async throws {
+    let selected = makeBackupServiceNote(id: "selected-note", title: "Selected", body: "Current")
+    let inbox = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(
+        noteByID: ["selected-note": selected, "note-1": inbox],
+        notesByTitle: ["inbox": [inbox]]
+    )
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore()
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false, token: "secret-token"),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let summaries = try await service.backupNoteTargets([.selected, .selector("Inbox")])
+
+    #expect(summaries.count == 2)
+    #expect(summaries[0].noteID == "selected-note")
+    #expect(summaries[0].reason == .manual)
+    #expect(summaries[1].noteID == "note-1")
+    #expect(await backupStore.captures.map(\.noteID) == ["selected-note", "note-1"])
+}
+
+@Test
+func restoreCLIBackupsRequiresExactNoteIDs() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        snapshots: [
+            "snapshot-1": BearBackupSnapshot(
+                snapshotID: "snapshot-1",
+                noteID: "note-1",
+                title: "Inbox",
+                rawText: "# Inbox\n\nPrevious",
+                version: 2,
+                modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
+                capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
+                reason: .replaceContent,
+                operationGroupID: "op-1"
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.restoreCLIBackups([
+            RestoreBackupRequest(
+                noteID: "Inbox",
+                snapshotID: "snapshot-1",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+}
+
+@Test
 func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
     let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
@@ -219,7 +285,10 @@ func deleteBackupsRejectsBlindBulkDelete() async throws {
     }
 }
 
-private func makeBackupServiceConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
+private func makeBackupServiceConfiguration(
+    templateManagementEnabled: Bool,
+    token: String? = nil
+) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
@@ -234,7 +303,8 @@ private func makeBackupServiceConfiguration(templateManagementEnabled: Bool) -> 
         maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
         maxSnippetLength: 1_000,
-        backupRetentionDays: 30
+        backupRetentionDays: 30,
+        token: token
     )
 }
 
@@ -350,7 +420,16 @@ private actor RecordingBackupStore: BearBackupStore {
 
     func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) async throws -> BearBackupSummary? {
         captures.append(Capture(noteID: note.ref.identifier, rawText: note.rawText, reason: reason))
-        return nil
+        return BearBackupSummary(
+            snapshotID: "snapshot-\(captures.count)",
+            noteID: note.ref.identifier,
+            title: note.title,
+            version: note.revision.version,
+            modifiedAt: note.revision.modifiedAt,
+            capturedAt: Date(timeIntervalSince1970: 1_710_000_600 + Double(captures.count)),
+            reason: reason,
+            snippet: note.body
+        )
     }
 
     func list(noteID: String?, limit: Int?) async throws -> [BearBackupSummary] {

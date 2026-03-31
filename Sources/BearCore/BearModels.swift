@@ -755,6 +755,7 @@ public enum ReplaceStringOccurrence: String, Codable, Hashable, Sendable {
 }
 
 public enum BackupReason: String, Codable, Hashable, Sendable {
+    case manual = "manual"
     case insertText = "insert_text"
     case replaceContent = "replace_content"
     case addFile = "add_file"

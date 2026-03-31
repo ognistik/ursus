@@ -137,12 +137,12 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func resolveSelectedNoteID() async throws -> String {
-        if let noteID = try await writeTransport.resolveSelectedNoteIDUsingInstalledApp() {
-            return noteID
-        }
-
         guard let token = BearSelectedNoteTokenResolver.resolve(configuration: configuration)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+        }
+
+        if let noteID = try await writeTransport.resolveSelectedNoteIDUsingInstalledApp() {
+            return noteID
         }
 
         return try await writeTransport.resolveSelectedNoteID(token: token)
@@ -278,13 +278,11 @@ public final class BearService: @unchecked Sendable {
         content: String?,
         tags: [String]?,
         tagMergeMode: BearConfiguration.TagsMergeMode,
-        openNote: Bool?,
-        newWindow: Bool?,
+        openNote: Bool,
+        newWindow: Bool,
         at date: Date = Date(),
         timeZone: TimeZone? = nil
     ) async throws -> MutationReceipt {
-        let effectiveOpenNote = openNote ?? configuration.createOpensNoteByDefault
-        let effectiveNewWindow = newWindow ?? configuration.openUsesNewWindowByDefault
         let effectiveTitle = title ?? interactiveNoteTitle(for: date, timeZone: timeZone ?? self.timeZone)
         let effectiveTags = explicitCreateTags(tags, mergeMode: tagMergeMode)
         let receipts = try await createNotes([
@@ -294,12 +292,10 @@ public final class BearService: @unchecked Sendable {
                 tags: effectiveTags,
                 useOnlyRequestTags: true,
                 presentation: BearPresentationOptions(
-                    openNote: effectiveOpenNote,
-                    openNoteOverride: openNote,
-                    newWindow: effectiveNewWindow,
-                    newWindowOverride: newWindow,
-                    showWindow: effectiveOpenNote,
-                    edit: effectiveOpenNote && configuration.openNoteInEditModeByDefault
+                    openNote: openNote,
+                    newWindow: newWindow,
+                    showWindow: openNote,
+                    edit: openNote && configuration.openNoteInEditModeByDefault
                 )
             ),
         ])
@@ -658,6 +654,34 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
+    public func backupNoteTargets(_ targets: [NoteTarget]) async throws -> [BearBackupSummary] {
+        guard let backupStore else {
+            throw BearError.configuration("Backups are unavailable in this runtime.")
+        }
+
+        let noteIDs = try await resolveConcreteNoteIDs(targets)
+        guard !noteIDs.isEmpty else {
+            throw BearError.invalidInput("Backup-note CLI requires one or more note targets.")
+        }
+
+        var summaries: [BearBackupSummary] = []
+        summaries.reserveCapacity(noteIDs.count)
+
+        for noteID in noteIDs {
+            let note = try loadNote(id: noteID)
+            guard let summary = try await backupStore.capture(
+                note: note,
+                reason: .manual,
+                operationGroupID: UUID().uuidString
+            ) else {
+                throw BearError.configuration("Backups are disabled because backup retention is set to 0 days.")
+            }
+            summaries.append(summary)
+        }
+
+        return summaries
+    }
+
     public func trashNoteTargets(_ targets: [NoteTarget]) async throws -> [MutationReceipt] {
         let noteIDs = try await resolveConcreteNoteIDs(targets)
         guard !noteIDs.isEmpty else {
@@ -687,6 +711,35 @@ public final class BearService: @unchecked Sendable {
     public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
         try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
+            guard let snapshot = try await self.backupStore?.snapshot(
+                noteID: note.ref.identifier,
+                snapshotID: request.snapshotID
+            ) else {
+                if let snapshotID = request.snapshotID {
+                    throw BearError.notFound("Backup snapshot '\(snapshotID)' was not found for note \(note.ref.identifier).")
+                }
+                throw BearError.notFound("No backup snapshots were found for note \(note.ref.identifier).")
+            }
+
+            try await self.captureBackupIfNeeded(for: note, reason: .restore)
+            let receipt = try await self.writeTransport.replaceAll(
+                noteID: note.ref.identifier,
+                fullText: snapshot.rawText,
+                presentation: request.presentation
+            )
+            return RestoreBackupReceipt(
+                noteID: note.ref.identifier,
+                title: receipt.title ?? note.title,
+                status: receipt.status,
+                modifiedAt: receipt.modifiedAt,
+                snapshotID: snapshot.snapshotID
+            )
+        }
+    }
+
+    public func restoreCLIBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
+        try await mutateEach(requests) { request in
+            let note = try self.loadNote(id: request.noteID)
             guard let snapshot = try await self.backupStore?.snapshot(
                 noteID: note.ref.identifier,
                 snapshotID: request.snapshotID
@@ -947,6 +1000,10 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func interactiveCreateSeedTags() async -> [String] {
+        guard BearSelectedNoteTokenResolver.configured(configuration: configuration) else {
+            return []
+        }
+
         do {
             let selectedNoteID = try await resolveSelectedNoteID()
             guard let selectedNote = try readStore.note(id: selectedNoteID), !selectedNote.tags.isEmpty else {
