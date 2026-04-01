@@ -657,7 +657,7 @@ private extension BearAppSupport {
         endpointURL: String,
         standardErrorURL: URL,
         endpointProbe: BearBridgeEndpointProbe,
-        timeout: TimeInterval = 3,
+        timeout: TimeInterval = 8,
         interval: TimeInterval = 0.1
     ) throws {
         let deadline = Date().addingTimeInterval(timeout)

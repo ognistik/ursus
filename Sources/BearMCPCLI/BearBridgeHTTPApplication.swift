@@ -36,6 +36,7 @@ actor BearBridgeHTTPApplication {
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
     private var server: Server?
     private var transport: StatelessHTTPServerTransport?
+    private var startupTask: Task<(Server, StatelessHTTPServerTransport), Error>?
     private var hasCompletedInitializationHandshake = false
 
     init(
@@ -61,13 +62,6 @@ actor BearBridgeHTTPApplication {
         eventLoopGroup = group
 
         do {
-            let transport = StatelessHTTPServerTransport(logger: logger)
-            let server = try await serverFactory()
-            try await server.start(transport: transport)
-
-            self.transport = transport
-            self.server = server
-
             let bootstrap = ServerBootstrap(group: group)
                 .serverChannelOption(ChannelOptions.backlog, value: 256)
                 .serverChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
@@ -83,6 +77,25 @@ actor BearBridgeHTTPApplication {
 
             let channel = try await bootstrap.bind(host: configuration.host, port: configuration.port).get()
             self.channel = channel
+            let startupTask = Task { [serverFactory, logger] in
+                try await Self.makeStartedRuntime(serverFactory: serverFactory, logger: logger)
+            }
+            self.startupTask = startupTask
+
+            do {
+                let (server, transport) = try await startupTask.value
+                if self.channel == nil {
+                    await transport.disconnect()
+                    await server.stop()
+                } else {
+                    self.server = server
+                    self.transport = transport
+                }
+                self.startupTask = nil
+            } catch {
+                self.startupTask = nil
+                throw error
+            }
 
             try await channel.closeFuture.get()
         } catch {
@@ -126,6 +139,32 @@ actor BearBridgeHTTPApplication {
             }
         }
 
+        if transport == nil,
+           let startupTask
+        {
+            do {
+                let (server, transport) = try await startupTask.value
+                if self.server == nil, self.channel != nil {
+                    self.server = server
+                    self.transport = transport
+                } else if self.channel == nil {
+                    await transport.disconnect()
+                    await server.stop()
+                }
+                self.startupTask = nil
+            } catch {
+                self.startupTask = nil
+                logger.error(
+                    "Ursus bridge runtime failed during startup",
+                    metadata: ["error": "\(error)"]
+                )
+                return .error(
+                    statusCode: 503,
+                    .internalError("Ursus bridge is still starting up")
+                )
+            }
+        }
+
         guard let transport else {
             return .error(
                 statusCode: 503,
@@ -145,6 +184,8 @@ actor BearBridgeHTTPApplication {
     }
 
     private func teardown() async {
+        startupTask?.cancel()
+        startupTask = nil
         if let transport {
             await transport.disconnect()
             self.transport = nil
@@ -163,6 +204,25 @@ actor BearBridgeHTTPApplication {
 }
 
 extension BearBridgeHTTPApplication {
+    static func makeStartedRuntime(
+        serverFactory: ServerFactory,
+        logger: Logger
+    ) async throws -> (Server, StatelessHTTPServerTransport) {
+        let transport = StatelessHTTPServerTransport(logger: logger)
+        let server = try await serverFactory()
+
+        do {
+            try Task.checkCancellation()
+            try await server.start(transport: transport)
+            try Task.checkCancellation()
+            return (server, transport)
+        } catch {
+            await transport.disconnect()
+            await server.stop()
+            throw error
+        }
+    }
+
     static func decodeInitializeRequest(from request: HTTPRequest) -> Request<Initialize>? {
         guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
               let body = request.body,
