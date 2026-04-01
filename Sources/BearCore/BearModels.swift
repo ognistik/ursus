@@ -145,6 +145,8 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
     public let tagsAny: [String]
     public let tagsAll: [String]
     public let tagsNone: [String]
+    public let hasPinned: Bool?
+    public let hasTodos: Bool?
     public let hasAttachments: Bool?
     public let hasAttachmentSearchText: Bool?
     public let hasTags: Bool?
@@ -166,6 +168,8 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         tagsAny: [String] = [],
         tagsAll: [String] = [],
         tagsNone: [String] = [],
+        hasPinned: Bool? = nil,
+        hasTodos: Bool? = nil,
         hasAttachments: Bool? = nil,
         hasAttachmentSearchText: Bool? = nil,
         hasTags: Bool? = nil,
@@ -186,6 +190,8 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         self.tagsAny = tagsAny
         self.tagsAll = tagsAll
         self.tagsNone = tagsNone
+        self.hasPinned = hasPinned
+        self.hasTodos = hasTodos
         self.hasAttachments = hasAttachments
         self.hasAttachmentSearchText = hasAttachmentSearchText
         self.hasTags = hasTags
@@ -209,6 +215,8 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
     public let tagsAny: [String]
     public let tagsAll: [String]
     public let tagsNone: [String]
+    public let hasPinned: Bool?
+    public let hasTodos: Bool?
     public let hasAttachments: Bool?
     public let hasAttachmentSearchText: Bool?
     public let hasTags: Bool?
@@ -227,6 +235,8 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasPinned: Bool? = nil,
+        hasTodos: Bool? = nil,
         hasAttachments: Bool? = nil,
         hasAttachmentSearchText: Bool? = nil,
         hasTags: Bool? = nil,
@@ -244,6 +254,8 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         self.tagsAny = tagsAny
         self.tagsAll = tagsAll
         self.tagsNone = tagsNone
+        self.hasPinned = hasPinned
+        self.hasTodos = hasTodos
         self.hasAttachments = hasAttachments
         self.hasAttachmentSearchText = hasAttachmentSearchText
         self.hasTags = hasTags

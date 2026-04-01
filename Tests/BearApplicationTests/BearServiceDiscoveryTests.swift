@@ -289,6 +289,8 @@ func findNotesAllowsPresenceOnlyFilters() throws {
 
     let batch = try service.findNotes([
         FindNotesOperation(
+            hasPinned: false,
+            hasTodos: true,
             hasAttachments: true,
             hasAttachmentSearchText: false,
             hasTags: false
@@ -297,6 +299,8 @@ func findNotesAllowsPresenceOnlyFilters() throws {
 
     #expect(batch.results.first?.error == nil)
     #expect(batch.results.first?.items?.first?.noteID == "note-1")
+    #expect(readStore.lastFindQuery?.hasPinned == false)
+    #expect(readStore.lastFindQuery?.hasTodos == true)
     #expect(readStore.lastFindQuery?.hasAttachments == true)
     #expect(readStore.lastFindQuery?.hasAttachmentSearchText == false)
     #expect(readStore.lastFindQuery?.hasTags == false)

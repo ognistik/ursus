@@ -395,6 +395,18 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         to conditions: inout [String],
         query: FindNotesQuery
     ) {
+        if let hasPinned = query.hasPinned {
+            conditions.append(hasPinned
+                ? "COALESCE(n.ZPINNED, 0) != 0"
+                : "COALESCE(n.ZPINNED, 0) = 0")
+        }
+
+        if let hasTodos = query.hasTodos {
+            conditions.append(hasTodos
+                ? "COALESCE(n.ZTODOINCOMPLETED, 0) > 0"
+                : "COALESCE(n.ZTODOINCOMPLETED, 0) = 0")
+        }
+
         if let hasAttachments = query.hasAttachments {
             conditions.append(booleanPresencePredicate(
                 hasAttachments,

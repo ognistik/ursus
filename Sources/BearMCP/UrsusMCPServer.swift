@@ -355,6 +355,8 @@ public final class UrsusMCPServer: Sendable {
             tagsAny: MCPArgumentDecoder.stringArray(object, "tags_any"),
             tagsAll: MCPArgumentDecoder.stringArray(object, "tags_all"),
             tagsNone: MCPArgumentDecoder.stringArray(object, "tags_none"),
+            hasPinned: try MCPArgumentDecoder.optionalBool(object, "has_pinned"),
+            hasTodos: try MCPArgumentDecoder.optionalBool(object, "has_todos"),
             hasAttachments: try MCPArgumentDecoder.optionalBool(object, "has_attachments"),
             hasAttachmentSearchText: try MCPArgumentDecoder.optionalBool(object, "has_attachment_search_text"),
             hasTags: try MCPArgumentDecoder.optionalBool(object, "has_tags"),
@@ -856,6 +858,14 @@ private enum ToolCatalog {
             "tags_none": .object([
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
+            ]),
+            "has_pinned": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional presence filter. Set true to return only pinned notes, or false to return only unpinned notes."),
+            ]),
+            "has_todos": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional presence filter over open todos only. Set true to require at least one open todo, or false to require none."),
             ]),
             "has_attachments": .object([
                 "type": .string("boolean"),

@@ -142,6 +142,8 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     #expect(propertyDescription(named: "limit", in: find)?.contains("Values above `44` are capped") == true)
     #expect(propertyDescription(named: "snippet_length", in: find)?.contains("the default `120`") == true)
     #expect(propertyDescription(named: "snippet_length", in: find)?.contains("Values above `360` are capped") == true)
+    #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)
+    #expect(propertyDescription(named: "has_todos", in: find)?.contains("open todos only") == true)
     #expect(propertyDescription(named: "inbox_tags_mode", in: find)?.contains("`0-inbox`, `deep work`") == true)
 
     let inbox = try #require(tool(named: "bear_find_notes_by_inbox_tags", in: tools))

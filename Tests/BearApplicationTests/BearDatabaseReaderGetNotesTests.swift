@@ -749,6 +749,138 @@ func databaseReaderFindNotesSupportsPresenceFilters() throws {
     #expect(attachmentSearchTextBatch.notes.map(\.ref.identifier) == ["note-3"])
 }
 
+@Test
+func databaseReaderFindNotesSupportsPinnedAndOpenTodoFilters() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Plain",
+            rawText: "# Plain\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 10
+        )
+        try insertNote(
+            db,
+            pk: 2,
+            noteID: "note-2",
+            title: "Pinned",
+            rawText: "# Pinned\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20,
+            pinned: 1
+        )
+        try insertNote(
+            db,
+            pk: 3,
+            noteID: "note-3",
+            title: "Completed Todos",
+            rawText: "# Completed Todos\n\n- [x] Done",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30,
+            todoCompleted: 1
+        )
+        try insertNote(
+            db,
+            pk: 4,
+            noteID: "note-4",
+            title: "Open Todos",
+            rawText: "# Open Todos\n\n- [ ] Next",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 40,
+            todoIncomplete: 1
+        )
+        try insertNote(
+            db,
+            pk: 5,
+            noteID: "note-5",
+            title: "Pinned Open Todos",
+            rawText: "# Pinned Open Todos\n\n- [x] Done\n- [ ] Next",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 50,
+            pinned: 1,
+            todoCompleted: 1,
+            todoIncomplete: 1
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+
+    let pinnedBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: nil,
+            textMode: .substring,
+            textTerms: [],
+            textNot: [],
+            searchFields: [.title, .body, .attachments],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            hasPinned: true,
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+    let openTodosBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: nil,
+            textMode: .substring,
+            textTerms: [],
+            textNot: [],
+            searchFields: [.title, .body, .attachments],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            hasTodos: true,
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+    let unpinnedOpenTodosBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: nil,
+            textMode: .substring,
+            textTerms: [],
+            textNot: [],
+            searchFields: [.title, .body, .attachments],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            hasPinned: false,
+            hasTodos: true,
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+    let noOpenTodosBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: nil,
+            textMode: .substring,
+            textTerms: [],
+            textNot: [],
+            searchFields: [.title, .body, .attachments],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            hasTodos: false,
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(pinnedBatch.notes.map(\.ref.identifier) == ["note-5", "note-2"])
+    #expect(openTodosBatch.notes.map(\.ref.identifier) == ["note-5", "note-4"])
+    #expect(unpinnedOpenTodosBatch.notes.map(\.ref.identifier) == ["note-4"])
+    #expect(noOpenTodosBatch.notes.map(\.ref.identifier) == ["note-3", "note-2", "note-1"])
+}
+
 private func makeTemporaryBearDatabaseURL() throws -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
@@ -772,6 +904,9 @@ private func seedBearDatabase(
             ZCREATIONDATE DOUBLE,
             ZMODIFICATIONDATE DOUBLE,
             ZARCHIVED INTEGER,
+            ZPINNED INTEGER,
+            ZTODOCOMPLETED INTEGER,
+            ZTODOINCOMPLETED INTEGER,
             ZTRASHED INTEGER,
             ZENCRYPTED INTEGER,
             ZPERMANENTLYDELETED INTEGER
@@ -817,7 +952,10 @@ private func insertNote(
     trashed: Int,
     modifiedAt: Double,
     permanentlyDeleted: Int = 0,
-    zOpt: Int = 3
+    zOpt: Int = 3,
+    pinned: Int = 0,
+    todoCompleted: Int = 0,
+    todoIncomplete: Int = 0
 ) throws {
     try db.execute(
         sql: """
@@ -831,10 +969,13 @@ private func insertNote(
             ZCREATIONDATE,
             ZMODIFICATIONDATE,
             ZARCHIVED,
+            ZPINNED,
+            ZTODOCOMPLETED,
+            ZTODOINCOMPLETED,
             ZTRASHED,
             ZENCRYPTED,
             ZPERMANENTLYDELETED
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         arguments: [
             pk,
@@ -846,6 +987,9 @@ private func insertNote(
             modifiedAt - 10,
             modifiedAt,
             archived,
+            pinned,
+            todoCompleted,
+            todoIncomplete,
             trashed,
             0,
             permanentlyDeleted,

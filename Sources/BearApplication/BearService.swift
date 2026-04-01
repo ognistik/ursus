@@ -2306,6 +2306,8 @@ public final class BearService: @unchecked Sendable {
         var tagsAny = normalizedTags(operation.tagsAny)
         var tagsAll = normalizedTags(operation.tagsAll)
         let tagsNone = normalizedTags(operation.tagsNone)
+        let hasPinned = operation.hasPinned
+        let hasTodos = operation.hasTodos
         let hasAttachments = operation.hasAttachments
         let hasAttachmentSearchText = operation.hasAttachmentSearchText
         let hasTags = operation.hasTags
@@ -2342,6 +2344,8 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny,
             tagsAll: tagsAll,
             tagsNone: tagsNone,
+            hasPinned: hasPinned,
+            hasTodos: hasTodos,
             hasAttachments: hasAttachments,
             hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
@@ -2366,6 +2370,8 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny,
             tagsAll: tagsAll,
             tagsNone: tagsNone,
+            hasPinned: hasPinned,
+            hasTodos: hasTodos,
             hasAttachments: hasAttachments,
             hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
@@ -2391,6 +2397,8 @@ public final class BearService: @unchecked Sendable {
                 tagsAny: tagsAny,
                 tagsAll: tagsAll,
                 tagsNone: tagsNone,
+                hasPinned: hasPinned,
+                hasTodos: hasTodos,
                 hasAttachments: hasAttachments,
                 hasAttachmentSearchText: hasAttachmentSearchText,
                 hasTags: hasTags,
@@ -2413,6 +2421,8 @@ public final class BearService: @unchecked Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasPinned: Bool?,
+        hasTodos: Bool?,
         hasAttachments: Bool?,
         hasAttachmentSearchText: Bool?,
         hasTags: Bool?,
@@ -2429,6 +2439,8 @@ public final class BearService: @unchecked Sendable {
             tagsAny: tagsAny.sorted(),
             tagsAll: tagsAll.sorted(),
             tagsNone: tagsNone.sorted(),
+            hasPinned: hasPinned,
+            hasTodos: hasTodos,
             hasAttachments: hasAttachments,
             hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
@@ -2450,6 +2462,8 @@ public final class BearService: @unchecked Sendable {
         tagsAny: [String],
         tagsAll: [String],
         tagsNone: [String],
+        hasPinned: Bool?,
+        hasTodos: Bool?,
         hasAttachments: Bool?,
         hasAttachmentSearchText: Bool?,
         hasTags: Bool?,
@@ -2461,6 +2475,8 @@ public final class BearService: @unchecked Sendable {
             || !tagsAny.isEmpty
             || !tagsAll.isEmpty
             || !tagsNone.isEmpty
+            || hasPinned != nil
+            || hasTodos != nil
             || hasAttachments != nil
             || hasAttachmentSearchText != nil
             || hasTags != nil
@@ -2792,6 +2808,8 @@ private struct FindFilterIdentity: Encodable {
     let tagsAny: [String]
     let tagsAll: [String]
     let tagsNone: [String]
+    let hasPinned: Bool?
+    let hasTodos: Bool?
     let hasAttachments: Bool?
     let hasAttachmentSearchText: Bool?
     let hasTags: Bool?
