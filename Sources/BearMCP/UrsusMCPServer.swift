@@ -506,13 +506,13 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                description: prefixedWithMinimalPayloadRule("Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash."),
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported)) Omit location unless the user explicitly asks for archived notes.",
+                description: prefixedWithMinimalPayloadRule("Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))"),
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -521,14 +521,14 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_list_tags",
-                description: "List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. Optional `query` filters tag names by case-insensitive substring, and optional `under_tag` returns descendants under a parent tag path. Omit all filters for the default normal-notes tag list. Omit `location` unless the user explicitly asks for archived tags.",
+                description: prefixedWithMinimalPayloadRule("List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. `query` filters tag names by case-insensitive substring, and `under_tag` returns descendants under a parent tag path."),
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
                         "location": .object([
                             "type": .string("string"),
                             "enum": .array([.string("notes"), .string("archive")]),
-                            "description": .string("Optional. Omit unless the user explicitly asks for archived tags. Defaults to `notes`."),
+                            "description": .string(omitUnlessDescription(defaultClause: "the default `notes`", overrideWhen: "the user explicitly asks for archived tags")),
                         ]),
                         "query": .object([
                             "type": .string("string"),
@@ -543,25 +543,25 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_tag",
-                description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                description: prefixedWithMinimalPayloadRule("Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Discovery excludes trash."),
                 operationProperties: findNotesByTagOperationProperties(configuration: configuration),
                 required: ["tags"]
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_inbox_tags",
-                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Omit `location`, `limit`, and `snippet_length` unless the user explicitly asks to override the current session defaults. Discovery excludes trash.",
+                description: prefixedWithMinimalPayloadRule("Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash."),
                 operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
             batchedDiscoveryTool(
                 name: "bear_list_backups",
-                description: "List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `limit` unless the user explicitly asks for a different number of snapshots. `note` is optional; omit it to list recent backups across notes.",
+                description: prefixedWithMinimalPayloadRule("List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `note` to list recent backups across notes."),
                 operationProperties: backupListOperationProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported),
                 required: []
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
-                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
+                description: prefixedWithMinimalPayloadRule("Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note."),
                 operationProperties: [
                     "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
                     "snapshot_id": .object([
@@ -598,7 +598,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_rename_tags",
-                description: "Rename one or more Bear tags across the entire Bear app. This is a global tag rename, not a single-note edit. Use `bear_list_tags` first to confirm the existing canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the rename.",
+                description: prefixedWithMinimalPayloadRule("Rename one or more Bear tags across the entire Bear app. This is a global tag rename, not a single-note edit. Use `bear_list_tags` first to confirm the existing canonical tag names."),
                 operationProperties: [
                     "name": .object([
                         "type": .string("string"),
@@ -608,27 +608,27 @@ private enum ToolCatalog {
                         "type": .string("string"),
                         "description": .string("Replacement canonical tag name to apply across Bear."),
                     ]),
-                    "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the rename."),
+                    "show_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default window behavior", overrideWhen: "the user explicitly asks to control whether Bear shows its main window during the rename")),
                 ],
                 required: ["name", "new_name"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_delete_tags",
-                description: "Delete one or more Bear tags across the entire Bear app. This removes the tag globally rather than only from one note. Use `bear_list_tags` first to confirm the exact canonical tag names. Omit `show_window` unless the user explicitly asks to control whether Bear shows its main window for the delete.",
+                description: prefixedWithMinimalPayloadRule("Delete one or more Bear tags across the entire Bear app. This removes the tag globally rather than only from one note. Use `bear_list_tags` first to confirm the exact canonical tag names."),
                 operationProperties: [
                     "name": .object([
                         "type": .string("string"),
                         "description": .string("Existing canonical tag name to delete across Bear."),
                     ]),
-                    "show_window": optionalPresentationBoolean(description: "Optional. Omit unless the user explicitly asks to control whether Bear shows its main window during the delete."),
+                    "show_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default window behavior", overrideWhen: "the user explicitly asks to control whether Bear shows its main window during the delete")),
                 ],
                 required: ["name"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: prefixedWithMinimalPayloadRule("Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -637,15 +637,15 @@ private enum ToolCatalog {
                         "description": .string("Required tags to add to this one note. Inputs may be wrapped or unwrapped; tags are normalized before writing."),
                     ]),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after adding tags."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after adding tags")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: prefixedWithMinimalPayloadRule("Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -654,27 +654,27 @@ private enum ToolCatalog {
                         "description": .string("Required tags to remove from this one note only. Inputs may be wrapped or unwrapped; tags are normalized before matching."),
                     ]),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after removing tags."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after removing tags")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["tags"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
-                description: "Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened.",
+                description: prefixedWithMinimalPayloadRule("Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after applying the template."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after applying the template")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Current create defaults: omitted `open_note` uses \(formattedBool(configuration.createOpensNoteByDefault)); omitted `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened; configured inbox tags are \(formattedTagList(configuration.inboxTags)); tag merging on omission currently \(formattedCreateTagMergeBehavior(configuration)). Omit `use_only_request_tags`, `open_note`, and `new_window` unless the user explicitly asks to override those defaults for this request. If the user only asks to add tag X, pass `tags` and do not send `use_only_request_tags`. If the user says anything explicit about whether the note should open, send `open_note` with that exact intent. Use `open_note: true` for requests like 'open it' and `open_note: false` for requests like 'do not open it'. Only omit `open_note` when the user does not mention opening at all.",
+                description: prefixedWithMinimalPayloadRule("Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent."),
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -684,36 +684,36 @@ private enum ToolCatalog {
                     "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                     "use_only_request_tags": .object([
                         "type": .string("boolean"),
-                        "description": .string("Optional per-request override for note creation. Omit unless the user explicitly asks to change the current tag-merging default. Current omission behavior: \(formattedCreateTagMergeBehavior(configuration)). `true` uses only the supplied request tags instead of configured inbox tags. `false` appends configured inbox tags. If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change how request tags combine with configured inbox tags")) `true` uses only the supplied request tags instead of configured inbox tags. `false` appends configured inbox tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
-                    "open_note": optionalPresentationBoolean(description: "Optional per-request override for whether Bear opens the created note. Current omission default: \(formattedBool(configuration.createOpensNoteByDefault)). Map any explicit user preference about opening to this field. `true` forces open and `false` forces closed. Omit this field when the user does not mention opening."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override for window presentation. Current omission default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit unless the user explicitly asks for a separate or floating Bear window, or otherwise asks to override the configured window behavior."),
+                    "open_note": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.createOpensNoteByDefault))", overrideWhen: "the user explicitly states whether the created note should open")) `true` forces open and `false` forces closed."),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ],
                 required: ["title", "content"],
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: prefixedWithMinimalPayloadRule("Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert before or after a matching heading or exact editable-content string."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional insertion position used only when no `target` is provided. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
+                        "description": .string(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position")),
                     ]),
                     "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after inserting."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after inserting")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["text"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                description: prefixedWithMinimalPayloadRule("Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
@@ -735,37 +735,37 @@ private enum ToolCatalog {
                         "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full new editable content and may be empty to remove it. For `kind: string`, this is the replacement text and may be empty to remove matched content."),
                     ]),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after replacing."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after replacing")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["kind", "new_string"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission defaults: `position` uses `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` stays closed unless explicitly requested; `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string. Omit optional fields unless the user explicitly asks to override those defaults for this request.",
+                description: prefixedWithMinimalPayloadRule("Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional file insertion position used only when no `target` is provided. Omitted uses the current session default `\(configuration.defaultInsertPosition.rawValue)`."),
+                        "description": .string(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position")),
                     ]),
                     "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after attaching the file."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after attaching the file")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["file_path"]),
                 presentationProperties: [:]
             ),
             batchedMutationTool(
                 name: "bear_open_notes",
-                description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Current omission default: `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)). Omit `new_window` unless the user explicitly asks to override that default for this request.",
+                description: prefixedWithMinimalPayloadRule("Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Default: `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault))."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
@@ -781,15 +781,15 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_restore_notes",
-                description: "Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Current omission defaults: `open_note` stays closed unless explicitly requested, and `new_window` uses \(formattedBool(configuration.openUsesNewWindowByDefault)) when the note is opened. Omit optional presentation flags unless the user explicitly asks to override those defaults for this request.",
+                description: prefixedWithMinimalPayloadRule("Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Optional backup snapshot identifier. Omit to restore the most recent snapshot for the selected note."),
                     ]),
-                    "open_note": optionalPresentationBoolean(description: "Optional override. Current omission default: `false`. Omit this field unless the user explicitly asks to open the note after restoring."),
-                    "new_window": optionalPresentationBoolean(description: "Optional override. Current omission default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault)). Use `true` when the user asks for a separate or floating Bear window."),
+                    "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after restoring")),
+                    "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
@@ -920,7 +920,7 @@ private enum ToolCatalog {
             "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector."),
             "limit": .object([
                 "type": .string("integer"),
-                "description": .string("Optional number of backup summaries to return. Omit unless the user explicitly asks for a different limit. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
+                "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultDiscoveryLimit)`", overrideWhen: "the user explicitly asks for a different limit")) Values above `\(configuration.maxDiscoveryLimit)` are capped."),
             ]),
         ]
 
@@ -942,15 +942,15 @@ private enum ToolCatalog {
         properties["location"] = .object([
             "type": .string("string"),
             "enum": .array([.string("notes"), .string("archive")]),
-            "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
+            "description": .string(omitUnlessDescription(defaultClause: "the default `notes`", overrideWhen: "the user explicitly asks for archived notes")),
         ])
         properties["limit"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional number of summaries to return. Omit unless the user explicitly asks for a different limit or a continuation flow requires it. Omitted uses `\(configuration.defaultDiscoveryLimit)`. Values above `\(configuration.maxDiscoveryLimit)` are capped."),
+            "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultDiscoveryLimit)`", overrideWhen: "the user explicitly asks for a different limit or a continuation flow requires it")) Values above `\(configuration.maxDiscoveryLimit)` are capped."),
         ])
         properties["snippet_length"] = .object([
             "type": .string("integer"),
-            "description": .string("Optional snippet length in characters. Omit unless the user explicitly asks for a different snippet size. Omitted uses `\(configuration.defaultSnippetLength)`. Values above `\(configuration.maxSnippetLength)` are capped."),
+            "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultSnippetLength)`", overrideWhen: "the user explicitly asks for a different snippet size")) Values above `\(configuration.maxSnippetLength)` are capped."),
         ])
         properties["cursor"] = .object([
             "type": .string("string"),
@@ -1053,6 +1053,18 @@ private enum ToolCatalog {
         ])
     }
 
+    private static func minimalPayloadRule() -> String {
+        "Use the smallest valid payload. If a default is acceptable, omit the optional field; sending it anyway is incorrect."
+    }
+
+    private static func prefixedWithMinimalPayloadRule(_ body: String) -> String {
+        "\(minimalPayloadRule()) \(body)"
+    }
+
+    private static func omitUnlessDescription(defaultClause: String, overrideWhen: String) -> String {
+        "Optional. Omit to use \(defaultClause). Do not send unless \(overrideWhen)."
+    }
+
     private static func formattedBool(_ value: Bool) -> String {
         value ? "`true`" : "`false`"
     }
@@ -1083,7 +1095,7 @@ private enum ToolCatalog {
             "location": .object([
                 "type": .string("string"),
                 "enum": .array([.string("notes"), .string("archive")]),
-                "description": .string("Optional. Omit unless the user explicitly asks for archived notes. Defaults to `notes`."),
+                "description": .string(omitUnlessDescription(defaultClause: "the default `notes`", overrideWhen: "the user explicitly asks for archived notes")),
             ]),
         ]
 
