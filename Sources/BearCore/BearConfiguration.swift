@@ -29,9 +29,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var createAddsInboxTagsByDefault: Bool
     public var tagsMergeMode: TagsMergeMode
     public var defaultDiscoveryLimit: Int
-    public var maxDiscoveryLimit: Int
     public var defaultSnippetLength: Int
-    public var maxSnippetLength: Int
     public var backupRetentionDays: Int
     public var disabledTools: [BearToolName]
     public var token: String?
@@ -47,9 +45,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         createAddsInboxTagsByDefault: Bool,
         tagsMergeMode: TagsMergeMode,
         defaultDiscoveryLimit: Int,
-        maxDiscoveryLimit: Int,
         defaultSnippetLength: Int,
-        maxSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName] = [],
         token: String? = nil,
@@ -63,10 +59,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
         self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
         self.tagsMergeMode = tagsMergeMode
-        self.defaultDiscoveryLimit = defaultDiscoveryLimit
-        self.maxDiscoveryLimit = maxDiscoveryLimit
-        self.defaultSnippetLength = defaultSnippetLength
-        self.maxSnippetLength = maxSnippetLength
+        self.defaultDiscoveryLimit = max(1, defaultDiscoveryLimit)
+        self.defaultSnippetLength = max(1, defaultSnippetLength)
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.disabledTools = Self.normalizedDisabledTools(disabledTools)
         self.token = Self.normalizedToken(token)
@@ -84,9 +78,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createAddsInboxTagsByDefault: true,
             tagsMergeMode: .append,
             defaultDiscoveryLimit: 20,
-            maxDiscoveryLimit: 100,
             defaultSnippetLength: 280,
-            maxSnippetLength: 1_000,
             backupRetentionDays: 30,
             disabledTools: [],
             token: nil,
@@ -105,9 +97,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
-            maxDiscoveryLimit: maxDiscoveryLimit,
             defaultSnippetLength: defaultSnippetLength,
-            maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
             token: token,
@@ -126,9 +116,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
-            maxDiscoveryLimit: maxDiscoveryLimit,
             defaultSnippetLength: defaultSnippetLength,
-            maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
             token: token,
@@ -147,9 +135,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
             tagsMergeMode: tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
-            maxDiscoveryLimit: maxDiscoveryLimit,
             defaultSnippetLength: defaultSnippetLength,
-            maxSnippetLength: maxSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
             token: token,
@@ -171,9 +157,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case createAddsInboxTagsByDefault
         case tagsMergeMode
         case defaultDiscoveryLimit
-        case maxDiscoveryLimit
         case defaultSnippetLength
-        case maxSnippetLength
         case backupRetentionDays
         case disabledTools
         case token
@@ -191,10 +175,8 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
         createAddsInboxTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsInboxTagsByDefault) ?? true
         tagsMergeMode = try container.decodeIfPresent(TagsMergeMode.self, forKey: .tagsMergeMode) ?? .append
-        defaultDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20
-        maxDiscoveryLimit = try container.decodeIfPresent(Int.self, forKey: .maxDiscoveryLimit) ?? 100
-        defaultSnippetLength = try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280
-        maxSnippetLength = try container.decodeIfPresent(Int.self, forKey: .maxSnippetLength) ?? 1_000
+        defaultDiscoveryLimit = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20)
+        defaultSnippetLength = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280)
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])
         token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
@@ -212,9 +194,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(createAddsInboxTagsByDefault, forKey: .createAddsInboxTagsByDefault)
         try container.encode(tagsMergeMode, forKey: .tagsMergeMode)
         try container.encode(defaultDiscoveryLimit, forKey: .defaultDiscoveryLimit)
-        try container.encode(maxDiscoveryLimit, forKey: .maxDiscoveryLimit)
         try container.encode(defaultSnippetLength, forKey: .defaultSnippetLength)
-        try container.encode(maxSnippetLength, forKey: .maxSnippetLength)
         try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
         try container.encode(disabledTools, forKey: .disabledTools)
         if let token {

@@ -83,8 +83,6 @@ public final class BearService: @unchecked Sendable {
                     tagsAny: operation.tagMatch == .any ? normalizedTags : [],
                     tagsAll: operation.tagMatch == .all ? normalizedTags : [],
                     location: operation.location,
-                    limit: operation.limit,
-                    snippetLength: operation.snippetLength,
                     cursor: operation.cursor
                 )
             }
@@ -102,8 +100,6 @@ public final class BearService: @unchecked Sendable {
                     id: operation.id,
                     inboxTagsMode: operation.match,
                     location: operation.location,
-                    limit: operation.limit,
-                    snippetLength: operation.snippetLength,
                     cursor: operation.cursor
                 )
             }
@@ -119,7 +115,7 @@ public final class BearService: @unchecked Sendable {
             let (index, operation) = entry
             do {
                 let noteID = try self.resolvedRequiredBackupNoteID(operation.noteID)
-                let limit = self.resolvedDiscoveryLimit(operation.limit)
+                let limit = self.resolvedDiscoveryLimit()
                 let cursor = try self.resolveBackupListCursor(token: operation.cursor, noteID: noteID)
                 let page = try await self.backupStore?.list(
                     noteID: noteID,
@@ -1290,8 +1286,7 @@ public final class BearService: @unchecked Sendable {
             batch: batch,
             query: resolved.query,
             filterKey: resolved.filterKey,
-            limit: resolved.limit,
-            snippetLength: operation.snippetLength
+            limit: resolved.limit
         )
     }
 
@@ -1299,14 +1294,9 @@ public final class BearService: @unchecked Sendable {
         batch: DiscoveryNoteBatch,
         query: FindNotesQuery,
         filterKey: String,
-        limit: Int,
-        snippetLength: Int?
+        limit: Int
     ) throws -> NoteSummaryPage {
-        let summaries = try makeDiscoverySummaries(
-            notes: batch.notes,
-            snippetLength: snippetLength,
-            query: query
-        )
+        let summaries = try makeDiscoverySummaries(notes: batch.notes, query: query)
         let nextCursor: String?
         if batch.hasMore, let lastItem = batch.items.last {
             nextCursor = try DiscoveryCursorCoder.encode(
@@ -1334,12 +1324,8 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
-    private func makeDiscoverySummaries(
-        notes: [BearNote],
-        snippetLength: Int?,
-        query: FindNotesQuery
-    ) throws -> [NoteSummary] {
-        let resolvedSnippetLength = resolvedSnippetLength(snippetLength)
+    private func makeDiscoverySummaries(notes: [BearNote], query: FindNotesQuery) throws -> [NoteSummary] {
+        let resolvedSnippetLength = resolvedSnippetLength()
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try notes.map { note in
@@ -2474,7 +2460,7 @@ public final class BearService: @unchecked Sendable {
             throw BearError.invalidInput("Text filters require at least one non-empty term.")
         }
 
-        let limit = resolvedDiscoveryLimit(operation.limit)
+        let limit = resolvedDiscoveryLimit()
         let filterKey = try findFilterKey(
             text: text,
             textMode: textMode,
@@ -2834,26 +2820,12 @@ public final class BearService: @unchecked Sendable {
         interval.end.addingTimeInterval(-1)
     }
 
-    private func resolvedDiscoveryLimit(_ override: Int?) -> Int {
-        clampedValue(
-            override ?? configuration.defaultDiscoveryLimit,
-            fallback: configuration.defaultDiscoveryLimit,
-            maximum: configuration.maxDiscoveryLimit
-        )
+    private func resolvedDiscoveryLimit() -> Int {
+        max(1, configuration.defaultDiscoveryLimit)
     }
 
-    private func resolvedSnippetLength(_ override: Int?) -> Int {
-        clampedValue(
-            override ?? configuration.defaultSnippetLength,
-            fallback: configuration.defaultSnippetLength,
-            maximum: configuration.maxSnippetLength
-        )
-    }
-
-    private func clampedValue(_ value: Int, fallback: Int, maximum: Int) -> Int {
-        let resolvedMaximum = max(1, maximum)
-        let resolvedFallback = max(1, min(fallback, resolvedMaximum))
-        return max(1, min(value > 0 ? value : resolvedFallback, resolvedMaximum))
+    private func resolvedSnippetLength() -> Int {
+        max(1, configuration.defaultSnippetLength)
     }
 
     private func makeBackupComparison(note: BearNote, snapshot: BearBackupSnapshot) -> BackupComparison {

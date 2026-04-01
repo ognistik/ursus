@@ -15,9 +15,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 7,
-        maxDiscoveryLimit: 25,
         defaultSnippetLength: 90,
-        maxSnippetLength: 180,
         backupRetentionDays: 30,
         token: "secret-token"
     )
@@ -98,7 +96,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
     #expect(try #require(listBackups.description).contains("one Bear note"))
-    #expect(propertyDescription(named: "limit", in: listBackups)?.contains("the default `7`") == true)
+    #expect(propertyDescription(named: "limit", in: listBackups) == nil)
     #expect(propertyDescription(named: "cursor", in: listBackups)?.contains("previous backup page") == true)
     #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
 
@@ -138,9 +136,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 11,
-        maxDiscoveryLimit: 44,
         defaultSnippetLength: 120,
-        maxSnippetLength: 360,
         backupRetentionDays: 30,
         token: nil
     )
@@ -149,10 +145,8 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
     #expect(try #require(find.description).contains("Use the smallest valid payload."))
-    #expect(propertyDescription(named: "limit", in: find)?.contains("the default `11`") == true)
-    #expect(propertyDescription(named: "limit", in: find)?.contains("Values above `44` are capped") == true)
-    #expect(propertyDescription(named: "snippet_length", in: find)?.contains("the default `120`") == true)
-    #expect(propertyDescription(named: "snippet_length", in: find)?.contains("Values above `360` are capped") == true)
+    #expect(propertyDescription(named: "limit", in: find) == nil)
+    #expect(propertyDescription(named: "snippet_length", in: find) == nil)
     #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)
     #expect(propertyDescription(named: "has_todos", in: find)?.contains("open todos only") == true)
     #expect(propertyDescription(named: "has_attachment_search_text", in: find) == nil)
@@ -181,9 +175,7 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: nil
     )

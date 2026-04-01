@@ -39,9 +39,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
@@ -129,9 +127,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
@@ -221,9 +217,7 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
@@ -313,9 +307,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: "secret-token"
     )
@@ -398,9 +390,7 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: "secret-token"
     )
@@ -480,9 +470,7 @@ func bearListBackupsRejectsMissingNoteTarget() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: "secret-token"
     )
@@ -559,9 +547,7 @@ func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: "secret-token"
     )
@@ -642,9 +628,7 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         token: "secret-token"
     )

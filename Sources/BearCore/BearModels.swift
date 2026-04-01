@@ -154,8 +154,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
     public let from: String?
     public let to: String?
     public let location: BearNoteLocation
-    public let limit: Int?
-    public let snippetLength: Int?
     public let cursor: String?
 
     public init(
@@ -176,8 +174,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         from: String? = nil,
         to: String? = nil,
         location: BearNoteLocation = .notes,
-        limit: Int? = nil,
-        snippetLength: Int? = nil,
         cursor: String? = nil
     ) {
         self.id = id
@@ -197,8 +193,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         self.from = from
         self.to = to
         self.location = location
-        self.limit = limit
-        self.snippetLength = snippetLength
         self.cursor = cursor
     }
 }
@@ -266,8 +260,6 @@ public struct FindNotesByTagOperation: Codable, Hashable, Sendable {
     public let tags: [String]
     public let tagMatch: FindTagMatchMode
     public let location: BearNoteLocation
-    public let limit: Int?
-    public let snippetLength: Int?
     public let cursor: String?
 
     public init(
@@ -275,16 +267,12 @@ public struct FindNotesByTagOperation: Codable, Hashable, Sendable {
         tags: [String],
         tagMatch: FindTagMatchMode = .any,
         location: BearNoteLocation = .notes,
-        limit: Int? = nil,
-        snippetLength: Int? = nil,
         cursor: String? = nil
     ) {
         self.id = id
         self.tags = tags
         self.tagMatch = tagMatch
         self.location = location
-        self.limit = limit
-        self.snippetLength = snippetLength
         self.cursor = cursor
     }
 }
@@ -293,23 +281,17 @@ public struct FindNotesByInboxTagsOperation: Codable, Hashable, Sendable {
     public let id: String?
     public let match: FindTagMatchMode
     public let location: BearNoteLocation
-    public let limit: Int?
-    public let snippetLength: Int?
     public let cursor: String?
 
     public init(
         id: String? = nil,
         match: FindTagMatchMode = .any,
         location: BearNoteLocation = .notes,
-        limit: Int? = nil,
-        snippetLength: Int? = nil,
         cursor: String? = nil
     ) {
         self.id = id
         self.match = match
         self.location = location
-        self.limit = limit
-        self.snippetLength = snippetLength
         self.cursor = cursor
     }
 }
@@ -726,13 +708,11 @@ public struct FindNotesBatchResult: Codable, Hashable, Sendable {
 public struct ListBackupsOperation: Codable, Hashable, Sendable {
     public let id: String?
     public let noteID: String
-    public let limit: Int?
     public let cursor: String?
 
-    public init(id: String? = nil, noteID: String, limit: Int? = nil, cursor: String? = nil) {
+    public init(id: String? = nil, noteID: String, cursor: String? = nil) {
         self.id = id
         self.noteID = noteID
-        self.limit = limit
         self.cursor = cursor
     }
 }

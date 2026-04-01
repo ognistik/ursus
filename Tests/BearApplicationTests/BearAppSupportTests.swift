@@ -496,9 +496,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: bridgePort)
     )
@@ -582,9 +580,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
     )
@@ -657,9 +653,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
     )
@@ -863,9 +857,7 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
     )
@@ -934,9 +926,7 @@ func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
     )
@@ -1005,9 +995,7 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
             createAddsInboxTagsByDefault: false,
             tagsMergeMode: .replace,
             defaultDiscoveryLimit: 5,
-            maxDiscoveryLimit: 25,
             defaultSnippetLength: 50,
-            maxSnippetLength: 200,
             backupRetentionDays: 7,
             disabledTools: [.addTags, .findNotes, .addTags]
         ),
@@ -1033,9 +1021,7 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
     #expect(configuration.createAddsInboxTagsByDefault == false)
     #expect(configuration.tagsMergeMode == .replace)
     #expect(configuration.defaultDiscoveryLimit == 5)
-    #expect(configuration.maxDiscoveryLimit == 25)
     #expect(configuration.defaultSnippetLength == 50)
-    #expect(configuration.maxSnippetLength == 200)
     #expect(configuration.backupRetentionDays == 7)
     #expect(configuration.disabledTools == [.addTags, .findNotes])
     #expect(configuration.bridge == .default)
@@ -1061,9 +1047,7 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30,
         bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
     )
@@ -1088,9 +1072,7 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
             createAddsInboxTagsByDefault: false,
             tagsMergeMode: .replace,
             defaultDiscoveryLimit: 5,
-            maxDiscoveryLimit: 25,
             defaultSnippetLength: 50,
-            maxSnippetLength: 200,
             backupRetentionDays: 7,
             disabledTools: []
         ),
@@ -1138,9 +1120,7 @@ func saveConfigurationDraftUpdatesBridgeHostAndPort() throws {
             createAddsInboxTagsByDefault: true,
             tagsMergeMode: .append,
             defaultDiscoveryLimit: 20,
-            maxDiscoveryLimit: 100,
             defaultSnippetLength: 280,
-            maxSnippetLength: 1_000,
             backupRetentionDays: 30,
             disabledTools: []
         ),
@@ -1189,9 +1169,7 @@ func saveConfigurationDraftRejectsInvalidValues() throws {
                 createAddsInboxTagsByDefault: true,
                 tagsMergeMode: .append,
                 defaultDiscoveryLimit: 20,
-                maxDiscoveryLimit: 10,
                 defaultSnippetLength: 280,
-                maxSnippetLength: 100,
                 backupRetentionDays: 30,
                 disabledTools: []
             ),
@@ -1218,9 +1196,7 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
             createAddsInboxTagsByDefault: true,
             tagsMergeMode: .append,
             defaultDiscoveryLimit: 20,
-            maxDiscoveryLimit: 10,
             defaultSnippetLength: 280,
-            maxSnippetLength: 100,
             backupRetentionDays: -1,
             disabledTools: []
         )
@@ -1229,8 +1205,6 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
     #expect(report.issues(for: .databasePath).count == 2)
     #expect(report.issues(for: .inboxTags).count == 1)
     #expect(report.issues(for: .bridgePort).count == 1)
-    #expect(report.issues(for: .maxDiscoveryLimit).count == 1)
-    #expect(report.issues(for: .maxSnippetLength).count == 1)
     #expect(report.issues(for: .backupRetentionDays).count == 1)
     #expect(report.hasErrors)
     #expect(report.warnings.count == 3)

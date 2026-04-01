@@ -105,7 +105,6 @@ public final class UrsusMCPServer: Sendable {
                 ListBackupsOperation(
                     id: MCPArgumentDecoder.optionalString(object, "id"),
                     noteID: resolvedNoteSelector,
-                    limit: MCPArgumentDecoder.optionalInt(object, "limit"),
                     cursor: MCPArgumentDecoder.optionalString(object, "cursor")
                 )
             }
@@ -388,8 +387,6 @@ public final class UrsusMCPServer: Sendable {
             from: MCPArgumentDecoder.optionalString(object, "from"),
             to: MCPArgumentDecoder.optionalString(object, "to"),
             location: try MCPArgumentDecoder.location(object),
-            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
-            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
             cursor: MCPArgumentDecoder.optionalString(object, "cursor")
         )
     }
@@ -521,8 +518,6 @@ public final class UrsusMCPServer: Sendable {
             tags: MCPArgumentDecoder.stringArray(object, "tags"),
             tagMatch: try MCPArgumentDecoder.findTagMatchMode(object, key: "tag_match"),
             location: try MCPArgumentDecoder.location(object),
-            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
-            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
             cursor: MCPArgumentDecoder.optionalString(object, "cursor")
         )
     }
@@ -532,8 +527,6 @@ public final class UrsusMCPServer: Sendable {
             id: MCPArgumentDecoder.optionalString(object, "id"),
             match: try MCPArgumentDecoder.findTagMatchMode(object, key: "match"),
             location: try MCPArgumentDecoder.location(object),
-            limit: MCPArgumentDecoder.optionalInt(object, "limit"),
-            snippetLength: MCPArgumentDecoder.optionalInt(object, "snippet_length"),
             cursor: MCPArgumentDecoder.optionalString(object, "cursor")
         )
     }
@@ -626,7 +619,7 @@ private enum ToolCatalog {
             batchedDiscoveryTool(
                 name: "bear_list_backups",
                 description: prefixedWithMinimalPayloadRule("List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind."),
-                operationProperties: backupListOperationProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported),
+                operationProperties: backupListOperationProperties(selectedNoteSupported: selectedNoteSupported),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported)
             ),
             batchedDiscoveryTool(
@@ -973,7 +966,7 @@ private enum ToolCatalog {
                 "type": .string("string"),
                 "description": .string("Optional inclusive end date bound. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'today'."),
             ]),
-        ], configuration: configuration)
+        ])
     }
 
     private static func findNotesByTagOperationProperties(configuration: BearConfiguration) -> [String: Value] {
@@ -987,7 +980,7 @@ private enum ToolCatalog {
                 "type": .string("string"),
                 "enum": .array([.string("any"), .string("all")]),
             ]),
-        ], configuration: configuration)
+        ])
     }
 
     private static func findNotesByInboxTagsOperationProperties(configuration: BearConfiguration) -> [String: Value] {
@@ -998,20 +991,16 @@ private enum ToolCatalog {
                 "enum": .array([.string("any"), .string("all")]),
                 "description": .string("Optional matching mode over the current configured inbox tags \(formattedTagList(configuration.inboxTags))."),
             ]),
-        ], configuration: configuration)
+        ])
     }
 
-    private static func backupListOperationProperties(configuration: BearConfiguration, selectedNoteSupported: Bool) -> [String: Value] {
+    private static func backupListOperationProperties(selectedNoteSupported: Bool) -> [String: Value] {
         var properties: [String: Value] = [
             "id": .object(["type": .string("string")]),
             "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-            "limit": .object([
-                "type": .string("integer"),
-                "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultDiscoveryLimit)`", overrideWhen: "the user explicitly asks for a different limit")) Values above `\(configuration.maxDiscoveryLimit)` are capped."),
-            ]),
             "cursor": .object([
                 "type": .string("string"),
-                "description": .string("Optional opaque pagination cursor returned by a previous backup page. Omit for the first page and pass back `nextCursor` to continue."),
+                "description": .string("Optional opaque pagination cursor returned by a previous backup page. Omit for the first page and pass back `nextCursor` to continue with the configured server page size."),
             ]),
         ]
 
@@ -1025,27 +1014,16 @@ private enum ToolCatalog {
         return properties
     }
 
-    private static func discoveryOperationProperties(
-        _ base: [String: Value],
-        configuration: BearConfiguration
-    ) -> [String: Value] {
+    private static func discoveryOperationProperties(_ base: [String: Value]) -> [String: Value] {
         var properties = base
         properties["location"] = .object([
             "type": .string("string"),
             "enum": .array([.string("notes"), .string("archive")]),
             "description": .string(omitUnlessDescription(defaultClause: "the default `notes`", overrideWhen: "the user explicitly asks for archived notes")),
         ])
-        properties["limit"] = .object([
-            "type": .string("integer"),
-            "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultDiscoveryLimit)`", overrideWhen: "the user explicitly asks for a different limit or a continuation flow requires it")) Values above `\(configuration.maxDiscoveryLimit)` are capped."),
-        ])
-        properties["snippet_length"] = .object([
-            "type": .string("integer"),
-            "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultSnippetLength)`", overrideWhen: "the user explicitly asks for a different snippet size")) Values above `\(configuration.maxSnippetLength)` are capped."),
-        ])
         properties["cursor"] = .object([
             "type": .string("string"),
-            "description": .string("Optional opaque pagination cursor returned by a previous discovery page. Omit for the first page and pass back `nextCursor` to continue."),
+            "description": .string("Optional opaque pagination cursor returned by a previous discovery page. Omit for the first page and pass back `nextCursor` to continue with the configured server defaults."),
         ])
         return properties
     }

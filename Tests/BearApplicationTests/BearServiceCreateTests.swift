@@ -17,9 +17,7 @@ func createNotesMergesInboxTagsStripsDuplicateTitleAndRendersSingleTemplate() as
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let service = BearService(
@@ -60,9 +58,7 @@ func createNotesCanReplaceInboxTagsWithExplicitRequestTags() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let service = BearService(
@@ -102,9 +98,7 @@ func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let service = BearService(
@@ -145,9 +139,7 @@ func createNotesCanExplicitlyAppendInboxTagsPerRequest() async throws {
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
     let service = BearService(

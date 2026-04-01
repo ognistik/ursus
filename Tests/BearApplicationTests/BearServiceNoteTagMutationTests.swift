@@ -829,9 +829,7 @@ private func makeNoteTagConfiguration(
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
         defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
         backupRetentionDays: 30
     )
 }

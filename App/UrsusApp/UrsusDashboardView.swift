@@ -577,24 +577,10 @@ private struct UrsusConfigurationView: View {
                                 }
 
                                 VStack(alignment: .leading, spacing: 6) {
-                                    Stepper(value: autosavingBinding(\.maxDiscoveryLimitDraft), in: model.defaultDiscoveryLimitDraft...1_000) {
-                                        labeledNumber("Max discovery limit", model.maxDiscoveryLimitDraft)
-                                    }
-                                    validationMessages(for: .maxDiscoveryLimit)
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
                                     Stepper(value: autosavingBinding(\.defaultSnippetLengthDraft), in: 1...2_000) {
                                         labeledNumber("Default snippet length", model.defaultSnippetLengthDraft)
                                     }
                                     validationMessages(for: .defaultSnippetLength)
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Stepper(value: autosavingBinding(\.maxSnippetLengthDraft), in: model.defaultSnippetLengthDraft...4_000) {
-                                        labeledNumber("Max snippet length", model.maxSnippetLengthDraft)
-                                    }
-                                    validationMessages(for: .maxSnippetLength)
                                 }
 
                                 VStack(alignment: .leading, spacing: 6) {

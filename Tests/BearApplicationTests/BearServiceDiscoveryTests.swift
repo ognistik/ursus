@@ -27,7 +27,7 @@ func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndHasAttachments() as
         ]
     )
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"], defaultSnippetLength: 22),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -35,7 +35,7 @@ func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndHasAttachments() as
 
     let batch = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
         try service.findNotesByInboxTags([
-            FindNotesByInboxTagsOperation(location: .notes, snippetLength: 22),
+            FindNotesByInboxTagsOperation(location: .notes),
         ])
     }
 
@@ -55,7 +55,7 @@ func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndHasAttachments() as
 }
 
 @Test
-func findNotesClampsConfiguredOverridesAndTracksMatchedFields() throws {
+func findNotesUsesConfiguredDefaultsAndTracksMatchedFields() throws {
     let note = makeNote(
         id: "archive-1",
         title: "Archived",
@@ -70,9 +70,7 @@ func findNotesClampsConfiguredOverridesAndTracksMatchedFields() throws {
         configuration: makeDiscoveryConfiguration(
             inboxTags: ["0-inbox"],
             defaultDiscoveryLimit: 7,
-            maxDiscoveryLimit: 25,
-            defaultSnippetLength: 12,
-            maxSnippetLength: 18
+            defaultSnippetLength: 12
         ),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
@@ -80,16 +78,16 @@ func findNotesClampsConfiguredOverridesAndTracksMatchedFields() throws {
     )
 
     let batch = try service.findNotes([
-        FindNotesOperation(text: "three", location: .archive, limit: 500, snippetLength: 50),
+        FindNotesOperation(text: "three", location: .archive),
     ])
 
     let result = try #require(batch.results.first)
     let summary = try #require(result.items?.first)
-    #expect(result.page?.limit == 25)
-    #expect(summary.snippet == "One two three four…")
+    #expect(result.page?.limit == 7)
+    #expect(summary.snippet == "One two…")
     #expect(summary.matchedFields == [.body])
     #expect(readStore.lastFindQuery?.location == .archive)
-    #expect(readStore.lastFindQuery?.paging.limit == 25)
+    #expect(readStore.lastFindQuery?.paging.limit == 7)
 }
 
 @Test
@@ -105,7 +103,11 @@ func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(
+            inboxTags: ["0-inbox"],
+            defaultDiscoveryLimit: 1,
+            defaultSnippetLength: 18
+        ),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
@@ -116,8 +118,6 @@ func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
             tags: ["#deep work#", " #project# "],
             tagMatch: .all,
             location: .archive,
-            limit: 1,
-            snippetLength: 18
         ),
     ])
 
@@ -194,14 +194,18 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
         DiscoveryNoteBatch(notes: [second], hasMore: false),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(
+            inboxTags: ["0-inbox"],
+            defaultDiscoveryLimit: 1,
+            defaultSnippetLength: 50
+        ),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
     let firstBatch = try service.findNotes([
-        FindNotesOperation(id: "op-1", text: "page", limit: 1, snippetLength: 50),
+        FindNotesOperation(id: "op-1", text: "page"),
     ])
     let token = try #require(firstBatch.results.first?.page?.nextCursor)
     let cursor = try DiscoveryCursorCoder.decode(token)
@@ -213,7 +217,7 @@ func findNotesReturnsNextCursorAndAcceptsContinuation() throws {
     #expect(cursor.lastNoteID == "note-2")
 
     let secondBatch = try service.findNotes([
-        FindNotesOperation(id: "op-1", text: "page", limit: 1, snippetLength: 50, cursor: token),
+        FindNotesOperation(id: "op-1", text: "page", cursor: token),
     ])
 
     #expect(secondBatch.results.first?.items?.first?.noteID == "note-1")
@@ -270,19 +274,19 @@ func findNotesRejectsMismatchedCursorPerOperation() throws {
         DiscoveryNoteBatch(notes: [note], hasMore: true),
     ])
     let service = BearService(
-        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"], defaultDiscoveryLimit: 1),
         readStore: readStore,
         writeTransport: SilentWriteTransport(),
         logger: Logger(label: "BearServiceDiscoveryTests")
     )
 
     let firstBatch = try service.findNotes([
-        FindNotesOperation(text: "alpha", limit: 1),
+        FindNotesOperation(text: "alpha"),
     ])
     let token = try #require(firstBatch.results.first?.page?.nextCursor)
 
     let secondBatch = try service.findNotes([
-        FindNotesOperation(text: "beta", limit: 1, cursor: token),
+        FindNotesOperation(text: "beta", cursor: token),
     ])
 
     #expect(secondBatch.results.first?.error == "Discovery cursor does not match this request.")
@@ -415,9 +419,7 @@ func listTagsNormalizesOptionalFiltersBeforeQuerying() throws {
 private func makeDiscoveryConfiguration(
     inboxTags: [String],
     defaultDiscoveryLimit: Int = 20,
-    maxDiscoveryLimit: Int = 100,
     defaultSnippetLength: Int = 280,
-    maxSnippetLength: Int = 1_000,
     backupRetentionDays: Int = 30
 ) -> BearConfiguration {
     BearConfiguration(
@@ -430,9 +432,7 @@ private func makeDiscoveryConfiguration(
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
         defaultDiscoveryLimit: defaultDiscoveryLimit,
-        maxDiscoveryLimit: maxDiscoveryLimit,
         defaultSnippetLength: defaultSnippetLength,
-        maxSnippetLength: maxSnippetLength,
         backupRetentionDays: backupRetentionDays
     )
 }

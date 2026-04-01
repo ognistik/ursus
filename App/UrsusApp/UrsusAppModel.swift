@@ -38,9 +38,7 @@ final class UrsusAppModel: ObservableObject {
     @Published var createAddsInboxTagsByDefaultDraft = true
     @Published var tagsMergeModeDraft: BearConfiguration.TagsMergeMode = .append
     @Published var defaultDiscoveryLimitDraft = 20
-    @Published var maxDiscoveryLimitDraft = 100
     @Published var defaultSnippetLengthDraft = 280
-    @Published var maxSnippetLengthDraft = 1_000
     @Published var backupRetentionDaysDraft = 30
     @Published private var disabledToolsDraft: Set<BearToolName> = []
 
@@ -453,9 +451,7 @@ final class UrsusAppModel: ObservableObject {
             createAddsInboxTagsByDefault: createAddsInboxTagsByDefaultDraft,
             tagsMergeMode: tagsMergeModeDraft,
             defaultDiscoveryLimit: defaultDiscoveryLimitDraft,
-            maxDiscoveryLimit: maxDiscoveryLimitDraft,
             defaultSnippetLength: defaultSnippetLengthDraft,
-            maxSnippetLength: maxSnippetLengthDraft,
             backupRetentionDays: backupRetentionDaysDraft,
             disabledTools: Array(disabledToolsDraft)
         )
@@ -486,9 +482,7 @@ final class UrsusAppModel: ObservableObject {
         createAddsInboxTagsByDefaultDraft = settings.createAddsInboxTagsByDefault
         tagsMergeModeDraft = BearConfiguration.TagsMergeMode(rawValue: settings.tagsMergeMode) ?? .append
         defaultDiscoveryLimitDraft = settings.defaultDiscoveryLimit
-        maxDiscoveryLimitDraft = settings.maxDiscoveryLimit
         defaultSnippetLengthDraft = settings.defaultSnippetLength
-        maxSnippetLengthDraft = settings.maxSnippetLength
         backupRetentionDaysDraft = settings.backupRetentionDays
         disabledToolsDraft = Set(settings.disabledTools)
         configurationValidation = validateCurrentConfigurationDraft()

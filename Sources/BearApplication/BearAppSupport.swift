@@ -62,9 +62,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let createAddsInboxTagsByDefault: Bool
     public let tagsMergeMode: String
     public let defaultDiscoveryLimit: Int
-    public let maxDiscoveryLimit: Int
     public let defaultSnippetLength: Int
-    public let maxSnippetLength: Int
     public let backupRetentionDays: Int
     public let disabledTools: [BearToolName]
     public let selectedNoteTokenConfigured: Bool
@@ -152,9 +150,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let createAddsInboxTagsByDefault: Bool
     public let tagsMergeMode: BearConfiguration.TagsMergeMode
     public let defaultDiscoveryLimit: Int
-    public let maxDiscoveryLimit: Int
     public let defaultSnippetLength: Int
-    public let maxSnippetLength: Int
     public let backupRetentionDays: Int
     public let disabledTools: [BearToolName]
 
@@ -170,9 +166,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         createAddsInboxTagsByDefault: Bool,
         tagsMergeMode: BearConfiguration.TagsMergeMode,
         defaultDiscoveryLimit: Int,
-        maxDiscoveryLimit: Int,
         defaultSnippetLength: Int,
-        maxSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName]
     ) {
@@ -187,9 +181,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
         self.tagsMergeMode = tagsMergeMode
         self.defaultDiscoveryLimit = defaultDiscoveryLimit
-        self.maxDiscoveryLimit = maxDiscoveryLimit
         self.defaultSnippetLength = defaultSnippetLength
-        self.maxSnippetLength = maxSnippetLength
         self.backupRetentionDays = backupRetentionDays
         self.disabledTools = BearConfiguration.normalizedDisabledTools(disabledTools)
     }
@@ -201,9 +193,7 @@ public enum BearAppConfigurationField: String, Codable, Hashable, Sendable {
     case bridgeHost
     case bridgePort
     case defaultDiscoveryLimit
-    case maxDiscoveryLimit
     case defaultSnippetLength
-    case maxSnippetLength
     case backupRetentionDays
 }
 
@@ -396,9 +386,7 @@ public enum BearAppSupport {
             createAddsInboxTagsByDefault: configuration.createAddsInboxTagsByDefault,
             tagsMergeMode: configuration.tagsMergeMode.rawValue,
             defaultDiscoveryLimit: configuration.defaultDiscoveryLimit,
-            maxDiscoveryLimit: configuration.maxDiscoveryLimit,
             defaultSnippetLength: configuration.defaultSnippetLength,
-            maxSnippetLength: configuration.maxSnippetLength,
             backupRetentionDays: configuration.backupRetentionDays,
             disabledTools: configuration.disabledTools,
             selectedNoteTokenConfigured: tokenStatus.isConfigured,
@@ -570,9 +558,7 @@ public enum BearAppSupport {
         }
 
         let defaultDiscoveryLimit = max(1, draft.defaultDiscoveryLimit)
-        let maxDiscoveryLimit = max(defaultDiscoveryLimit, draft.maxDiscoveryLimit)
         let defaultSnippetLength = max(1, draft.defaultSnippetLength)
-        let maxSnippetLength = max(defaultSnippetLength, draft.maxSnippetLength)
         let normalizedInboxTags = normalizedInboxTags(draft.inboxTags)
         let validatedBridge = try BearBridgeConfiguration(
             enabled: currentConfiguration.bridge.enabled,
@@ -590,9 +576,7 @@ public enum BearAppSupport {
             createAddsInboxTagsByDefault: draft.createAddsInboxTagsByDefault,
             tagsMergeMode: draft.tagsMergeMode,
             defaultDiscoveryLimit: defaultDiscoveryLimit,
-            maxDiscoveryLimit: maxDiscoveryLimit,
             defaultSnippetLength: defaultSnippetLength,
-            maxSnippetLength: maxSnippetLength,
             backupRetentionDays: max(0, draft.backupRetentionDays),
             disabledTools: draft.disabledTools,
             token: currentConfiguration.token,
@@ -739,32 +723,12 @@ public enum BearAppSupport {
             )
         }
 
-        if draft.maxDiscoveryLimit < draft.defaultDiscoveryLimit {
-            issues.append(
-                BearAppConfigurationIssue(
-                    field: .maxDiscoveryLimit,
-                    severity: .error,
-                    message: "Max discovery limit must be greater than or equal to the default discovery limit."
-                )
-            )
-        }
-
         if draft.defaultSnippetLength < 1 {
             issues.append(
                 BearAppConfigurationIssue(
                     field: .defaultSnippetLength,
                     severity: .error,
                     message: "Default snippet length must be at least 1."
-                )
-            )
-        }
-
-        if draft.maxSnippetLength < draft.defaultSnippetLength {
-            issues.append(
-                BearAppConfigurationIssue(
-                    field: .maxSnippetLength,
-                    severity: .error,
-                    message: "Max snippet length must be greater than or equal to the default snippet length."
                 )
             )
         }

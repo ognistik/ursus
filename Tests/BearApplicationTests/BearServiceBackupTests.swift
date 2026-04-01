@@ -237,8 +237,8 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     )
 
     let result = try await service.listBackups([
-        ListBackupsOperation(id: "ok", noteID: "Inbox", limit: 10, cursor: nil),
-        ListBackupsOperation(id: "missing", noteID: "Unknown", limit: 10, cursor: nil),
+        ListBackupsOperation(id: "ok", noteID: "Inbox", cursor: nil),
+        ListBackupsOperation(id: "missing", noteID: "Unknown", cursor: nil),
     ])
 
     let first = try #require(result.results.first)
@@ -273,7 +273,10 @@ func listBackupsReturnsPaginationMetadata() async throws {
         ]
     )
     let service = BearService(
-        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        configuration: makeBackupServiceConfiguration(
+            templateManagementEnabled: false,
+            defaultDiscoveryLimit: 1
+        ),
         readStore: readStore,
         writeTransport: writeTransport,
         backupStore: backupStore,
@@ -281,7 +284,7 @@ func listBackupsReturnsPaginationMetadata() async throws {
     )
 
     let result = try await service.listBackups([
-        ListBackupsOperation(id: "ok", noteID: "Inbox", limit: 1, cursor: nil),
+        ListBackupsOperation(id: "ok", noteID: "Inbox", cursor: nil),
     ])
 
     let first = try #require(result.results.first)
@@ -395,7 +398,9 @@ func deleteBackupsRejectsBlindBulkDelete() async throws {
 
 private func makeBackupServiceConfiguration(
     templateManagementEnabled: Bool,
-    token: String? = nil
+    token: String? = nil,
+    defaultDiscoveryLimit: Int = 20,
+    defaultSnippetLength: Int = 280
 ) -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
@@ -406,10 +411,8 @@ private func makeBackupServiceConfiguration(
         openUsesNewWindowByDefault: true,
         createAddsInboxTagsByDefault: true,
         tagsMergeMode: .append,
-        defaultDiscoveryLimit: 20,
-        maxDiscoveryLimit: 100,
-        defaultSnippetLength: 280,
-        maxSnippetLength: 1_000,
+        defaultDiscoveryLimit: defaultDiscoveryLimit,
+        defaultSnippetLength: defaultSnippetLength,
         backupRetentionDays: 30,
         token: token
     )
