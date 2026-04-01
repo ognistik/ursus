@@ -2837,11 +2837,9 @@ public final class BearService: @unchecked Sendable {
         return BackupComparison(
             noteID: note.ref.identifier,
             snapshotID: snapshot.snapshotID,
-            backupVersion: snapshot.version,
             backupModifiedAt: snapshot.modifiedAt,
             capturedAt: snapshot.capturedAt,
             reason: snapshot.reason,
-            currentVersion: note.revision.version,
             currentModifiedAt: note.revision.modifiedAt,
             changed: snapshot.rawText != note.rawText,
             titleChanged: snapshot.title != note.title,

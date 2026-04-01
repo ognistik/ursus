@@ -40,7 +40,6 @@ public actor BearBackupFileStore: BearBackupStore {
             noteID: note.ref.identifier,
             title: note.title,
             rawText: note.rawText,
-            version: note.revision.version,
             modifiedAt: note.revision.modifiedAt,
             capturedAt: capturedAt,
             reason: reason,
@@ -70,7 +69,7 @@ public actor BearBackupFileStore: BearBackupStore {
             try BackupMetadataRecord.fetchAll(
                 db,
                 sql: """
-                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE note_id = ?
                     AND (
@@ -129,7 +128,7 @@ public actor BearBackupFileStore: BearBackupStore {
                 return try BackupMetadataRecord.fetchOne(
                     db,
                     sql: """
-                    SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                    SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                     FROM snapshots
                     WHERE snapshot_id = ? AND note_id = ?
                     LIMIT 1
@@ -141,7 +140,7 @@ public actor BearBackupFileStore: BearBackupStore {
             return try BackupMetadataRecord.fetchOne(
                 db,
                 sql: """
-                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE note_id = ?
                 ORDER BY captured_at DESC, snapshot_id DESC
@@ -178,7 +177,7 @@ public actor BearBackupFileStore: BearBackupStore {
             try BackupMetadataRecord.fetchOne(
                 db,
                 sql: """
-                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE snapshot_id = ?
                     AND (? IS NULL OR note_id = ?)
@@ -208,7 +207,7 @@ public actor BearBackupFileStore: BearBackupStore {
             try BackupMetadataRecord.fetchAll(
                 db,
                 sql: """
-                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE note_id = ?
                 """,
@@ -255,7 +254,6 @@ public actor BearBackupFileStore: BearBackupStore {
             try db.create(table: "snapshots") { table in
                 table.column("snapshot_id", .text).notNull().primaryKey()
                 table.column("note_id", .text).notNull()
-                table.column("version", .integer).notNull()
                 table.column("modified_at", .double).notNull()
                 table.column("captured_at", .double).notNull()
                 table.column("reason", .text).notNull()
@@ -285,7 +283,7 @@ public actor BearBackupFileStore: BearBackupStore {
             try BackupMetadataRecord.fetchAll(
                 db,
                 sql: """
-                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE captured_at < ?
                 """,
@@ -355,7 +353,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
     enum Columns {
         static let snapshotID = Column(CodingKeys.snapshotID)
         static let noteID = Column(CodingKeys.noteID)
-        static let version = Column(CodingKeys.version)
         static let modifiedAt = Column(CodingKeys.modifiedAt)
         static let capturedAt = Column(CodingKeys.capturedAt)
         static let reason = Column(CodingKeys.reason)
@@ -365,7 +362,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
 
     let snapshotID: String
     let noteID: String
-    let version: Int
     let modifiedAt: Date
     let capturedAt: Date
     let reason: BackupReason
@@ -375,7 +371,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
     init(
         snapshotID: String,
         noteID: String,
-        version: Int,
         modifiedAt: Date,
         capturedAt: Date,
         reason: BackupReason,
@@ -384,7 +379,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
     ) {
         self.snapshotID = snapshotID
         self.noteID = noteID
-        self.version = version
         self.modifiedAt = modifiedAt
         self.capturedAt = capturedAt
         self.reason = reason
@@ -396,7 +390,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
         self.init(
             snapshotID: snapshot.snapshotID,
             noteID: snapshot.noteID,
-            version: snapshot.version,
             modifiedAt: snapshot.modifiedAt,
             capturedAt: snapshot.capturedAt,
             reason: snapshot.reason,
@@ -408,7 +401,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
     init(row: Row) {
         snapshotID = row["snapshot_id"]
         noteID = row["note_id"]
-        version = row["version"]
         modifiedAt = Date(timeIntervalSince1970: row["modified_at"])
         capturedAt = Date(timeIntervalSince1970: row["captured_at"])
         reason = BackupReason(rawValue: row["reason"]) ?? .manual
@@ -419,7 +411,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
     func encode(to container: inout PersistenceContainer) {
         container["snapshot_id"] = snapshotID
         container["note_id"] = noteID
-        container["version"] = version
         container["modified_at"] = modifiedAt.timeIntervalSince1970
         container["captured_at"] = capturedAt.timeIntervalSince1970
         container["reason"] = reason.rawValue
@@ -431,7 +422,6 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
         BearBackupSummary(
             snapshotID: snapshotID,
             noteID: noteID,
-            version: version,
             modifiedAt: modifiedAt,
             capturedAt: capturedAt,
             reason: reason

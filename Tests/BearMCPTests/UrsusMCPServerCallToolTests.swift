@@ -640,7 +640,6 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
                 noteID: "note-1",
                 title: "Test Note",
                 rawText: "# Test Note\n\nPrevious body",
-                version: 2,
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
                 capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
                 reason: .replaceContent,
@@ -779,7 +778,6 @@ private actor MCPToolBackupStore: BearBackupStore {
         return BearBackupSummary(
             snapshotID: "snapshot-\(capturedNoteIDs.count)",
             noteID: note.ref.identifier,
-            version: note.revision.version,
             modifiedAt: note.revision.modifiedAt,
             capturedAt: Date(timeIntervalSince1970: 1_710_000_600),
             reason: reason

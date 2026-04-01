@@ -79,7 +79,6 @@ func restoreBackupsUsesRequestedSnapshotAndCapturesCurrentState() async throws {
                 noteID: "note-1",
                 title: "Inbox",
                 rawText: "# Inbox\n\nPrevious",
-                version: 2,
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
                 capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
                 reason: .replaceContent,
@@ -182,7 +181,6 @@ func restoreCLIBackupsRequiresExactNoteIDs() async throws {
                 noteID: "note-1",
                 title: "Inbox",
                 rawText: "# Inbox\n\nPrevious",
-                version: 2,
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
                 capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
                 reason: .replaceContent,
@@ -220,7 +218,6 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
                 BearBackupSummary(
                     snapshotID: "snapshot-1",
                     noteID: "note-1",
-                    version: 3,
                     modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
                     capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
                     reason: .insertText
@@ -262,7 +259,6 @@ func listBackupsReturnsPaginationMetadata() async throws {
                     BearBackupSummary(
                         snapshotID: "snapshot-2",
                         noteID: "note-1",
-                        version: 4,
                         modifiedAt: Date(timeIntervalSince1970: 1_710_000_600),
                         capturedAt: Date(timeIntervalSince1970: 1_710_000_650),
                         reason: .replaceContent
@@ -306,7 +302,6 @@ func compareBackupsReturnsCompactDiffMetadata() async throws {
                 noteID: "note-1",
                 title: "Inbox",
                 rawText: "# Inbox\n\nCurrent",
-                version: 2,
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
                 capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
                 reason: .replaceContent,
@@ -345,7 +340,6 @@ func deleteBackupsDeletesExactSnapshotAndNoteScopedHistory() async throws {
                 BearBackupSummary(
                     snapshotID: "snapshot-1",
                     noteID: "note-1",
-                    version: 3,
                     modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
                     capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
                     reason: .insertText
@@ -536,7 +530,6 @@ private actor RecordingBackupStore: BearBackupStore {
         return BearBackupSummary(
             snapshotID: "snapshot-\(captures.count)",
             noteID: note.ref.identifier,
-            version: note.revision.version,
             modifiedAt: note.revision.modifiedAt,
             capturedAt: Date(timeIntervalSince1970: 1_710_000_600 + Double(captures.count)),
             reason: reason

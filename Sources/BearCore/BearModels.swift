@@ -720,7 +720,6 @@ public struct ListBackupsOperation: Codable, Hashable, Sendable {
 public struct BearBackupSummary: Codable, Hashable, Sendable {
     public let snapshotID: String
     public let noteID: String
-    public let version: Int
     public let modifiedAt: Date
     public let capturedAt: Date
     public let reason: BackupReason
@@ -728,14 +727,12 @@ public struct BearBackupSummary: Codable, Hashable, Sendable {
     public init(
         snapshotID: String,
         noteID: String,
-        version: Int,
         modifiedAt: Date,
         capturedAt: Date,
         reason: BackupReason
     ) {
         self.snapshotID = snapshotID
         self.noteID = noteID
-        self.version = version
         self.modifiedAt = modifiedAt
         self.capturedAt = capturedAt
         self.reason = reason
@@ -855,11 +852,9 @@ public struct BackupComparisonHunk: Codable, Hashable, Sendable {
 public struct BackupComparison: Codable, Hashable, Sendable {
     public let noteID: String
     public let snapshotID: String
-    public let backupVersion: Int
     public let backupModifiedAt: Date
     public let capturedAt: Date
     public let reason: BackupReason
-    public let currentVersion: Int
     public let currentModifiedAt: Date
     public let changed: Bool
     public let titleChanged: Bool
@@ -868,11 +863,9 @@ public struct BackupComparison: Codable, Hashable, Sendable {
     public init(
         noteID: String,
         snapshotID: String,
-        backupVersion: Int,
         backupModifiedAt: Date,
         capturedAt: Date,
         reason: BackupReason,
-        currentVersion: Int,
         currentModifiedAt: Date,
         changed: Bool,
         titleChanged: Bool,
@@ -880,11 +873,9 @@ public struct BackupComparison: Codable, Hashable, Sendable {
     ) {
         self.noteID = noteID
         self.snapshotID = snapshotID
-        self.backupVersion = backupVersion
         self.backupModifiedAt = backupModifiedAt
         self.capturedAt = capturedAt
         self.reason = reason
-        self.currentVersion = currentVersion
         self.currentModifiedAt = currentModifiedAt
         self.changed = changed
         self.titleChanged = titleChanged
@@ -1317,7 +1308,6 @@ public struct BearBackupSnapshot: Codable, Hashable, Sendable {
     public let noteID: String
     public let title: String
     public let rawText: String
-    public let version: Int
     public let modifiedAt: Date
     public let capturedAt: Date
     public let reason: BackupReason
@@ -1328,7 +1318,6 @@ public struct BearBackupSnapshot: Codable, Hashable, Sendable {
         noteID: String,
         title: String,
         rawText: String,
-        version: Int,
         modifiedAt: Date,
         capturedAt: Date,
         reason: BackupReason,
@@ -1338,7 +1327,6 @@ public struct BearBackupSnapshot: Codable, Hashable, Sendable {
         self.noteID = noteID
         self.title = title
         self.rawText = rawText
-        self.version = version
         self.modifiedAt = modifiedAt
         self.capturedAt = capturedAt
         self.reason = reason
