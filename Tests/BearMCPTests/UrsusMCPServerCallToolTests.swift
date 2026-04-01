@@ -457,6 +457,265 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
     try? serverToClientWrite.close()
 }
 
+@Test(.timeLimit(.minutes(1)))
+func bearListBackupsRejectsMissingNoteTarget() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Body",
+        rawText: "# Test Note\n\nBody",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        token: "secret-token"
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: MCPToolRecordingWriteTransport(),
+        backupStore: MCPToolBackupStore(),
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_list_backups",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "limit": .int(1),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError == true)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Body",
+        rawText: "# Test Note\n\nBody",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        token: "secret-token"
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let backupStore = MCPToolBackupStore()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_create_backups",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "selected": .bool(true),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError != true)
+        #expect(await writeTransport.selectedNoteResolutionCount == 1)
+        #expect(await backupStore.capturedNoteIDs == ["note-1"])
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Current body",
+        rawText: "# Test Note\n\nCurrent body",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        maxDiscoveryLimit: 100,
+        defaultSnippetLength: 280,
+        maxSnippetLength: 1_000,
+        backupRetentionDays: 30,
+        token: "secret-token"
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let backupStore = MCPToolBackupStore(
+        snapshots: [
+            "snapshot-1": BearBackupSnapshot(
+                snapshotID: "snapshot-1",
+                noteID: "note-1",
+                title: "Test Note",
+                rawText: "# Test Note\n\nPrevious body",
+                version: 2,
+                modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
+                capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
+                reason: .replaceContent,
+                operationGroupID: "op-1"
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_compare_backup",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "selected": .bool(true),
+                        "snapshot_id": .string("snapshot-1"),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError != true)
+        #expect(await writeTransport.selectedNoteResolutionCount == 1)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
 private struct MCPToolReadStore: BearReadStore {
     let note: BearNote
 
@@ -521,6 +780,45 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     func archive(noteID: String, showWindow: Bool) async throws -> MutationReceipt {
         MutationReceipt(noteID: noteID, title: nil, status: "archived", modifiedAt: nil)
     }
+}
+
+private actor MCPToolBackupStore: BearBackupStore {
+    private let snapshots: [String: BearBackupSnapshot]
+    private(set) var capturedNoteIDs: [String] = []
+
+    init(snapshots: [String: BearBackupSnapshot] = [:]) {
+        self.snapshots = snapshots
+    }
+
+    func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) async throws -> BearBackupSummary? {
+        capturedNoteIDs.append(note.ref.identifier)
+        return BearBackupSummary(
+            snapshotID: "snapshot-\(capturedNoteIDs.count)",
+            noteID: note.ref.identifier,
+            version: note.revision.version,
+            modifiedAt: note.revision.modifiedAt,
+            capturedAt: Date(timeIntervalSince1970: 1_710_000_600),
+            reason: reason
+        )
+    }
+
+    func list(noteID: String, limit: Int, cursor: BackupListCursor?) async throws -> BackupSummaryPage {
+        BackupSummaryPage(
+            items: [],
+            page: DiscoveryPageInfo(limit: limit, returned: 0, hasMore: false, nextCursor: nil)
+        )
+    }
+
+    func snapshot(noteID: String, snapshotID: String?) async throws -> BearBackupSnapshot? {
+        guard let snapshotID else {
+            return snapshots.values.first(where: { $0.noteID == noteID })
+        }
+        let snapshot = snapshots[snapshotID]
+        return snapshot?.noteID == noteID ? snapshot : nil
+    }
+
+    func delete(snapshotID: String, noteID: String?) async throws -> Int { 0 }
+    func deleteAll(noteID: String) async throws -> Int { 0 }
 }
 
 private func withTemporaryMCPNoteTemplate<T: Sendable>(_ template: String?, operation: @Sendable () async throws -> T) async throws -> T {

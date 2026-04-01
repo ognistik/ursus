@@ -87,17 +87,36 @@ public final class UrsusMCPServer: Sendable {
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByInboxTagsOperation)
             return try jsonResult(try service.findNotesByInboxTags(operations))
 
+        case "bear_create_backups":
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredBackupNoteSelectors(operationObjects)
+            let requests = resolvedNoteSelectors.map(CreateBackupRequest.init(noteID:))
+            return try jsonResult(try await service.createBackups(requests))
+
         case "bear_list_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
-            let resolvedNoteSelectors = try await resolvedOptionalNoteSelectors(operationObjects)
+            let resolvedNoteSelectors = try await resolvedRequiredBackupNoteSelectors(operationObjects)
             let operations = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 ListBackupsOperation(
                     id: MCPArgumentDecoder.optionalString(object, "id"),
                     noteID: resolvedNoteSelector,
-                    limit: MCPArgumentDecoder.optionalInt(object, "limit")
+                    limit: MCPArgumentDecoder.optionalInt(object, "limit"),
+                    cursor: MCPArgumentDecoder.optionalString(object, "cursor")
                 )
             }
             return try jsonResult(try await service.listBackups(operations))
+
+        case "bear_compare_backup":
+            let operationObjects = try requiredObjectArray(params.arguments, "operations")
+            let resolvedNoteSelectors = try await resolvedRequiredBackupNoteSelectors(operationObjects)
+            let operations = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
+                CompareBackupOperation(
+                    id: MCPArgumentDecoder.optionalString(object, "id"),
+                    noteID: resolvedNoteSelector,
+                    snapshotID: try requiredString(object, "snapshot_id")
+                )
+            }
+            return try jsonResult(try await service.compareBackups(operations))
 
         case "bear_delete_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -380,6 +399,11 @@ public final class UrsusMCPServer: Sendable {
         return try await service.resolveNoteTargets(noteTargets)
     }
 
+    private func resolvedRequiredBackupNoteSelectors(_ objects: [[String: Value]]) async throws -> [String] {
+        let noteTargets = try objects.map(requiredBackupNoteTarget)
+        return try await service.resolveNoteTargets(noteTargets)
+    }
+
     private func resolvedOptionalNoteSelectors(_ objects: [[String: Value]]) async throws -> [String?] {
         let noteTargets = try objects.map(optionalNoteTarget)
         let concreteTargets = noteTargets.compactMap { $0 }
@@ -422,6 +446,37 @@ public final class UrsusMCPServer: Sendable {
         }
 
         return noteTarget
+    }
+
+    private func requiredBackupNoteTarget(_ object: [String: Value]) throws -> NoteTarget {
+        guard let noteTarget = try optionalBackupNoteTarget(object) else {
+            throw BearError.invalidInput("Provide exactly one of `note` or `selected: true`.")
+        }
+
+        return noteTarget
+    }
+
+    private func optionalBackupNoteTarget(_ object: [String: Value]) throws -> NoteTarget? {
+        let note = object["note"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedSelector = note?.isEmpty == false ? note : nil
+        let selected = try MCPArgumentDecoder.optionalBool(object, "selected") ?? false
+
+        if selected && normalizedSelector != nil {
+            throw BearError.invalidInput("`note` and `selected` are mutually exclusive.")
+        }
+
+        if selected {
+            guard selectedNoteTokenConfigured else {
+                throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
+            }
+            return .selected
+        }
+
+        guard let normalizedSelector else {
+            return nil
+        }
+
+        return .selector(normalizedSelector)
     }
 
     private func optionalNoteTarget(_ object: [String: Value]) throws -> NoteTarget? {
@@ -555,11 +610,33 @@ private enum ToolCatalog {
                 operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
+            batchedMutationTool(
+                name: "bear_create_backups",
+                description: prefixedWithMinimalPayloadRule("Create one or more saved backup snapshots for Bear notes. Each operation targets exactly one note via `note` or `selected: true`, reuses the same manual capture flow as the CLI, and returns compact backup receipts."),
+                operationProperties: [
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
+                presentationProperties: [:]
+            ),
             batchedDiscoveryTool(
                 name: "bear_list_backups",
-                description: prefixedWithMinimalPayloadRule("List saved Bear note backup snapshots and return compact summaries. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind. Omit `note` to list recent backups across notes."),
+                description: prefixedWithMinimalPayloadRule("List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind."),
                 operationProperties: backupListOperationProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported),
-                required: []
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported)
+            ),
+            batchedDiscoveryTool(
+                name: "bear_compare_backup",
+                description: prefixedWithMinimalPayloadRule("Compare one saved backup snapshot against the current Bear note without returning full note bodies by default. Each operation requires exactly one note target plus `snapshot_id`, and returns compact metadata plus bounded diff hunks."),
+                operationProperties: [
+                    "id": .object(["type": .string("string")]),
+                    "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
+                    "snapshot_id": .object([
+                        "type": .string("string"),
+                        "description": .string("Required backup snapshot identifier to compare against the current note."),
+                    ]),
+                ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
+                required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["snapshot_id"])
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
@@ -927,10 +1004,14 @@ private enum ToolCatalog {
     private static func backupListOperationProperties(configuration: BearConfiguration, selectedNoteSupported: Bool) -> [String: Value] {
         var properties: [String: Value] = [
             "id": .object(["type": .string("string")]),
-            "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector."),
+            "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
             "limit": .object([
                 "type": .string("integer"),
                 "description": .string("\(omitUnlessDescription(defaultClause: "the default `\(configuration.defaultDiscoveryLimit)`", overrideWhen: "the user explicitly asks for a different limit")) Values above `\(configuration.maxDiscoveryLimit)` are capped."),
+            ]),
+            "cursor": .object([
+                "type": .string("string"),
+                "description": .string("Optional opaque pagination cursor returned by a previous backup page. Omit for the first page and pass back `nextCursor` to continue."),
             ]),
         ]
 

@@ -1,12 +1,14 @@
 import BearCore
 import Foundation
+import GRDB
 
 public actor BearBackupFileStore: BearBackupStore {
     private let retentionDays: Int
     private let directoryURL: URL
-    private let indexURL: URL
+    private let metadataURL: URL
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
+    private var databaseQueue: DatabaseQueue?
 
     public init(
         retentionDays: Int,
@@ -16,17 +18,18 @@ public actor BearBackupFileStore: BearBackupStore {
     ) {
         self.retentionDays = max(0, retentionDays)
         self.directoryURL = directoryURL
-        self.indexURL = directoryURL.appendingPathComponent("index.json", isDirectory: false)
+        self.metadataURL = directoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
         self.fileManager = fileManager
         self.now = now
     }
 
     public func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) throws -> BearBackupSummary? {
-        let index = try loadPrunedIndex()
         guard retentionDays > 0 else {
+            try cleanupDisabledBackups()
             return nil
         }
 
+        let dbQueue = try prepareMetadataStore()
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         let snapshotID = UUID().uuidString.lowercased()
@@ -45,49 +48,118 @@ public actor BearBackupFileStore: BearBackupStore {
         )
 
         let snapshotData = try BearJSON.makeEncoder().encode(snapshot)
-        try snapshotData.write(to: directoryURL.appendingPathComponent(fileName, isDirectory: false), options: .atomic)
+        try snapshotData.write(to: snapshotFileURL(named: fileName), options: .atomic)
+        let record = BackupMetadataRecord(snapshot: snapshot, fileName: fileName)
 
-        var updatedIndex = index
-        updatedIndex.entries.append(BackupIndexEntry(snapshot: snapshot, fileName: fileName))
-        try writeIndex(updatedIndex)
-        return BackupIndexEntry(snapshot: snapshot, fileName: fileName).summary
-    }
-
-    public func list(noteID: String?, limit: Int?) throws -> [BearBackupSummary] {
-        let index = try loadPrunedIndex()
-        let entries = index.entries
-            .filter { noteID == nil || $0.noteID == noteID }
-            .sorted(by: backupSortOrder)
-
-        guard let limit else {
-            return entries.map(\.summary)
+        try dbQueue.write { db in
+            try record.insert(db)
         }
 
-        return Array(entries.prefix(max(0, limit))).map(\.summary)
+        return record.summary
+    }
+
+    public func list(noteID: String, limit: Int, cursor: BackupListCursor?) throws -> BackupSummaryPage {
+        let resolvedLimit = max(1, limit)
+        guard retentionDays > 0 else {
+            try cleanupDisabledBackups()
+            return emptyPage(limit: resolvedLimit)
+        }
+
+        let dbQueue = try prepareMetadataStore()
+        let entries = try dbQueue.read { db in
+            try BackupMetadataRecord.fetchAll(
+                db,
+                sql: """
+                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                FROM snapshots
+                WHERE note_id = ?
+                    AND (
+                        ? IS NULL
+                        OR captured_at < ?
+                        OR (captured_at = ? AND snapshot_id < ?)
+                    )
+                ORDER BY captured_at DESC, snapshot_id DESC
+                LIMIT ?
+                """,
+                arguments: [
+                    noteID,
+                    cursor == nil ? nil : 1,
+                    cursor?.lastCapturedAt.timeIntervalSince1970,
+                    cursor?.lastCapturedAt.timeIntervalSince1970,
+                    cursor?.lastSnapshotID,
+                    resolvedLimit + 1,
+                ]
+            )
+        }
+
+        let pageEntries = Array(entries.prefix(resolvedLimit))
+        let nextCursor: String?
+        if entries.count > resolvedLimit, let lastEntry = pageEntries.last {
+            nextCursor = try BackupListCursorCoder.encode(
+                BackupListCursor(
+                    noteID: noteID,
+                    lastCapturedAt: lastEntry.capturedAt,
+                    lastSnapshotID: lastEntry.snapshotID
+                )
+            )
+        } else {
+            nextCursor = nil
+        }
+
+        return BackupSummaryPage(
+            items: pageEntries.map(\.summary),
+            page: DiscoveryPageInfo(
+                limit: resolvedLimit,
+                returned: pageEntries.count,
+                hasMore: nextCursor != nil,
+                nextCursor: nextCursor
+            )
+        )
     }
 
     public func snapshot(noteID: String, snapshotID: String?) throws -> BearBackupSnapshot? {
-        let index = try loadPrunedIndex()
-        let entries = index.entries
-            .filter { $0.noteID == noteID }
-            .sorted(by: backupSortOrder)
+        guard retentionDays > 0 else {
+            try cleanupDisabledBackups()
+            return nil
+        }
 
-        let entry: BackupIndexEntry?
-        if let snapshotID {
-            entry = entries.first(where: { $0.snapshotID == snapshotID })
-        } else {
-            entry = entries.first
+        let dbQueue = try prepareMetadataStore()
+        let entry = try dbQueue.read { db in
+            if let snapshotID {
+                return try BackupMetadataRecord.fetchOne(
+                    db,
+                    sql: """
+                    SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                    FROM snapshots
+                    WHERE snapshot_id = ? AND note_id = ?
+                    LIMIT 1
+                    """,
+                    arguments: [snapshotID, noteID]
+                )
+            }
+
+            return try BackupMetadataRecord.fetchOne(
+                db,
+                sql: """
+                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                FROM snapshots
+                WHERE note_id = ?
+                ORDER BY captured_at DESC, snapshot_id DESC
+                LIMIT 1
+                """,
+                arguments: [noteID]
+            )
         }
 
         guard let entry else {
             return nil
         }
 
-        let snapshotURL = directoryURL.appendingPathComponent(entry.fileName, isDirectory: false)
+        let snapshotURL = snapshotFileURL(named: entry.fileName)
         guard fileManager.fileExists(atPath: snapshotURL.path) else {
-            var updatedIndex = index
-            updatedIndex.entries.removeAll { $0.snapshotID == entry.snapshotID }
-            try writeIndex(updatedIndex)
+            _ = try dbQueue.write { db in
+                try entry.delete(db)
+            }
             return nil
         }
 
@@ -96,175 +168,277 @@ public actor BearBackupFileStore: BearBackupStore {
     }
 
     public func delete(snapshotID: String, noteID: String?) throws -> Int {
-        let index = try loadPrunedIndex()
-        guard let entry = index.entries.first(where: { entry in
-            entry.snapshotID == snapshotID && (noteID == nil || entry.noteID == noteID)
+        guard retentionDays > 0 else {
+            try cleanupDisabledBackups()
+            return 0
+        }
+
+        let dbQueue = try prepareMetadataStore()
+        guard let entry = try dbQueue.read({ db in
+            try BackupMetadataRecord.fetchOne(
+                db,
+                sql: """
+                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                FROM snapshots
+                WHERE snapshot_id = ?
+                    AND (? IS NULL OR note_id = ?)
+                LIMIT 1
+                """,
+                arguments: [snapshotID, noteID, noteID]
+            )
         }) else {
             return 0
         }
 
-        var updatedIndex = index
-        updatedIndex.entries.removeAll { $0.snapshotID == entry.snapshotID }
         try removeSnapshotFile(named: entry.fileName)
-        try writeIndex(updatedIndex)
+        _ = try dbQueue.write { db in
+            try entry.delete(db)
+        }
         return 1
     }
 
     public func deleteAll(noteID: String) throws -> Int {
-        let index = try loadPrunedIndex()
-        let entries = index.entries.filter { $0.noteID == noteID }
+        guard retentionDays > 0 else {
+            try cleanupDisabledBackups()
+            return 0
+        }
+
+        let dbQueue = try prepareMetadataStore()
+        let entries = try dbQueue.read { db in
+            try BackupMetadataRecord.fetchAll(
+                db,
+                sql: """
+                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                FROM snapshots
+                WHERE note_id = ?
+                """,
+                arguments: [noteID]
+            )
+        }
+
         guard !entries.isEmpty else {
             return 0
         }
 
-        var updatedIndex = index
-        updatedIndex.entries.removeAll { $0.noteID == noteID }
         for entry in entries {
             try removeSnapshotFile(named: entry.fileName)
         }
-        try writeIndex(updatedIndex)
+
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM snapshots WHERE note_id = ?",
+                arguments: [noteID]
+            )
+        }
         return entries.count
     }
 
-    private func loadPrunedIndex() throws -> BackupIndex {
-        let index = try loadIndex()
-        let pruned = try prune(index)
-        if pruned != index {
-            try writeIndex(pruned)
-        }
-        return pruned
+    private func prepareMetadataStore() throws -> DatabaseQueue {
+        let dbQueue = try openMetadataStore()
+        try pruneExpiredSnapshots(using: dbQueue)
+        return dbQueue
     }
 
-    private func loadIndex() throws -> BackupIndex {
-        guard fileManager.fileExists(atPath: indexURL.path) else {
-            return BackupIndex(entries: [])
-        }
-
-        let data = try Data(contentsOf: indexURL)
-        return try BearJSON.makeDecoder().decode(BackupIndex.self, from: data)
-    }
-
-    private func writeIndex(_ index: BackupIndex) throws {
-        guard retentionDays > 0 || !index.entries.isEmpty else {
-            if fileManager.fileExists(atPath: indexURL.path) {
-                try? fileManager.removeItem(at: indexURL)
-            }
-            return
+    private func openMetadataStore() throws -> DatabaseQueue {
+        if let databaseQueue {
+            return databaseQueue
         }
 
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-        let data = try BearJSON.makeEncoder().encode(index)
-        try data.write(to: indexURL, options: .atomic)
+
+        var configuration = Configuration()
+        configuration.label = "ursus.backups"
+
+        let dbQueue = try DatabaseQueue(path: metadataURL.path, configuration: configuration)
+        var migrator = DatabaseMigrator()
+        migrator.registerMigration("createSnapshots") { db in
+            try db.create(table: "snapshots") { table in
+                table.column("snapshot_id", .text).notNull().primaryKey()
+                table.column("note_id", .text).notNull()
+                table.column("version", .integer).notNull()
+                table.column("modified_at", .double).notNull()
+                table.column("captured_at", .double).notNull()
+                table.column("reason", .text).notNull()
+                table.column("operation_group_id", .text)
+                table.column("file_name", .text).notNull()
+            }
+
+            try db.create(
+                index: "snapshots_note_captured_snapshot_idx",
+                on: "snapshots",
+                columns: ["note_id", "captured_at", "snapshot_id"]
+            )
+            try db.create(
+                index: "snapshots_captured_at_idx",
+                on: "snapshots",
+                columns: ["captured_at"]
+            )
+        }
+        try migrator.migrate(dbQueue)
+        databaseQueue = dbQueue
+        return dbQueue
+    }
+
+    private func pruneExpiredSnapshots(using dbQueue: DatabaseQueue) throws {
+        let cutoff = now().addingTimeInterval(-Double(retentionDays) * 86_400).timeIntervalSince1970
+        let expiredEntries = try dbQueue.read { db in
+            try BackupMetadataRecord.fetchAll(
+                db,
+                sql: """
+                SELECT snapshot_id, note_id, version, modified_at, captured_at, reason, operation_group_id, file_name
+                FROM snapshots
+                WHERE captured_at < ?
+                """,
+                arguments: [cutoff]
+            )
+        }
+
+        guard !expiredEntries.isEmpty else {
+            return
+        }
+
+        for entry in expiredEntries {
+            try? removeSnapshotFile(named: entry.fileName)
+        }
+
+        let snapshotIDs = expiredEntries.map(\.snapshotID)
+        try dbQueue.write { db in
+            let placeholders = databasePlaceholders(count: snapshotIDs.count)
+            try db.execute(
+                sql: "DELETE FROM snapshots WHERE snapshot_id IN (\(placeholders))",
+                arguments: StatementArguments(snapshotIDs)
+            )
+        }
+    }
+
+    private func cleanupDisabledBackups() throws {
+        if fileManager.fileExists(atPath: directoryURL.path) {
+            let contents = try fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )
+            for url in contents where url.pathExtension.lowercased() == "json" {
+                try? fileManager.removeItem(at: url)
+            }
+        }
+
+        try? fileManager.removeItem(at: metadataURL)
+        try? fileManager.removeItem(at: metadataURL.appendingPathExtension("shm"))
+        try? fileManager.removeItem(at: metadataURL.appendingPathExtension("wal"))
+        databaseQueue = nil
     }
 
     private func removeSnapshotFile(named fileName: String) throws {
-        let snapshotURL = directoryURL.appendingPathComponent(fileName, isDirectory: false)
+        let snapshotURL = snapshotFileURL(named: fileName)
         guard fileManager.fileExists(atPath: snapshotURL.path) else {
             return
         }
         try fileManager.removeItem(at: snapshotURL)
     }
 
-    private func prune(_ index: BackupIndex) throws -> BackupIndex {
-        guard !index.entries.isEmpty else {
-            return index
-        }
-
-        let cutoff: Date? = retentionDays > 0
-            ? now().addingTimeInterval(-Double(retentionDays) * 86_400)
-            : now()
-
-        var kept: [BackupIndexEntry] = []
-        for entry in index.entries {
-            let shouldKeep = retentionDays > 0 && cutoff.map { entry.capturedAt >= $0 } == true
-            if shouldKeep {
-                kept.append(entry)
-                continue
-            }
-
-            let snapshotURL = directoryURL.appendingPathComponent(entry.fileName, isDirectory: false)
-            if fileManager.fileExists(atPath: snapshotURL.path) {
-                try? fileManager.removeItem(at: snapshotURL)
-            }
-        }
-
-        if retentionDays == 0, fileManager.fileExists(atPath: indexURL.path) {
-            try? fileManager.removeItem(at: indexURL)
-        }
-
-        return BackupIndex(entries: kept)
+    private func snapshotFileURL(named fileName: String) -> URL {
+        directoryURL.appendingPathComponent(fileName, isDirectory: false)
     }
 
-    private func backupSortOrder(_ lhs: BackupIndexEntry, _ rhs: BackupIndexEntry) -> Bool {
-        if lhs.capturedAt != rhs.capturedAt {
-            return lhs.capturedAt > rhs.capturedAt
-        }
-        return lhs.snapshotID > rhs.snapshotID
+    private func emptyPage(limit: Int) -> BackupSummaryPage {
+        BackupSummaryPage(
+            items: [],
+            page: DiscoveryPageInfo(limit: limit, returned: 0, hasMore: false, nextCursor: nil)
+        )
     }
 }
 
-private struct BackupIndex: Codable, Hashable, Sendable {
-    var entries: [BackupIndexEntry]
-}
+private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord, Hashable, Sendable {
+    static let databaseTableName = "snapshots"
 
-private struct BackupIndexEntry: Codable, Hashable, Sendable {
+    enum Columns {
+        static let snapshotID = Column(CodingKeys.snapshotID)
+        static let noteID = Column(CodingKeys.noteID)
+        static let version = Column(CodingKeys.version)
+        static let modifiedAt = Column(CodingKeys.modifiedAt)
+        static let capturedAt = Column(CodingKeys.capturedAt)
+        static let reason = Column(CodingKeys.reason)
+        static let operationGroupID = Column(CodingKeys.operationGroupID)
+        static let fileName = Column(CodingKeys.fileName)
+    }
+
     let snapshotID: String
     let noteID: String
-    let title: String
     let version: Int
     let modifiedAt: Date
     let capturedAt: Date
     let reason: BackupReason
     let operationGroupID: String?
-    let snippet: String?
     let fileName: String
 
-    init(snapshot: BearBackupSnapshot, fileName: String) {
-        self.snapshotID = snapshot.snapshotID
-        self.noteID = snapshot.noteID
-        self.title = snapshot.title
-        self.version = snapshot.version
-        self.modifiedAt = snapshot.modifiedAt
-        self.capturedAt = snapshot.capturedAt
-        self.reason = snapshot.reason
-        self.operationGroupID = snapshot.operationGroupID
-        self.snippet = Self.makeSnippet(rawText: snapshot.rawText, fallbackTitle: snapshot.title)
+    init(
+        snapshotID: String,
+        noteID: String,
+        version: Int,
+        modifiedAt: Date,
+        capturedAt: Date,
+        reason: BackupReason,
+        operationGroupID: String?,
+        fileName: String
+    ) {
+        self.snapshotID = snapshotID
+        self.noteID = noteID
+        self.version = version
+        self.modifiedAt = modifiedAt
+        self.capturedAt = capturedAt
+        self.reason = reason
+        self.operationGroupID = operationGroupID
         self.fileName = fileName
+    }
+
+    init(snapshot: BearBackupSnapshot, fileName: String) {
+        self.init(
+            snapshotID: snapshot.snapshotID,
+            noteID: snapshot.noteID,
+            version: snapshot.version,
+            modifiedAt: snapshot.modifiedAt,
+            capturedAt: snapshot.capturedAt,
+            reason: snapshot.reason,
+            operationGroupID: snapshot.operationGroupID,
+            fileName: fileName
+        )
+    }
+
+    init(row: Row) {
+        snapshotID = row["snapshot_id"]
+        noteID = row["note_id"]
+        version = row["version"]
+        modifiedAt = Date(timeIntervalSince1970: row["modified_at"])
+        capturedAt = Date(timeIntervalSince1970: row["captured_at"])
+        reason = BackupReason(rawValue: row["reason"]) ?? .manual
+        operationGroupID = row["operation_group_id"]
+        fileName = row["file_name"]
+    }
+
+    func encode(to container: inout PersistenceContainer) {
+        container["snapshot_id"] = snapshotID
+        container["note_id"] = noteID
+        container["version"] = version
+        container["modified_at"] = modifiedAt.timeIntervalSince1970
+        container["captured_at"] = capturedAt.timeIntervalSince1970
+        container["reason"] = reason.rawValue
+        container["operation_group_id"] = operationGroupID
+        container["file_name"] = fileName
     }
 
     var summary: BearBackupSummary {
         BearBackupSummary(
             snapshotID: snapshotID,
             noteID: noteID,
-            title: title,
             version: version,
             modifiedAt: modifiedAt,
             capturedAt: capturedAt,
-            reason: reason,
-            snippet: snippet
+            reason: reason
         )
     }
+}
 
-    private static func makeSnippet(rawText: String, fallbackTitle: String) -> String? {
-        let body = BearText.parse(rawText: rawText, fallbackTitle: fallbackTitle).body
-        let normalized = body
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        guard !normalized.isEmpty else {
-            return nil
-        }
-
-        let limit = 160
-        guard normalized.count > limit else {
-            return normalized
-        }
-
-        let cutoff = normalized.index(normalized.startIndex, offsetBy: limit)
-        let prefix = String(normalized[..<cutoff]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return prefix + "…"
-    }
+private func databasePlaceholders(count: Int) -> String {
+    Array(repeating: "?", count: count).joined(separator: ",")
 }

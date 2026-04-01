@@ -52,6 +52,7 @@ let package = Package(
                 "BearDB",
                 "BearXCallback",
                 .product(name: "Logging", package: "swift-log"),
+                .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
         .target(

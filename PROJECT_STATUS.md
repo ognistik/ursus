@@ -97,7 +97,7 @@ Behavior already in place:
 The main MCP surface is already broad and usable. Implemented tools include:
 
 - discovery: `bear_find_notes`, `bear_find_notes_by_tag`, `bear_find_notes_by_inbox_tags`, `bear_get_notes`, `bear_list_tags`
-- backups: `bear_list_backups`, `bear_delete_backups`, `bear_restore_notes`
+- backups: `bear_create_backups`, `bear_list_backups`, `bear_compare_backup`, `bear_delete_backups`, `bear_restore_notes`
 - tag/navigation: `bear_open_tag`, `bear_open_notes`, `bear_rename_tags`, `bear_delete_tags`, `bear_add_tags`, `bear_remove_tags`
 - note mutation: `bear_apply_template`, `bear_create_notes`, `bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_archive_notes`
 
@@ -111,6 +111,7 @@ These paths describe the codebase as it exists after Phase 6:
 - app support root: `~/Library/Application Support/Ursus`
 - bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.ursus.plist`
 - backups: `~/Library/Application Support/Ursus/Backups`
+- backup metadata DB: `~/Library/Application Support/Ursus/Backups/backups.sqlite`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
 - debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
@@ -124,6 +125,8 @@ These paths describe the codebase as it exists after Phase 6:
 - The selected-note token is currently managed in Ursus's config flow, not in Keychain.
 - Opened notes now always request Bear edit mode; that default is no longer user-configurable in config.
 - Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
+- Backup MCP discovery is now note-scoped and paginated with opaque cursors. `bear_create_backups` reuses the manual capture path, `bear_compare_backup` returns compact metadata plus bounded diff hunks, and backup list results no longer include stored snippets.
+- Backup snapshot payloads remain one JSON file per snapshot, while backup metadata now lives in `Backups/backups.sqlite` instead of a flat `index.json`, so list/lookup/delete/prune operations no longer load whole-history metadata into memory.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - Batch operations matter and should stay first-class.

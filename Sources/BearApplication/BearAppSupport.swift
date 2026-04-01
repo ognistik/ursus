@@ -44,7 +44,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let configFilePath: String
     public let templatePath: String
     public let backupsDirectoryPath: String
-    public let backupsIndexPath: String
+    public let backupsMetadataPath: String
     public let launcherPath: String
     public let launcherStatus: BearDoctorCheckStatus
     public let launcherStatusTitle: String
@@ -378,7 +378,7 @@ public enum BearAppSupport {
             configFilePath: configFileURL.path,
             templatePath: templateURL.path,
             backupsDirectoryPath: BearPaths.backupsDirectoryURL.path,
-            backupsIndexPath: BearPaths.backupsIndexURL.path,
+            backupsMetadataPath: BearPaths.backupsMetadataURL.path,
             launcherPath: launcherURL.path,
             launcherStatus: launcherStatus.status,
             launcherStatusTitle: launcherStatus.title,
@@ -851,10 +851,10 @@ public enum BearAppSupport {
                 detail: statusDetail(fileManager.fileExists(atPath: BearPaths.noteTemplateURL.path))
             ),
             BearDoctorCheck(
-                key: "backups-index",
-                value: BearPaths.backupsIndexURL.path,
-                status: fileManager.fileExists(atPath: BearPaths.backupsIndexURL.path) ? .ok : .missing,
-                detail: statusDetail(fileManager.fileExists(atPath: BearPaths.backupsIndexURL.path))
+                key: "backups-metadata",
+                value: BearPaths.backupsMetadataURL.path,
+                status: fileManager.fileExists(atPath: BearPaths.backupsMetadataURL.path) ? .ok : .missing,
+                detail: statusDetail(fileManager.fileExists(atPath: BearPaths.backupsMetadataURL.path))
             ),
             BearDoctorCheck(
                 key: "process-lock-primary",

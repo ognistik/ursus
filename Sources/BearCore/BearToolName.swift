@@ -29,7 +29,9 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
     case listTags = "bear_list_tags"
     case findNotesByTag = "bear_find_notes_by_tag"
     case findNotesByInboxTags = "bear_find_notes_by_inbox_tags"
+    case createBackups = "bear_create_backups"
     case listBackups = "bear_list_backups"
+    case compareBackup = "bear_compare_backup"
     case deleteBackups = "bear_delete_backups"
     case openTag = "bear_open_tag"
     case renameTags = "bear_rename_tags"
@@ -57,8 +59,12 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
             return "Find Notes by Tag"
         case .findNotesByInboxTags:
             return "Find Notes by Inbox Tags"
+        case .createBackups:
+            return "Create Backups"
         case .listBackups:
             return "List Backups"
+        case .compareBackup:
+            return "Compare Backup"
         case .deleteBackups:
             return "Delete Backups"
         case .openTag:
@@ -102,8 +108,12 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
             return "Search note summaries by one or more Bear tags."
         case .findNotesByInboxTags:
             return "Search note summaries using the configured inbox tags."
+        case .createBackups:
+            return "Capture saved backup snapshots for notes."
         case .listBackups:
-            return "Inspect saved note backup snapshots."
+            return "Inspect saved backup snapshots for one note."
+        case .compareBackup:
+            return "Compare a saved backup snapshot with the current note."
         case .deleteBackups:
             return "Remove saved backup snapshots."
         case .openTag:
@@ -143,7 +153,7 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
             return .noteContent
         case .renameTags, .deleteTags, .addTags, .removeTags:
             return .tags
-        case .listBackups, .deleteBackups, .restoreNotes:
+        case .createBackups, .listBackups, .compareBackup, .deleteBackups, .restoreNotes:
             return .backups
         case .openTag, .openNotes, .archiveNotes:
             return .navigation

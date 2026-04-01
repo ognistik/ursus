@@ -118,12 +118,20 @@ public final class BearService: @unchecked Sendable {
         let results = try await mutateEach(Array(operations.enumerated())) { entry in
             let (index, operation) = entry
             do {
-                let noteID = try self.resolvedBackupNoteID(operation.noteID)
-                let items = try await self.backupStore?.list(
+                let noteID = try self.resolvedRequiredBackupNoteID(operation.noteID)
+                let limit = self.resolvedDiscoveryLimit(operation.limit)
+                let cursor = try self.resolveBackupListCursor(token: operation.cursor, noteID: noteID)
+                let page = try await self.backupStore?.list(
                     noteID: noteID,
-                    limit: self.resolvedDiscoveryLimit(operation.limit)
-                ) ?? []
-                return ListBackupsOperationResult(index: index, id: operation.id, items: items)
+                    limit: limit,
+                    cursor: cursor
+                ) ?? self.emptyBackupSummaryPage(limit: limit)
+                return ListBackupsOperationResult(
+                    index: index,
+                    id: operation.id,
+                    items: page.items,
+                    page: page.page
+                )
             } catch {
                 return ListBackupsOperationResult(
                     index: index,
@@ -134,6 +142,67 @@ public final class BearService: @unchecked Sendable {
         }
 
         return ListBackupsBatchResult(results: results)
+    }
+
+    public func createBackups(_ requests: [CreateBackupRequest]) async throws -> [CreateBackupReceipt] {
+        guard let backupStore else {
+            throw BearError.configuration("Backups are unavailable in this runtime.")
+        }
+
+        return try await mutateEach(requests) { request in
+            let noteID = try self.resolvedRequiredBackupNoteID(request.noteID)
+            let note = try self.loadNote(id: noteID)
+            guard let summary = try await backupStore.capture(
+                note: note,
+                reason: .manual,
+                operationGroupID: UUID().uuidString
+            ) else {
+                throw BearError.configuration("Backups are disabled because backup retention is set to 0 days.")
+            }
+
+            return CreateBackupReceipt(
+                noteID: note.ref.identifier,
+                snapshotID: summary.snapshotID,
+                status: "backed_up"
+            )
+        }
+    }
+
+    public func compareBackups(_ operations: [CompareBackupOperation]) async throws -> CompareBackupBatchResult {
+        guard !operations.isEmpty else {
+            throw BearError.invalidInput("Missing required array argument 'operations'.")
+        }
+        guard backupStore != nil else {
+            throw BearError.configuration("Backups are unavailable in this runtime.")
+        }
+
+        let results = try await mutateEach(Array(operations.enumerated())) { entry in
+            let (index, operation) = entry
+            do {
+                let noteID = try self.resolvedRequiredBackupNoteID(operation.noteID)
+                let note = try self.loadNote(id: noteID)
+                guard let snapshot = try await self.backupStore?.snapshot(
+                    noteID: note.ref.identifier,
+                    snapshotID: operation.snapshotID
+                ) else {
+                    throw BearError.notFound("Backup snapshot '\(operation.snapshotID)' was not found for note \(note.ref.identifier).")
+                }
+
+                return CompareBackupOperationResult(
+                    index: index,
+                    id: operation.id,
+                    comparison: self.makeBackupComparison(note: note, snapshot: snapshot)
+                )
+            } catch {
+                return CompareBackupOperationResult(
+                    index: index,
+                    id: operation.id,
+                    error: Self.renderOperationError(error)
+                )
+            }
+        }
+
+        return CompareBackupBatchResult(results: results)
     }
 
     public func resolveSelectedNoteID() async throws -> String {
@@ -899,6 +968,38 @@ public final class BearService: @unchecked Sendable {
         }
 
         return try resolveNoteSelector(selector).ref.identifier
+    }
+
+    private func resolvedRequiredBackupNoteID(_ selector: String) throws -> String {
+        try resolveNoteSelector(selector).ref.identifier
+    }
+
+    private func resolveBackupListCursor(token: String?, noteID: String) throws -> BackupListCursor? {
+        guard let token else {
+            return nil
+        }
+
+        let cursor: BackupListCursor
+        do {
+            cursor = try BackupListCursorCoder.decode(token)
+        } catch {
+            throw BearError.invalidInput("Invalid backup cursor.")
+        }
+
+        guard cursor.version == BackupListCursor.currentVersion else {
+            throw BearError.invalidInput("Unsupported backup cursor version '\(cursor.version)'.")
+        }
+        guard cursor.noteID == noteID else {
+            throw BearError.invalidInput("Backup cursor does not match this request.")
+        }
+        return cursor
+    }
+
+    private func emptyBackupSummaryPage(limit: Int) -> BackupSummaryPage {
+        BackupSummaryPage(
+            items: [],
+            page: DiscoveryPageInfo(limit: limit, returned: 0, hasMore: false, nextCursor: nil)
+        )
     }
 
     private func resolvedBackupDeleteMode(_ request: DeleteBackupRequest) throws -> ResolvedBackupDelete {
@@ -2769,6 +2870,255 @@ public final class BearService: @unchecked Sendable {
         let resolvedMaximum = max(1, maximum)
         let resolvedFallback = max(1, min(fallback, resolvedMaximum))
         return max(1, min(value > 0 ? value : resolvedFallback, resolvedMaximum))
+    }
+
+    private func makeBackupComparison(note: BearNote, snapshot: BearBackupSnapshot) -> BackupComparison {
+        let hunks = makeBackupComparisonHunks(
+            backupText: snapshot.rawText,
+            currentText: note.rawText
+        )
+
+        return BackupComparison(
+            noteID: note.ref.identifier,
+            snapshotID: snapshot.snapshotID,
+            backupVersion: snapshot.version,
+            backupModifiedAt: snapshot.modifiedAt,
+            capturedAt: snapshot.capturedAt,
+            reason: snapshot.reason,
+            currentVersion: note.revision.version,
+            currentModifiedAt: note.revision.modifiedAt,
+            changed: snapshot.rawText != note.rawText,
+            titleChanged: snapshot.title != note.title,
+            hunks: hunks
+        )
+    }
+
+    private func makeBackupComparisonHunks(backupText: String, currentText: String) -> [BackupComparisonHunk] {
+        let backupLines = normalizedDiffLines(backupText)
+        let currentLines = normalizedDiffLines(currentText)
+
+        guard backupLines != currentLines else {
+            return []
+        }
+
+        let totalLines = backupLines.count + currentLines.count
+        if totalLines > 400 {
+            return [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines)]
+        }
+
+        let diff = currentLines.difference(from: backupLines)
+        let hunks = groupedComparisonHunks(from: diff)
+        guard !hunks.isEmpty else {
+            return [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines)]
+        }
+
+        let maxHunks = 8
+        return Array(hunks.prefix(maxHunks))
+    }
+
+    private func groupedComparisonHunks(
+        from diff: CollectionDifference<String>
+    ) -> [BackupComparisonHunk] {
+        let removals = diff.removals.sorted { lhs, rhs in
+            guard case .remove(let lhsOffset, _, _) = lhs, case .remove(let rhsOffset, _, _) = rhs else {
+                return false
+            }
+            return lhsOffset < rhsOffset
+        }
+        let insertions = diff.insertions.sorted { lhs, rhs in
+            guard case .insert(let lhsOffset, _, _) = lhs, case .insert(let rhsOffset, _, _) = rhs else {
+                return false
+            }
+            return lhsOffset < rhsOffset
+        }
+
+        var removalIndex = 0
+        var insertionIndex = 0
+        var hunks: [BackupComparisonHunk] = []
+
+        while removalIndex < removals.count || insertionIndex < insertions.count {
+            let nextRemovalOffset = removalOffset(removals, at: removalIndex) ?? Int.max
+            let nextInsertionOffset = insertionOffset(insertions, at: insertionIndex) ?? Int.max
+            let startBackupOffset = nextRemovalOffset == Int.max ? nextInsertionOffset : nextRemovalOffset
+            let startCurrentOffset = nextInsertionOffset == Int.max ? nextRemovalOffset : nextInsertionOffset
+
+            var backupStart = startBackupOffset
+            var currentStart = startCurrentOffset
+            var lastBackupOffset = startBackupOffset - 1
+            var lastCurrentOffset = startCurrentOffset - 1
+            var backupLines: [String] = []
+            var currentLines: [String] = []
+
+            while true {
+                var consumed = false
+
+                if let offset = removalOffset(removals, at: removalIndex), offset <= lastBackupOffset + 1 {
+                    backupLines.append(removalElement(removals[removalIndex]))
+                    backupStart = min(backupStart, offset)
+                    lastBackupOffset = offset
+                    removalIndex += 1
+                    consumed = true
+                }
+
+                if let offset = insertionOffset(insertions, at: insertionIndex), offset <= lastCurrentOffset + 1 {
+                    currentLines.append(insertionElement(insertions[insertionIndex]))
+                    currentStart = min(currentStart, offset)
+                    lastCurrentOffset = offset
+                    insertionIndex += 1
+                    consumed = true
+                }
+
+                if !consumed {
+                    break
+                }
+            }
+
+            if backupLines.isEmpty && currentLines.isEmpty {
+                break
+            }
+
+            let kind: BackupComparisonHunkKind
+            switch (backupLines.isEmpty, currentLines.isEmpty) {
+            case (true, false):
+                kind = .insert
+            case (false, true):
+                kind = .delete
+            default:
+                kind = .replace
+            }
+
+            hunks.append(
+                BackupComparisonHunk(
+                    kind: kind,
+                    backupStartLine: backupStart + 1,
+                    currentStartLine: currentStart + 1,
+                    backupLineCount: backupLines.count,
+                    currentLineCount: currentLines.count,
+                    backupExcerpt: boundedDiffExcerpt(backupLines),
+                    currentExcerpt: boundedDiffExcerpt(currentLines)
+                )
+            )
+        }
+
+        return hunks
+    }
+
+    private func singleComparisonHunk(backupLines: [String], currentLines: [String]) -> BackupComparisonHunk {
+        let prefixCount = commonPrefixCount(backupLines, currentLines)
+        let suffixCount = commonSuffixCount(backupLines, currentLines, prefixCount: prefixCount)
+        let backupChanged = Array(backupLines.dropFirst(prefixCount).dropLast(suffixCount))
+        let currentChanged = Array(currentLines.dropFirst(prefixCount).dropLast(suffixCount))
+
+        let kind: BackupComparisonHunkKind
+        switch (backupChanged.isEmpty, currentChanged.isEmpty) {
+        case (true, false):
+            kind = .insert
+        case (false, true):
+            kind = .delete
+        default:
+            kind = .replace
+        }
+
+        return BackupComparisonHunk(
+            kind: kind,
+            backupStartLine: prefixCount + 1,
+            currentStartLine: prefixCount + 1,
+            backupLineCount: backupChanged.count,
+            currentLineCount: currentChanged.count,
+            backupExcerpt: boundedDiffExcerpt(backupChanged),
+            currentExcerpt: boundedDiffExcerpt(currentChanged)
+        )
+    }
+
+    private func normalizedDiffLines(_ text: String) -> [String] {
+        text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+            .components(separatedBy: "\n")
+    }
+
+    private func boundedDiffExcerpt(_ lines: [String]) -> String? {
+        guard !lines.isEmpty else {
+            return nil
+        }
+
+        let maxLines = 6
+        let maxCharacters = 320
+        var excerptLines = Array(lines.prefix(maxLines))
+        if lines.count > maxLines {
+            excerptLines.append("... (+\(lines.count - maxLines) more lines)")
+        }
+
+        let joined = excerptLines.joined(separator: "\n")
+        guard joined.count > maxCharacters else {
+            return joined
+        }
+
+        let cutoff = joined.index(joined.startIndex, offsetBy: maxCharacters)
+        return String(joined[..<cutoff]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func commonPrefixCount(_ lhs: [String], _ rhs: [String]) -> Int {
+        let limit = min(lhs.count, rhs.count)
+        var index = 0
+        while index < limit, lhs[index] == rhs[index] {
+            index += 1
+        }
+        return index
+    }
+
+    private func commonSuffixCount(_ lhs: [String], _ rhs: [String], prefixCount: Int) -> Int {
+        let lhsRemaining = lhs.count - prefixCount
+        let rhsRemaining = rhs.count - prefixCount
+        let limit = min(lhsRemaining, rhsRemaining)
+        guard limit > 0 else {
+            return 0
+        }
+
+        var count = 0
+        while count < limit {
+            let lhsIndex = lhs.count - 1 - count
+            let rhsIndex = rhs.count - 1 - count
+            if lhsIndex < prefixCount || rhsIndex < prefixCount || lhs[lhsIndex] != rhs[rhsIndex] {
+                break
+            }
+            count += 1
+        }
+        return count
+    }
+
+    private func removalOffset(_ removals: [CollectionDifference<String>.Change], at index: Int) -> Int? {
+        guard index < removals.count else {
+            return nil
+        }
+        guard case .remove(let offset, _, _) = removals[index] else {
+            return nil
+        }
+        return offset
+    }
+
+    private func insertionOffset(_ insertions: [CollectionDifference<String>.Change], at index: Int) -> Int? {
+        guard index < insertions.count else {
+            return nil
+        }
+        guard case .insert(let offset, _, _) = insertions[index] else {
+            return nil
+        }
+        return offset
+    }
+
+    private func removalElement(_ change: CollectionDifference<String>.Change) -> String {
+        guard case .remove(_, let element, _) = change else {
+            return ""
+        }
+        return element
+    }
+
+    private func insertionElement(_ change: CollectionDifference<String>.Change) -> String {
+        guard case .insert(_, let element, _) = change else {
+            return ""
+        }
+        return element
     }
 
     private func mutateEach<Input, Output>(

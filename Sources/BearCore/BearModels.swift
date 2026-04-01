@@ -453,21 +453,89 @@ public enum DiscoveryCursorCoder {
             }
         }
     }
+}
 
-    private static func base64URLEncoded(_ data: Data) -> String {
-        data.base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
+public struct BackupListCursor: Codable, Hashable, Sendable {
+    public static let currentVersion = 1
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case noteID
+        case lastCapturedAt
+        case lastSnapshotID
     }
 
-    private static func base64URLDecoded(_ token: String) -> Data? {
-        let paddedLength = ((token.count + 3) / 4) * 4
-        let padding = String(repeating: "=", count: paddedLength - token.count)
-        let standard = (token + padding)
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        return Data(base64Encoded: standard)
+    public let version: Int
+    public let noteID: String
+    public let lastCapturedAt: Date
+    public let lastSnapshotID: String
+
+    public init(
+        version: Int = BackupListCursor.currentVersion,
+        noteID: String,
+        lastCapturedAt: Date,
+        lastSnapshotID: String
+    ) {
+        self.version = version
+        self.noteID = noteID
+        self.lastCapturedAt = lastCapturedAt
+        self.lastSnapshotID = lastSnapshotID
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.version = try container.decode(Int.self, forKey: .version)
+        self.noteID = try container.decode(String.self, forKey: .noteID)
+        self.lastCapturedAt = try container.decode(Date.self, forKey: .lastCapturedAt)
+        self.lastSnapshotID = try container.decode(String.self, forKey: .lastSnapshotID)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(noteID, forKey: .noteID)
+        try container.encode(lastCapturedAt, forKey: .lastCapturedAt)
+        try container.encode(lastSnapshotID, forKey: .lastSnapshotID)
+    }
+}
+
+public enum BackupListCursorCodingError: LocalizedError {
+    case invalidToken
+
+    public var errorDescription: String? {
+        switch self {
+        case .invalidToken:
+            "Invalid backup cursor."
+        }
+    }
+}
+
+public enum BackupListCursorCoder {
+    public static func encode(_ cursor: BackupListCursor) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let payload = CompactBackupListCursorPayload(cursor: cursor)
+        let data = try encoder.encode(payload)
+        return base64URLEncoded(data)
+    }
+
+    public static func decode(_ token: String) throws -> BackupListCursor {
+        guard let data = base64URLDecoded(token) else {
+            throw BackupListCursorCodingError.invalidToken
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            return try decoder.decode(CompactBackupListCursorPayload.self, from: data).cursor
+        } catch {
+            do {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(BackupListCursor.self, from: data)
+            } catch {
+                throw BackupListCursorCodingError.invalidToken
+            }
+        }
     }
 }
 
@@ -501,6 +569,45 @@ private struct CompactDiscoveryCursorPayload: Codable {
             lastNoteID: i
         )
     }
+}
+
+private struct CompactBackupListCursorPayload: Codable {
+    let v: Int
+    let n: String
+    let c: Double
+    let s: String
+
+    init(cursor: BackupListCursor) {
+        self.v = cursor.version
+        self.n = cursor.noteID
+        self.c = cursor.lastCapturedAt.timeIntervalSinceReferenceDate
+        self.s = cursor.lastSnapshotID
+    }
+
+    var cursor: BackupListCursor {
+        BackupListCursor(
+            version: v,
+            noteID: n,
+            lastCapturedAt: Date(timeIntervalSinceReferenceDate: c),
+            lastSnapshotID: s
+        )
+    }
+}
+
+private func base64URLEncoded(_ data: Data) -> String {
+    data.base64EncodedString()
+        .replacingOccurrences(of: "+", with: "-")
+        .replacingOccurrences(of: "/", with: "_")
+        .replacingOccurrences(of: "=", with: "")
+}
+
+private func base64URLDecoded(_ token: String) -> Data? {
+    let paddedLength = ((token.count + 3) / 4) * 4
+    let padding = String(repeating: "=", count: paddedLength - token.count)
+    let standard = (token + padding)
+        .replacingOccurrences(of: "-", with: "+")
+        .replacingOccurrences(of: "_", with: "/")
+    return Data(base64Encoded: standard)
 }
 
 public struct DiscoveryRankedNote: Hashable, Sendable {
@@ -627,57 +734,63 @@ public struct FindNotesBatchResult: Codable, Hashable, Sendable {
 
 public struct ListBackupsOperation: Codable, Hashable, Sendable {
     public let id: String?
-    public let noteID: String?
+    public let noteID: String
     public let limit: Int?
+    public let cursor: String?
 
-    public init(id: String? = nil, noteID: String? = nil, limit: Int? = nil) {
+    public init(id: String? = nil, noteID: String, limit: Int? = nil, cursor: String? = nil) {
         self.id = id
         self.noteID = noteID
         self.limit = limit
+        self.cursor = cursor
     }
 }
 
 public struct BearBackupSummary: Codable, Hashable, Sendable {
     public let snapshotID: String
     public let noteID: String
-    public let title: String
     public let version: Int
     public let modifiedAt: Date
     public let capturedAt: Date
     public let reason: BackupReason
-    public let snippet: String?
 
     public init(
         snapshotID: String,
         noteID: String,
-        title: String,
         version: Int,
         modifiedAt: Date,
         capturedAt: Date,
-        reason: BackupReason,
-        snippet: String?
+        reason: BackupReason
     ) {
         self.snapshotID = snapshotID
         self.noteID = noteID
-        self.title = title
         self.version = version
         self.modifiedAt = modifiedAt
         self.capturedAt = capturedAt
         self.reason = reason
-        self.snippet = snippet
     }
 }
+
+public typealias BackupSummaryPage = DiscoveryPage<BearBackupSummary>
 
 public struct ListBackupsOperationResult: Codable, Hashable, Sendable {
     public let index: Int
     public let id: String?
-    public let items: [BearBackupSummary]
+    public let items: [BearBackupSummary]?
+    public let page: DiscoveryPageInfo?
     public let error: String?
 
-    public init(index: Int, id: String?, items: [BearBackupSummary] = [], error: String? = nil) {
+    public init(
+        index: Int,
+        id: String?,
+        items: [BearBackupSummary]? = nil,
+        page: DiscoveryPageInfo? = nil,
+        error: String? = nil
+    ) {
         self.index = index
         self.id = id
         self.items = items
+        self.page = page
         self.error = error
     }
 }
@@ -699,6 +812,134 @@ public struct DeleteBackupRequest: Codable, Hashable, Sendable {
         self.noteID = noteID
         self.snapshotID = snapshotID
         self.deleteAll = deleteAll
+    }
+}
+
+public struct CreateBackupRequest: Codable, Hashable, Sendable {
+    public let noteID: String
+
+    public init(noteID: String) {
+        self.noteID = noteID
+    }
+}
+
+public struct CreateBackupReceipt: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let snapshotID: String
+    public let status: String
+
+    public init(noteID: String, snapshotID: String, status: String) {
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+        self.status = status
+    }
+}
+
+public struct CompareBackupOperation: Codable, Hashable, Sendable {
+    public let id: String?
+    public let noteID: String
+    public let snapshotID: String
+
+    public init(id: String? = nil, noteID: String, snapshotID: String) {
+        self.id = id
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+    }
+}
+
+public enum BackupComparisonHunkKind: String, Codable, Hashable, Sendable {
+    case insert
+    case delete
+    case replace
+}
+
+public struct BackupComparisonHunk: Codable, Hashable, Sendable {
+    public let kind: BackupComparisonHunkKind
+    public let backupStartLine: Int
+    public let currentStartLine: Int
+    public let backupLineCount: Int
+    public let currentLineCount: Int
+    public let backupExcerpt: String?
+    public let currentExcerpt: String?
+
+    public init(
+        kind: BackupComparisonHunkKind,
+        backupStartLine: Int,
+        currentStartLine: Int,
+        backupLineCount: Int,
+        currentLineCount: Int,
+        backupExcerpt: String?,
+        currentExcerpt: String?
+    ) {
+        self.kind = kind
+        self.backupStartLine = backupStartLine
+        self.currentStartLine = currentStartLine
+        self.backupLineCount = backupLineCount
+        self.currentLineCount = currentLineCount
+        self.backupExcerpt = backupExcerpt
+        self.currentExcerpt = currentExcerpt
+    }
+}
+
+public struct BackupComparison: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let snapshotID: String
+    public let backupVersion: Int
+    public let backupModifiedAt: Date
+    public let capturedAt: Date
+    public let reason: BackupReason
+    public let currentVersion: Int
+    public let currentModifiedAt: Date
+    public let changed: Bool
+    public let titleChanged: Bool
+    public let hunks: [BackupComparisonHunk]
+
+    public init(
+        noteID: String,
+        snapshotID: String,
+        backupVersion: Int,
+        backupModifiedAt: Date,
+        capturedAt: Date,
+        reason: BackupReason,
+        currentVersion: Int,
+        currentModifiedAt: Date,
+        changed: Bool,
+        titleChanged: Bool,
+        hunks: [BackupComparisonHunk]
+    ) {
+        self.noteID = noteID
+        self.snapshotID = snapshotID
+        self.backupVersion = backupVersion
+        self.backupModifiedAt = backupModifiedAt
+        self.capturedAt = capturedAt
+        self.reason = reason
+        self.currentVersion = currentVersion
+        self.currentModifiedAt = currentModifiedAt
+        self.changed = changed
+        self.titleChanged = titleChanged
+        self.hunks = hunks
+    }
+}
+
+public struct CompareBackupOperationResult: Codable, Hashable, Sendable {
+    public let index: Int
+    public let id: String?
+    public let comparison: BackupComparison?
+    public let error: String?
+
+    public init(index: Int, id: String?, comparison: BackupComparison? = nil, error: String? = nil) {
+        self.index = index
+        self.id = id
+        self.comparison = comparison
+        self.error = error
+    }
+}
+
+public struct CompareBackupBatchResult: Codable, Hashable, Sendable {
+    public let results: [CompareBackupOperationResult]
+
+    public init(results: [CompareBackupOperationResult]) {
+        self.results = results
     }
 }
 

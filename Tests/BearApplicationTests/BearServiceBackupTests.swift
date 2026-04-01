@@ -141,6 +141,36 @@ func backupNoteTargetsCapturesSnapshotsAndReturnsSummaries() async throws {
 }
 
 @Test
+func createBackupsCapturesManualSnapshotsFromSelectorsAndSelectedNote() async throws {
+    let selected = makeBackupServiceNote(id: "selected-note", title: "Selected", body: "Current")
+    let inbox = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(
+        noteByID: ["selected-note": selected, "note-1": inbox],
+        notesByTitle: ["inbox": [inbox]]
+    )
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore()
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false, token: "secret-token"),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let receipts = try await service.createBackups([
+        CreateBackupRequest(noteID: "Inbox"),
+        CreateBackupRequest(noteID: "selected-note"),
+    ])
+
+    #expect(receipts.count == 2)
+    #expect(receipts[0].noteID == "note-1")
+    #expect(receipts[0].status == "backed_up")
+    #expect(receipts[1].noteID == "selected-note")
+    #expect(await backupStore.captures.map(\.noteID) == ["note-1", "selected-note"])
+}
+
+@Test
 func restoreCLIBackupsRequiresExactNoteIDs() async throws {
     let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
     let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
@@ -190,12 +220,10 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
                 BearBackupSummary(
                     snapshotID: "snapshot-1",
                     noteID: "note-1",
-                    title: "Inbox",
                     version: 3,
                     modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
                     capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
-                    reason: .insertText,
-                    snippet: "Current"
+                    reason: .insertText
                 ),
             ],
         ]
@@ -209,16 +237,98 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     )
 
     let result = try await service.listBackups([
-        ListBackupsOperation(id: "ok", noteID: "Inbox", limit: 10),
-        ListBackupsOperation(id: "missing", noteID: "Unknown", limit: 10),
+        ListBackupsOperation(id: "ok", noteID: "Inbox", limit: 10, cursor: nil),
+        ListBackupsOperation(id: "missing", noteID: "Unknown", limit: 10, cursor: nil),
     ])
 
     let first = try #require(result.results.first)
     let second = try #require(result.results.last)
     #expect(first.id == "ok")
-    #expect(first.items.first?.snapshotID == "snapshot-1")
+    #expect(first.items?.first?.snapshotID == "snapshot-1")
+    #expect(first.page?.returned == 1)
     #expect(second.id == "missing")
     #expect(second.error?.contains("not found") == true)
+}
+
+@Test
+func listBackupsReturnsPaginationMetadata() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        listedPagesByNoteID: [
+            "note-1": BackupSummaryPage(
+                items: [
+                    BearBackupSummary(
+                        snapshotID: "snapshot-2",
+                        noteID: "note-1",
+                        version: 4,
+                        modifiedAt: Date(timeIntervalSince1970: 1_710_000_600),
+                        capturedAt: Date(timeIntervalSince1970: 1_710_000_650),
+                        reason: .replaceContent
+                    ),
+                ],
+                page: DiscoveryPageInfo(limit: 1, returned: 1, hasMore: true, nextCursor: "cursor-1")
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let result = try await service.listBackups([
+        ListBackupsOperation(id: "ok", noteID: "Inbox", limit: 1, cursor: nil),
+    ])
+
+    let first = try #require(result.results.first)
+    #expect(first.items?.count == 1)
+    #expect(first.page?.limit == 1)
+    #expect(first.page?.hasMore == true)
+    #expect(first.page?.nextCursor == "cursor-1")
+}
+
+@Test
+func compareBackupsReturnsCompactDiffMetadata() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current\nUpdated")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        snapshots: [
+            "snapshot-1": BearBackupSnapshot(
+                snapshotID: "snapshot-1",
+                noteID: "note-1",
+                title: "Inbox",
+                rawText: "# Inbox\n\nCurrent",
+                version: 2,
+                modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
+                capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
+                reason: .replaceContent,
+                operationGroupID: "op-1"
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let result = try await service.compareBackups([
+        CompareBackupOperation(id: "cmp", noteID: "Inbox", snapshotID: "snapshot-1"),
+    ])
+
+    let comparison = try #require(result.results.first?.comparison)
+    #expect(comparison.noteID == "note-1")
+    #expect(comparison.snapshotID == "snapshot-1")
+    #expect(comparison.changed == true)
+    #expect(comparison.titleChanged == false)
+    #expect(comparison.hunks.isEmpty == false)
 }
 
 @Test
@@ -232,12 +342,10 @@ func deleteBackupsDeletesExactSnapshotAndNoteScopedHistory() async throws {
                 BearBackupSummary(
                     snapshotID: "snapshot-1",
                     noteID: "note-1",
-                    title: "Inbox",
                     version: 3,
                     modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
                     capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
-                    reason: .insertText,
-                    snippet: "Current"
+                    reason: .insertText
                 ),
             ],
         ]
@@ -406,15 +514,18 @@ private actor RecordingBackupStore: BearBackupStore {
     private(set) var captures: [Capture] = []
     private let snapshots: [String: BearBackupSnapshot]
     private let listedSummariesByNoteID: [String: [BearBackupSummary]]
+    private let listedPagesByNoteID: [String: BackupSummaryPage]
     private(set) var deletedSnapshotIDs: [String] = []
     private(set) var deletedAllNoteIDs: [String] = []
 
     init(
         snapshots: [String: BearBackupSnapshot] = [:],
-        listedSummariesByNoteID: [String: [BearBackupSummary]] = [:]
+        listedSummariesByNoteID: [String: [BearBackupSummary]] = [:],
+        listedPagesByNoteID: [String: BackupSummaryPage] = [:]
     ) {
         self.snapshots = snapshots
         self.listedSummariesByNoteID = listedSummariesByNoteID
+        self.listedPagesByNoteID = listedPagesByNoteID
     }
 
     func capture(note: BearNote, reason: BackupReason, operationGroupID: String?) async throws -> BearBackupSummary? {
@@ -422,21 +533,28 @@ private actor RecordingBackupStore: BearBackupStore {
         return BearBackupSummary(
             snapshotID: "snapshot-\(captures.count)",
             noteID: note.ref.identifier,
-            title: note.title,
             version: note.revision.version,
             modifiedAt: note.revision.modifiedAt,
             capturedAt: Date(timeIntervalSince1970: 1_710_000_600 + Double(captures.count)),
-            reason: reason,
-            snippet: note.body
+            reason: reason
         )
     }
 
-    func list(noteID: String?, limit: Int?) async throws -> [BearBackupSummary] {
-        let items = noteID.flatMap { listedSummariesByNoteID[$0] } ?? listedSummariesByNoteID.values.flatMap { $0 }
-        guard let limit else {
-            return items
+    func list(noteID: String, limit: Int, cursor: BackupListCursor?) async throws -> BackupSummaryPage {
+        if let page = listedPagesByNoteID[noteID] {
+            return page
         }
-        return Array(items.prefix(limit))
+
+        let items = listedSummariesByNoteID[noteID] ?? []
+        return BackupSummaryPage(
+            items: Array(items.prefix(limit)),
+            page: DiscoveryPageInfo(
+                limit: limit,
+                returned: min(limit, items.count),
+                hasMore: false,
+                nextCursor: nil
+            )
+        )
     }
 
     func snapshot(noteID: String, snapshotID: String?) async throws -> BearBackupSnapshot? {

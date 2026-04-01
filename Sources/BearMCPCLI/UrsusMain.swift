@@ -30,7 +30,7 @@ struct UrsusMain {
                         BearPaths.configFileURL.path,
                         BearPaths.noteTemplateURL.path,
                         BearPaths.publicCLIExecutableURL.path,
-                        BearPaths.backupsIndexURL.path,
+                        BearPaths.backupsMetadataURL.path,
                         BearPaths.processLockURL.path,
                         BearPaths.debugLogURL.path,
                         BearPaths.defaultBearDatabaseURL.path,
@@ -246,7 +246,6 @@ struct UrsusMain {
                 "status=backed_up",
                 "note_id=\(summary.noteID)",
                 "snapshot_id=\(summary.snapshotID)",
-                "title=\(shellQuoted(summary.title))",
             ].joined(separator: " ")
         }.joined(separator: "\n")
     }

@@ -92,10 +92,19 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(try #require(deleteTags.description).contains("entire Bear app"))
     #expect(propertyDescription(named: "name", in: deleteTags)?.contains("delete across Bear") == true)
 
+    let createBackups = try #require(tool(named: "bear_create_backups", in: tools))
+    #expect(try #require(createBackups.description).contains("manual capture flow as the CLI"))
+    #expect(propertyDescription(named: "note", in: createBackups)?.contains("Use exactly one of `note` or `selected: true`") == true)
+
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
-    #expect(try #require(listBackups.description).contains("Use this before `bear_restore_notes`"))
+    #expect(try #require(listBackups.description).contains("one Bear note"))
     #expect(propertyDescription(named: "limit", in: listBackups)?.contains("the default `7`") == true)
+    #expect(propertyDescription(named: "cursor", in: listBackups)?.contains("previous backup page") == true)
     #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
+
+    let compareBackup = try #require(tool(named: "bear_compare_backup", in: tools))
+    #expect(try #require(compareBackup.description).contains("bounded diff hunks"))
+    #expect(propertyDescription(named: "snapshot_id", in: compareBackup)?.contains("Required backup snapshot identifier") == true)
 
     let deleteBackups = try #require(tool(named: "bear_delete_backups", in: tools))
     #expect(try #require(deleteBackups.description).contains("Provide `snapshot_id` to delete one exact backup"))

@@ -35,8 +35,8 @@ public enum BearPaths {
         applicationSupportDirectoryURL.appendingPathComponent("Backups", isDirectory: true)
     }
 
-    public static var backupsIndexURL: URL {
-        backupsDirectoryURL.appendingPathComponent("index.json", isDirectory: false)
+    public static var backupsMetadataURL: URL {
+        backupsDirectoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
     }
 
     public static var publicCLIDirectoryURL: URL {
