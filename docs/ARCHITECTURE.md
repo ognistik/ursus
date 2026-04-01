@@ -56,6 +56,7 @@
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
 - The optional HTTP bridge runs through `ursus bridge serve`, reuses the same internal Bear service stack as `ursus mcp`, and exposes one localhost `/mcp` endpoint through the SDK's stateless HTTP transport.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting the stable public launcher path `~/.local/bin/ursus bridge serve`, with stdout/stderr logs under `~/Library/Application Support/Ursus/Logs/`.
+- Runtime log retention is intentionally strict: `debug.log`, `bridge.stdout.log`, and `bridge.stderr.log` each keep at most the active file plus one `.1` archive, oversized bridge logs are snapshotted then truncated in place so `launchd` can keep writing to the same file handle, and bridge removal deletes both active and archived bridge logs.
 - Bridge install/resume wait for the endpoint to pass an MCP `initialize` probe before reporting success, dashboard status distinguishes LaunchAgent state from endpoint health, and repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect or re-add the same URL cleanly.
 - Bridge diagnostics are layered: LaunchAgent status, TCP reachability, MCP `initialize` health, and a small recent stdout/stderr log hint for unhealthy bridges.
 - App-side bridge editing exposes only the saved port. The host stays localhost-oriented in the app, and advanced host overrides remain config-only. Port edits are saved through the shared config flow, auto-skip busy ports in the UI, and still fail clearly on install/resume if the chosen port is already in use.
@@ -76,4 +77,4 @@
 - Create receipts use best-effort note discovery by title and recent modification time.
 - Backup restore is designed primarily for note-text rollback. Attachment-related restore remains best-effort because replaying saved raw markdown cannot perfectly reverse every attachment-side mutation Bear may have performed.
 - Tag rename and delete use best-effort verification by polling tag lists across both normal and archived note locations after Bear accepts the x-callback.
-- Debug tracing uses a simple file under `~/Library/Application Support/Ursus/Logs` with size-based rotation.
+- Debug tracing uses a simple file under `~/Library/Application Support/Ursus/Logs` with size-based rotation that retains only the active log plus one archive.

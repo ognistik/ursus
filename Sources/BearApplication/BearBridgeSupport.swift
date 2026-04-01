@@ -266,6 +266,8 @@ public extension BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
+        standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
+        standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
     ) throws -> BearBridgeLaunchAgentActionReceipt {
         let configuration = try BearRuntimeBootstrap.loadConfiguration(
@@ -284,6 +286,11 @@ public extension BearAppSupport {
         if hadPlist {
             try fileManager.removeItem(at: launchAgentPlistURL)
         }
+        try removeBridgeLogArtifacts(
+            fileManager: fileManager,
+            standardOutputURL: standardOutputURL,
+            standardErrorURL: standardErrorURL
+        )
 
         if configuration.bridge.enabled {
             let disabledBridge = try BearBridgeConfiguration(
@@ -381,6 +388,12 @@ public extension BearAppSupport {
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
         if !loaded {
+            try prepareBridgeArtifacts(
+                fileManager: fileManager,
+                launchAgentPlistURL: launchAgentPlistURL,
+                standardOutputURL: standardOutputURL,
+                standardErrorURL: standardErrorURL
+            )
             try assertBridgePortAvailable(host: bridge.host, port: bridge.port)
             try runLaunchctl(
                 ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
@@ -538,12 +551,35 @@ private extension BearAppSupport {
             withIntermediateDirectories: true
         )
 
-        if !fileManager.fileExists(atPath: standardOutputURL.path) {
-            try Data().write(to: standardOutputURL, options: .atomic)
-        }
-        if !fileManager.fileExists(atPath: standardErrorURL.path) {
-            try Data().write(to: standardErrorURL, options: .atomic)
-        }
+        try BearManagedLog.prepareLogFile(
+            fileManager: fileManager,
+            logURL: standardOutputURL,
+            logsDirectoryURL: standardOutputURL.deletingLastPathComponent(),
+            writer: .externalProcess
+        )
+        try BearManagedLog.prepareLogFile(
+            fileManager: fileManager,
+            logURL: standardErrorURL,
+            logsDirectoryURL: standardErrorURL.deletingLastPathComponent(),
+            writer: .externalProcess
+        )
+    }
+
+    static func removeBridgeLogArtifacts(
+        fileManager: FileManager,
+        standardOutputURL: URL,
+        standardErrorURL: URL
+    ) throws {
+        try BearManagedLog.deleteLogFamily(
+            fileManager: fileManager,
+            logURL: standardOutputURL,
+            logsDirectoryURL: standardOutputURL.deletingLastPathComponent()
+        )
+        try BearManagedLog.deleteLogFamily(
+            fileManager: fileManager,
+            logURL: standardErrorURL,
+            logsDirectoryURL: standardErrorURL.deletingLastPathComponent()
+        )
     }
 
     static func unloadBridgeLaunchAgentIfPresent(

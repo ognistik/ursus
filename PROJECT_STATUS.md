@@ -91,6 +91,7 @@ Behavior already in place:
 - Bridge diagnostics now go beyond TCP reachability: the app and CLI surface LaunchAgent state, protocol-health results, and recent stdout/stderr log hints for unhealthy bridges.
 - `bridge status` now prints saved config, LaunchAgent state, health-check detail, and relevant runtime paths.
 - App-side bridge configuration keeps the host non-editable and localhost-oriented, while the port control auto-skips busy ports and install/resume reject ports already in use.
+- Runtime log retention is now capped per log family: `debug.log`, `bridge.stdout.log`, and `bridge.stderr.log` each keep at most the active file plus one `.1` archive, and bridge removal clears both live and archived bridge log files.
 
 ### MCP
 
@@ -134,6 +135,7 @@ These paths describe the codebase as it exists after Phase 6:
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
+- Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Queue labels, logger labels, DB labels, and selected-note callback paths no longer use the old launcher identity.
 - A repo identity gate test now keeps old product strings isolated to the dedicated guard test.
 

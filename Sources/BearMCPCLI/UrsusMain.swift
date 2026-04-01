@@ -129,6 +129,8 @@ struct UrsusMain {
             logger.info("ursus bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
         }
 
+        try maintainBridgeLogs()
+
         let application = BearBridgeHTTPApplication(
             configuration: .init(
                 host: bridge.host,
@@ -144,6 +146,12 @@ struct UrsusMain {
             },
             logger: logger
         )
+        let logMaintenanceTask = Task {
+            await maintainBridgeLogsUntilCancelled(logger: logger)
+        }
+        defer {
+            logMaintenanceTask.cancel()
+        }
 
         try await withThrowingTaskGroup(of: BridgeShutdownReason.self) { group in
             group.addTask {
@@ -215,6 +223,41 @@ struct UrsusMain {
     private enum BridgeShutdownReason {
         case serverCompleted
         case signal(Int32)
+    }
+
+    private static func maintainBridgeLogs(fileManager: FileManager = .default) throws {
+        try BearManagedLog.prepareLogFile(
+            fileManager: fileManager,
+            logURL: BearBridgeLaunchAgent.standardOutputURL,
+            logsDirectoryURL: BearPaths.logsDirectoryURL,
+            writer: .externalProcess
+        )
+        try BearManagedLog.prepareLogFile(
+            fileManager: fileManager,
+            logURL: BearBridgeLaunchAgent.standardErrorURL,
+            logsDirectoryURL: BearPaths.logsDirectoryURL,
+            writer: .externalProcess
+        )
+    }
+
+    private static func maintainBridgeLogsUntilCancelled(
+        logger: Logger,
+        fileManager: FileManager = .default,
+        intervalNanoseconds: UInt64 = 30_000_000_000
+    ) async {
+        while !Task.isCancelled {
+            do {
+                try maintainBridgeLogs(fileManager: fileManager)
+            } catch {
+                logger.warning("ursus bridge log maintenance failed: \(String(describing: error))")
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: intervalNanoseconds)
+            } catch {
+                return
+            }
+        }
     }
 
     private struct RuntimeServices {

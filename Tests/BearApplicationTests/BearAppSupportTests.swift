@@ -590,6 +590,18 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         standardOutputURL: stdoutURL,
         standardErrorURL: stderrURL
     ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    try "stdout".write(to: stdoutURL, atomically: true, encoding: .utf8)
+    try "stderr".write(to: stderrURL, atomically: true, encoding: .utf8)
+    try "stdout-archive".write(
+        to: tempRoot.appendingPathComponent("bridge.stdout.log.1", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
+    try "stderr-archive".write(
+        to: tempRoot.appendingPathComponent("bridge.stderr.log.1", isDirectory: false),
+        atomically: true,
+        encoding: .utf8
+    )
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -701,10 +713,16 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         configFileURL: configFileURL,
         templateURL: templateURL,
         launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
         launchctlRunner: recorder.statefulRunner
     )
     #expect(removeReceipt.status == .removed)
     #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path) == false)
+    #expect(fileManager.fileExists(atPath: stdoutURL.path) == false)
+    #expect(fileManager.fileExists(atPath: stderrURL.path) == false)
+    #expect(fileManager.fileExists(atPath: tempRoot.appendingPathComponent("bridge.stdout.log.1", isDirectory: false).path) == false)
+    #expect(fileManager.fileExists(atPath: tempRoot.appendingPathComponent("bridge.stderr.log.1", isDirectory: false).path) == false)
 
     let savedConfiguration = try BearRuntimeBootstrap.loadConfiguration(
         fileManager: fileManager,
