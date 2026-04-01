@@ -117,6 +117,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
     #expect(try #require(getNotes.description).contains("selected: true"))
+    #expect(try #require(getNotes.description).contains("Attachment OCR/search text is omitted unless `include_attachment_text` is `true`"))
+    #expect(propertyDescription(named: "include_attachment_text", inTopLevelTool: getNotes)?.contains("default `false`") == true)
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
 
     let archiveNotes = try #require(tool(named: "bear_archive_notes", in: tools))
@@ -153,6 +155,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     #expect(propertyDescription(named: "snippet_length", in: find)?.contains("Values above `360` are capped") == true)
     #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)
     #expect(propertyDescription(named: "has_todos", in: find)?.contains("open todos only") == true)
+    #expect(propertyDescription(named: "has_attachment_search_text", in: find) == nil)
     #expect(propertyDescription(named: "inbox_tags_mode", in: find)?.contains("`0-inbox`, `deep work`") == true)
 
     let inbox = try #require(tool(named: "bear_find_notes_by_inbox_tags", in: tools))

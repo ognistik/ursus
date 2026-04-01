@@ -667,8 +667,8 @@ func databaseReaderFindNotesSupportsPresenceFilters() throws {
             db,
             pk: 3,
             noteID: "note-3",
-            title: "Tagged OCR",
-            rawText: "# Tagged OCR\n\nBody",
+            title: "Tagged attachment",
+            rawText: "# Tagged attachment\n\nBody",
             archived: 0,
             trashed: 0,
             modifiedAt: 30
@@ -728,25 +728,8 @@ func databaseReaderFindNotesSupportsPresenceFilters() throws {
             paging: DiscoveryPaging(limit: 10)
         )
     )
-    let attachmentSearchTextBatch = try reader.findNotes(
-        FindNotesQuery(
-            text: nil,
-            textMode: .substring,
-            textTerms: [],
-            textNot: [],
-            searchFields: [.title, .body, .attachments],
-            tagsAny: [],
-            tagsAll: [],
-            tagsNone: [],
-            hasAttachmentSearchText: true,
-            location: .notes,
-            paging: DiscoveryPaging(limit: 10)
-        )
-    )
-
     #expect(attachmentsBatch.notes.map(\.ref.identifier) == ["note-3", "note-2"])
     #expect(noTagsBatch.notes.map(\.ref.identifier) == ["note-2", "note-1"])
-    #expect(attachmentSearchTextBatch.notes.map(\.ref.identifier) == ["note-3"])
 }
 
 @Test

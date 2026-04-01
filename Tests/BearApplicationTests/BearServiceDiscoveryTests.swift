@@ -5,7 +5,7 @@ import Logging
 import Testing
 
 @Test
-func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet() async throws {
+func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndHasAttachments() async throws {
     let note = makeNote(
         id: "note-1",
         title: "Inbox",
@@ -41,10 +41,14 @@ func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndAttachmentSnippet()
 
     let result = try #require(batch.results.first)
     let summary = try #require(result.items?.first)
+    let payload = try encodedJSONObject(summary)
     #expect(result.error == nil)
     #expect(summary.snippet == "Alpha beta gamma delta…")
-    #expect(summary.attachmentSnippet == "Invoice attachment OCR…")
+    #expect(summary.hasAttachments == true)
     #expect(summary.matchedFields == nil)
+    #expect(payload["hasAttachments"] as? Bool == true)
+    #expect(payload["attachmentSnippet"] == nil)
+    #expect(payload["archived"] == nil)
     #expect(readStore.lastFindQuery?.tagsAny == ["0-inbox"])
     #expect(readStore.lastFindQuery?.location == .notes)
     #expect(readStore.lastFindQuery?.paging.limit == 20)
@@ -119,10 +123,52 @@ func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
 
     let summary = try #require(batch.results.first?.items?.first)
     #expect(summary.noteID == "tag-1")
-    #expect(summary.archived)
+    #expect(summary.hasAttachments == false)
     #expect(readStore.lastFindQuery?.tagsAll == ["deep work", "project"])
     #expect(readStore.lastFindQuery?.location == .archive)
     #expect(readStore.lastFindQuery?.paging.limit == 1)
+}
+
+@Test
+func findNotesReportsAttachmentMatchesWithoutReturningAttachmentText() throws {
+    let note = makeNote(
+        id: "note-1",
+        title: "Attachment match",
+        body: "Body stays clean",
+        tags: ["project"],
+        archived: false
+    )
+    let readStore = DiscoveryReadStore(
+        findBatches: [DiscoveryNoteBatch(notes: [note], hasMore: false)],
+        attachmentsByNoteID: [
+            "note-1": [
+                NoteAttachment(
+                    attachmentID: "attachment-1",
+                    filename: "scan.pdf",
+                    fileExtension: "pdf",
+                    searchText: "superwhisper lives here"
+                ),
+            ],
+        ]
+    )
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(text: "superwhisper", searchFields: [.attachments]),
+    ])
+
+    let summary = try #require(batch.results.first?.items?.first)
+    let payload = try encodedJSONObject(summary)
+    #expect(summary.snippet == "Body stays clean")
+    #expect(summary.hasAttachments == true)
+    #expect(summary.matchedFields == [.attachments])
+    #expect(payload["attachmentSnippet"] == nil)
+    #expect(payload["archived"] == nil)
 }
 
 @Test
@@ -292,7 +338,6 @@ func findNotesAllowsPresenceOnlyFilters() throws {
             hasPinned: false,
             hasTodos: true,
             hasAttachments: true,
-            hasAttachmentSearchText: false,
             hasTags: false
         ),
     ])
@@ -302,7 +347,6 @@ func findNotesAllowsPresenceOnlyFilters() throws {
     #expect(readStore.lastFindQuery?.hasPinned == false)
     #expect(readStore.lastFindQuery?.hasTodos == true)
     #expect(readStore.lastFindQuery?.hasAttachments == true)
-    #expect(readStore.lastFindQuery?.hasAttachmentSearchText == false)
     #expect(readStore.lastFindQuery?.hasTags == false)
 }
 
@@ -414,6 +458,13 @@ private func makeNote(
         trashed: false,
         encrypted: false
     )
+}
+
+private func encodedJSONObject<T: Encodable>(_ value: T) throws -> [String: Any] {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(value)
+    return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
 private final class DiscoveryReadStore: @unchecked Sendable, BearReadStore {

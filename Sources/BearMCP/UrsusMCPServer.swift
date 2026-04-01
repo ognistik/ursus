@@ -70,7 +70,12 @@ public final class UrsusMCPServer: Sendable {
         case "bear_get_notes":
             let selectors = try await resolvedRequiredNoteSelectors(params.arguments)
             let location = try MCPArgumentDecoder.location(params.arguments)
-            let notes = try service.getNotes(selectors: selectors, location: location)
+            let includeAttachmentText = try MCPArgumentDecoder.optionalBool(params.arguments, "include_attachment_text") ?? false
+            let notes = try service.getNotes(
+                selectors: selectors,
+                location: location,
+                includeAttachmentText: includeAttachmentText
+            )
             return try jsonResult(notes)
 
         case "bear_list_tags":
@@ -377,7 +382,6 @@ public final class UrsusMCPServer: Sendable {
             hasPinned: try MCPArgumentDecoder.optionalBool(object, "has_pinned"),
             hasTodos: try MCPArgumentDecoder.optionalBool(object, "has_todos"),
             hasAttachments: try MCPArgumentDecoder.optionalBool(object, "has_attachments"),
-            hasAttachmentSearchText: try MCPArgumentDecoder.optionalBool(object, "has_attachment_search_text"),
             hasTags: try MCPArgumentDecoder.optionalBool(object, "has_tags"),
             inboxTagsMode: try MCPArgumentDecoder.optionalFindTagMatchMode(object, key: "inbox_tags_mode"),
             dateField: try MCPArgumentDecoder.optionalFindDateField(object, key: "date_field"),
@@ -569,7 +573,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: prefixedWithMinimalPayloadRule("Fetch full Bear note records for one or more selectors. Use this only when current note content, attachments, or `version` are needed. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))"),
+                description: prefixedWithMinimalPayloadRule("Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or `version` are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))"),
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -948,10 +952,6 @@ private enum ToolCatalog {
                 "type": .string("boolean"),
                 "description": .string("Optional presence filter. Set true to return only notes with attachments, or false to return only notes without attachments."),
             ]),
-            "has_attachment_search_text": .object([
-                "type": .string("boolean"),
-                "description": .string("Optional presence filter over attachment indexed/OCR text. Set true to require non-empty attachment search text, or false to require none."),
-            ]),
             "has_tags": .object([
                 "type": .string("boolean"),
                 "description": .string("Optional presence filter. Set true to return only tagged notes, or false to return only notes without tags."),
@@ -1187,6 +1187,10 @@ private enum ToolCatalog {
                 "type": .string("string"),
                 "enum": .array([.string("notes"), .string("archive")]),
                 "description": .string(omitUnlessDescription(defaultClause: "the default `notes`", overrideWhen: "the user explicitly asks for archived notes")),
+            ]),
+            "include_attachment_text": .object([
+                "type": .string("boolean"),
+                "description": .string("Optional. Omit to use the default `false`. Set `true` to include attachment OCR/search text in `attachments[].searchText`; otherwise full fetch returns attachment metadata only."),
             ]),
         ]
 

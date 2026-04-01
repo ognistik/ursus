@@ -421,21 +421,6 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             ))
         }
 
-        if let hasAttachmentSearchText = query.hasAttachmentSearchText {
-            conditions.append(booleanPresencePredicate(
-                hasAttachmentSearchText,
-                existsSQL: """
-                    EXISTS (
-                        SELECT 1
-                        FROM ZSFNOTEFILE f
-                        WHERE f.ZNOTE = n.Z_PK
-                            AND f.ZPERMANENTLYDELETED = 0
-                            AND TRIM(COALESCE(f.ZSEARCHTEXT, '')) <> ''
-                    )
-                    """
-            ))
-        }
-
         if let hasTags = query.hasTags {
             conditions.append(booleanPresencePredicate(
                 hasTags,

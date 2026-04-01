@@ -44,7 +44,7 @@ func getNotesResolvesExactIDBeforeTitleAndDeduplicatesResults() throws {
 }
 
 @Test
-func getNotesUsesTemplateStrippedCanonicalContentAndReturnsAttachments() async throws {
+func getNotesUsesTemplateStrippedCanonicalContentAndOmitsAttachmentTextByDefault() async throws {
     let note = makeFetchedSourceNote(
         id: "note-1",
         title: "Inbox",
@@ -78,10 +78,55 @@ func getNotesUsesTemplateStrippedCanonicalContentAndReturnsAttachments() async t
     }
 
     let fetched = try #require(notes.first)
+    let payload = try encodedJSONObject(fetched)
+    let attachmentPayload = try #require((payload["attachments"] as? [[String: Any]])?.first)
     #expect(fetched.content == "Line 1\n\n[file.pdf](file.pdf)<!-- {\"embed\":\"true\"} -->")
     #expect(fetched.attachments.count == 1)
     #expect(fetched.attachments.first?.attachmentID == "attachment-1")
+    #expect(fetched.attachments.first?.searchText == nil)
+    #expect(attachmentPayload["searchText"] == nil)
+}
+
+@Test
+func getNotesIncludesAttachmentTextWhenExplicitlyRequested() async throws {
+    let note = makeFetchedSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"],
+        archived: false
+    )
+    let readStore = GetNotesReadStore(
+        noteByID: ["note-1": note],
+        attachmentsByNoteID: [
+            "note-1": [
+                NoteAttachment(
+                    attachmentID: "attachment-1",
+                    filename: "file.pdf",
+                    fileExtension: "pdf",
+                    searchText: "Attachment OCR"
+                ),
+            ],
+        ]
+    )
+    let service = BearService(
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: GetNotesSilentWriteTransport(),
+        logger: Logger(label: "BearServiceGetNotesTests")
+    )
+
+    let notes = try service.getNotes(
+        selectors: ["note-1"],
+        location: .notes,
+        includeAttachmentText: true
+    )
+
+    let fetched = try #require(notes.first)
+    let payload = try encodedJSONObject(fetched)
+    let attachmentPayload = try #require((payload["attachments"] as? [[String: Any]])?.first)
     #expect(fetched.attachments.first?.searchText == "Attachment OCR")
+    #expect(attachmentPayload["searchText"] as? String == "Attachment OCR")
 }
 
 @Test
@@ -337,6 +382,13 @@ private struct TitleLookupKey: Hashable {
         self.normalizedTitle = title.lowercased()
         self.location = location
     }
+}
+
+private func encodedJSONObject<T: Encodable>(_ value: T) throws -> [String: Any] {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let data = try encoder.encode(value)
+    return try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
 }
 
 private struct GetNotesSilentWriteTransport: BearWriteTransport {

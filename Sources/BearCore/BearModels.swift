@@ -148,7 +148,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
     public let hasPinned: Bool?
     public let hasTodos: Bool?
     public let hasAttachments: Bool?
-    public let hasAttachmentSearchText: Bool?
     public let hasTags: Bool?
     public let inboxTagsMode: FindTagMatchMode?
     public let dateField: FindDateField?
@@ -171,7 +170,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         hasPinned: Bool? = nil,
         hasTodos: Bool? = nil,
         hasAttachments: Bool? = nil,
-        hasAttachmentSearchText: Bool? = nil,
         hasTags: Bool? = nil,
         inboxTagsMode: FindTagMatchMode? = nil,
         dateField: FindDateField? = nil,
@@ -193,7 +191,6 @@ public struct FindNotesOperation: Codable, Hashable, Sendable {
         self.hasPinned = hasPinned
         self.hasTodos = hasTodos
         self.hasAttachments = hasAttachments
-        self.hasAttachmentSearchText = hasAttachmentSearchText
         self.hasTags = hasTags
         self.inboxTagsMode = inboxTagsMode
         self.dateField = dateField
@@ -218,7 +215,6 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
     public let hasPinned: Bool?
     public let hasTodos: Bool?
     public let hasAttachments: Bool?
-    public let hasAttachmentSearchText: Bool?
     public let hasTags: Bool?
     public let location: BearNoteLocation
     public let dateField: FindDateField?
@@ -238,7 +234,6 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         hasPinned: Bool? = nil,
         hasTodos: Bool? = nil,
         hasAttachments: Bool? = nil,
-        hasAttachmentSearchText: Bool? = nil,
         hasTags: Bool? = nil,
         location: BearNoteLocation = .notes,
         dateField: FindDateField? = nil,
@@ -257,7 +252,6 @@ public struct FindNotesQuery: Codable, Hashable, Sendable {
         self.hasPinned = hasPinned
         self.hasTodos = hasTodos
         self.hasAttachments = hasAttachments
-        self.hasAttachmentSearchText = hasAttachmentSearchText
         self.hasTags = hasTags
         self.location = location
         self.dateField = dateField
@@ -646,33 +640,30 @@ public struct NoteSummary: Codable, Hashable, Sendable {
     public let noteID: String
     public let title: String
     public let snippet: String
-    public let attachmentSnippet: String?
+    public let hasAttachments: Bool
     public let matchedFields: [FindSearchField]?
     public let tags: [String]
     public let createdAt: Date
     public let modifiedAt: Date
-    public let archived: Bool
 
     public init(
         noteID: String,
         title: String,
         snippet: String,
-        attachmentSnippet: String? = nil,
+        hasAttachments: Bool,
         matchedFields: [FindSearchField]? = nil,
         tags: [String],
         createdAt: Date,
-        modifiedAt: Date,
-        archived: Bool,
+        modifiedAt: Date
     ) {
         self.noteID = noteID
         self.title = title
         self.snippet = snippet
-        self.attachmentSnippet = attachmentSnippet
+        self.hasAttachments = hasAttachments
         self.matchedFields = matchedFields
         self.tags = tags
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
-        self.archived = archived
     }
 }
 

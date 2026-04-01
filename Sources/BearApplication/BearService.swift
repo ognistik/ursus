@@ -246,7 +246,11 @@ public final class BearService: @unchecked Sendable {
         return try resolvedTargets.map { try self.resolveNoteSelector($0).ref.identifier }
     }
 
-    public func getNotes(selectors: [String], location: BearNoteLocation) throws -> [BearFetchedNote] {
+    public func getNotes(
+        selectors: [String],
+        location: BearNoteLocation,
+        includeAttachmentText: Bool = false
+    ) throws -> [BearFetchedNote] {
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
         let trimmedSelectors = selectors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 
@@ -256,7 +260,11 @@ public final class BearService: @unchecked Sendable {
         for selector in trimmedSelectors {
             if let exactIDMatch = try readStore.note(id: selector), noteMatchesLocation(exactIDMatch, location: location) {
                 if seen.insert(exactIDMatch.ref.identifier).inserted {
-                    notes.append(try fetchedNote(from: exactIDMatch, template: noteTemplate))
+                    notes.append(try fetchedNote(
+                        from: exactIDMatch,
+                        template: noteTemplate,
+                        includeAttachmentText: includeAttachmentText
+                    ))
                 }
                 continue
             }
@@ -265,7 +273,11 @@ public final class BearService: @unchecked Sendable {
                 .sorted(by: noteSortOrder)
 
             for note in titleMatches where seen.insert(note.ref.identifier).inserted {
-                notes.append(try fetchedNote(from: note, template: noteTemplate))
+                notes.append(try fetchedNote(
+                    from: note,
+                    template: noteTemplate,
+                    includeAttachmentText: includeAttachmentText
+                ))
             }
         }
 
@@ -1336,12 +1348,11 @@ public final class BearService: @unchecked Sendable {
                 noteID: note.ref.identifier,
                 title: note.title,
                 snippet: discoverySnippet(for: note, template: noteTemplate, limit: resolvedSnippetLength),
-                attachmentSnippet: attachmentSnippet(for: attachments, limit: resolvedSnippetLength),
+                hasAttachments: attachments.isEmpty == false,
                 matchedFields: matchedFields(for: note, attachments: attachments, query: query),
                 tags: note.tags,
                 createdAt: note.revision.createdAt,
-                modifiedAt: note.revision.modifiedAt,
-                archived: note.archived
+                modifiedAt: note.revision.modifiedAt
             )
         }
     }
@@ -1365,20 +1376,6 @@ public final class BearService: @unchecked Sendable {
         let boundaryIndex = nextCharacter?.isWhitespace == false ? prefix.lastIndex(where: { $0.isWhitespace }) : nil
         let base = String(prefix[..<(boundaryIndex ?? prefix.endIndex)]).trimmingCharacters(in: .whitespacesAndNewlines)
         return base + "…"
-    }
-
-    private func attachmentSnippet(for attachments: [NoteAttachment], limit: Int) -> String? {
-        let joined = attachments
-            .compactMap(\.searchText)
-            .map(normalizedDiscoveryText(_:))
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-
-        guard !joined.isEmpty else {
-            return nil
-        }
-
-        return truncatedDiscoveryText(joined, limit: limit)
     }
 
     private func matchedFields(
@@ -1407,7 +1404,11 @@ public final class BearService: @unchecked Sendable {
         return fields.isEmpty ? [] : fields
     }
 
-    private func fetchedNote(from note: BearNote, template: String?) throws -> BearFetchedNote {
+    private func fetchedNote(
+        from note: BearNote,
+        template: String?,
+        includeAttachmentText: Bool
+    ) throws -> BearFetchedNote {
         if note.encrypted {
             return BearFetchedNote(
                 noteID: note.ref.identifier,
@@ -1422,6 +1423,19 @@ public final class BearService: @unchecked Sendable {
             )
         }
 
+        let attachments = try readStore.attachments(noteID: note.ref.identifier).map { attachment in
+            guard includeAttachmentText == false else {
+                return attachment
+            }
+
+            return NoteAttachment(
+                attachmentID: attachment.attachmentID,
+                filename: attachment.filename,
+                fileExtension: attachment.fileExtension,
+                searchText: nil
+            )
+        }
+
         return BearFetchedNote(
             noteID: note.ref.identifier,
             title: note.title,
@@ -1430,7 +1444,7 @@ public final class BearService: @unchecked Sendable {
             createdAt: note.revision.createdAt,
             modifiedAt: note.revision.modifiedAt,
             version: note.revision.version,
-            attachments: try readStore.attachments(noteID: note.ref.identifier)
+            attachments: attachments
         )
     }
 
@@ -2410,7 +2424,6 @@ public final class BearService: @unchecked Sendable {
         let hasPinned = operation.hasPinned
         let hasTodos = operation.hasTodos
         let hasAttachments = operation.hasAttachments
-        let hasAttachmentSearchText = operation.hasAttachmentSearchText
         let hasTags = operation.hasTags
 
         if let inboxTagsMode = operation.inboxTagsMode {
@@ -2448,7 +2461,6 @@ public final class BearService: @unchecked Sendable {
             hasPinned: hasPinned,
             hasTodos: hasTodos,
             hasAttachments: hasAttachments,
-            hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
             from: from,
             to: to
@@ -2474,7 +2486,6 @@ public final class BearService: @unchecked Sendable {
             hasPinned: hasPinned,
             hasTodos: hasTodos,
             hasAttachments: hasAttachments,
-            hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
             location: operation.location,
             dateField: dateField,
@@ -2501,7 +2512,6 @@ public final class BearService: @unchecked Sendable {
                 hasPinned: hasPinned,
                 hasTodos: hasTodos,
                 hasAttachments: hasAttachments,
-                hasAttachmentSearchText: hasAttachmentSearchText,
                 hasTags: hasTags,
                 location: operation.location,
                 dateField: dateField,
@@ -2525,7 +2535,6 @@ public final class BearService: @unchecked Sendable {
         hasPinned: Bool?,
         hasTodos: Bool?,
         hasAttachments: Bool?,
-        hasAttachmentSearchText: Bool?,
         hasTags: Bool?,
         location: BearNoteLocation,
         dateField: FindDateField?,
@@ -2543,7 +2552,6 @@ public final class BearService: @unchecked Sendable {
             hasPinned: hasPinned,
             hasTodos: hasTodos,
             hasAttachments: hasAttachments,
-            hasAttachmentSearchText: hasAttachmentSearchText,
             hasTags: hasTags,
             location: location.rawValue,
             dateField: dateField?.rawValue,
@@ -2566,7 +2574,6 @@ public final class BearService: @unchecked Sendable {
         hasPinned: Bool?,
         hasTodos: Bool?,
         hasAttachments: Bool?,
-        hasAttachmentSearchText: Bool?,
         hasTags: Bool?,
         from: Date?,
         to: Date?
@@ -2579,7 +2586,6 @@ public final class BearService: @unchecked Sendable {
             || hasPinned != nil
             || hasTodos != nil
             || hasAttachments != nil
-            || hasAttachmentSearchText != nil
             || hasTags != nil
             || from != nil
             || to != nil
@@ -2826,28 +2832,6 @@ public final class BearService: @unchecked Sendable {
 
     private func endOfInterval(_ interval: DateInterval) -> Date {
         interval.end.addingTimeInterval(-1)
-    }
-
-    private func normalizedDiscoveryText(_ text: String) -> String {
-        text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-            .components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-            .joined(separator: " ")
-    }
-
-    private func truncatedDiscoveryText(_ text: String, limit: Int) -> String {
-        guard text.count > limit else {
-            return text
-        }
-
-        let cutoff = text.index(text.startIndex, offsetBy: limit)
-        let prefix = String(text[..<cutoff])
-        let nextCharacter = cutoff < text.endIndex ? text[cutoff] : nil
-        let boundaryIndex = nextCharacter?.isWhitespace == false ? prefix.lastIndex(where: { $0.isWhitespace }) : nil
-        let base = String(prefix[..<(boundaryIndex ?? prefix.endIndex)]).trimmingCharacters(in: .whitespacesAndNewlines)
-        return base + "…"
     }
 
     private func resolvedDiscoveryLimit(_ override: Int?) -> Int {
@@ -3161,7 +3145,6 @@ private struct FindFilterIdentity: Encodable {
     let hasPinned: Bool?
     let hasTodos: Bool?
     let hasAttachments: Bool?
-    let hasAttachmentSearchText: Bool?
     let hasTags: Bool?
     let location: String
     let dateField: String?

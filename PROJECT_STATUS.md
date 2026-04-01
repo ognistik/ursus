@@ -124,7 +124,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The selected-note token is currently managed in Ursus's config flow, not in Keychain.
 - Opened notes now always request Bear edit mode; that default is no longer user-configurable in config.
-- Discovery tools return compact note summaries; `bear_get_notes` remains the full-note fetch.
+- Discovery tools return compact note summaries with attachment presence metadata and attachment-match evidence only; `bear_get_notes` remains the full-note fetch, and attachment OCR/search text is opt-in there.
 - Backup MCP discovery is now note-scoped and paginated with opaque cursors. `bear_create_backups` reuses the manual capture path, `bear_compare_backup` returns compact metadata plus bounded diff hunks, and backup list results no longer include stored snippets.
 - Backup snapshot payloads remain one JSON file per snapshot, while backup metadata now lives in `Backups/backups.sqlite` instead of a flat `index.json`, so list/lookup/delete/prune operations no longer load whole-history metadata into memory.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
