@@ -102,6 +102,17 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
 }
 
 @Test
+func bridgeHealthCheckRequestAcceptsJSONResponses() throws {
+    let url = try BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6190).endpointURL()
+    let request = BearAppSupport.bridgeHealthCheckRequest(url: url, timeout: 0.25)
+
+    #expect(request.httpMethod == "POST")
+    #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+    #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+    #expect(request.httpBody != nil)
+}
+
+@Test
 func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLauncher() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

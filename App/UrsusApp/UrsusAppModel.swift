@@ -3,6 +3,29 @@ import BearApplication
 import BearCore
 import Foundation
 
+enum UrsusBridgeOperation: Equatable {
+    case install
+    case repair
+    case pause
+    case resume
+    case remove
+
+    var progressMessage: String {
+        switch self {
+        case .install:
+            return "Installing the bridge and waiting for the MCP endpoint to become ready..."
+        case .repair:
+            return "Repairing the bridge and waiting for the MCP endpoint to become ready..."
+        case .pause:
+            return "Pausing the bridge..."
+        case .resume:
+            return "Resuming the bridge and waiting for the MCP endpoint to become ready..."
+        case .remove:
+            return "Removing the bridge..."
+        }
+    }
+}
+
 @MainActor
 final class UrsusAppModel: ObservableObject {
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot(
@@ -26,6 +49,7 @@ final class UrsusAppModel: ObservableObject {
     @Published private(set) var templateStatusError: String?
     @Published private(set) var templateValidation = BearTemplateValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
+    @Published private(set) var activeBridgeOperation: UrsusBridgeOperation?
 
     @Published var databasePathDraft = ""
     @Published var inboxTagsDraft = ""
@@ -252,59 +276,41 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
-    func installBridge() {
-        defer { reload() }
-        do {
-            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: Bundle.main.bundleURL)
-            bridgeStatusMessage = receipt.status == .installed
+    func installBridge(repairing: Bool = false) {
+        let appBundleURL = Bundle.main.bundleURL
+        runBridgeOperation(repairing ? .repair : .install) {
+            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
+            return receipt.status == .installed
                 ? "Bridge installed and started at \(receipt.endpointURL)."
                 : "Bridge repaired and restarted at \(receipt.endpointURL)."
-            bridgeStatusError = nil
-        } catch {
-            bridgeStatusMessage = nil
-            bridgeStatusError = localizedMessage(for: error)
         }
     }
 
     func removeBridge() {
-        defer { reload() }
-        do {
+        runBridgeOperation(.remove) {
             let receipt = try BearAppSupport.removeBridgeLaunchAgent()
-            bridgeStatusMessage = receipt.status == .removed
+            return receipt.status == .removed
                 ? "Bridge LaunchAgent removed."
                 : "Bridge LaunchAgent was already removed."
-            bridgeStatusError = nil
-        } catch {
-            bridgeStatusMessage = nil
-            bridgeStatusError = localizedMessage(for: error)
         }
     }
 
     func pauseBridge() {
-        defer { reload() }
-        do {
+        runBridgeOperation(.pause) {
             let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
-            bridgeStatusMessage = receipt.status == .paused
+            return receipt.status == .paused
                 ? "Bridge paused without deleting its LaunchAgent."
                 : "Bridge was already paused."
-            bridgeStatusError = nil
-        } catch {
-            bridgeStatusMessage = nil
-            bridgeStatusError = localizedMessage(for: error)
         }
     }
 
     func resumeBridge() {
-        defer { reload() }
-        do {
+        let endpointURL = bridgeEndpointURL
+        runBridgeOperation(.resume) {
             let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
-            bridgeStatusMessage = receipt.status == .resumed
-                ? "Bridge resumed at \(receipt.endpointURL ?? bridgeEndpointURL)."
+            return receipt.status == .resumed
+                ? "Bridge resumed at \(receipt.endpointURL ?? endpointURL)."
                 : "Bridge was already running."
-            bridgeStatusError = nil
-        } catch {
-            bridgeStatusMessage = nil
-            bridgeStatusError = localizedMessage(for: error)
         }
     }
 
@@ -431,6 +437,14 @@ final class UrsusAppModel: ObservableObject {
         dashboard.settings?.bridge.endpointURL ?? "http://127.0.0.1:6190/mcp"
     }
 
+    var isBridgeOperationInProgress: Bool {
+        activeBridgeOperation != nil
+    }
+
+    var bridgeOperationProgressMessage: String? {
+        activeBridgeOperation?.progressMessage
+    }
+
     private var parsedInboxTags: [String] {
         inboxTagsDraft
             .split(whereSeparator: { $0 == "," || $0 == "\n" })
@@ -503,6 +517,46 @@ final class UrsusAppModel: ObservableObject {
             templateValidation = BearTemplateValidationReport()
             templateStatusMessage = nil
             templateStatusError = localizedMessage(for: error)
+        }
+    }
+
+    private func runBridgeOperation(
+        _ operation: UrsusBridgeOperation,
+        work: @escaping @Sendable () throws -> String
+    ) {
+        guard activeBridgeOperation == nil else {
+            return
+        }
+
+        activeBridgeOperation = operation
+        bridgeStatusMessage = nil
+        bridgeStatusError = nil
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let result: Result<String, Error>
+            do {
+                result = .success(try work())
+            } catch {
+                result = .failure(error)
+            }
+
+            await MainActor.run {
+                guard let self else {
+                    return
+                }
+
+                self.activeBridgeOperation = nil
+                self.reload()
+
+                switch result {
+                case .success(let message):
+                    self.bridgeStatusMessage = message
+                    self.bridgeStatusError = nil
+                case .failure(let error):
+                    self.bridgeStatusMessage = nil
+                    self.bridgeStatusError = self.localizedMessage(for: error)
+                }
+            }
         }
     }
 

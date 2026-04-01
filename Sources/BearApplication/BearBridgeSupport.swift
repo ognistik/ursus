@@ -168,6 +168,16 @@ public extension BearAppSupport {
         probeBridgeEndpoint(host: host, port: port)
     }
 
+    static func bridgeHealthCheckRequest(url: URL, timeout: TimeInterval) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = bridgeHealthCheckRequestBody()
+        return request
+    }
+
     static func installBridgeLaunchAgent(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
@@ -892,11 +902,7 @@ private extension BearAppSupport {
             )
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = timeout
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = bridgeHealthCheckRequestBody()
+        let request = bridgeHealthCheckRequest(url: url, timeout: timeout)
 
         let session = URLSession(configuration: configuration)
         defer {

@@ -191,6 +191,7 @@ private struct UrsusOverviewView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    .disabled(model.isBridgeOperationInProgress)
 
                     bridgeValidationMessages(for: .bridgePort)
                 }
@@ -198,10 +199,12 @@ private struct UrsusOverviewView: View {
                 HStack(spacing: 10) {
                     if let title = bridgePrimaryActionTitle(for: bridge) {
                         Button(title) {
-                            model.installBridge()
+                            model.installBridge(
+                                repairing: bridge.status == .invalid || bridge.status == .failed
+                            )
                         }
                         .buttonStyle(.borderedProminent)
-                        .disabled(model.currentBundledCLIPath == nil)
+                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
 
                     if bridge.installed {
@@ -210,17 +213,20 @@ private struct UrsusOverviewView: View {
                                 model.pauseBridge()
                             }
                             .buttonStyle(.bordered)
+                            .disabled(model.isBridgeOperationInProgress)
                         } else {
                             Button("Resume") {
                                 model.resumeBridge()
                             }
                             .buttonStyle(.bordered)
+                            .disabled(model.isBridgeOperationInProgress)
                         }
 
                         Button("Remove", role: .destructive) {
                             model.removeBridge()
                         }
                         .buttonStyle(.bordered)
+                        .disabled(model.isBridgeOperationInProgress)
                     }
 
                     Button("Copy MCP URL") {
@@ -244,6 +250,16 @@ private struct UrsusOverviewView: View {
                         model.reveal(path: bridge.standardErrorLogPath)
                     }
                     .buttonStyle(.bordered)
+                }
+
+                if let progressMessage = model.bridgeOperationProgressMessage {
+                    HStack(spacing: 10) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text(progressMessage)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let message = model.bridgeStatusMessage {
