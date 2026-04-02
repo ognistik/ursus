@@ -44,10 +44,15 @@ public final class BearService: @unchecked Sendable {
         return String(describing: error)
     }
 
-    public func findNotes(_ operations: [FindNotesOperation]) throws -> FindNotesBatchResult {
+    private func requireNonEmptyOperations<T>(_ operations: [T]) throws -> [T] {
         guard !operations.isEmpty else {
-            throw BearError.invalidInput("Missing required array argument 'operations'.")
+            throw BearError.invalidInput("`operations` must contain at least one operation object.")
         }
+        return operations
+    }
+
+    public func findNotes(_ operations: [FindNotesOperation]) throws -> FindNotesBatchResult {
+        let operations = try requireNonEmptyOperations(operations)
 
         let results = operations.enumerated().map { index, operation in
             do {
@@ -71,9 +76,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func findNotesByTag(_ operations: [FindNotesByTagOperation]) throws -> FindNotesBatchResult {
-        guard !operations.isEmpty else {
-            throw BearError.invalidInput("Missing required array argument 'operations'.")
-        }
+        let operations = try requireNonEmptyOperations(operations)
 
         return try findNotes(
             operations.map { operation in
@@ -90,9 +93,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func findNotesByInboxTags(_ operations: [FindNotesByInboxTagsOperation]) throws -> FindNotesBatchResult {
-        guard !operations.isEmpty else {
-            throw BearError.invalidInput("Missing required array argument 'operations'.")
-        }
+        let operations = try requireNonEmptyOperations(operations)
 
         return try findNotes(
             operations.map { operation in
@@ -107,9 +108,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func listBackups(_ operations: [ListBackupsOperation]) async throws -> ListBackupsBatchResult {
-        guard !operations.isEmpty else {
-            throw BearError.invalidInput("Missing required array argument 'operations'.")
-        }
+        let operations = try requireNonEmptyOperations(operations)
 
         let results = try await mutateEach(Array(operations.enumerated())) { entry in
             let (index, operation) = entry
@@ -144,6 +143,7 @@ public final class BearService: @unchecked Sendable {
         guard let backupStore else {
             throw BearError.configuration("Backups are unavailable in this runtime.")
         }
+        let requests = try requireNonEmptyOperations(requests)
 
         return try await mutateEach(requests) { request in
             let noteID = try self.resolvedRequiredBackupNoteID(request.noteID)
@@ -165,9 +165,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func compareBackups(_ operations: [CompareBackupOperation]) async throws -> CompareBackupBatchResult {
-        guard !operations.isEmpty else {
-            throw BearError.invalidInput("Missing required array argument 'operations'.")
-        }
+        let operations = try requireNonEmptyOperations(operations)
         guard backupStore != nil else {
             throw BearError.configuration("Backups are unavailable in this runtime.")
         }
@@ -295,6 +293,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func createNotes(_ requests: [CreateNoteRequest]) async throws -> [MutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         var receipts: [MutationReceipt] = []
@@ -391,6 +390,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func insertText(_ requests: [InsertTextRequest]) async throws -> [MutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -457,6 +457,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func replaceContent(_ requests: [ReplaceContentRequest]) async throws -> [MutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -476,6 +477,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func addFiles(_ requests: [AddFileRequest]) async throws -> [MutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -537,7 +539,8 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func openNotes(_ requests: [OpenNoteRequest]) async throws -> [MutationReceipt] {
-        try await mutateEach(requests) { request in
+        let requests = try requireNonEmptyOperations(requests)
+        return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
             return try await self.writeTransport.open(
                 OpenNoteRequest(
@@ -555,7 +558,8 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func renameTags(_ requests: [RenameTagRequest]) async throws -> [TagMutationReceipt] {
-        try await mutateEach(requests) { request in
+        let requests = try requireNonEmptyOperations(requests)
+        return try await mutateEach(requests) { request in
             try await self.writeTransport.renameTag(
                 RenameTagRequest(
                     name: try self.normalizedTagName(request.name, fieldName: "name"),
@@ -567,7 +571,8 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func deleteTags(_ requests: [DeleteTagRequest]) async throws -> [TagMutationReceipt] {
-        try await mutateEach(requests) { request in
+        let requests = try requireNonEmptyOperations(requests)
+        return try await mutateEach(requests) { request in
             let normalizedName = try self.normalizedTagName(request.name, fieldName: "name")
             guard let existingTag = try self.exactTag(named: normalizedName) else {
                 return TagMutationReceipt(tag: normalizedName, newTag: nil, status: "not_found")
@@ -583,6 +588,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func addTags(_ requests: [NoteTagsRequest]) async throws -> [NoteTagMutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -630,6 +636,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func removeTags(_ requests: [NoteTagsRequest]) async throws -> [NoteTagMutationReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -677,6 +684,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func applyTemplate(_ requests: [ApplyTemplateRequest]) async throws -> [ApplyTemplateReceipt] {
+        let requests = try requireNonEmptyOperations(requests)
         let loadedTemplate = try loadTemplateFileIfPresent(at: BearPaths.noteTemplateURL)
 
         return try await mutateEach(requests) { request in
@@ -792,7 +800,8 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
-        try await mutateEach(requests) { request in
+        let requests = try requireNonEmptyOperations(requests)
+        return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
             guard let snapshot = try await self.backupStore?.snapshot(
                 noteID: note.ref.identifier,
@@ -850,7 +859,8 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func deleteBackups(_ requests: [DeleteBackupRequest]) async throws -> [DeleteBackupReceipt] {
-        try await mutateEach(requests) { request in
+        let requests = try requireNonEmptyOperations(requests)
+        return try await mutateEach(requests) { request in
             let mode = try self.resolvedBackupDeleteMode(request)
             guard let backupStore = self.backupStore else {
                 return DeleteBackupReceipt(

@@ -125,6 +125,46 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 }
 
 @Test
+func batchedToolSchemasAdvertiseNonEmptyOperations() throws {
+    let tools = UrsusMCPServer.toolCatalog(configuration: .default)
+    let batchedToolNames = [
+        "bear_find_notes",
+        "bear_find_notes_by_tag",
+        "bear_find_notes_by_inbox_tags",
+        "bear_create_backups",
+        "bear_list_backups",
+        "bear_compare_backup",
+        "bear_delete_backups",
+        "bear_rename_tags",
+        "bear_delete_tags",
+        "bear_add_tags",
+        "bear_remove_tags",
+        "bear_apply_template",
+        "bear_create_notes",
+        "bear_insert_text",
+        "bear_replace_content",
+        "bear_add_files",
+        "bear_open_notes",
+        "bear_restore_notes",
+    ]
+
+    for name in batchedToolNames {
+        let matchedTool = try #require(tool(named: name, in: tools))
+        let operations = try #require(operationsSchema(in: matchedTool))
+        let requiredValues = try #require(matchedTool.inputSchema.objectValue?["required"]?.arrayValue)
+        let required = requiredValues.compactMap(\.stringValue)
+
+        #expect(required.contains("operations"))
+        #expect(operations["minItems"]?.intValue == 1)
+        #expect(operations["description"]?.stringValue == "Required non-empty array of operation objects.")
+        #expect(try #require(matchedTool.description).contains("`operations` must be a non-empty array of operation objects."))
+    }
+
+    let inbox = try #require(tool(named: "bear_find_notes_by_inbox_tags", in: tools))
+    #expect(try #require(inbox.description).contains("Each operation object may be empty"))
+}
+
+@Test
 func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     let configuration = BearConfiguration(
         databasePath: "/tmp/bear.sqlite",
@@ -231,4 +271,8 @@ private func propertyDescription(named name: String, inTopLevelTool tool: Tool) 
     }
 
     return property["description"]?.stringValue
+}
+
+private func operationsSchema(in tool: Tool) -> [String: Value]? {
+    tool.inputSchema.objectValue?["properties"]?.objectValue?["operations"]?.objectValue
 }

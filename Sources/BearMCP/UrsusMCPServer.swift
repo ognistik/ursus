@@ -139,7 +139,7 @@ public final class UrsusMCPServer: Sendable {
             return try jsonResult(try await service.openTag(tag))
 
         case "bear_rename_tags":
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let requests = try requiredObjectArray(params.arguments, "operations").map { object in
                 RenameTagRequest(
                     name: try requiredString(object, "name"),
                     newName: try requiredString(object, "new_name"),
@@ -149,7 +149,7 @@ public final class UrsusMCPServer: Sendable {
             return try jsonResult(try await service.renameTags(requests))
 
         case "bear_delete_tags":
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let requests = try requiredObjectArray(params.arguments, "operations").map { object in
                 DeleteTagRequest(
                     name: try requiredString(object, "name"),
                     showWindow: try MCPArgumentDecoder.optionalBool(object, "show_window")
@@ -166,10 +166,10 @@ public final class UrsusMCPServer: Sendable {
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
-            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 NoteTagsRequest(
                     noteID: resolvedNoteSelector,
-                    tags: MCPArgumentDecoder.stringArray(object, "tags"),
+                    tags: try requiredStringArray(object, "tags"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -185,10 +185,10 @@ public final class UrsusMCPServer: Sendable {
             )
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredNoteSelectors(operationObjects)
-            let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
+            let requests = try zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 NoteTagsRequest(
                     noteID: resolvedNoteSelector,
-                    tags: MCPArgumentDecoder.stringArray(object, "tags"),
+                    tags: try requiredStringArray(object, "tags"),
                     presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
                     expectedVersion: object["expected_version"]?.intValue
                 )
@@ -220,7 +220,7 @@ public final class UrsusMCPServer: Sendable {
                 showWindow: true,
                 edit: true
             )
-            let requests = try MCPArgumentDecoder.objectArray(params.arguments, "operations").map { object in
+            let requests = try requiredObjectArray(params.arguments, "operations").map { object in
                 CreateNoteRequest(
                     title: try requiredString(object, "title"),
                     content: try requiredString(object, "content"),
@@ -361,11 +361,42 @@ public final class UrsusMCPServer: Sendable {
     }
 
     private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
-        let values = MCPArgumentDecoder.objectArray(arguments, key)
-        guard !values.isEmpty else {
+        guard let rawValue = arguments?[key], let rawArray = rawValue.arrayValue else {
             throw BearError.invalidInput("Missing required array argument '\(key)'.")
         }
-        return values
+        guard !rawArray.isEmpty else {
+            throw BearError.invalidInput("`\(key)` must contain at least one operation object.")
+        }
+
+        var objects: [[String: Value]] = []
+        objects.reserveCapacity(rawArray.count)
+
+        for value in rawArray {
+            guard let object = value.objectValue else {
+                throw BearError.invalidInput("`\(key)` must contain only operation objects.")
+            }
+            objects.append(object)
+        }
+
+        return objects
+    }
+
+    private func requiredStringArray(_ object: [String: Value], _ key: String) throws -> [String] {
+        guard let rawValue = object[key], let rawArray = rawValue.arrayValue else {
+            throw BearError.invalidInput("Missing required array argument '\(key)'.")
+        }
+
+        var strings: [String] = []
+        strings.reserveCapacity(rawArray.count)
+
+        for value in rawArray {
+            guard let string = value.stringValue else {
+                throw BearError.invalidInput("`\(key)` must contain only strings.")
+            }
+            strings.append(string)
+        }
+
+        return strings
     }
 
     private func decodeFindNotesOperation(_ object: [String: Value]) throws -> FindNotesOperation {
@@ -515,7 +546,7 @@ public final class UrsusMCPServer: Sendable {
     private func decodeFindNotesByTagOperation(_ object: [String: Value]) throws -> FindNotesByTagOperation {
         FindNotesByTagOperation(
             id: MCPArgumentDecoder.optionalString(object, "id"),
-            tags: MCPArgumentDecoder.stringArray(object, "tags"),
+            tags: try requiredStringArray(object, "tags"),
             tagMatch: try MCPArgumentDecoder.findTagMatchMode(object, key: "tag_match"),
             location: try MCPArgumentDecoder.location(object),
             cursor: MCPArgumentDecoder.optionalString(object, "cursor")
@@ -603,7 +634,7 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_inbox_tags",
-                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash.",
+                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash. Each operation object may be empty to use the configured inbox tags with default matching and note location.",
                 operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
@@ -881,12 +912,14 @@ private enum ToolCatalog {
     ) -> Tool {
         Tool(
             name: name,
-            description: description,
+            description: batchedToolDescription(description),
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
                     "operations": .object([
                         "type": .string("array"),
+                        "description": .string("Required non-empty array of operation objects."),
+                        "minItems": .int(1),
                         "items": .object([
                             "type": .string("object"),
                             "properties": .object(operationProperties),
@@ -1037,12 +1070,14 @@ private enum ToolCatalog {
     ) -> Tool {
         return Tool(
             name: name,
-            description: description,
+            description: batchedToolDescription(description),
             inputSchema: .object([
                 "type": .string("object"),
                 "properties": .object([
                     "operations": .object([
                         "type": .string("array"),
+                        "description": .string("Required non-empty array of operation objects."),
+                        "minItems": .int(1),
                         "items": .object([
                             "type": .string("object"),
                             "properties": .object(operationProperties.merging(presentationProperties, uniquingKeysWith: { current, _ in current })),
@@ -1053,6 +1088,10 @@ private enum ToolCatalog {
                 "required": .array([.string("operations")]),
             ])
         )
+    }
+
+    private static func batchedToolDescription(_ description: String) -> String {
+        "\(description) `operations` must be a non-empty array of operation objects."
     }
 
     private static func optionalPresentationBoolean(description: String) -> Value {

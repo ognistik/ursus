@@ -132,6 +132,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - Batch operations matter and should stay first-class.
+- Batched MCP tools now require `operations` to be a non-empty array of operation objects, and missing versus empty `operations` batches are surfaced as distinct validation errors.
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
