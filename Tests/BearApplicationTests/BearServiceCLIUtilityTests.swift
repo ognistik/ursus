@@ -19,7 +19,8 @@ func createInteractiveNoteUsesSelectedNoteTagsAndEditingPresentation() async thr
         notesByTitle: [:]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -209,7 +210,8 @@ func createInteractiveNoteFallsBackToInboxTagsWhenSelectedNoteHasNoTags() async 
         notesByTitle: [:]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -243,9 +245,9 @@ func createInteractiveNoteDoesNotFallBackToInboxTagsWhenDisabledAndSelectedNoteH
     )
     let service = BearService(
         configuration: makeCLIUtilityConfiguration(
-            token: "secret-token",
             createAddsInboxTagsByDefault: false
         ),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -300,7 +302,8 @@ func createInteractiveNoteDropsImplicitParentTagsFromSelectedNote() async throws
         notesByTitle: [:]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -331,7 +334,8 @@ func applyTemplateToTargetsUsesSelectedNoteWhenNoExplicitSelectorIsPassed() asyn
         notesByTitle: [:]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -361,7 +365,8 @@ func trashNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
         ]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -389,7 +394,8 @@ func archiveNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
         ]
     )
     let service = BearService(
-        configuration: makeCLIUtilityConfiguration(token: "secret-token"),
+        configuration: makeCLIUtilityConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: transport,
         logger: Logger(label: "BearServiceCLIUtilityTests")
@@ -404,7 +410,6 @@ func archiveNoteTargetsResolvesSelectedAndExplicitSelectors() async throws {
 }
 
 private func makeCLIUtilityConfiguration(
-    token: String? = nil,
     createOpensNoteByDefault: Bool = true,
     openUsesNewWindowByDefault: Bool = true,
     createAddsInboxTagsByDefault: Bool = true,
@@ -421,8 +426,7 @@ private func makeCLIUtilityConfiguration(
         tagsMergeMode: tagsMergeMode,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: token
+        backupRetentionDays: 30
     )
 }
 

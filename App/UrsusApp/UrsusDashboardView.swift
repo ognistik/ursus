@@ -845,16 +845,16 @@ private struct UrsusTokenView: View {
                                                 .textSelection(.enabled)
 
                                             Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
-                                                model.revealsStoredToken.toggle()
+                                                model.loadStoredSelectedNoteToken()
                                             }
                                             .buttonStyle(.borderless)
                                         }
                                     } else {
-                                        Text("Token is configured but could not be loaded from config.json right now.")
+                                        Text("Token is configured but could not be loaded from macOS Keychain right now.")
                                             .font(.callout)
                                             .foregroundStyle(.secondary)
 
-                                        Button("Reload Token") {
+                                        Button("Try Again") {
                                             model.loadStoredSelectedNoteToken()
                                         }
                                         .buttonStyle(.bordered)
@@ -865,7 +865,7 @@ private struct UrsusTokenView: View {
                             SecureField(settings.selectedNoteTokenConfigured ? "Paste a new Bear API token to replace the current one" : "Paste Bear API token", text: $model.tokenDraft)
                                 .textFieldStyle(.roundedBorder)
 
-                            Text("Save stores the token in Ursus's config.json. The app keeps it hidden by default, but it is not stored in macOS Keychain.")
+                            Text("Save stores the token in macOS Keychain. Ursus keeps it hidden by default and only loads it into the dashboard when you explicitly reveal it.")
                                 .font(.callout)
                                 .foregroundStyle(.secondary)
 

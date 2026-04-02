@@ -123,7 +123,8 @@ func backupNoteTargetsCapturesSnapshotsAndReturnsSummaries() async throws {
     let writeTransport = BackupServiceWriteTransport()
     let backupStore = RecordingBackupStore()
     let service = BearService(
-        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false, token: "secret-token"),
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: writeTransport,
         backupStore: backupStore,
@@ -150,7 +151,8 @@ func createBackupsCapturesManualSnapshotsFromSelectorsAndSelectedNote() async th
     let writeTransport = BackupServiceWriteTransport()
     let backupStore = RecordingBackupStore()
     let service = BearService(
-        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false, token: "secret-token"),
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: readStore,
         writeTransport: writeTransport,
         backupStore: backupStore,
@@ -471,7 +473,6 @@ func deleteBackupsRejectsBlindBulkDelete() async throws {
 
 private func makeBackupServiceConfiguration(
     templateManagementEnabled: Bool,
-    token: String? = nil,
     defaultDiscoveryLimit: Int = 20,
     defaultSnippetLength: Int = 280
 ) -> BearConfiguration {
@@ -486,8 +487,7 @@ private func makeBackupServiceConfiguration(
         tagsMergeMode: .append,
         defaultDiscoveryLimit: defaultDiscoveryLimit,
         defaultSnippetLength: defaultSnippetLength,
-        backupRetentionDays: 30,
-        token: token
+        backupRetentionDays: 30
     )
 }
 

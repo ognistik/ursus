@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) tokenConfigured=\(BearSelectedNoteTokenResolver.configured(configuration: configuration)) bridgeEnabled=\(configuration.bridge.enabled) bridgeHost=\(configuration.bridge.host) bridgePort=\(configuration.bridge.port)"
+            "config.loaded path=\(configFileURL.path) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) bridgeEnabled=\(configuration.bridge.enabled) bridgeHost=\(configuration.bridge.host) bridgePort=\(configuration.bridge.port)"
         )
         return configuration
     }
@@ -57,7 +57,7 @@ public enum BearRuntimeBootstrap {
             templateURL: templateURL
         )
         try writeConfiguration(configuration, to: configFileURL)
-        BearDebugLog.append("config.saved path=\(configFileURL.path) tokenConfigured=\(configuration.token != nil)")
+        BearDebugLog.append("config.saved path=\(configFileURL.path)")
         return configuration
     }
 

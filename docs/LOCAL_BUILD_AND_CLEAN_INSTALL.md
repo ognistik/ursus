@@ -79,7 +79,7 @@ rm -f "$HOME/.local/bin/ursus"
 Note:
 
 - deleting the app bundle alone does not remove Ursus state
-- the selected-note token is currently managed through Ursus's config flow, so there is no separate Keychain reset step in the current product shape
+- the selected-note token now lives in macOS Keychain under Ursus-managed storage, so a full reset should also clear that Keychain item if you want a completely clean local state
 
 ## Reinstall After Reset
 

@@ -15,7 +15,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BEA0000A2F00000100000004 /* UrsusApp */ = {
+		BEA0000A2F00000100000004 /* App/UrsusApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = App/UrsusApp;
 			sourceTree = "<group>";
@@ -37,7 +37,7 @@
 		BEA0000A2F00000100000006 = {
 			isa = PBXGroup;
 			children = (
-				BEA0000A2F00000100000004 /* UrsusApp */,
+				BEA0000A2F00000100000004 /* App/UrsusApp */,
 				BEA0000A2F00000100000007 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,7 +66,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				BEA0000A2F00000100000004 /* UrsusApp */,
+				BEA0000A2F00000100000004 /* App/UrsusApp */,
 			);
 			name = Ursus;
 			packageProductDependencies = (
@@ -181,6 +181,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T25AGZF6DS;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Support/app/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -201,6 +202,7 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T25AGZF6DS;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Support/app/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -219,20 +221,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BEA0000A2F0000010000000D /* Build configuration list for PBXProject "UrsusApp" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				BEA0000A2F0000010000000F /* Debug */,
-				BEA0000A2F00000100000010 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		BEA0000A2F00000100000009 /* Build configuration list for PBXNativeTarget "Ursus" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BEA0000A2F00000100000011 /* Debug */,
 				BEA0000A2F00000100000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BEA0000A2F0000010000000D /* Build configuration list for PBXProject "UrsusApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BEA0000A2F0000010000000F /* Debug */,
+				BEA0000A2F00000100000010 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

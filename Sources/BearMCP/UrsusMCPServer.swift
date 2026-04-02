@@ -15,7 +15,7 @@ public final class UrsusMCPServer: Sendable {
     ) {
         self.service = service
         self.configuration = configuration
-        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured(configuration: configuration)
+        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured()
     }
 
     public func makeServer() async -> Server {
@@ -577,7 +577,7 @@ public final class UrsusMCPServer: Sendable {
     ) -> [Tool] {
         ToolCatalog.makeTools(
             configuration: configuration,
-            selectedNoteSupported: selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured(configuration: configuration)
+            selectedNoteSupported: selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured()
         ).filter { tool in
             guard let toolName = BearToolName(rawValue: tool.name) else {
                 return true

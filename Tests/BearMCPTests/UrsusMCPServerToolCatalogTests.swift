@@ -16,11 +16,13 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
         tagsMergeMode: .replace,
         defaultDiscoveryLimit: 7,
         defaultSnippetLength: 90,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
 
-    let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
+    let tools = UrsusMCPServer.toolCatalog(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    )
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
     let createDescription = try #require(create.description)
@@ -180,11 +182,13 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 11,
         defaultSnippetLength: 120,
-        backupRetentionDays: 30,
-        token: nil
+        backupRetentionDays: 30
     )
 
-    let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
+    let tools = UrsusMCPServer.toolCatalog(
+        configuration: configuration,
+        selectedNoteTokenConfigured: false
+    )
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
     #expect(try #require(find.description).hasPrefix("Find Bear notes with text, tag, inbox-tag, and date filters"))
@@ -219,8 +223,7 @@ func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() thro
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: nil
+        backupRetentionDays: 30
     )
 
     let tools = UrsusMCPServer.toolCatalog(

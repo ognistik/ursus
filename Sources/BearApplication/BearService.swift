@@ -5,6 +5,7 @@ import Logging
 
 public final class BearService: @unchecked Sendable {
     private let configuration: BearConfiguration
+    private let tokenStore: any BearTokenStore
     private let readStore: BearReadStore
     private let writeTransport: BearWriteTransport
     private let backupStore: (any BearBackupStore)?
@@ -25,12 +26,14 @@ public final class BearService: @unchecked Sendable {
 
     public init(
         configuration: BearConfiguration,
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault,
         readStore: BearReadStore,
         writeTransport: BearWriteTransport,
         backupStore: (any BearBackupStore)? = nil,
         logger: Logger
     ) {
         self.configuration = configuration
+        self.tokenStore = tokenStore
         self.readStore = readStore
         self.writeTransport = writeTransport
         self.backupStore = backupStore
@@ -196,7 +199,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     public func resolveSelectedNoteID() async throws -> String {
-        guard let token = BearSelectedNoteTokenResolver.resolve(configuration: configuration)?.value else {
+        guard let token = try BearSelectedNoteTokenResolver.resolve(tokenStore: tokenStore)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }
 
@@ -1128,7 +1131,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func interactiveCreateSeedTags() async -> [String] {
-        guard BearSelectedNoteTokenResolver.configured(configuration: configuration) else {
+        guard BearSelectedNoteTokenResolver.configured(tokenStore: tokenStore) else {
             return []
         }
 

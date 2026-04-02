@@ -123,7 +123,7 @@ These paths describe the codebase as it exists after Phase 6:
 
 - Phases 1 through 6 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, launcher/locator wiring points at `ursus` and `Ursus.app`, repo-internal app containers and product-facing internal types now use Ursus-branded names, and the status/build/helper docs now match that product truth.
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
-- The selected-note token is currently managed in Ursus's config flow, not in Keychain.
+- The selected-note token is now managed in macOS Keychain through shared Ursus-owned code rather than `config.json`.
 - Opened notes now always request Bear edit mode; that default is no longer user-configurable in config.
 - Discovery tools return compact note summaries with attachment presence metadata and attachment-match evidence only; `bear_get_notes` remains the full-note fetch, and attachment OCR/search text is opt-in there.
 - Discovery page size and snippet length now come only from config defaults. MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides anymore, and cursor continuation keeps using the configured defaults.

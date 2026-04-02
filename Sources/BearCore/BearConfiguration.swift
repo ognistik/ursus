@@ -32,7 +32,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var defaultSnippetLength: Int
     public var backupRetentionDays: Int
     public var disabledTools: [BearToolName]
-    public var token: String?
     public var bridge: BearBridgeConfiguration
 
     public init(
@@ -48,7 +47,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName] = [],
-        token: String? = nil,
         bridge: BearBridgeConfiguration = .default
     ) {
         self.databasePath = databasePath
@@ -63,7 +61,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.defaultSnippetLength = max(1, defaultSnippetLength)
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.disabledTools = Self.normalizedDisabledTools(disabledTools)
-        self.token = Self.normalizedToken(token)
         self.bridge = bridge
     }
 
@@ -81,27 +78,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: 280,
             backupRetentionDays: 30,
             disabledTools: [],
-            token: nil,
             bridge: .default
-        )
-    }
-
-    public func updatingToken(_ token: String?) -> BearConfiguration {
-        BearConfiguration(
-            databasePath: databasePath,
-            inboxTags: inboxTags,
-            defaultInsertPosition: defaultInsertPosition,
-            templateManagementEnabled: templateManagementEnabled,
-            createOpensNoteByDefault: createOpensNoteByDefault,
-            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
-            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
-            tagsMergeMode: tagsMergeMode,
-            defaultDiscoveryLimit: defaultDiscoveryLimit,
-            defaultSnippetLength: defaultSnippetLength,
-            backupRetentionDays: backupRetentionDays,
-            disabledTools: disabledTools,
-            token: token,
-            bridge: bridge
         )
     }
 
@@ -119,7 +96,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: defaultSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            token: token,
             bridge: bridge
         )
     }
@@ -138,7 +114,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: defaultSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
-            token: token,
             bridge: bridge
         )
     }
@@ -160,7 +135,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case defaultSnippetLength
         case backupRetentionDays
         case disabledTools
-        case token
         case bridge
     }
 
@@ -179,7 +153,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280)
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])
-        token = Self.normalizedToken(try container.decodeIfPresent(String.self, forKey: .token))
         bridge = try container.decodeIfPresent(BearBridgeConfiguration.self, forKey: .bridge) ?? .default
     }
 
@@ -197,9 +170,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(defaultSnippetLength, forKey: .defaultSnippetLength)
         try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
         try container.encode(disabledTools, forKey: .disabledTools)
-        if let token {
-            try container.encode(token, forKey: .token)
-        }
         try container.encode(bridge, forKey: .bridge)
     }
 
@@ -219,15 +189,6 @@ private extension JSONDecoder {
 }
 
 extension BearConfiguration {
-    static func normalizedToken(_ value: String?) -> String? {
-        guard let value else {
-            return nil
-        }
-
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
     public static func normalizedDisabledTools(_ value: [BearToolName]) -> [BearToolName] {
         Array(Set(value)).sorted { $0.rawValue < $1.rawValue }
     }

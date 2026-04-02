@@ -156,7 +156,8 @@ func resolveNoteTargetsResolvesSelectedNoteOnlyOncePerBatch() async throws {
     let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Body")
     let transport = MutationSelectorRecordingWriteTransport(selectedNoteID: "selected-note")
     let service = BearService(
-        configuration: makeMutationSelectorConfiguration(token: "secret-token"),
+        configuration: makeMutationSelectorConfiguration(),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]]),
         writeTransport: transport,
         logger: Logger(label: "BearServiceMutationSelectorTests")
@@ -197,7 +198,37 @@ func resolveSelectedNoteIDRequiresConfiguredToken() async {
     }
 }
 
-private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConfiguration {
+@Test
+func serviceResolvesSelectedNoteIDThroughKeychainWhenExplicitlyEnabled() async throws {
+    guard ProcessInfo.processInfo.environment["URSUS_RUN_KEYCHAIN_TESTS"] == "1" else {
+        return
+    }
+
+    let tokenStore = BearKeychainTokenStore(
+        service: "com.aft.ursus.tests.\(UUID().uuidString)",
+        account: "selected-note-api-token"
+    )
+    defer {
+        try? tokenStore.deleteToken()
+    }
+    try tokenStore.saveToken("service-keychain-token")
+
+    let transport = MutationSelectorRecordingWriteTransport(selectedNoteID: "selected-note")
+    let service = BearService(
+        configuration: makeMutationSelectorConfiguration(),
+        tokenStore: tokenStore,
+        readStore: MutationSelectorReadStore(noteByID: [:], notesByTitle: [:]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceMutationSelectorTests")
+    )
+
+    let resolved = try await service.resolveSelectedNoteID()
+
+    #expect(resolved == "selected-note")
+    #expect(await transport.selectedNoteResolutionCount == 1)
+}
+
+private func makeMutationSelectorConfiguration() -> BearConfiguration {
     BearConfiguration(
         databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
@@ -209,8 +240,7 @@ private func makeMutationSelectorConfiguration(token: String? = nil) -> BearConf
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: token
+        backupRetentionDays: 30
     )
 }
 

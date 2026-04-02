@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Test
-func configurationDecodesTokenKeyAndNormalizesWhitespace() throws {
+func configurationIgnoresSelectedNoteTokenKey() throws {
     let data = Data(
         """
         {
@@ -14,7 +14,7 @@ func configurationDecodesTokenKeyAndNormalizesWhitespace() throws {
 
     let configuration = try JSONDecoder().decode(BearConfiguration.self, from: data)
 
-    #expect(configuration.token == "secret-token")
+    #expect(configuration == .default)
 }
 
 @Test
@@ -29,11 +29,11 @@ func configurationIgnoresLegacyAPITokenKey() throws {
 
     let configuration = try JSONDecoder().decode(BearConfiguration.self, from: data)
 
-    #expect(configuration.token == nil)
+    #expect(configuration == .default)
 }
 
 @Test
-func configurationEncodingOmitsMissingLegacyTokenField() throws {
+func configurationEncodingOmitsLegacyTokenField() throws {
     let data = try BearJSON.makeEncoder().encode(BearConfiguration.default)
     let text = try #require(String(data: data, encoding: .utf8))
 
@@ -63,17 +63,40 @@ func configurationDecodesAndNormalizesDisabledTools() throws {
 }
 
 @Test
-func selectedNoteTokenResolverUsesConfigOnly() {
-    let configuration = BearConfiguration.default.updatingToken("legacy-token")
+func selectedNoteTokenResolverUsesTokenStore() throws {
+    let tokenStore = InMemoryBearTokenStore(token: "keychain-token")
 
-    #expect(BearSelectedNoteTokenResolver.configured(configuration: .default) == false)
-    #expect(BearSelectedNoteTokenResolver.configured(configuration: configuration) == true)
+    #expect(BearSelectedNoteTokenResolver.configured(tokenStore: InMemoryBearTokenStore()) == false)
+    #expect(BearSelectedNoteTokenResolver.configured(tokenStore: tokenStore) == true)
 
-    let resolved = BearSelectedNoteTokenResolver.resolve(configuration: configuration)
-    let status = BearSelectedNoteTokenResolver.status(configuration: configuration)
+    let resolved = try BearSelectedNoteTokenResolver.resolve(tokenStore: tokenStore)
+    let status = BearSelectedNoteTokenResolver.status(tokenStore: tokenStore)
 
-    #expect(resolved?.value == "legacy-token")
-    #expect(resolved?.source == .config)
+    #expect(resolved?.value == "keychain-token")
+    #expect(resolved?.source == .keychain)
     #expect(status.tokenPresent)
-    #expect(status.effectiveSource == .config)
+    #expect(status.effectiveSource == .keychain)
+    #expect(status.accessErrorDescription == nil)
+}
+
+@Test
+func keychainTokenStoreRoundTripsWhenExplicitlyEnabled() throws {
+    guard ProcessInfo.processInfo.environment["URSUS_RUN_KEYCHAIN_TESTS"] == "1" else {
+        return
+    }
+
+    let store = BearKeychainTokenStore(
+        service: "com.aft.ursus.tests.\(UUID().uuidString)",
+        account: "selected-note-api-token"
+    )
+    defer {
+        try? store.deleteToken()
+    }
+
+    try store.saveToken("integration-token")
+    #expect(try store.hasToken())
+    #expect(try store.readToken() == "integration-token")
+
+    try store.deleteToken()
+    #expect(try store.readToken() == nil)
 }

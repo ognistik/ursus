@@ -105,7 +105,7 @@ struct UrsusMain {
         let server = await UrsusMCPServer(
             service: service,
             configuration: configuration,
-            selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: configuration)
+            selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore)
         ).makeServer()
         try await server.start(transport: StdioTransport())
         let originalParentPID = getppid()
@@ -141,7 +141,7 @@ struct UrsusMain {
                 await UrsusMCPServer(
                     service: runtime.service,
                     configuration: runtime.configuration,
-                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(configuration: runtime.configuration)
+                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore)
                 ).makeServer()
             },
             logger: logger
@@ -181,6 +181,7 @@ struct UrsusMain {
 
     private static func makeRuntimeServices(logger: Logger) throws -> RuntimeServices {
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
+        let tokenStore = BearKeychainTokenStore.selectedNoteDefault
         let databaseReader = try BearDatabaseReader(
             databaseURL: URL(fileURLWithPath: configuration.databasePath)
         )
@@ -188,13 +189,18 @@ struct UrsusMain {
         let backupStore = BearBackupFileStore(retentionDays: configuration.backupRetentionDays)
         let service = BearService(
             configuration: configuration,
+            tokenStore: tokenStore,
             readStore: databaseReader,
             writeTransport: writeTransport,
             backupStore: backupStore,
             logger: logger
         )
 
-        return RuntimeServices(configuration: configuration, service: service)
+        return RuntimeServices(
+            configuration: configuration,
+            tokenStore: tokenStore,
+            service: service
+        )
     }
 
     private static func waitForShutdownTrigger(server: Server, originalParentPID: Int32) async -> ShutdownReason {
@@ -262,6 +268,7 @@ struct UrsusMain {
 
     private struct RuntimeServices {
         let configuration: BearConfiguration
+        let tokenStore: any BearTokenStore
         let service: BearService
     }
 

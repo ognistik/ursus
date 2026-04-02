@@ -90,8 +90,8 @@ final class UrsusAppModel: ObservableObject {
         do {
             try BearAppSupport.saveSelectedNoteToken(tokenDraft)
             tokenDraft = ""
-            revealsStoredToken = false
-            tokenStatusMessage = "Token saved in config.json."
+            hideStoredSelectedNoteToken()
+            tokenStatusMessage = "Token saved in macOS Keychain."
             tokenStatusError = nil
             reload()
         } catch {
@@ -104,8 +104,8 @@ final class UrsusAppModel: ObservableObject {
         do {
             try BearAppSupport.removeSelectedNoteToken()
             tokenDraft = ""
-            revealsStoredToken = false
-            tokenStatusMessage = "Token removed from config.json."
+            hideStoredSelectedNoteToken()
+            tokenStatusMessage = "Token removed from macOS Keychain."
             tokenStatusError = nil
             reload()
         } catch {
@@ -368,7 +368,20 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func loadStoredSelectedNoteToken() {
-        refreshStoredSelectedNoteToken()
+        if revealsStoredToken {
+            hideStoredSelectedNoteToken()
+            tokenStatusError = nil
+            return
+        }
+
+        do {
+            storedSelectedNoteToken = try BearAppSupport.loadResolvedSelectedNoteToken()?.value
+            revealsStoredToken = storedSelectedNoteToken != nil
+            tokenStatusError = nil
+        } catch {
+            hideStoredSelectedNoteToken()
+            tokenStatusError = localizedMessage(for: error)
+        }
     }
 
     func isToolEnabledInDraft(_ tool: BearToolName) -> Bool {
@@ -404,21 +417,16 @@ final class UrsusAppModel: ObservableObject {
     }
 
     var maskedStoredSelectedNoteToken: String? {
-        guard let storedSelectedNoteToken else {
-            return nil
-        }
-
-        return String(repeating: "*", count: max(8, storedSelectedNoteToken.count))
+        dashboard.settings?.selectedNoteTokenConfigured == true ? "********" : nil
     }
 
     private func refreshStoredSelectedNoteToken() {
-        do {
-            storedSelectedNoteToken = try BearAppSupport.loadResolvedSelectedNoteToken()?.value
-            tokenStatusError = nil
-        } catch {
-            storedSelectedNoteToken = nil
-            tokenStatusError = localizedMessage(for: error)
-        }
+        hideStoredSelectedNoteToken()
+    }
+
+    private func hideStoredSelectedNoteToken() {
+        revealsStoredToken = false
+        storedSelectedNoteToken = nil
     }
 
     var currentBundledCLIPath: String? {

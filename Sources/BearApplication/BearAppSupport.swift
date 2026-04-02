@@ -256,6 +256,7 @@ public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
 public enum BearAppSupport {
     public static func loadDashboardSnapshot(
         fileManager: FileManager = .default,
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault,
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
@@ -275,6 +276,7 @@ public enum BearAppSupport {
         do {
             let settings = try loadSettingsSnapshot(
                 fileManager: fileManager,
+                tokenStore: tokenStore,
                 configDirectoryURL: configDirectoryURL,
                 configFileURL: configFileURL,
                 templateURL: templateURL,
@@ -329,6 +331,7 @@ public enum BearAppSupport {
 
     public static func loadSettingsSnapshot(
         fileManager: FileManager = .default,
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault,
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
@@ -346,7 +349,7 @@ public enum BearAppSupport {
             configFileURL: configFileURL,
             templateURL: templateURL
         )
-        let tokenStatus = BearSelectedNoteTokenResolver.status(configuration: configuration)
+        let tokenStatus = BearSelectedNoteTokenResolver.status(tokenStore: tokenStore)
 
         let launcherStatus = launcherStatus(
             fileManager: fileManager,
@@ -404,41 +407,15 @@ public enum BearAppSupport {
 
     public static func saveSelectedNoteToken(
         _ token: String,
-        fileManager: FileManager = .default,
-        configDirectoryURL: URL = BearPaths.configDirectoryURL,
-        configFileURL: URL = BearPaths.configFileURL,
-        templateURL: URL = BearPaths.noteTemplateURL
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws {
-        let configuration = try BearRuntimeBootstrap.loadConfiguration(
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
-
-        try BearRuntimeBootstrap.saveConfiguration(
-            configuration.updatingToken(token),
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
+        try tokenStore.saveToken(token)
     }
 
     public static func loadResolvedSelectedNoteToken(
-        fileManager: FileManager = .default,
-        configDirectoryURL: URL = BearPaths.configDirectoryURL,
-        configFileURL: URL = BearPaths.configFileURL,
-        templateURL: URL = BearPaths.noteTemplateURL
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws -> BearResolvedSelectedNoteToken? {
-        let configuration = try BearRuntimeBootstrap.loadConfiguration(
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
-
-        return BearSelectedNoteTokenResolver.resolve(configuration: configuration)
+        try BearSelectedNoteTokenResolver.resolve(tokenStore: tokenStore)
     }
 
     @discardableResult
@@ -579,7 +556,6 @@ public enum BearAppSupport {
             defaultSnippetLength: defaultSnippetLength,
             backupRetentionDays: max(0, draft.backupRetentionDays),
             disabledTools: draft.disabledTools,
-            token: currentConfiguration.token,
             bridge: validatedBridge
         )
 
@@ -751,40 +727,18 @@ public enum BearAppSupport {
     }
 
     public static func removeSelectedNoteToken(
-        fileManager: FileManager = .default,
-        configDirectoryURL: URL = BearPaths.configDirectoryURL,
-        configFileURL: URL = BearPaths.configFileURL,
-        templateURL: URL = BearPaths.noteTemplateURL
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws {
-        let configuration = try BearRuntimeBootstrap.loadConfiguration(
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
-
-        try BearRuntimeBootstrap.saveConfiguration(
-            configuration.updatingToken(nil),
-            fileManager: fileManager,
-            configDirectoryURL: configDirectoryURL,
-            configFileURL: configFileURL,
-            templateURL: templateURL
-        )
+        try tokenStore.deleteToken()
     }
 
     public static func prepareManagedSelectedNoteRequestURL(
         _ requestURL: URL,
-        fileManager: FileManager = .default,
-        configDirectoryURL: URL = BearPaths.configDirectoryURL,
-        configFileURL: URL = BearPaths.configFileURL,
-        templateURL: URL = BearPaths.noteTemplateURL
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws -> URL {
-        _ = configDirectoryURL
-        _ = templateURL
         return try BearSelectedNoteRequestAuthorizer.prepareManagedRequestURL(
             requestURL,
-            fileManager: fileManager,
-            configFileURL: configFileURL
+            tokenStore: tokenStore
         )
     }
 
@@ -999,16 +953,24 @@ public enum BearAppSupport {
     }
 
     private static func tokenStorageDescription(for status: BearSelectedNoteTokenStatus) -> String {
+        if status.accessErrorDescription != nil {
+            return "Keychain access failed"
+        }
+
         if status.tokenPresent {
-            return "Stored in config.json"
+            return "Stored in macOS Keychain"
         }
 
         return "Not configured"
     }
 
     private static func tokenStatusDetail(for status: BearSelectedNoteTokenStatus) -> String? {
+        if let accessErrorDescription = status.accessErrorDescription {
+            return accessErrorDescription
+        }
+
         if status.tokenPresent {
-            return "The Bear API token is stored in Ursus's config.json and hidden by default in the app UI."
+            return "The Bear API token is stored in macOS Keychain and only loaded into the dashboard when you explicitly reveal it."
         }
 
         return nil

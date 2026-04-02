@@ -3,21 +3,13 @@ import Foundation
 public enum BearSelectedNoteRequestAuthorizer {
     public static func prepareManagedRequestURL(
         _ requestURL: URL,
-        fileManager: FileManager = .default,
-        configFileURL: URL = BearPaths.configFileURL
+        tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws -> URL {
         guard requiresManagedSelectedNoteTokenInjection(requestURL) else {
             return requestURL
         }
 
-        let configuration: BearConfiguration
-        if fileManager.fileExists(atPath: configFileURL.path) {
-            configuration = try BearConfiguration.load(from: configFileURL)
-        } else {
-            configuration = .default
-        }
-
-        guard let token = BearSelectedNoteTokenResolver.resolve(configuration: configuration)?.value else {
+        guard let token = try BearSelectedNoteTokenResolver.resolve(tokenStore: tokenStore)?.value else {
             throw BearError.invalidInput("Selected-note targeting requires a configured Bear API token.")
         }
 

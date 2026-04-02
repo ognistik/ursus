@@ -308,12 +308,12 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
         logger: Logger(label: "UrsusMCPServerCallToolTests")
@@ -324,7 +324,11 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(
+        service: service,
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    ).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -391,12 +395,12 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
         logger: Logger(label: "UrsusMCPServerCallToolTests")
@@ -407,7 +411,11 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(
+        service: service,
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    ).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -471,11 +479,11 @@ func bearListBackupsRejectsMissingNoteTarget() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: MCPToolRecordingWriteTransport(),
         backupStore: MCPToolBackupStore(),
@@ -548,12 +556,12 @@ func bearListBackupsForwardsDateFiltersToBackupListingQuery() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let backupStore = MCPToolBackupStore()
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: MCPToolRecordingWriteTransport(),
         backupStore: backupStore,
@@ -632,13 +640,13 @@ func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let backupStore = MCPToolBackupStore()
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
         backupStore: backupStore,
@@ -650,7 +658,11 @@ func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(
+        service: service,
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    ).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {
@@ -713,8 +725,7 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
         tagsMergeMode: .append,
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
-        backupRetentionDays: 30,
-        token: "secret-token"
+        backupRetentionDays: 30
     )
     let writeTransport = MCPToolRecordingWriteTransport()
     let backupStore = MCPToolBackupStore(
@@ -733,6 +744,7 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
     )
     let service = BearService(
         configuration: configuration,
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
         backupStore: backupStore,
@@ -744,7 +756,11 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
     let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
     let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
 
-    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let server = await UrsusMCPServer(
+        service: service,
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    ).makeServer()
     let client = Client(name: "BearMCPTestClient", version: "1.0")
 
     do {

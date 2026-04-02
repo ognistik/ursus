@@ -29,7 +29,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "BearCore"
+            name: "BearCore",
+            linkerSettings: [
+                .linkedFramework("Security"),
+            ]
         ),
         .target(
             name: "BearDB",
