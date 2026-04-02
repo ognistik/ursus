@@ -24,7 +24,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
     let createDescription = try #require(create.description)
-    #expect(createDescription.contains("Use the smallest valid payload."))
+    #expect(createDescription.hasPrefix("Create one or more Bear notes."))
     #expect(createDescription.contains("Defaults: `open_note` = `false`"))
     #expect(createDescription.contains("`new_window` = `false` when opened"))
     #expect(createDescription.contains("configured inbox tags = `0-inbox`, `client work`"))
@@ -34,7 +34,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
     let insertDescription = try #require(insert.description)
-    #expect(insertDescription.contains("Use the smallest valid payload."))
+    #expect(insertDescription.hasPrefix("Insert text into one or more Bear notes."))
     #expect(insertDescription.contains("`position` = `top`"))
     #expect(insertDescription.contains("`new_window` = `false` when opened"))
     #expect(insertDescription.contains("`note` accepts a selector matched as exact note id first"))
@@ -48,7 +48,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
     let addFilesDescription = try #require(addFiles.description)
-    #expect(addFilesDescription.contains("Use the smallest valid payload."))
+    #expect(addFilesDescription.hasPrefix("Attach one or more local files to Bear notes."))
     #expect(addFilesDescription.contains("`position` = `top`"))
     #expect(propertyDescription(named: "note", in: addFiles)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "position", in: addFiles)?.contains("Omit to use the current session default `top` when no `target` is provided") == true)
@@ -66,8 +66,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let addTags = try #require(tool(named: "bear_add_tags", in: tools))
     let addTagsDescription = try #require(addTags.description)
+    #expect(addTagsDescription.hasPrefix("Add one or more tags to specific Bear notes"))
     #expect(addTagsDescription.contains("specific Bear notes"))
-    #expect(addTagsDescription.contains("Use the smallest valid payload."))
     #expect(addTagsDescription.contains("Do not call `bear_get_notes` only to resolve the note selector"))
     #expect(propertyDescription(named: "note", in: addTags)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "new_window", in: addTags)?.contains("the default when the note is opened: `false`") == true)
@@ -144,7 +144,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     let tools = UrsusMCPServer.toolCatalog(configuration: configuration)
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
-    #expect(try #require(find.description).contains("Use the smallest valid payload."))
+    #expect(try #require(find.description).hasPrefix("Find Bear notes with text, tag, inbox-tag, and date filters"))
     #expect(propertyDescription(named: "limit", in: find) == nil)
     #expect(propertyDescription(named: "snippet_length", in: find) == nil)
     #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)

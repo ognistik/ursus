@@ -560,13 +560,13 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: prefixedWithMinimalPayloadRule("Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash."),
+                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.",
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
             Tool(
                 name: "bear_get_notes",
-                description: prefixedWithMinimalPayloadRule("Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or `version` are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))"),
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or `version` are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -575,7 +575,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_list_tags",
-                description: prefixedWithMinimalPayloadRule("List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. `query` filters tag names by case-insensitive substring, and `under_tag` returns descendants under a parent tag path."),
+                description: "List Bear tags for the selected note location. Use this as the discovery step when another tag tool needs a canonical tag name. `query` filters tag names by case-insensitive substring, and `under_tag` returns descendants under a parent tag path.",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object([
@@ -597,19 +597,19 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_tag",
-                description: prefixedWithMinimalPayloadRule("Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Discovery excludes trash."),
+                description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Discovery excludes trash.",
                 operationProperties: findNotesByTagOperationProperties(configuration: configuration),
                 required: ["tags"]
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_inbox_tags",
-                description: prefixedWithMinimalPayloadRule("Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash."),
+                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash.",
                 operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
             batchedMutationTool(
                 name: "bear_create_backups",
-                description: prefixedWithMinimalPayloadRule("Create one or more saved backup snapshots for Bear notes. Each operation targets exactly one note via `note` or `selected: true`, reuses the same manual capture flow as the CLI, and returns compact backup receipts."),
+                description: "Create one or more saved backup snapshots for Bear notes. Each operation targets exactly one note via `note` or `selected: true`, reuses the same manual capture flow as the CLI, and returns compact backup receipts.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -618,13 +618,13 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_list_backups",
-                description: prefixedWithMinimalPayloadRule("List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind."),
+                description: "List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind.",
                 operationProperties: backupListOperationProperties(selectedNoteSupported: selectedNoteSupported),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported)
             ),
             batchedDiscoveryTool(
                 name: "bear_compare_backup",
-                description: prefixedWithMinimalPayloadRule("Compare one saved backup snapshot against the current Bear note without returning full note bodies by default. Each operation requires exactly one note target plus `snapshot_id`, and returns compact metadata plus bounded diff hunks."),
+                description: "Compare one saved backup snapshot against the current Bear note without returning full note bodies by default. Each operation requires exactly one note target plus `snapshot_id`, and returns compact metadata plus bounded diff hunks.",
                 operationProperties: [
                     "id": .object(["type": .string("string")]),
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
@@ -637,7 +637,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
-                description: prefixedWithMinimalPayloadRule("Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note."),
+                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
                 operationProperties: [
                     "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
                     "snapshot_id": .object([
@@ -674,7 +674,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_rename_tags",
-                description: prefixedWithMinimalPayloadRule("Rename one or more Bear tags across the entire Bear app. This is a global tag rename, not a single-note edit. Use `bear_list_tags` first to confirm the existing canonical tag names."),
+                description: "Rename one or more Bear tags across the entire Bear app. This is a global tag rename, not a single-note edit. Use `bear_list_tags` first to confirm the existing canonical tag names.",
                 operationProperties: [
                     "name": .object([
                         "type": .string("string"),
@@ -691,7 +691,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_delete_tags",
-                description: prefixedWithMinimalPayloadRule("Delete one or more Bear tags across the entire Bear app. This removes the tag globally rather than only from one note. Use `bear_list_tags` first to confirm the exact canonical tag names."),
+                description: "Delete one or more Bear tags across the entire Bear app. This removes the tag globally rather than only from one note. Use `bear_list_tags` first to confirm the exact canonical tag names.",
                 operationProperties: [
                     "name": .object([
                         "type": .string("string"),
@@ -704,7 +704,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: prefixedWithMinimalPayloadRule("Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
+                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -721,7 +721,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: prefixedWithMinimalPayloadRule("Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -738,7 +738,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
-                description: prefixedWithMinimalPayloadRule("Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
+                description: "Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "expected_version": expectedVersionProperty(),
@@ -750,7 +750,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: prefixedWithMinimalPayloadRule("Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent."),
+                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -770,7 +770,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: prefixedWithMinimalPayloadRule("Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert before or after a matching heading or exact editable-content string."),
+                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert before or after a matching heading or exact editable-content string.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "text": .object(["type": .string("string")]),
@@ -789,7 +789,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: prefixedWithMinimalPayloadRule("Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
+                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
@@ -819,7 +819,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: prefixedWithMinimalPayloadRule("Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string."),
+                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "file_path": .object(["type": .string("string")]),
@@ -838,7 +838,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_open_notes",
-                description: prefixedWithMinimalPayloadRule("Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Default: `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault))."),
+                description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Default: `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)).",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
@@ -857,7 +857,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_restore_notes",
-                description: prefixedWithMinimalPayloadRule("Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened."),
+                description: "Restore one or more Bear notes from saved backup snapshots. Use `bear_list_backups` first when you need to inspect available snapshots before restoring. If `snapshot_id` is omitted, the most recent backup for that note is restored. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "snapshot_id": .object([
@@ -1120,14 +1120,6 @@ private enum ToolCatalog {
             "type": .string("integer"),
             "description": .string("Optional optimistic concurrency guard using the note's current `version`. Omit unless the user explicitly asks for concurrency protection or you already have a fresh version from an earlier read."),
         ])
-    }
-
-    private static func minimalPayloadRule() -> String {
-        "Use the smallest valid payload. If a default is acceptable, omit the optional field; sending it anyway is incorrect."
-    }
-
-    private static func prefixedWithMinimalPayloadRule(_ body: String) -> String {
-        "\(minimalPayloadRule()) \(body)"
     }
 
     private static func omitUnlessDescription(defaultClause: String, overrideWhen: String) -> String {
