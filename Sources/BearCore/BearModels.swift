@@ -432,28 +432,32 @@ public enum DiscoveryCursorCoder {
 }
 
 public struct BackupListCursor: Codable, Hashable, Sendable {
-    public static let currentVersion = 1
+    public static let currentVersion = 2
 
     private enum CodingKeys: String, CodingKey {
         case version
         case noteID
+        case filterKey
         case lastCapturedAt
         case lastSnapshotID
     }
 
     public let version: Int
     public let noteID: String
+    public let filterKey: String
     public let lastCapturedAt: Date
     public let lastSnapshotID: String
 
     public init(
         version: Int = BackupListCursor.currentVersion,
         noteID: String,
+        filterKey: String,
         lastCapturedAt: Date,
         lastSnapshotID: String
     ) {
         self.version = version
         self.noteID = noteID
+        self.filterKey = filterKey
         self.lastCapturedAt = lastCapturedAt
         self.lastSnapshotID = lastSnapshotID
     }
@@ -462,6 +466,7 @@ public struct BackupListCursor: Codable, Hashable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.version = try container.decode(Int.self, forKey: .version)
         self.noteID = try container.decode(String.self, forKey: .noteID)
+        self.filterKey = try container.decodeIfPresent(String.self, forKey: .filterKey) ?? ""
         self.lastCapturedAt = try container.decode(Date.self, forKey: .lastCapturedAt)
         self.lastSnapshotID = try container.decode(String.self, forKey: .lastSnapshotID)
     }
@@ -470,6 +475,7 @@ public struct BackupListCursor: Codable, Hashable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(version, forKey: .version)
         try container.encode(noteID, forKey: .noteID)
+        try container.encode(filterKey, forKey: .filterKey)
         try container.encode(lastCapturedAt, forKey: .lastCapturedAt)
         try container.encode(lastSnapshotID, forKey: .lastSnapshotID)
     }
@@ -550,12 +556,14 @@ private struct CompactDiscoveryCursorPayload: Codable {
 private struct CompactBackupListCursorPayload: Codable {
     let v: Int
     let n: String
+    let f: String?
     let c: Double
     let s: String
 
     init(cursor: BackupListCursor) {
         self.v = cursor.version
         self.n = cursor.noteID
+        self.f = cursor.filterKey
         self.c = cursor.lastCapturedAt.timeIntervalSinceReferenceDate
         self.s = cursor.lastSnapshotID
     }
@@ -564,6 +572,7 @@ private struct CompactBackupListCursorPayload: Codable {
         BackupListCursor(
             version: v,
             noteID: n,
+            filterKey: f ?? "",
             lastCapturedAt: Date(timeIntervalSinceReferenceDate: c),
             lastSnapshotID: s
         )
@@ -708,11 +717,46 @@ public struct FindNotesBatchResult: Codable, Hashable, Sendable {
 public struct ListBackupsOperation: Codable, Hashable, Sendable {
     public let id: String?
     public let noteID: String
+    public let from: String?
+    public let to: String?
     public let cursor: String?
 
-    public init(id: String? = nil, noteID: String, cursor: String? = nil) {
+    public init(
+        id: String? = nil,
+        noteID: String,
+        from: String? = nil,
+        to: String? = nil,
+        cursor: String? = nil
+    ) {
         self.id = id
         self.noteID = noteID
+        self.from = from
+        self.to = to
+        self.cursor = cursor
+    }
+}
+
+public struct BackupListQuery: Codable, Hashable, Sendable {
+    public let noteID: String
+    public let from: Date?
+    public let to: Date?
+    public let limit: Int
+    public let filterKey: String
+    public let cursor: BackupListCursor?
+
+    public init(
+        noteID: String,
+        from: Date? = nil,
+        to: Date? = nil,
+        limit: Int,
+        filterKey: String,
+        cursor: BackupListCursor? = nil
+    ) {
+        self.noteID = noteID
+        self.from = from
+        self.to = to
+        self.limit = limit
+        self.filterKey = filterKey
         self.cursor = cursor
     }
 }

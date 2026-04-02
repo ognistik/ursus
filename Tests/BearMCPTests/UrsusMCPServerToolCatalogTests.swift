@@ -96,8 +96,11 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let listBackups = try #require(tool(named: "bear_list_backups", in: tools))
     #expect(try #require(listBackups.description).contains("one Bear note"))
+    #expect(try #require(listBackups.description).contains("backup creation timestamp"))
     #expect(propertyDescription(named: "limit", in: listBackups) == nil)
-    #expect(propertyDescription(named: "cursor", in: listBackups)?.contains("previous backup page") == true)
+    #expect(propertyDescription(named: "from", in: listBackups)?.contains("backup creation timestamp") == true)
+    #expect(propertyDescription(named: "to", in: listBackups)?.contains("backup creation timestamp") == true)
+    #expect(propertyDescription(named: "cursor", in: listBackups)?.contains("same note-scoped date-filtered query") == true)
     #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
 
     let compareBackup = try #require(tool(named: "bear_compare_backup", in: tools))

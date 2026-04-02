@@ -525,6 +525,90 @@ func bearListBackupsRejectsMissingNoteTarget() async throws {
 }
 
 @Test(.timeLimit(.minutes(1)))
+func bearListBackupsForwardsDateFiltersToBackupListingQuery() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Body",
+        rawText: "# Test Note\n\nBody",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30,
+        token: "secret-token"
+    )
+    let backupStore = MCPToolBackupStore()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: MCPToolRecordingWriteTransport(),
+        backupStore: backupStore,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_list_backups",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "from": .string("2026-03-01"),
+                        "to": .string("2026-03-31"),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError != true)
+        let query = try #require(await backupStore.listQueries.first)
+        #expect(query.noteID == "note-1")
+        #expect(query.from != nil)
+        #expect(query.to != nil)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
 func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
     let note = BearNote(
         ref: NoteRef(identifier: "note-1"),
@@ -768,6 +852,7 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
 private actor MCPToolBackupStore: BearBackupStore {
     private let snapshots: [String: BearBackupSnapshot]
     private(set) var capturedNoteIDs: [String] = []
+    private(set) var listQueries: [BackupListQuery] = []
 
     init(snapshots: [String: BearBackupSnapshot] = [:]) {
         self.snapshots = snapshots
@@ -784,10 +869,11 @@ private actor MCPToolBackupStore: BearBackupStore {
         )
     }
 
-    func list(noteID: String, limit: Int, cursor: BackupListCursor?) async throws -> BackupSummaryPage {
-        BackupSummaryPage(
+    func list(_ query: BackupListQuery) async throws -> BackupSummaryPage {
+        listQueries.append(query)
+        return BackupSummaryPage(
             items: [],
-            page: DiscoveryPageInfo(limit: limit, returned: 0, hasMore: false, nextCursor: nil)
+            page: DiscoveryPageInfo(limit: query.limit, returned: 0, hasMore: false, nextCursor: nil)
         )
     }
 

@@ -24,7 +24,13 @@ func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
     )
 
     let summary = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-1"))
-    let listed = try await store.list(noteID: "note-1", limit: 10, cursor: nil)
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-1",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
     let snapshot = try #require(await store.snapshot(noteID: "note-1", snapshotID: summary.snapshotID))
     let rows = try fetchMetadataRows(at: temporaryDirectory)
     let snapshotURL = temporaryDirectory.appendingPathComponent("\(summary.snapshotID).json", isDirectory: false)
@@ -42,7 +48,112 @@ func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
 }
 
 @Test
-func backupFileStorePaginatesNoteScopedHistoryFromSQLiteMetadata() async throws {
+func backupFileStoreListsUnfilteredNoteScopedHistoryFromSQLiteMetadata() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = makeTemporaryBackupDirectory()
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
+    let store = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { clock.now() }
+    )
+    let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
+
+    let oldest = try #require(await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1"))
+    clock.advance(by: 1)
+    let middle = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2"))
+    clock.advance(by: 1)
+    let newest = try #require(await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3"))
+
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
+
+    #expect(listed.items.count == 3)
+    #expect(listed.items.map(\.snapshotID) == [newest.snapshotID, middle.snapshotID, oldest.snapshotID])
+    #expect(listed.page.returned == 3)
+    #expect(listed.page.hasMore == false)
+}
+
+@Test
+func backupFileStoreFiltersByInclusiveFromDateOnCapturedAt() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = makeTemporaryBackupDirectory()
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
+    let store = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { clock.now() }
+    )
+    let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
+
+    let first = try #require(await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1"))
+    clock.advance(by: 1)
+    let second = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2"))
+    clock.advance(by: 1)
+    let third = try #require(await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3"))
+
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            from: second.capturedAt,
+            limit: 10,
+            filterKey: "from-only"
+        )
+    )
+
+    #expect(listed.items.map(\.snapshotID) == [third.snapshotID, second.snapshotID])
+    #expect(listed.items.contains(where: { $0.snapshotID == first.snapshotID }) == false)
+}
+
+@Test
+func backupFileStoreFiltersByInclusiveToDateOnCapturedAt() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = makeTemporaryBackupDirectory()
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
+    let store = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { clock.now() }
+    )
+    let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
+
+    let first = try #require(await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1"))
+    clock.advance(by: 1)
+    let second = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2"))
+    clock.advance(by: 1)
+    _ = try await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3")
+
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            to: second.capturedAt,
+            limit: 10,
+            filterKey: "to-only"
+        )
+    )
+
+    #expect(listed.items.map(\.snapshotID) == [second.snapshotID, first.snapshotID])
+}
+
+@Test
+func backupFileStoreFiltersByInclusiveBoundedDateRangeOnCapturedAt() async throws {
     let fileManager = FileManager.default
     let temporaryDirectory = makeTemporaryBackupDirectory()
     defer {
@@ -59,19 +170,106 @@ func backupFileStorePaginatesNoteScopedHistoryFromSQLiteMetadata() async throws 
 
     _ = try await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1")
     clock.advance(by: 1)
-    _ = try await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2")
+    let second = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2"))
     clock.advance(by: 1)
-    _ = try await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3")
+    let third = try #require(await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3"))
+    clock.advance(by: 1)
+    _ = try await store.capture(note: note, reason: .manual, operationGroupID: "op-a4")
 
-    let firstPage = try await store.list(noteID: "note-a", limit: 2, cursor: nil)
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            from: second.capturedAt,
+            to: third.capturedAt,
+            limit: 10,
+            filterKey: "bounded"
+        )
+    )
+
+    #expect(listed.items.map(\.snapshotID) == [third.snapshotID, second.snapshotID])
+}
+
+@Test
+func backupFileStoreReturnsEmptyFilteredResultSetWhenNoSnapshotsMatch() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = makeTemporaryBackupDirectory()
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let store = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { Date(timeIntervalSince1970: 1_710_000_000) }
+    )
+    let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
+
+    _ = try await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1")
+
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            from: Date(timeIntervalSince1970: 1_710_100_000),
+            to: Date(timeIntervalSince1970: 1_710_100_100),
+            limit: 10,
+            filterKey: "empty"
+        )
+    )
+
+    #expect(listed.items.isEmpty)
+    #expect(listed.page.returned == 0)
+    #expect(listed.page.hasMore == false)
+}
+
+@Test
+func backupFileStorePaginatesFilteredHistoryAndCarriesFilterIdentityInCursor() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = makeTemporaryBackupDirectory()
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
+    let store = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { clock.now() }
+    )
+    let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
+
+    _ = try await store.capture(note: note, reason: .insertText, operationGroupID: "op-a1")
+    clock.advance(by: 1)
+    let second = try #require(await store.capture(note: note, reason: .replaceContent, operationGroupID: "op-a2"))
+    clock.advance(by: 1)
+    let third = try #require(await store.capture(note: note, reason: .addFile, operationGroupID: "op-a3"))
+    clock.advance(by: 1)
+    let fourth = try #require(await store.capture(note: note, reason: .manual, operationGroupID: "op-a4"))
+
+    let filterKey = "from-filter"
+    let firstPage = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            from: second.capturedAt,
+            limit: 2,
+            filterKey: filterKey
+        )
+    )
     let cursor = try BackupListCursorCoder.decode(try #require(firstPage.page.nextCursor))
-    let secondPage = try await store.list(noteID: "note-a", limit: 2, cursor: cursor)
+    let secondPage = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            from: second.capturedAt,
+            limit: 2,
+            filterKey: filterKey,
+            cursor: cursor
+        )
+    )
 
-    #expect(firstPage.items.count == 2)
-    #expect(firstPage.page.returned == 2)
+    #expect(firstPage.items.map(\.snapshotID) == [fourth.snapshotID, third.snapshotID])
     #expect(firstPage.page.hasMore == true)
-    #expect(firstPage.page.nextCursor != nil)
-    #expect(secondPage.items.count == 1)
+    #expect(cursor.noteID == "note-a")
+    #expect(cursor.filterKey == filterKey)
+    #expect(secondPage.items.map(\.snapshotID) == [second.snapshotID])
     #expect(secondPage.page.hasMore == false)
 }
 
@@ -125,7 +323,13 @@ func backupFileStoreDeletesOneSnapshotAndAllSnapshotsForNote() async throws {
 
     let deletedSingle = try await store.delete(snapshotID: snapshotA1.snapshotID, noteID: nil)
     let deletedAllForNoteB = try await store.deleteAll(noteID: "note-b")
-    let remaining = try await store.list(noteID: "note-a", limit: 10, cursor: nil)
+    let remaining = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
     let rows = try fetchMetadataRows(at: temporaryDirectory)
 
     #expect(deletedSingle == 1)
@@ -159,7 +363,13 @@ func backupFileStoreLazyPruningRemovesExpiredRowsAndFiles() async throws {
     let kept = try #require(await store.capture(note: current, reason: .replaceContent, operationGroupID: "op-new"))
 
     let rows = try fetchMetadataRows(at: temporaryDirectory)
-    let listed = try await store.list(noteID: "note-a", limit: 10, cursor: nil)
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
 
     #expect(rows.map(\.snapshotID) == [kept.snapshotID])
     #expect(listed.items.map(\.snapshotID) == [kept.snapshotID])
@@ -191,7 +401,13 @@ func backupFileStoreRetentionZeroDisablesCaptureAndCleansExistingArtifacts() asy
         directoryURL: temporaryDirectory
     )
     let capture = try await disabledStore.capture(note: note, reason: .manual, operationGroupID: "op-2")
-    let listed = try await disabledStore.list(noteID: "note-1", limit: 10, cursor: nil)
+    let listed = try await disabledStore.list(
+        BackupListQuery(
+            noteID: "note-1",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
 
     #expect(capture == nil)
     #expect(listed.items.isEmpty)
@@ -265,6 +481,6 @@ private final class LockedClock: @unchecked Sendable {
     }
 
     func advance(by interval: TimeInterval) {
-        current.addTimeInterval(interval)
+        current = current.addingTimeInterval(interval)
     }
 }

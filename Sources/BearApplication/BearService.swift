@@ -114,13 +114,9 @@ public final class BearService: @unchecked Sendable {
             let (index, operation) = entry
             do {
                 let noteID = try self.resolvedRequiredBackupNoteID(operation.noteID)
-                let limit = self.resolvedDiscoveryLimit()
-                let cursor = try self.resolveBackupListCursor(token: operation.cursor, noteID: noteID)
-                let page = try await self.backupStore?.list(
-                    noteID: noteID,
-                    limit: limit,
-                    cursor: cursor
-                ) ?? self.emptyBackupSummaryPage(limit: limit)
+                let resolved = try self.resolveListBackupsOperation(operation, noteID: noteID)
+                let page = try await self.backupStore?.list(resolved.query)
+                    ?? self.emptyBackupSummaryPage(limit: resolved.query.limit)
                 return ListBackupsOperationResult(
                     index: index,
                     id: operation.id,
@@ -992,7 +988,7 @@ public final class BearService: @unchecked Sendable {
         try resolveNoteSelector(selector).ref.identifier
     }
 
-    private func resolveBackupListCursor(token: String?, noteID: String) throws -> BackupListCursor? {
+    private func resolveBackupListCursor(token: String?, noteID: String, filterKey: String) throws -> BackupListCursor? {
         guard let token else {
             return nil
         }
@@ -1007,7 +1003,7 @@ public final class BearService: @unchecked Sendable {
         guard cursor.version == BackupListCursor.currentVersion else {
             throw BearError.invalidInput("Unsupported backup cursor version '\(cursor.version)'.")
         }
-        guard cursor.noteID == noteID else {
+        guard cursor.noteID == noteID, cursor.filterKey == filterKey else {
             throw BearError.invalidInput("Backup cursor does not match this request.")
         }
         return cursor
@@ -2520,6 +2516,30 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
+    private func resolveListBackupsOperation(_ operation: ListBackupsOperation, noteID: String) throws -> ResolvedBackupListOperation {
+        let from = try parseDateInput(operation.from, bound: .start)
+        let to = try parseDateInput(operation.to, bound: .end)
+
+        if let from, let to, from > to {
+            throw BearError.invalidInput("The 'from' date must be earlier than or equal to 'to'.")
+        }
+
+        let limit = resolvedDiscoveryLimit()
+        let filterKey = try backupListFilterKey(from: from, to: to)
+        let cursor = try resolveBackupListCursor(token: operation.cursor, noteID: noteID, filterKey: filterKey)
+
+        return ResolvedBackupListOperation(
+            query: BackupListQuery(
+                noteID: noteID,
+                from: from,
+                to: to,
+                limit: limit,
+                filterKey: filterKey,
+                cursor: cursor
+            )
+        )
+    }
+
     private func findFilterKey(
         text: String?,
         textMode: FindTextMode,
@@ -2551,6 +2571,18 @@ public final class BearService: @unchecked Sendable {
             hasTags: hasTags,
             location: location.rawValue,
             dateField: dateField?.rawValue,
+            from: from?.timeIntervalSinceReferenceDate,
+            to: to?.timeIntervalSinceReferenceDate
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(identity)
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private func backupListFilterKey(from: Date?, to: Date?) throws -> String {
+        let identity = BackupListFilterIdentity(
             from: from?.timeIntervalSinceReferenceDate,
             to: to?.timeIntervalSinceReferenceDate
         )
@@ -3103,6 +3135,10 @@ private struct ResolvedFindOperation {
     let limit: Int
 }
 
+private struct ResolvedBackupListOperation {
+    let query: BackupListQuery
+}
+
 private struct ResolvedBackupDelete {
     enum Kind {
         case snapshot
@@ -3128,6 +3164,11 @@ private struct FindFilterIdentity: Encodable {
     let hasTags: Bool?
     let location: String
     let dateField: String?
+    let from: Double?
+    let to: Double?
+}
+
+private struct BackupListFilterIdentity: Encodable {
     let from: Double?
     let to: Double?
 }

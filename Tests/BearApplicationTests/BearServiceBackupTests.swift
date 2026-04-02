@@ -234,8 +234,8 @@ func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     )
 
     let result = try await service.listBackups([
-        ListBackupsOperation(id: "ok", noteID: "Inbox", cursor: nil),
-        ListBackupsOperation(id: "missing", noteID: "Unknown", cursor: nil),
+        ListBackupsOperation(id: "ok", noteID: "Inbox"),
+        ListBackupsOperation(id: "missing", noteID: "Unknown"),
     ])
 
     let first = try #require(result.results.first)
@@ -280,7 +280,7 @@ func listBackupsReturnsPaginationMetadata() async throws {
     )
 
     let result = try await service.listBackups([
-        ListBackupsOperation(id: "ok", noteID: "Inbox", cursor: nil),
+        ListBackupsOperation(id: "ok", noteID: "Inbox"),
     ])
 
     let first = try #require(result.results.first)
@@ -288,6 +288,85 @@ func listBackupsReturnsPaginationMetadata() async throws {
     #expect(first.page?.limit == 1)
     #expect(first.page?.hasMore == true)
     #expect(first.page?.nextCursor == "cursor-1")
+}
+
+@Test
+func listBackupsParsesInclusiveDateFiltersForCapturedAt() async throws {
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore()
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    _ = try await service.listBackups([
+        ListBackupsOperation(id: "range", noteID: "Inbox", from: "2026-03-01", to: "last week"),
+    ])
+
+    let query = try #require(await backupStore.listQueries.first)
+    #expect(query.noteID == "note-1")
+    #expect(query.from != nil)
+    #expect(query.to != nil)
+    #expect(query.filterKey.isEmpty == false)
+}
+
+@Test
+func listBackupsRejectsMismatchedCursorWhenDateFiltersDiffer() async throws {
+    let fileManager = FileManager.default
+    let temporaryDirectory = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    defer {
+        try? fileManager.removeItem(at: temporaryDirectory)
+    }
+
+    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    final class LocalClock: @unchecked Sendable {
+        var current: Date
+
+        init(current: Date) {
+            self.current = current
+        }
+
+        func now() -> Date { current }
+    }
+
+    let clock = LocalClock(current: Date(timeIntervalSince1970: 1_710_000_000))
+    let backupStore = BearBackupFileStore(
+        retentionDays: 30,
+        directoryURL: temporaryDirectory,
+        now: { clock.now() }
+    )
+    _ = try await backupStore.capture(note: note, reason: .insertText, operationGroupID: "op-1")
+    clock.current = clock.current.addingTimeInterval(1)
+    _ = try await backupStore.capture(note: note, reason: .replaceContent, operationGroupID: "op-2")
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(
+            templateManagementEnabled: false,
+            defaultDiscoveryLimit: 1
+        ),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let first = try await service.listBackups([
+        ListBackupsOperation(noteID: "Inbox", from: "2024-03-01"),
+    ])
+    let token = try #require(first.results.first?.page?.nextCursor)
+
+    let second = try await service.listBackups([
+        ListBackupsOperation(noteID: "Inbox", from: "2024-03-02", cursor: token),
+    ])
+
+    #expect(second.results.first?.error == "Backup cursor does not match this request.")
 }
 
 @Test
@@ -512,6 +591,7 @@ private actor RecordingBackupStore: BearBackupStore {
     private let snapshots: [String: BearBackupSnapshot]
     private let listedSummariesByNoteID: [String: [BearBackupSummary]]
     private let listedPagesByNoteID: [String: BackupSummaryPage]
+    private(set) var listQueries: [BackupListQuery] = []
     private(set) var deletedSnapshotIDs: [String] = []
     private(set) var deletedAllNoteIDs: [String] = []
 
@@ -536,17 +616,19 @@ private actor RecordingBackupStore: BearBackupStore {
         )
     }
 
-    func list(noteID: String, limit: Int, cursor: BackupListCursor?) async throws -> BackupSummaryPage {
-        if let page = listedPagesByNoteID[noteID] {
+    func list(_ query: BackupListQuery) async throws -> BackupSummaryPage {
+        listQueries.append(query)
+
+        if let page = listedPagesByNoteID[query.noteID] {
             return page
         }
 
-        let items = listedSummariesByNoteID[noteID] ?? []
+        let items = listedSummariesByNoteID[query.noteID] ?? []
         return BackupSummaryPage(
-            items: Array(items.prefix(limit)),
+            items: Array(items.prefix(query.limit)),
             page: DiscoveryPageInfo(
-                limit: limit,
-                returned: min(limit, items.count),
+                limit: query.limit,
+                returned: min(query.limit, items.count),
                 hasMore: false,
                 nextCursor: nil
             )

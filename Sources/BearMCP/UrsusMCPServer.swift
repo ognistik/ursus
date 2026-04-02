@@ -105,6 +105,8 @@ public final class UrsusMCPServer: Sendable {
                 ListBackupsOperation(
                     id: MCPArgumentDecoder.optionalString(object, "id"),
                     noteID: resolvedNoteSelector,
+                    from: MCPArgumentDecoder.optionalString(object, "from"),
+                    to: MCPArgumentDecoder.optionalString(object, "to"),
                     cursor: MCPArgumentDecoder.optionalString(object, "cursor")
                 )
             }
@@ -649,7 +651,7 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_list_backups",
-                description: "List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind.",
+                description: "List saved backup snapshots for one Bear note and return compact note-scoped summaries with pagination. Optional `from` and `to` filters apply to the backup creation timestamp. Use this before `bear_restore_notes` so snapshot restores are explicit rather than blind.",
                 operationProperties: backupListOperationProperties(selectedNoteSupported: selectedNoteSupported),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported)
             ),
@@ -1031,9 +1033,17 @@ private enum ToolCatalog {
         var properties: [String: Value] = [
             "id": .object(["type": .string("string")]),
             "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
+            "from": .object([
+                "type": .string("string"),
+                "description": .string("Optional inclusive start date bound for the backup creation timestamp. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'today'."),
+            ]),
+            "to": .object([
+                "type": .string("string"),
+                "description": .string("Optional inclusive end date bound for the backup creation timestamp. Accepts ISO 8601, YYYY-MM-DD, or supported past/present natural-language phrases such as 'today'."),
+            ]),
             "cursor": .object([
                 "type": .string("string"),
-                "description": .string("Optional opaque pagination cursor returned by a previous backup page. Omit for the first page and pass back `nextCursor` to continue with the configured server page size."),
+                "description": .string("Optional opaque pagination cursor returned by a previous backup page. Omit for the first page and pass back `nextCursor` to continue with the same note-scoped date-filtered query and the configured server page size."),
             ]),
         ]
 

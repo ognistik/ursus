@@ -47,3 +47,21 @@ func discoveryCursorCoderDecodesLegacyVerboseToken() throws {
     #expect(cursor.filterKey == "3-resources/workflows")
     #expect(cursor.lastNoteID == "B846D33C-C88D-43CA-B451-ACBD8E07CABE")
 }
+
+@Test
+func backupCursorCoderRoundTripsFilterScopedCursor() throws {
+    let cursor = BackupListCursor(
+        noteID: "note-123",
+        filterKey: "captured-at-range",
+        lastCapturedAt: Date(timeIntervalSince1970: 1_710_000_500),
+        lastSnapshotID: "snapshot-123"
+    )
+
+    let token = try BackupListCursorCoder.encode(cursor)
+    let decoded = try BackupListCursorCoder.decode(token)
+
+    #expect(decoded == cursor)
+    #expect(!token.contains("="))
+    #expect(!token.contains("+"))
+    #expect(!token.contains("/"))
+}

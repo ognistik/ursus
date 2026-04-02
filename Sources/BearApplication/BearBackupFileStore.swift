@@ -57,8 +57,8 @@ public actor BearBackupFileStore: BearBackupStore {
         return record.summary
     }
 
-    public func list(noteID: String, limit: Int, cursor: BackupListCursor?) throws -> BackupSummaryPage {
-        let resolvedLimit = max(1, limit)
+    public func list(_ query: BackupListQuery) throws -> BackupSummaryPage {
+        let resolvedLimit = max(1, query.limit)
         guard retentionDays > 0 else {
             try cleanupDisabledBackups()
             return emptyPage(limit: resolvedLimit)
@@ -72,6 +72,8 @@ public actor BearBackupFileStore: BearBackupStore {
                 SELECT snapshot_id, note_id, modified_at, captured_at, reason, operation_group_id, file_name
                 FROM snapshots
                 WHERE note_id = ?
+                    AND (? IS NULL OR captured_at >= ?)
+                    AND (? IS NULL OR captured_at <= ?)
                     AND (
                         ? IS NULL
                         OR captured_at < ?
@@ -81,11 +83,15 @@ public actor BearBackupFileStore: BearBackupStore {
                 LIMIT ?
                 """,
                 arguments: [
-                    noteID,
-                    cursor == nil ? nil : 1,
-                    cursor?.lastCapturedAt.timeIntervalSince1970,
-                    cursor?.lastCapturedAt.timeIntervalSince1970,
-                    cursor?.lastSnapshotID,
+                    query.noteID,
+                    query.from == nil ? nil : 1,
+                    query.from?.timeIntervalSince1970,
+                    query.to == nil ? nil : 1,
+                    query.to?.timeIntervalSince1970,
+                    query.cursor == nil ? nil : 1,
+                    query.cursor?.lastCapturedAt.timeIntervalSince1970,
+                    query.cursor?.lastCapturedAt.timeIntervalSince1970,
+                    query.cursor?.lastSnapshotID,
                     resolvedLimit + 1,
                 ]
             )
@@ -96,7 +102,8 @@ public actor BearBackupFileStore: BearBackupStore {
         if entries.count > resolvedLimit, let lastEntry = pageEntries.last {
             nextCursor = try BackupListCursorCoder.encode(
                 BackupListCursor(
-                    noteID: noteID,
+                    noteID: query.noteID,
+                    filterKey: query.filterKey,
                     lastCapturedAt: lastEntry.capturedAt,
                     lastSnapshotID: lastEntry.snapshotID
                 )
