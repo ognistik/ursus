@@ -17,25 +17,36 @@ public extension BearTokenStore {
 public struct BearKeychainTokenStore: BearTokenStore, Hashable, Sendable {
     public static let selectedNoteDefault = BearKeychainTokenStore(
         service: "com.aft.ursus.bear-token",
-        account: "selected-note-api-token"
+        account: "selected-note-api-token",
+        accessGroupSuffix: "com.aft.ursus.shared-token",
+        useDataProtectionKeychain: true
     )
 
     public let service: String
     public let account: String
     public let label: String
+    public let accessGroup: String?
+    public let accessGroupSuffix: String?
+    public let useDataProtectionKeychain: Bool
 
     public init(
         service: String,
         account: String,
-        label: String = "Ursus Bear Token"
+        label: String = "Ursus Bear Token",
+        accessGroup: String? = nil,
+        accessGroupSuffix: String? = nil,
+        useDataProtectionKeychain: Bool = false
     ) {
         self.service = service
         self.account = account
         self.label = label
+        self.accessGroup = accessGroup
+        self.accessGroupSuffix = accessGroupSuffix
+        self.useDataProtectionKeychain = useDataProtectionKeychain
     }
 
     public func readToken() throws -> String? {
-        var query = itemQuery()
+        var query = try itemQuery()
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         query[kSecReturnData as String] = kCFBooleanTrue
 
@@ -71,12 +82,12 @@ public struct BearKeychainTokenStore: BearTokenStore, Hashable, Sendable {
             kSecAttrLabel as String: label,
         ]
 
-        let updateStatus = SecItemUpdate(itemQuery() as CFDictionary, updateAttributes as CFDictionary)
+        let updateStatus = SecItemUpdate(try itemQuery() as CFDictionary, updateAttributes as CFDictionary)
         switch updateStatus {
         case errSecSuccess:
             return
         case errSecItemNotFound:
-            var addQuery = itemQuery()
+            var addQuery = try itemQuery()
             addQuery[kSecValueData as String] = tokenData
             addQuery[kSecAttrLabel as String] = label
             addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
@@ -91,7 +102,7 @@ public struct BearKeychainTokenStore: BearTokenStore, Hashable, Sendable {
     }
 
     public func deleteToken() throws {
-        let status = SecItemDelete(itemQuery() as CFDictionary)
+        let status = SecItemDelete(try itemQuery() as CFDictionary)
         switch status {
         case errSecSuccess, errSecItemNotFound:
             return
@@ -100,12 +111,45 @@ public struct BearKeychainTokenStore: BearTokenStore, Hashable, Sendable {
         }
     }
 
-    private func itemQuery() -> [String: Any] {
-        [
+    private func itemQuery() throws -> [String: Any] {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
+
+        if useDataProtectionKeychain {
+            query[kSecUseDataProtectionKeychain as String] = kCFBooleanTrue
+        }
+
+        if let accessGroup = try resolvedAccessGroup() {
+            query[kSecAttrAccessGroup as String] = accessGroup
+        }
+
+        return query
+    }
+
+    private func resolvedAccessGroup() throws -> String? {
+        if let accessGroup {
+            return accessGroup
+        }
+
+        guard let accessGroupSuffix else {
+            return nil
+        }
+
+        guard let task = SecTaskCreateFromSelf(nil) else {
+            throw BearError.configuration("Failed to inspect the current Ursus signing entitlements for shared Keychain access.")
+        }
+        let groupsValue = SecTaskCopyValueForEntitlement(task, "keychain-access-groups" as CFString, nil)
+
+        if let groups = groupsValue as? [String], let matchedGroup = groups.first(where: { $0.hasSuffix(accessGroupSuffix) }) {
+            return matchedGroup
+        }
+
+        throw BearError.configuration(
+            "The current Ursus executable is missing the shared Keychain access-group entitlement required for Bear token access."
+        )
     }
 
     private func keychainError(_ operation: String, status: OSStatus) -> BearError {

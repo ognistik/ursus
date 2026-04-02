@@ -13,6 +13,7 @@ PRODUCT_NAME="ursus-helper"
 EXECUTABLE_SOURCE="$BUILD_DIR/$CONFIGURATION/$PRODUCT_NAME"
 APP_DIR="$BUILD_DIR/$CONFIGURATION/$APP_NAME"
 CODE_SIGN_IDENTITY="${CODESIGN_IDENTITY:-}"
+CODESIGN_ENTITLEMENTS="${CODESIGN_ENTITLEMENTS:-}"
 
 swift build --package-path "$ROOT_DIR" $SWIFT_BUILD_ARGS --product "$PRODUCT_NAME"
 
@@ -24,11 +25,20 @@ cp "$EXECUTABLE_SOURCE" "$APP_DIR/Contents/MacOS/$PRODUCT_NAME"
 chmod 755 "$APP_DIR/Contents/MacOS/$PRODUCT_NAME"
 
 if [ -n "$CODE_SIGN_IDENTITY" ]; then
-  /usr/bin/codesign \
-    --force \
-    --sign "$CODE_SIGN_IDENTITY" \
-    --timestamp=none \
-    "$APP_DIR"
+  if [ -n "$CODESIGN_ENTITLEMENTS" ]; then
+    /usr/bin/codesign \
+      --force \
+      --sign "$CODE_SIGN_IDENTITY" \
+      --timestamp=none \
+      --entitlements "$CODESIGN_ENTITLEMENTS" \
+      "$APP_DIR"
+  else
+    /usr/bin/codesign \
+      --force \
+      --sign "$CODE_SIGN_IDENTITY" \
+      --timestamp=none \
+      "$APP_DIR"
+  fi
 fi
 
 echo "$APP_DIR"

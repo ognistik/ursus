@@ -43,6 +43,7 @@ func replaceContentTitleCanAddTitleToTitlelessNote() async throws {
     let transport = MutationSelectorRecordingWriteTransport()
     let service = BearService(
         configuration: makeMutationSelectorConfiguration(),
+        tokenStore: InMemoryBearTokenStore(),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
         writeTransport: transport,
         logger: Logger(label: "BearServiceMutationSelectorTests")
@@ -179,6 +180,7 @@ func resolveSelectedNoteIDRequiresConfiguredToken() async {
     let transport = MutationSelectorRecordingWriteTransport()
     let service = BearService(
         configuration: makeMutationSelectorConfiguration(),
+        tokenStore: InMemoryBearTokenStore(),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: [:]),
         writeTransport: transport,
         logger: Logger(label: "BearServiceMutationSelectorTests")
