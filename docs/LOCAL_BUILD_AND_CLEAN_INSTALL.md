@@ -31,7 +31,6 @@ Current app build outputs:
 - App executable that also serves hidden CLI mode: `Contents/MacOS/Ursus`
 
 The installed public launcher at `~/.local/bin/ursus` forwards into that app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates bridge and Terminal launches together.
-For compatibility with older already-installed launchers, the app bundle also includes a tiny forwarding shim at `Contents/Resources/bin/ursus`.
 
 ## Install The Built App
 

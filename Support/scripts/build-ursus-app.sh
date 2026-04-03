@@ -25,8 +25,7 @@ SWIFT_BUILD_CONFIGURATION="$(printf '%s' "$CONFIGURATION" | tr '[:upper:]' '[:lo
 APP_BUNDLE_PATH="$DERIVED_DATA_DIR/Build/Products/$CONFIGURATION/Ursus.app"
 EMBEDDED_HELPER_SOURCE="$ROOT_DIR/.build/$SWIFT_BUILD_CONFIGURATION/Ursus Helper.app"
 EMBEDDED_HELPER_DESTINATION="$APP_BUNDLE_PATH/Contents/Library/Helpers/Ursus Helper.app"
-LEGACY_BUNDLED_CLI_DESTINATION="$APP_BUNDLE_PATH/Contents/Resources/bin/ursus"
-LEGACY_BUNDLED_CLI_DIRECTORY="$(dirname "$LEGACY_BUNDLED_CLI_DESTINATION")"
+LEGACY_BUNDLED_CLI_PATH="$APP_BUNDLE_PATH/Contents/Resources/bin/ursus"
 
 codesign_identity_for() {
   local bundle_path="$1"
@@ -92,18 +91,8 @@ APP_CODESIGN_IDENTITY="$(codesign_identity_for "$APP_BUNDLE_PATH")"
 
 CONFIGURATION="$SWIFT_BUILD_CONFIGURATION" CODESIGN_IDENTITY="$APP_CODESIGN_IDENTITY" "$ROOT_DIR/Support/scripts/build-ursus-helper-app.sh" >/dev/null
 sh "$ROOT_DIR/Support/scripts/patch-swift-sdk-networktransport.sh"
-
-mkdir -p "$LEGACY_BUNDLED_CLI_DIRECTORY"
-cat > "$LEGACY_BUNDLED_CLI_DESTINATION" <<'EOF'
-#!/bin/sh
-set -eu
-
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-APP_EXECUTABLE="$SCRIPT_DIR/../../MacOS/Ursus"
-
-exec "$APP_EXECUTABLE" --ursus-cli "$@"
-EOF
-chmod 755 "$LEGACY_BUNDLED_CLI_DESTINATION"
+rm -f "$LEGACY_BUNDLED_CLI_PATH"
+rmdir "$(dirname "$LEGACY_BUNDLED_CLI_PATH")" 2>/dev/null || true
 
 mkdir -p "$(dirname "$EMBEDDED_HELPER_DESTINATION")"
 rm -rf "$EMBEDDED_HELPER_DESTINATION"
