@@ -46,8 +46,14 @@ public final class BearSelectedNoteCallbackHost {
     }
 
     public func start(arguments: [String], userDefaults: UserDefaults = .standard) {
+        responseFileURL = parseResponseFileURL(arguments: arguments, userDefaults: userDefaults)
+
         do {
-            let invocation = try parseInvocation(arguments: arguments, userDefaults: userDefaults)
+            let invocation = try parseInvocation(
+                arguments: arguments,
+                userDefaults: userDefaults,
+                responseFileURL: responseFileURL
+            )
             expectedStateToken = invocation.stateToken
             responseFileURL = invocation.responseFileURL
             scheduleTimeout(seconds: invocation.timeoutSeconds)
@@ -106,14 +112,26 @@ public final class BearSelectedNoteCallbackHost {
         }
     }
 
-    private func parseInvocation(arguments: [String], userDefaults: UserDefaults) throws -> Invocation {
+    private func parseResponseFileURL(arguments: [String], userDefaults: UserDefaults) -> URL? {
+        let fallbackArguments = argumentDictionary(arguments: arguments)
+        if let responseFilePath = userDefaults.string(forKey: "responseFile") ?? fallbackArguments["responseFile"] {
+            return URL(fileURLWithPath: NSString(string: responseFilePath).expandingTildeInPath)
+        }
+
+        return nil
+    }
+
+    private func parseInvocation(
+        arguments: [String],
+        userDefaults: UserDefaults,
+        responseFileURL: URL?
+    ) throws -> Invocation {
         let fallbackArguments = argumentDictionary(arguments: arguments)
         let requestURLString = userDefaults.string(forKey: "url") ?? fallbackArguments["url"]
         let activateApp = userDefaults.object(forKey: "activateApp") != nil
             ? userDefaults.bool(forKey: "activateApp")
             : normalizedBool(fallbackArguments["activateApp"] ?? "NO")
         var timeoutSeconds = defaultTimeoutSeconds
-        var responseFileURL: URL?
         let stateToken = UUID().uuidString.replacingOccurrences(of: "-", with: "")
 
         if let timeoutString = userDefaults.string(forKey: "timeoutSeconds") ?? fallbackArguments["timeoutSeconds"] {
@@ -121,10 +139,6 @@ public final class BearSelectedNoteCallbackHost {
                 throw HelperError.invalidInvocation("Invalid `-timeoutSeconds` value `\(timeoutString)`.")
             }
             timeoutSeconds = parsed
-        }
-
-        if let responseFilePath = userDefaults.string(forKey: "responseFile") ?? fallbackArguments["responseFile"] {
-            responseFileURL = URL(fileURLWithPath: NSString(string: responseFilePath).expandingTildeInPath)
         }
 
         guard let requestURLString else {

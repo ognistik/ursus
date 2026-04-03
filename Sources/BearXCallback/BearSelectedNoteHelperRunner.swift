@@ -44,6 +44,7 @@ enum BearSelectedNoteHelperRunner {
             appName: appName,
             bearURL: bearURL,
             responseFileURL: responseFileURL,
+            timeout: timeout,
             terminateRunningInstancesBeforeLaunch: terminateRunningInstancesBeforeLaunch
         )
 
@@ -97,6 +98,7 @@ enum BearSelectedNoteHelperRunner {
         appName: String,
         bearURL: URL,
         responseFileURL: URL,
+        timeout: Duration,
         terminateRunningInstancesBeforeLaunch: Bool
     ) async throws {
         if terminateRunningInstancesBeforeLaunch {
@@ -110,7 +112,8 @@ enum BearSelectedNoteHelperRunner {
         process.arguments = launchArguments(
             appBundleURL: appBundleURL,
             bearURL: bearURL,
-            responseFileURL: responseFileURL
+            responseFileURL: responseFileURL,
+            timeout: timeout
         )
 
         try await withCheckedThrowingContinuation { continuation in
@@ -148,7 +151,8 @@ enum BearSelectedNoteHelperRunner {
     static func launchArguments(
         appBundleURL: URL,
         bearURL: URL,
-        responseFileURL: URL
+        responseFileURL: URL,
+        timeout: Duration
     ) -> [String] {
         [
             "-g",
@@ -158,7 +162,14 @@ enum BearSelectedNoteHelperRunner {
             "-url", bearURL.absoluteString,
             "-activateApp", "NO",
             "-responseFile", responseFileURL.path,
+            "-timeoutSeconds", timeoutSecondsString(timeout),
         ]
+    }
+
+    private static func timeoutSecondsString(_ timeout: Duration) -> String {
+        let seconds = Double(timeout.components.seconds)
+        let attoseconds = Double(timeout.components.attoseconds) / 1_000_000_000_000_000_000
+        return String(seconds + attoseconds)
     }
 
     @MainActor

@@ -433,7 +433,8 @@ func selectedNoteHelperLaunchArgumentsKeepHostHidden() {
     let arguments = BearSelectedNoteHelperRunner.launchArguments(
         appBundleURL: URL(fileURLWithPath: "/Applications/Ursus.app", isDirectory: true),
         bearURL: URL(string: "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no")!,
-        responseFileURL: URL(fileURLWithPath: "/tmp/selected-note.json", isDirectory: false)
+        responseFileURL: URL(fileURLWithPath: "/tmp/selected-note.json", isDirectory: false),
+        timeout: .seconds(4)
     )
 
     #expect(arguments == [
@@ -444,6 +445,7 @@ func selectedNoteHelperLaunchArgumentsKeepHostHidden() {
         "-url", "bear://x-callback-url/open-note?selected=yes&show_window=no&open_note=no",
         "-activateApp", "NO",
         "-responseFile", "/tmp/selected-note.json",
+        "-timeoutSeconds", "4.0",
     ])
 }
 

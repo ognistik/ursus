@@ -1,4 +1,5 @@
 import AppKit
+import BearCore
 @testable import BearXCallback
 import Foundation
 import Testing
@@ -156,6 +157,49 @@ func callbackHostReportsInvalidInvocationWithoutLaunchingBear() {
     #expect(snapshot.terminatedCount == 1)
     #expect(snapshot.openedURL == nil)
     #expect(snapshot.stderr.contains("Missing required `-url` argument."))
+}
+
+@Test
+@MainActor
+func callbackHostPersistsInvocationErrorsToResponseFile() throws {
+    let recorder = CallbackHostRecorder()
+    let responseFileURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: false)
+        .appendingPathExtension("json")
+    defer { try? FileManager.default.removeItem(at: responseFileURL) }
+
+    let host = BearSelectedNoteCallbackHost(
+        outputWriter: { data, channel in
+            recorder.recordOutput(data, channel: channel)
+        },
+        requestURLAuthorizer: { _ in
+            throw BearError.configuration("Missing shared keychain access.")
+        },
+        urlOpener: { url, activateApp, completion in
+            recorder.recordOpen(url: url, activateApp: activateApp)
+            completion(nil)
+        },
+        terminator: {
+            recorder.recordTermination()
+        }
+    )
+
+    host.start(
+        arguments: [
+            "ursus-helper",
+            "-url", "bear://x-callback-url/open-note?selected=yes&open_note=no&show_window=no",
+            "-responseFile", responseFileURL.path,
+        ]
+    )
+
+    let snapshot = recorder.snapshot()
+    #expect(host.exitCode == 1)
+    #expect(snapshot.openedURL == nil)
+    #expect(snapshot.stderr.contains("Missing shared keychain access."))
+
+    let responseData = try Data(contentsOf: responseFileURL)
+    let payload = try parsePayload(responseData)
+    #expect(payload["errorMessage"] == "Missing shared keychain access.")
 }
 
 @Test
