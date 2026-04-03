@@ -23,8 +23,7 @@ func insertTextCapturesBackupBeforeDirectInsert() async throws {
             noteID: "note-1",
             text: "Line 2",
             position: .bottom,
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -55,8 +54,7 @@ func addFilesCapturesBackupBeforeDirectAddFile() async throws {
             noteID: "note-1",
             filePath: "/tmp/example.txt",
             position: .bottom,
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 

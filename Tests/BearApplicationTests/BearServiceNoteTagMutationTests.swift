@@ -25,8 +25,7 @@ func addTagsUsesTemplateTagSlotAndSkipsImplicitParentTag() async throws {
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["parent", "client work"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -66,8 +65,7 @@ func addTagsPrefersMatchedTemplateTagSlotOverRawTagClusterInContent() async thro
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["new-tag"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -108,8 +106,7 @@ func removeTagsUsesTemplateTagSlotAndDoesNotTreatImplicitParentAsLiteral() async
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["parent", "parent/subtag"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -148,8 +145,7 @@ func removeTagsFromTemplateMatchedNoteAlsoRemovesLiteralTagsInsideContent() asyn
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["project-x"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -188,8 +184,7 @@ func removeTagsFromRawBodyRemovesLiteralTokensAndCleansWhitespace() async throws
         NoteTagsRequest(
             noteID: "note-1",
             tags: ["old-tag"],
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -226,8 +221,7 @@ func addTagsUsesFirstRawTagClusterWhenNoteDoesNotMatchTemplate() async throws {
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["deep work"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -267,8 +261,7 @@ func addTagsAppliesTemplateWhenEnabledAndNoTagClusterExists() async throws {
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["deep work", "project-x"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -309,8 +302,7 @@ func addTagsFailsClearlyWhenTemplateIsMissingAndRequired() async throws {
                 NoteTagsRequest(
                     noteID: "note-1",
                     tags: ["deep work"],
-                    presentation: BearPresentationOptions(),
-                    expectedVersion: 3
+                    presentation: BearPresentationOptions()
                 ),
             ])
         }
@@ -344,8 +336,7 @@ func addTagsFailsClearlyWhenTemplateLacksTagsSlotAndRequired() async throws {
                 NoteTagsRequest(
                     noteID: "note-1",
                     tags: ["deep work"],
-                    presentation: BearPresentationOptions(),
-                    expectedVersion: 3
+                    presentation: BearPresentationOptions()
                 ),
             ])
         }
@@ -377,8 +368,7 @@ func addTagsInsertsCanonicalTagLineAtTopWhenTemplateManagementIsDisabled() async
         NoteTagsRequest(
             noteID: "note-1",
             tags: ["deep work", "project-x"],
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -409,8 +399,7 @@ func addTagsInsertsCanonicalTagLineAtBottomWhenTemplateManagementIsDisabled() as
         NoteTagsRequest(
             noteID: "note-1",
             tags: ["deep work", "project-x"],
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -455,8 +444,7 @@ func removeTagsHandlesLiveStyleNonTemplateBodyFromBearDB() async throws {
         NoteTagsRequest(
             noteID: "note-1",
             tags: ["codex-live", "codex-live/raw-added"],
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -509,8 +497,7 @@ func removeTagsHandlesLiveStyleTemplateBodyFromBearDB() async throws {
             NoteTagsRequest(
                 noteID: "note-1",
                 tags: ["codex-live-parent", "codex-live-parent/subtag"],
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -561,8 +548,7 @@ func applyTemplateMigratesAllTagOnlyClustersPreservesInlineTagsAndCleansWhitespa
         try await service.applyTemplate([
             ApplyTemplateRequest(
                 noteID: "note-1",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -613,8 +599,7 @@ func applyTemplateMergesExistingTemplateTagsBeforeMigratedClusters() async throw
         try await service.applyTemplate([
             ApplyTemplateRequest(
                 noteID: "note-1",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -652,8 +637,7 @@ func applyTemplateAppliesTemplateEvenWhenNoteHasNoTags() async throws {
         try await service.applyTemplate([
             ApplyTemplateRequest(
                 noteID: "note-1",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -697,8 +681,7 @@ func applyTemplateReturnsUnchangedWhenNoteIsAlreadyNormalized() async throws {
         try await service.applyTemplate([
             ApplyTemplateRequest(
                 noteID: "note-1",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -729,8 +712,7 @@ func applyTemplateUsesTemplateFileEvenWhenTemplateManagementIsDisabled() async t
         try await service.applyTemplate([
             ApplyTemplateRequest(
                 noteID: "note-1",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -767,8 +749,7 @@ func applyTemplateFailsClearlyWhenTemplateIsMissing() async throws {
             _ = try await service.applyTemplate([
                 ApplyTemplateRequest(
                     noteID: "note-1",
-                    presentation: BearPresentationOptions(),
-                    expectedVersion: 3
+                    presentation: BearPresentationOptions()
                 ),
             ])
         }
@@ -802,8 +783,7 @@ func applyTemplateFailsClearlyWhenTemplateLacksTagsSlot() async throws {
             _ = try await service.applyTemplate([
                 ApplyTemplateRequest(
                     noteID: "note-1",
-                    presentation: BearPresentationOptions(),
-                    expectedVersion: 3
+                    presentation: BearPresentationOptions()
                 ),
             ])
         }

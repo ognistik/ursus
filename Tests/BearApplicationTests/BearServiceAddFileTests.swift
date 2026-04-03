@@ -30,8 +30,7 @@ func addFilesUseTemplateAwareAnchorFlowWhenNoteMatchesCurrentTemplate() async th
                 noteID: "note-1",
                 filePath: fileURL.path,
                 position: .bottom,
-                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true),
-                expectedVersion: 3
+                presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: true)
             ),
         ])
     }
@@ -78,8 +77,7 @@ func addFilesRespectTopPlacementInsideTemplateContent() async throws {
                 noteID: "note-1",
                 filePath: fileURL.path,
                 position: .top,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -116,8 +114,7 @@ func addFilesCleanupRemovesAnchorWhenBearAppendsAttachmentInline() async throws 
                 noteID: "note-1",
                 filePath: fileURL.path,
                 position: .bottom,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -153,8 +150,7 @@ func addFilesFallBackToDirectAddFileWhenNoteDoesNotMatchCurrentTemplate() async 
                 noteID: "note-1",
                 filePath: fileURL.path,
                 position: .top,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -190,8 +186,7 @@ func addFilesUseAnchorFlowForRelativeHeadingTargetOnPlainNote() async throws {
             noteID: "note-1",
             filePath: fileURL.path,
             target: RelativeTextTarget(text: "Tasks", targetKind: .heading, placement: .after),
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -229,8 +224,7 @@ func addFilesRejectAmbiguousRelativeStringTargetBeforeWriting() async throws {
                 noteID: "note-1",
                 filePath: fileURL.path,
                 target: RelativeTextTarget(text: "Line 1", placement: .after),
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }

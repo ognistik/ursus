@@ -26,8 +26,7 @@ func insertTextUsesReplaceAllWhenNoteMatchesCurrentTemplateAtBottom() async thro
                 noteID: "note-1",
                 text: "Line 2",
                 position: .bottom,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -60,8 +59,7 @@ func insertTextUsesReplaceAllWhenNoteMatchesCurrentTemplateAtTop() async throws 
                 noteID: "note-1",
                 text: "Line 0",
                 position: .top,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -93,8 +91,7 @@ func insertTextFallsBackToDirectInsertWhenNoteDoesNotMatchCurrentTemplate() asyn
                 noteID: "note-1",
                 text: "Line 2",
                 position: .bottom,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -128,8 +125,7 @@ func insertTextFallsBackToDirectInsertWhenTemplateManagementIsDisabled() async t
                 noteID: "note-1",
                 text: "Line 2",
                 position: .bottom,
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -160,8 +156,7 @@ func insertTextUsesReplaceAllForRelativeHeadingTargetOnPlainNote() async throws 
             noteID: "note-1",
             text: "Line 2",
             target: RelativeTextTarget(text: "Tasks", targetKind: .heading, placement: .after),
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -192,8 +187,7 @@ func insertTextRejectsAmbiguousRelativeStringTargetBeforeWriting() async throws 
                 noteID: "note-1",
                 text: "Inserted",
                 target: RelativeTextTarget(text: "Line 1", placement: .after),
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }

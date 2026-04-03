@@ -230,8 +230,7 @@ func addFileTreatsAttachmentCountChangeAsUpdatedEvenWhenNoteMetadataStaysTheSame
             noteID: "note-1",
             filePath: fileURL.path,
             position: .bottom,
-            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false),
-            expectedVersion: nil
+            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false)
         )
     )
 

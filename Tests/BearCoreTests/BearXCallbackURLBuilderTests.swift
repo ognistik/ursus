@@ -16,8 +16,7 @@ func addFileURLReadsLocalFileAsBase64AndIncludesHeaderTarget() throws {
             filePath: fileURL.path,
             header: "Attachments",
             position: .bottom,
-            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false),
-            expectedVersion: nil
+            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false)
         )
     )
 

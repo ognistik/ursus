@@ -390,9 +390,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             try self.validateRelativeInsertionRequest(position: request.position, target: request.target)
             let plan = self.replaceContentPlan(for: note, template: noteTemplate)
@@ -424,8 +421,7 @@ public final class BearService: @unchecked Sendable {
                         noteID: note.ref.identifier,
                         text: request.text,
                         position: self.resolvedInsertPosition(request.position),
-                        presentation: request.presentation,
-                        expectedVersion: request.expectedVersion
+                        presentation: request.presentation
                     )
                 )
             }
@@ -457,9 +453,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             try await self.captureBackupIfNeeded(for: note, reason: .replaceContent)
             let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
@@ -477,9 +470,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             try self.validateRelativeInsertionRequest(position: request.position, target: request.target)
             let plan = self.replaceContentPlan(for: note, template: noteTemplate)
@@ -510,8 +500,7 @@ public final class BearService: @unchecked Sendable {
                         filePath: request.filePath,
                         header: request.header,
                         position: self.resolvedInsertPosition(request.position),
-                        presentation: request.presentation,
-                        expectedVersion: request.expectedVersion
+                        presentation: request.presentation
                     )
                 )
             }
@@ -588,9 +577,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             let outcome = try self.noteTagMutationOutcome(
                 note: note,
@@ -636,9 +622,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             let outcome = try self.noteTagMutationOutcome(
                 note: note,
@@ -684,9 +667,6 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            if let expected = request.expectedVersion, note.revision.version != expected {
-                throw BearError.mutationConflict("Note \(request.noteID) changed from version \(expected) to \(note.revision.version).")
-            }
 
             let template = try self.requiredApplyTemplate(loadedTemplate: loadedTemplate, noteTitle: note.title)
             let outcome = try self.applyTemplateOutcome(note: note, template: template)
@@ -733,8 +713,7 @@ public final class BearService: @unchecked Sendable {
                         newWindow: false,
                         showWindow: false,
                         edit: false
-                    ),
-                    expectedVersion: nil
+                    )
                 )
             }
         )
@@ -1038,13 +1017,6 @@ public final class BearService: @unchecked Sendable {
             noteID: noteID,
             snapshotID: nil
         )
-    }
-
-    private func assertVersion(noteID: String, expectedVersion: Int) throws {
-        let note = try loadNote(id: noteID)
-        guard note.revision.version == expectedVersion else {
-            throw BearError.mutationConflict("Note \(noteID) changed from version \(expectedVersion) to \(note.revision.version).")
-        }
     }
 
     private func loadTemplate(at url: URL) throws -> String? {
@@ -1683,8 +1655,7 @@ public final class BearService: @unchecked Sendable {
                 filePath: request.filePath,
                 header: anchor.title,
                 position: .top,
-                presentation: internalPresentation,
-                expectedVersion: request.expectedVersion
+                presentation: internalPresentation
             )
         )
         guard addFileReceipt.status == "updated" else {

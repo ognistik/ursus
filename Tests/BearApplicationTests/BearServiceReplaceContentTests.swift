@@ -28,8 +28,7 @@ func replaceContentBodyPreservesTemplateWrapper() async throws {
                 oldString: nil,
                 occurrence: nil,
                 newString: "Line 2",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -62,8 +61,7 @@ func replaceContentTitleRerendersTemplateWithNewTitle() async throws {
                 oldString: nil,
                 occurrence: nil,
                 newString: "Projects",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -97,8 +95,7 @@ func replaceContentEmptyTemplatedBodyPreservesExistingSingleNewlineTitleSeparato
                 oldString: nil,
                 occurrence: nil,
                 newString: "",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -131,8 +128,7 @@ func replaceContentStringTouchesEditableContentButNotTitle() async throws {
             oldString: "Inbox",
             occurrence: .one,
             newString: "Archive",
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -163,8 +159,7 @@ func replaceContentStringRejectsMissingOccurrence() async throws {
                 oldString: "Line",
                 occurrence: nil,
                 newString: "Item",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }
@@ -193,8 +188,7 @@ func replaceContentTitleRejectsOldString() async throws {
                 oldString: "Inbox",
                 occurrence: nil,
                 newString: "Projects",
-                presentation: BearPresentationOptions(),
-                expectedVersion: 3
+                presentation: BearPresentationOptions()
             ),
         ])
     }

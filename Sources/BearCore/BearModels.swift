@@ -1079,22 +1079,19 @@ public struct InsertTextRequest: Codable, Hashable, Sendable {
     public let position: InsertPosition?
     public let target: RelativeTextTarget?
     public let presentation: BearPresentationOptions
-    public let expectedVersion: Int?
 
     public init(
         noteID: String,
         text: String,
         position: InsertPosition? = nil,
         target: RelativeTextTarget? = nil,
-        presentation: BearPresentationOptions,
-        expectedVersion: Int?
+        presentation: BearPresentationOptions
     ) {
         self.noteID = noteID
         self.text = text
         self.position = position
         self.target = target
         self.presentation = presentation
-        self.expectedVersion = expectedVersion
     }
 }
 
@@ -1105,7 +1102,6 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
     public let occurrence: ReplaceStringOccurrence?
     public let newString: String
     public let presentation: BearPresentationOptions
-    public let expectedVersion: Int?
 
     public init(
         noteID: String,
@@ -1113,8 +1109,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         oldString: String?,
         occurrence: ReplaceStringOccurrence?,
         newString: String,
-        presentation: BearPresentationOptions,
-        expectedVersion: Int?
+        presentation: BearPresentationOptions
     ) {
         self.noteID = noteID
         self.kind = kind
@@ -1122,7 +1117,6 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         self.occurrence = occurrence
         self.newString = newString
         self.presentation = presentation
-        self.expectedVersion = expectedVersion
     }
 }
 
@@ -1170,34 +1164,28 @@ public struct NoteTagsRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let tags: [String]
     public let presentation: BearPresentationOptions
-    public let expectedVersion: Int?
 
     public init(
         noteID: String,
         tags: [String],
-        presentation: BearPresentationOptions,
-        expectedVersion: Int?
+        presentation: BearPresentationOptions
     ) {
         self.noteID = noteID
         self.tags = tags
         self.presentation = presentation
-        self.expectedVersion = expectedVersion
     }
 }
 
 public struct ApplyTemplateRequest: Codable, Hashable, Sendable {
     public let noteID: String
     public let presentation: BearPresentationOptions
-    public let expectedVersion: Int?
 
     public init(
         noteID: String,
-        presentation: BearPresentationOptions,
-        expectedVersion: Int?
+        presentation: BearPresentationOptions
     ) {
         self.noteID = noteID
         self.presentation = presentation
-        self.expectedVersion = expectedVersion
     }
 }
 
@@ -1208,7 +1196,6 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
     public let position: InsertPosition?
     public let target: RelativeTextTarget?
     public let presentation: BearPresentationOptions
-    public let expectedVersion: Int?
 
     public init(
         noteID: String,
@@ -1216,8 +1203,7 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
         header: String? = nil,
         position: InsertPosition? = nil,
         target: RelativeTextTarget? = nil,
-        presentation: BearPresentationOptions,
-        expectedVersion: Int?
+        presentation: BearPresentationOptions
     ) {
         self.noteID = noteID
         self.filePath = filePath
@@ -1225,7 +1211,6 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
         self.position = position
         self.target = target
         self.presentation = presentation
-        self.expectedVersion = expectedVersion
     }
 }
 

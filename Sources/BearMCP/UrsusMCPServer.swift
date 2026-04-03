@@ -172,8 +172,7 @@ public final class UrsusMCPServer: Sendable {
                 NoteTagsRequest(
                     noteID: resolvedNoteSelector,
                     tags: try requiredStringArray(object, "tags"),
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.addTags(requests))
@@ -191,8 +190,7 @@ public final class UrsusMCPServer: Sendable {
                 NoteTagsRequest(
                     noteID: resolvedNoteSelector,
                     tags: try requiredStringArray(object, "tags"),
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.removeTags(requests))
@@ -209,8 +207,7 @@ public final class UrsusMCPServer: Sendable {
             let requests = zip(operationObjects, resolvedNoteSelectors).map { object, resolvedNoteSelector in
                 ApplyTemplateRequest(
                     noteID: resolvedNoteSelector,
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.applyTemplate(requests))
@@ -248,8 +245,7 @@ public final class UrsusMCPServer: Sendable {
                     text: try requiredString(object, "text"),
                     position: try MCPArgumentDecoder.optionalPosition(object),
                     target: try MCPArgumentDecoder.relativeTextTarget(object),
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.insertText(requests))
@@ -270,8 +266,7 @@ public final class UrsusMCPServer: Sendable {
                     oldString: object["old_string"]?.stringValue,
                     occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
                     newString: try requiredPresentString(object, "new_string"),
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.replaceContent(requests))
@@ -291,8 +286,7 @@ public final class UrsusMCPServer: Sendable {
                     filePath: try requiredString(object, "file_path"),
                     position: try MCPArgumentDecoder.optionalPosition(object),
                     target: try MCPArgumentDecoder.relativeTextTarget(object),
-                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults),
-                    expectedVersion: object["expected_version"]?.intValue
+                    presentation: MCPArgumentDecoder.presentation(object, defaults: defaults)
                 )
             }
             return try jsonResult(try await service.addFiles(requests))
@@ -599,7 +593,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or `version` are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -737,7 +731,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes. This affects only the targeted notes; it does not rename or delete tags globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current tags or `version` are actually needed. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Add one or more tags to specific Bear notes. This affects only the targeted notes; it does not rename or delete tags globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current tags are actually needed. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -745,7 +739,6 @@ private enum ToolCatalog {
                         "items": .object(["type": .string("string")]),
                         "description": .string("Required tags to add to this one note. Inputs may be wrapped or unwrapped; tags are normalized before writing."),
                     ]),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after adding tags")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -754,7 +747,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -762,7 +755,6 @@ private enum ToolCatalog {
                         "items": .object(["type": .string("string")]),
                         "description": .string("Required tags to remove from this one note only. Inputs may be wrapped or unwrapped; tags are normalized before matching."),
                     ]),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after removing tags")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -774,7 +766,6 @@ private enum ToolCatalog {
                 description: "Apply the current template to one or more Bear notes and normalize tag-only clusters into the template `{{tags}}` slot. It preserves inline prose hashtags, returns compact receipts, and fails clearly if `template.md` is missing or invalid. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after applying the template")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -813,7 +804,6 @@ private enum ToolCatalog {
                         "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
                     ]),
                     "target": relativeTargetProperty(),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after inserting")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -822,7 +812,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or `version` is not already known. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text is not already known. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
@@ -843,7 +833,6 @@ private enum ToolCatalog {
                         "type": .string("string"),
                         "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full replacement editable body and may be empty. For `kind: string`, this is the replacement for the matched text and may be empty."),
                     ]),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after replacing")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -862,7 +851,6 @@ private enum ToolCatalog {
                         "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
                     ]),
                     "target": relativeTargetProperty(),
-                    "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after attaching the file")),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -1161,13 +1149,6 @@ private enum ToolCatalog {
                 ]),
             ]),
             "required": .array([.string("text"), .string("placement")]),
-        ])
-    }
-
-    private static func expectedVersionProperty() -> Value {
-        .object([
-            "type": .string("integer"),
-            "description": .string("Optional optimistic concurrency guard using the note's current `version`. Omit unless the user explicitly asks for concurrency protection or you already have a fresh version from an earlier read."),
         ])
     }
 

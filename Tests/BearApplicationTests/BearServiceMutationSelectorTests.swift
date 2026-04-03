@@ -22,8 +22,7 @@ func replaceContentResolvesExactCaseInsensitiveTitleSelector() async throws {
             oldString: nil,
             occurrence: nil,
             newString: "Updated",
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -56,8 +55,7 @@ func replaceContentTitleCanAddTitleToTitlelessNote() async throws {
             oldString: nil,
             occurrence: nil,
             newString: "Inbox",
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
 
@@ -81,8 +79,7 @@ func addFilesOpenNotesAndArchiveResolveTitleSelectors() async throws {
             noteID: "Inbox",
             filePath: "/tmp/file.txt",
             position: .bottom,
-            presentation: BearPresentationOptions(),
-            expectedVersion: 3
+            presentation: BearPresentationOptions()
         ),
     ])
     _ = try await service.openNotes([
