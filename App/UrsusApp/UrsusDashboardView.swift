@@ -157,11 +157,7 @@ private struct UrsusSetupView: View {
                         status: settings.selectedNoteTokenConfigured ? .configured : .notConfigured
                     )
 
-                    if settings.selectedNoteTokenConfigured {
-                        Text("Stored in Keychain")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    } else {
+                    if !settings.selectedNoteTokenConfigured {
                         Text("Optional. Needed only for selected-note flows.")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -224,7 +220,7 @@ private struct UrsusSetupView: View {
                             model.saveSelectedNoteToken()
                             showsTokenInput = false
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
 
                         if showsTokenInput {
                             Button("Cancel") {
@@ -257,7 +253,7 @@ private struct UrsusSetupView: View {
                         Button(title) {
                             model.installPublicLauncher()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .disabled(model.currentBundledCLIPath == nil)
                     }
                 }
@@ -284,11 +280,11 @@ private struct UrsusSetupView: View {
 
         return UrsusPanel(title: "Remote MCP bridge") {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .center, spacing: 8) {
-                    UrsusStatusBadge(title: compactStatusTitle(for: bridge.status), status: bridge.status)
+                HStack(alignment: .firstTextBaseline) {
                     Text(bridgeHeadline(for: bridge))
                         .font(.callout.weight(.medium))
-                        .foregroundStyle(.primary)
+                    Spacer()
+                    UrsusStatusBadge(title: compactStatusTitle(for: bridge.status), status: bridge.status)
                 }
 
                 Text(bridgeSummary(for: settings))
@@ -304,7 +300,7 @@ private struct UrsusSetupView: View {
                         Button(recoveryAction.title) {
                             performRecoveryAction(recoveryAction, settings: settings)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
                 }
@@ -330,7 +326,7 @@ private struct UrsusSetupView: View {
                                 repairing: bridge.status == .invalid || bridge.status == .failed
                             )
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
 
@@ -539,15 +535,13 @@ private struct UrsusPreferencesView: View {
 
     private var behaviorPanel: some View {
         UrsusPanel(title: "Note behavior") {
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
-                    Divider()
-                    Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
-                    Divider()
-                    Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
-                }
-
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
+                Divider()
+                Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
+                Divider()
+                Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
+                Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Default insert position")
                         .font(.caption.weight(.semibold))
@@ -560,7 +554,7 @@ private struct UrsusPreferencesView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                 }
-
+                Divider()
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tags merge mode")
                         .font(.caption.weight(.semibold))
@@ -624,7 +618,7 @@ private struct UrsusPreferencesView: View {
                         Button("Save Template") {
                             model.saveTemplate()
                         }
-                        .buttonStyle(.borderedProminent)
+                        .buttonStyle(.bordered)
                         .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
 
                         Button("Revert Changes") {
@@ -652,7 +646,7 @@ private struct UrsusPreferencesView: View {
 
     private var limitsPanel: some View {
         UrsusPanel(title: "Read and backup limits") {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
                         label: "Default discovery limit",
@@ -661,7 +655,7 @@ private struct UrsusPreferencesView: View {
                     )
                     configurationValidationMessages(for: .defaultDiscoveryLimit)
                 }
-
+                Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
                         label: "Default snippet length",
@@ -670,7 +664,7 @@ private struct UrsusPreferencesView: View {
                     )
                     configurationValidationMessages(for: .defaultSnippetLength)
                 }
-
+                Divider()
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
                         label: "Backup retention days",
@@ -745,7 +739,7 @@ private struct UrsusAdvancedView: View {
                     Button(actionTitle) {
                         model.installPublicLauncher()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(model.currentBundledCLIPath == nil)
                 }
 
@@ -759,18 +753,26 @@ private struct UrsusAdvancedView: View {
     }
 
     private func toolAvailabilityPanel(_ settings: BearAppSettingsSnapshot) -> some View {
-        UrsusPanel(title: "Tool availability") {
-            VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Tool availability")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .tracking(0.6)
+
+            VStack(alignment: .leading, spacing: 12) {
                 ForEach(BearToolCategory.allCases, id: \.self) { category in
                     let tools = settings.toolToggles.filter { $0.category == category }
 
                     if !tools.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
                             Text(category.title)
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
 
-                            VStack(alignment: .leading, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                                     Toggle(isOn: Binding(
                                         get: { model.isToolEnabledInDraft(tool.tool) },
@@ -778,27 +780,35 @@ private struct UrsusAdvancedView: View {
                                     )) {
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(tool.title)
+                                                .font(.subheadline)
                                             Text(tool.summary)
                                                 .font(.callout)
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
+                                    .padding(14)
 
                                     if index < tools.count - 1 {
                                         Divider()
                                     }
                                 }
                             }
+                            .background(UrsusPanelBackground(style: .subtle))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                            )
                         }
                     }
                 }
-
-                UrsusMessageStack(
-                    success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
-                    warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
-                    error: model.configurationStatusError
-                )
             }
+
+            UrsusMessageStack(
+                success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
+                warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
+                error: model.configurationStatusError
+            )
         }
     }
 }
@@ -809,9 +819,10 @@ private struct UrsusHostSetupRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(setup.appName)
-                    .font(.headline)
+                    .font(.callout.weight(.medium))
+                Spacer()
                 UrsusStatusBadge(title: compactStatusTitle(for: setup.status), status: setup.status)
             }
 
@@ -824,7 +835,7 @@ private struct UrsusHostSetupRow: View {
                     Button("Copy Setup") {
                         model.copyHostSetupSnippet(setup)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
 
@@ -832,7 +843,7 @@ private struct UrsusHostSetupRow: View {
                     Button("Reveal Config") {
                         model.reveal(path: configPath)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                 }
             }
@@ -916,53 +927,67 @@ private struct UrsusPanel<Content: View>: View {
     }
 
     var body: some View {
-        let stack = VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.footnote.weight(.semibold))
+        if surface == .plain {
+            VStack(alignment: .leading, spacing: 8) {
+                panelHeader
+                content
+                    .padding(16)
+                    .background(UrsusPanelBackground(style: .subtle))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+            }
+        } else if surface == .subtle {
+            VStack(alignment: .leading, spacing: 12) {
+                panelHeader
+                content
+            }
+            .padding(20)
+            .background(UrsusPanelBackground(style: .subtle))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            )
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                panelHeader
+                content
+            }
+            .padding(24)
+            .background(UrsusPanelBackground(style: .prominent))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var panelHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                        .tracking(0.6)
-
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                if let headerAccessory {
-                    Spacer(minLength: 12)
-                    headerAccessory
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            content
-        }
-
-        switch surface {
-        case .plain:
-            stack
-        case .subtle:
-            stack
-                .padding(20)
-                .background(UrsusPanelBackground(style: .subtle))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
-        case .prominent:
-            stack
-                .padding(24)
-                .background(UrsusPanelBackground(style: .prominent))
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                )
+            if let headerAccessory {
+                Spacer(minLength: 12)
+                headerAccessory
+            }
         }
     }
 }
@@ -1212,7 +1237,7 @@ private struct UrsusInlineNotice<Actions: View>: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
         }
-        .background(UrsusPanelBackground(style: .subtle))
+        .background(UrsusPanelBackground(style: .prominent))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
