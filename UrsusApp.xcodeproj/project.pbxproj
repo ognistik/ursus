@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		BEA0000A2F00000100000001 /* BearApplication in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000A2F00000100000002 /* BearApplication */; };
+		BEA0000B2F00000100000013 /* BearCLIRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000B2F00000100000014 /* BearCLIRuntime */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,6 +29,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BEA0000A2F00000100000001 /* BearApplication in Frameworks */,
+				BEA0000B2F00000100000013 /* BearCLIRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +73,7 @@
 			name = Ursus;
 			packageProductDependencies = (
 				BEA0000A2F00000100000002 /* BearApplication */,
+				BEA0000B2F00000100000014 /* BearCLIRuntime */,
 			);
 			productName = Ursus;
 			productReference = BEA0000A2F00000100000003 /* Ursus.app */;
@@ -313,6 +316,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */;
 			productName = BearApplication;
+		};
+		BEA0000B2F00000100000014 /* BearCLIRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */;
+			productName = BearCLIRuntime;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

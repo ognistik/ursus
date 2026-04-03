@@ -13,7 +13,8 @@ public struct BearPublicCLILauncherInstallReceipt: Codable, Hashable, Sendable {
 
 public enum UrsusCLILocator {
     public static let executableName = "ursus"
-    public static let bundledRelativePath = "Contents/Resources/bin/\(executableName)"
+    public static let bundledExecutableName = "Ursus"
+    public static let bundledRelativePath = "Contents/MacOS/\(bundledExecutableName)"
 
     public static var publicLauncherURL: URL {
         BearPaths.publicCLIExecutableURL
@@ -37,9 +38,8 @@ public enum UrsusCLILocator {
 
         let executableURL = bundleURL
             .appendingPathComponent("Contents", isDirectory: true)
-            .appendingPathComponent("Resources", isDirectory: true)
-            .appendingPathComponent("bin", isDirectory: true)
-            .appendingPathComponent(executableName, isDirectory: false)
+            .appendingPathComponent("MacOS", isDirectory: true)
+            .appendingPathComponent(bundledExecutableName, isDirectory: false)
 
         guard fileManager.fileExists(atPath: executableURL.path) else {
             throw BearError.configuration("Bundled CLI executable was not found inside `\(bundleURL.path)`.")
@@ -90,7 +90,7 @@ public enum UrsusCLILocator {
         \(loopEntries)
         do
           if [ -x "$cli_path" ]; then
-            exec "$cli_path" "$@"
+            exec "$cli_path" --ursus-cli "$@"
           fi
         done
 
@@ -176,15 +176,12 @@ public enum UrsusCLILocator {
 
         for bundleURL in fallbackBundleURLs where bundleURL.standardizedFileURL.path != primaryAppBundleURL.standardizedFileURL.path {
             let bundledCLIPath = bundleURL
-                .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Resources", isDirectory: true)
-                .appendingPathComponent("bin", isDirectory: true)
-                .appendingPathComponent(executableName, isDirectory: false)
+                .appendingPathComponent(bundledRelativePath, isDirectory: false)
                 .path
             paths.append(shellSingleQuoted(bundledCLIPath))
         }
 
-        let homeRelativePath = "Applications/\(UrsusAppLocator.appName)/Contents/Resources/bin/\(executableName)"
+        let homeRelativePath = "Applications/\(UrsusAppLocator.appName)/\(bundledRelativePath)"
         let homeCandidate = "\"$HOME/\(homeRelativePath)\""
         if !paths.contains(homeCandidate) {
             paths.append(homeCandidate)

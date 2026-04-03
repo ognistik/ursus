@@ -124,9 +124,8 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
     let helperBundleURL = tempRoot.appendingPathComponent("Ursus Helper.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -159,9 +158,8 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
         bundledCLIExecutableURLResolver: { bundleURL, _ in
             bundleURL
                 .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Resources", isDirectory: true)
-                .appendingPathComponent("bin", isDirectory: true)
-                .appendingPathComponent("ursus", isDirectory: false)
+                .appendingPathComponent("MacOS", isDirectory: true)
+                .appendingPathComponent("Ursus", isDirectory: false)
         },
         callbackAppBundleURLProvider: { _ in appBundleURL },
         callbackAppExecutableURLResolver: { bundleURL, _ in
@@ -299,9 +297,8 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -331,9 +328,8 @@ func dashboardSnapshotFlagsStaleLauncherForRepair() throws {
         bundledCLIExecutableURLResolver: { bundleURL, _ in
             bundleURL
                 .appendingPathComponent("Contents", isDirectory: true)
-                .appendingPathComponent("Resources", isDirectory: true)
-                .appendingPathComponent("bin", isDirectory: true)
-                .appendingPathComponent("ursus", isDirectory: false)
+                .appendingPathComponent("MacOS", isDirectory: true)
+                .appendingPathComponent("Ursus", isDirectory: false)
         },
         callbackAppBundleURLProvider: { _ in nil },
         helperBundleURLProvider: { _ in nil }
@@ -356,9 +352,8 @@ func reconcilePublicLauncherInstallsMissingLauncher() throws {
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -392,9 +387,8 @@ func reconcilePublicLauncherRepairsStaleLauncher() throws {
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -429,9 +423,8 @@ func reconcilePublicLauncherReturnsUnchangedWhenLauncherMatchesBundle() throws {
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -470,9 +463,8 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -768,9 +760,8 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)

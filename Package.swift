@@ -12,6 +12,10 @@ let package = Package(
             name: "BearApplication",
             targets: ["BearApplication"]
         ),
+        .library(
+            name: "BearCLIRuntime",
+            targets: ["BearCLIRuntime"]
+        ),
         .executable(
             name: "ursus",
             targets: ["BearMCPCLI"]
@@ -66,8 +70,8 @@ let package = Package(
                 .product(name: "MCP", package: "swift-sdk"),
             ]
         ),
-        .executableTarget(
-            name: "BearMCPCLI",
+        .target(
+            name: "BearCLIRuntime",
             dependencies: [
                 "BearApplication",
                 "BearMCP",
@@ -75,7 +79,15 @@ let package = Package(
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
-            ]
+            ],
+            path: "Sources/BearMCPCLI"
+        ),
+        .executableTarget(
+            name: "BearMCPCLI",
+            dependencies: [
+                "BearCLIRuntime",
+            ],
+            path: "Sources/BearMCPCLIExecutable"
         ),
         .executableTarget(
             name: "BearSelectedNoteHelper",
@@ -112,7 +124,7 @@ let package = Package(
         .testTarget(
             name: "BearMCPCLITests",
             dependencies: [
-                "BearMCPCLI",
+                "BearCLIRuntime",
                 "BearCore",
                 .product(name: "MCP", package: "swift-sdk"),
             ]

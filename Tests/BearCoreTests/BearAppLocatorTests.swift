@@ -24,7 +24,7 @@ func appLocatorGuidanceMarksUserApplicationsAsSupportedUserSpecificLocation() {
 
 @Test
 func cliLocatorGuidancePointsHostsAtPublicLauncherPath() {
-    #expect(UrsusCLILocator.bundledRelativePath == "Contents/Resources/bin/ursus")
+    #expect(UrsusCLILocator.bundledRelativePath == "Contents/MacOS/Ursus")
     #expect(
         UrsusCLILocator.publicLauncherURL.path.hasSuffix("/.local/bin/ursus")
     )
@@ -39,9 +39,8 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     let appBundleURL = temporaryRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let installedCLIURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -66,7 +65,7 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     #expect(fileManager.isExecutableFile(atPath: installedCLIURL.path))
     let launcherScript = try String(contentsOf: installedCLIURL, encoding: .utf8)
     #expect(launcherScript.contains(bundledCLIURL.path))
-    #expect(launcherScript.contains("exec \"$cli_path\" \"$@\""))
+    #expect(launcherScript.contains("exec \"$cli_path\" --ursus-cli \"$@\""))
 }
 
 @Test
@@ -77,9 +76,8 @@ func cliLocatorLauncherRepairsOlderSymlinkInstall() throws {
     let appBundleURL = temporaryRoot.appendingPathComponent("Ursus.app", isDirectory: true)
     let bundledCLIURL = appBundleURL
         .appendingPathComponent("Contents", isDirectory: true)
-        .appendingPathComponent("Resources", isDirectory: true)
-        .appendingPathComponent("bin", isDirectory: true)
-        .appendingPathComponent("ursus", isDirectory: false)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = temporaryRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)

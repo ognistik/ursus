@@ -3,7 +3,7 @@ import Foundation
 import Logging
 import MCP
 import Testing
-@testable import BearMCPCLI
+@testable import BearCLIRuntime
 
 @Test
 func decodeInitializeRequestRejectsNonInitializePayloads() throws {

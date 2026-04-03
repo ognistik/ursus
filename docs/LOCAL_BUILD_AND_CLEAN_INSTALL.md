@@ -28,6 +28,10 @@ Current app build outputs:
 
 - Debug: `./.build/UrsusApp/Build/Products/Debug/Ursus.app`
 - Release: `./.build/UrsusApp/Build/Products/Release/Ursus.app`
+- App executable that also serves hidden CLI mode: `Contents/MacOS/Ursus`
+
+The installed public launcher at `~/.local/bin/ursus` forwards into that app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates bridge and Terminal launches together.
+For compatibility with older already-installed launchers, the app bundle also includes a tiny forwarding shim at `Contents/Resources/bin/ursus`.
 
 ## Install The Built App
 
@@ -100,16 +104,21 @@ The public launcher installed by the app is:
 
 Current utility commands:
 
-- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--tag-merge-mode append|replace] [--open-note yes|no] [--new-window yes|no]`
+- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
+- `ursus --backup-note [note-id-or-title ...]`
+- `ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
 - `ursus --apply-template [note-id-or-title ...]`
-- `ursus --archive-note [note-id-or-title ...]`
-- `ursus --delete-note [note-id-or-title ...]`
+- `ursus bridge serve`
+- `ursus bridge status`
+- `ursus bridge print-url`
 
 Current selector behavior:
 
 - `--new-note` with no extra flags preserves the current interactive editing-note flow
-- explicit `--new-note` mode skips selected-note lookup, defaults omitted `--tags` to configured inbox tags, and defaults `--tag-merge-mode` to `append`
+- explicit `--new-note` mode skips selected-note lookup, makes omitted `--tags` follow the create-adds-inbox-tags default, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is present
 - `--tags` accepts a comma-separated list and may be passed more than once
-- `--apply-template`, `--archive-note`, and `--delete-note` use the selected Bear note when no note ids or titles are passed
+- `--new-window` requires `--open-note`
+- `--apply-template` and `--backup-note` use the selected Bear note when no note ids or titles are passed
+- `--restore-note` requires exact `NOTE_ID SNAPSHOT_ID` pairs
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces

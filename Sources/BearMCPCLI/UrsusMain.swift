@@ -8,14 +8,23 @@ import Foundation
 import Logging
 import MCP
 
-@main
-struct UrsusMain {
-    static func main() async {
+public enum UrsusCLIRuntime {
+    public static let embeddedInvocationFlag = "--ursus-cli"
+
+    public static func cliArgumentsForEmbeddedApp(from processArguments: [String]) -> [String]? {
+        guard processArguments.dropFirst().first == embeddedInvocationFlag else {
+            return nil
+        }
+
+        return Array(processArguments.dropFirst(2))
+    }
+
+    public static func run(arguments: [String]) async -> Int32 {
         LoggingSystem.bootstrap(StreamLogHandler.standardError)
         let logger = Logger(label: "ursus")
 
         do {
-            let command = try BearCLICommand.parse(arguments: Array(CommandLine.arguments.dropFirst()))
+            let command = try BearCLICommand.parse(arguments: arguments)
 
             switch command {
             case .help:
@@ -89,10 +98,12 @@ struct UrsusMain {
                 let processLock = try BearProcessLock.acquire()
                 try await runMCP(logger: logger, processLock: processLock)
             }
+
+            return 0
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
             fputs("ursus failed: \(message)\n", stderr)
-            Foundation.exit(1)
+            return 1
         }
     }
 

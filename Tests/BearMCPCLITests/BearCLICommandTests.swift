@@ -2,7 +2,7 @@ import BearApplication
 import BearCore
 import Foundation
 import Testing
-@testable import BearMCPCLI
+@testable import BearCLIRuntime
 
 @Test
 func parseNewNoteWithoutExtraFlagsKeepsInteractiveMode() throws {
@@ -142,7 +142,7 @@ func parseRestoreNoteBuildsPairRequests() throws {
 
 @Test
 func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
-    let rendered = UrsusMain.renderBridgeStatus(
+    let rendered = UrsusCLIRuntime.renderBridgeStatus(
         BearAppBridgeSnapshot(
             enabled: true,
             host: "127.0.0.1",
@@ -170,4 +170,13 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
     #expect(rendered.contains("LaunchAgent loaded: yes"))
     #expect(rendered.contains("Health: tcp-ok, initialize-failed"))
     #expect(rendered.contains("Stderr log: /tmp/bridge.stderr.log"))
+}
+
+@Test
+func embeddedAppArgumentsStripHiddenSentinel() {
+    let arguments = UrsusCLIRuntime.cliArgumentsForEmbeddedApp(
+        from: ["/Applications/Ursus.app/Contents/MacOS/Ursus", "--ursus-cli", "bridge", "status"]
+    )
+
+    #expect(arguments == ["bridge", "status"])
 }

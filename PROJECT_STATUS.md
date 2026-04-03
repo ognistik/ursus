@@ -20,7 +20,7 @@ This file is the concise handoff for future threads. It should describe the curr
 - Do not write directly to Bear's SQLite database.
 - Do not rebuild the old AppleScript / Shortcuts bridge into this runtime.
 - Keep the MCP surface explicit and batch-friendly rather than collapsing into one giant action tool.
-- Keep the current layered structure: `BearCore`, `BearDB`, `BearXCallback`, `BearApplication`, `BearMCP`, `BearMCPCLI`.
+- Keep the current layered structure: `BearCore`, `BearDB`, `BearXCallback`, `BearApplication`, `BearMCP`, `BearCLIRuntime`, `BearMCPCLI`.
 - Keep template storage as one real file at `~/Library/Application Support/Ursus/template.md`.
 - Trash stays CLI-only for now unless the user explicitly asks to expose it through MCP.
 
@@ -29,7 +29,9 @@ This file is the concise handoff for future threads. It should describe the curr
 Phases 1 through 6 of the Ursus identity reset are complete:
 
 - `Ursus.app` is now the product shell and control center.
-- The bundled local stdio/runtime executable is now `ursus`.
+- The standalone local stdio/runtime executable remains `ursus`.
+- The app-owned in-bundle launch path is now `Ursus.app/Contents/MacOS/Ursus`, and the public launcher forwards into that executable with a hidden `--ursus-cli` flag so app-bundle replacement updates Terminal and bridge launches together without shipping a second embedded CLI copy.
+- The build also writes a tiny compatibility shim at `Ursus.app/Contents/Resources/bin/ursus` so older already-installed launchers keep working after an app replacement.
 - The embedded selected-note helper is now `Ursus Helper.app` / `ursus-helper`.
 - MCP `initialize` now reports server name `ursus`.
 - The bridge LaunchAgent label is now `com.aft.ursus`.
@@ -124,6 +126,9 @@ These paths describe the codebase as it exists after Phase 6:
 - Phases 1 through 6 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, launcher/locator wiring points at `ursus` and `Ursus.app`, repo-internal app containers and product-facing internal types now use Ursus-branded names, and the status/build/helper docs now match that product truth.
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The selected-note token is now managed in macOS Keychain through shared Ursus-owned code rather than `config.json`.
+- CLI and bridge behavior now live in a shared `BearCLIRuntime` target used by both the standalone `ursus` executable and `Ursus.app`'s hidden CLI mode, so launchd only has to execute the already-provisioned app binary inside the bundle.
+- The legacy `Contents/Resources/bin/ursus` path is now just a shell shim that forwards into `Contents/MacOS/Ursus --ursus-cli`; it exists only to preserve old-launcher compatibility during app replacement.
+- The selected-note helper is signed without restricted entitlements because it does not read the shared token directly.
 - Opened notes now always request Bear edit mode; that default is no longer user-configurable in config.
 - Discovery tools return compact note summaries with attachment presence metadata and attachment-match evidence only; `bear_get_notes` remains the full-note fetch, and attachment OCR/search text is opt-in there.
 - Discovery page size and snippet length now come only from config defaults. MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides anymore, and cursor continuation keeps using the configured defaults.
@@ -170,7 +175,7 @@ Phase 1 verification that already passed:
 - `swift test`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - built outputs verified at `.build/UrsusApp/Build/Products/Debug/Ursus.app`
-- bundled artifacts verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+- bundled artifacts verified: `Contents/MacOS/Ursus` and `Contents/Library/Helpers/Ursus Helper.app`
 - HTTP MCP `initialize` probe returned `serverInfo.name = "ursus"`
 
 Phase 2 verification that passed on 2026-03-30:
@@ -180,7 +185,7 @@ Phase 2 verification that passed on 2026-03-30:
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - `swift run ursus paths` printed only Ursus-era storage roots plus the intentionally deferred pre-Phase-3 launcher-path survivor
 - built outputs verified at `.build/UrsusApp/Build/Products/Debug/Ursus.app`
-- bundled artifacts re-verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+- bundled artifacts re-verified: `Contents/MacOS/Ursus` and `Contents/Library/Helpers/Ursus Helper.app`
 
 Phase 3 verification that passed on 2026-03-30:
 
@@ -194,7 +199,7 @@ Phase 3 verification that passed on 2026-03-30:
 - `swift run ursus --help` printed `ursus` command examples throughout
 - `swift run ursus doctor` and `swift run ursus bridge status` reported `~/.local/bin/ursus` plus Ursus-era launcher/bridge diagnostics
 - built outputs re-verified at `.build/UrsusApp/Build/Products/Debug/Ursus.app`
-- bundled artifacts re-verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+- bundled artifacts re-verified: `Contents/MacOS/Ursus` and `Contents/Library/Helpers/Ursus Helper.app`
 
 Phase 4 verification that passed on 2026-03-30:
 
@@ -219,6 +224,15 @@ Phase 6 verification that passed on 2026-03-31:
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - repo-internal app containers and product-facing internal type/file names were renamed to Ursus-branded names where they represented the product rather than the Bear integration domain
 - built app re-verified at `.build/UrsusApp/Build/Products/Debug/Ursus.app`
-- bundled artifacts re-verified: `Contents/Resources/bin/ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+- bundled artifacts re-verified: `Contents/MacOS/Ursus` and `Contents/Library/Helpers/Ursus Helper.app`
+
+Bridge-launch packaging verification that passed on 2026-04-02:
+
+- `swift test`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- `./.build/debug/ursus --help`
+- `./.build/UrsusApp/Build/Products/Debug/Ursus.app/Contents/MacOS/Ursus --ursus-cli --help`
+- verified the app executable now owns the in-bundle launch path used by the public launcher and bridge runtime
+- verified the selected-note helper still bundles at `Contents/Library/Helpers/Ursus Helper.app`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

@@ -2,7 +2,6 @@ import AppKit
 import BearApplication
 import SwiftUI
 
-@main
 struct UrsusApp: App {
     @NSApplicationDelegateAdaptor(UrsusAppDelegate.self) private var appDelegate
     @StateObject private var model = UrsusAppModel()
