@@ -1350,6 +1350,7 @@ public struct ApplyTemplateReceipt: Codable, Hashable, Sendable {
 public struct BearBackupSnapshot: Codable, Hashable, Sendable {
     public let snapshotID: String
     public let noteID: String
+    public let version: Int
     public let title: String
     public let rawText: String
     public let modifiedAt: Date
@@ -1360,6 +1361,7 @@ public struct BearBackupSnapshot: Codable, Hashable, Sendable {
     public init(
         snapshotID: String,
         noteID: String,
+        version: Int,
         title: String,
         rawText: String,
         modifiedAt: Date,
@@ -1369,6 +1371,7 @@ public struct BearBackupSnapshot: Codable, Hashable, Sendable {
     ) {
         self.snapshotID = snapshotID
         self.noteID = noteID
+        self.version = version
         self.title = title
         self.rawText = rawText
         self.modifiedAt = modifiedAt

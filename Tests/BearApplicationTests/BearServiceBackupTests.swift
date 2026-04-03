@@ -77,6 +77,7 @@ func restoreBackupsUsesRequestedSnapshotAndCapturesCurrentState() async throws {
             "snapshot-1": BearBackupSnapshot(
                 snapshotID: "snapshot-1",
                 noteID: "note-1",
+                version: 3,
                 title: "Inbox",
                 rawText: "# Inbox\n\nPrevious",
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
@@ -181,6 +182,7 @@ func restoreCLIBackupsRequiresExactNoteIDs() async throws {
             "snapshot-1": BearBackupSnapshot(
                 snapshotID: "snapshot-1",
                 noteID: "note-1",
+                version: 3,
                 title: "Inbox",
                 rawText: "# Inbox\n\nPrevious",
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
@@ -381,6 +383,7 @@ func compareBackupsReturnsCompactDiffMetadata() async throws {
             "snapshot-1": BearBackupSnapshot(
                 snapshotID: "snapshot-1",
                 noteID: "note-1",
+                version: 3,
                 title: "Inbox",
                 rawText: "# Inbox\n\nCurrent",
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),

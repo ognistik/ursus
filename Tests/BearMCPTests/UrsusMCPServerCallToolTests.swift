@@ -733,6 +733,7 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
             "snapshot-1": BearBackupSnapshot(
                 snapshotID: "snapshot-1",
                 noteID: "note-1",
+                version: 3,
                 title: "Test Note",
                 rawText: "# Test Note\n\nPrevious body",
                 modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),

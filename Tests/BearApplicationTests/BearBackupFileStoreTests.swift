@@ -38,12 +38,14 @@ func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
     #expect(rows.count == 1)
     #expect(rows.first?.snapshotID == summary.snapshotID)
     #expect(rows.first?.noteID == "note-1")
+    #expect(rows.first?.version == 3)
     #expect(rows.first?.fileName == "\(summary.snapshotID).json")
     #expect(fileManager.fileExists(atPath: snapshotURL.path))
     #expect(listed.items.count == 1)
     #expect(listed.items.first?.snapshotID == summary.snapshotID)
     #expect(listed.items.first?.reason == .replaceContent)
     #expect(snapshot.rawText == note.rawText)
+    #expect(snapshot.version == 3)
     #expect(snapshot.operationGroupID == "op-1")
 }
 
@@ -419,6 +421,7 @@ func backupFileStoreRetentionZeroDisablesCaptureAndCleansExistingArtifacts() asy
 private struct BackupMetadataRow: Sendable {
     let snapshotID: String
     let noteID: String
+    let version: Int
     let fileName: String
 }
 
@@ -438,7 +441,7 @@ private func fetchMetadataRows(at directoryURL: URL) throws -> [BackupMetadataRo
         try Row.fetchAll(
             db,
             sql: """
-            SELECT snapshot_id, note_id, file_name
+            SELECT snapshot_id, note_id, version, file_name
             FROM snapshots
             ORDER BY captured_at DESC, snapshot_id DESC
             """
@@ -446,6 +449,7 @@ private func fetchMetadataRows(at directoryURL: URL) throws -> [BackupMetadataRo
             BackupMetadataRow(
                 snapshotID: $0["snapshot_id"],
                 noteID: $0["note_id"],
+                version: $0["version"],
                 fileName: $0["file_name"]
             )
         }
