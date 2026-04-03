@@ -5,6 +5,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
     public let id: String
     public let appName: String
     public let configPath: String?
+    public let presentInSetup: Bool
     public let status: BearDoctorCheckStatus
     public let statusTitle: String
     public let detail: String
@@ -18,6 +19,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
         id: String,
         appName: String,
         configPath: String? = nil,
+        presentInSetup: Bool = true,
         status: BearDoctorCheckStatus,
         statusTitle: String,
         detail: String,
@@ -30,6 +32,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
         self.id = id
         self.appName = appName
         self.configPath = configPath
+        self.presentInSetup = presentInSetup
         self.status = status
         self.statusTitle = statusTitle
         self.detail = detail
@@ -102,6 +105,7 @@ enum BearHostAppSupport {
                 setup: BearHostAppSetupSnapshot(
                     id: "generic-local-stdio",
                     appName: "Any Local MCP Host",
+                    presentInSetup: false,
                     status: .ok,
                     statusTitle: "Ready",
                     detail: "Use the public launcher path below with any local stdio MCP host, not just Codex or Claude Desktop.",
@@ -124,6 +128,7 @@ enum BearHostAppSupport {
             setup: BearHostAppSetupSnapshot(
                 id: "generic-local-stdio",
                 appName: "Any Local MCP Host",
+                presentInSetup: false,
                 status: .missing,
                 statusTitle: "Launcher not installed yet",
                 detail: "Install the public launcher first, then reuse the same command path in any local stdio MCP host.",
@@ -147,6 +152,10 @@ enum BearHostAppSupport {
         launcherURL: URL,
         homeDirectoryURL: URL
     ) -> HostAppResult {
+        let isDetected = codexIsDetected(
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
         let configURL = homeDirectoryURL
             .appendingPathComponent(".codex", isDirectory: true)
             .appendingPathComponent("config.toml", isDirectory: false)
@@ -169,6 +178,7 @@ enum BearHostAppSupport {
                     id: "codex",
                     appName: "Codex",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .missing,
                     statusTitle: "Config file not found",
                     detail: "Create `\(configURL.path)` or let Codex create it, then add the `ursus` server section below so Codex uses the public launcher instead of a repo-local build output.",
@@ -193,6 +203,7 @@ enum BearHostAppSupport {
                     id: "codex",
                     appName: "Codex",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .invalid,
                     statusTitle: "Config file unreadable",
                     detail: "Ursus.app could see `\(configURL.path)` but could not read it. Fix file permissions or contents, then point `mcp_servers.ursus` at the public launcher.",
@@ -224,6 +235,7 @@ enum BearHostAppSupport {
                     id: "codex",
                     appName: "Codex",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .ok,
                     statusTitle: "Configured",
                     detail: "Codex already points `mcp_servers.ursus` at the public launcher path.",
@@ -248,6 +260,7 @@ enum BearHostAppSupport {
                     id: "codex",
                     appName: "Codex",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .invalid,
                     statusTitle: "Needs update",
                     detail: "Codex already has an `ursus` server entry, but it is not using the public launcher path and `args = [\"mcp\"]` shape together yet.",
@@ -271,6 +284,7 @@ enum BearHostAppSupport {
                 id: "codex",
                 appName: "Codex",
                 configPath: configURL.path,
+                presentInSetup: isDetected,
                 status: .notConfigured,
                 statusTitle: "Ursus Server Not Added Yet",
                 detail: "Codex is installed, but `\(configURL.path)` does not yet contain an `ursus` server entry.",
@@ -294,6 +308,10 @@ enum BearHostAppSupport {
         launcherURL: URL,
         homeDirectoryURL: URL
     ) -> HostAppResult {
+        let isDetected = claudeDesktopIsDetected(
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
         let candidateURLs = [
             homeDirectoryURL
                 .appendingPathComponent("Library", isDirectory: true)
@@ -331,6 +349,7 @@ enum BearHostAppSupport {
                     id: "claude-desktop",
                     appName: "Claude Desktop",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .missing,
                     statusTitle: "Config file not found",
                     detail: "Create `\(configURL.path)` or configure a local MCP server from Claude Desktop, then merge the Ursus entry below so Claude uses the public launcher path.",
@@ -358,6 +377,7 @@ enum BearHostAppSupport {
                     id: "claude-desktop",
                     appName: "Claude Desktop",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .invalid,
                     statusTitle: "Config file invalid",
                     detail: "`\(configURL.path)` could not be parsed as JSON. Fix the file, then merge the Ursus stdio entry below.",
@@ -393,6 +413,7 @@ enum BearHostAppSupport {
                         id: "claude-desktop",
                         appName: "Claude Desktop",
                         configPath: configURL.path,
+                        presentInSetup: isDetected,
                         status: .ok,
                         statusTitle: "Configured",
                         detail: "Claude Desktop already has an Ursus stdio server entry pointing at the public launcher path.",
@@ -426,6 +447,7 @@ enum BearHostAppSupport {
                     id: "claude-desktop",
                     appName: "Claude Desktop",
                     configPath: configURL.path,
+                    presentInSetup: isDetected,
                     status: .invalid,
                     statusTitle: "Needs update",
                     detail: detail,
@@ -449,6 +471,7 @@ enum BearHostAppSupport {
                 id: "claude-desktop",
                 appName: "Claude Desktop",
                 configPath: configURL.path,
+                presentInSetup: isDetected,
                 status: .notConfigured,
                 statusTitle: "Ursus Server Not Added Yet",
                 detail: "Claude Desktop config exists, but no `mcpServers.ursus` entry was detected.",
@@ -478,6 +501,7 @@ enum BearHostAppSupport {
             setup: BearHostAppSetupSnapshot(
                 id: "chatgpt",
                 appName: "ChatGPT",
+                presentInSetup: false,
                 status: .notConfigured,
                 statusTitle: "Remote MCP only",
                 detail: "ChatGPT developer mode currently supports remote MCP servers, not local stdio binaries, so the Ursus launcher path is not the right integration target here.",
@@ -490,6 +514,72 @@ enum BearHostAppSupport {
                 detail: "ChatGPT developer mode currently supports remote streaming HTTP or SSE servers rather than local stdio binaries"
             )
         )
+    }
+
+    private static func codexIsDetected(
+        fileManager: FileManager,
+        homeDirectoryURL: URL
+    ) -> Bool {
+        if fileManager.fileExists(
+            atPath: homeDirectoryURL
+                .appendingPathComponent(".codex", isDirectory: true)
+                .path
+        ) {
+            return true
+        }
+
+        return applicationExists(
+            named: ["Codex.app"],
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
+    }
+
+    private static func claudeDesktopIsDetected(
+        fileManager: FileManager,
+        homeDirectoryURL: URL
+    ) -> Bool {
+        let supportDirectories = [
+            homeDirectoryURL
+                .appendingPathComponent("Library", isDirectory: true)
+                .appendingPathComponent("Application Support", isDirectory: true)
+                .appendingPathComponent("Claude", isDirectory: true),
+            homeDirectoryURL
+                .appendingPathComponent(".config", isDirectory: true)
+                .appendingPathComponent("claude", isDirectory: true),
+        ]
+
+        if supportDirectories.contains(where: { fileManager.fileExists(atPath: $0.path) }) {
+            return true
+        }
+
+        return applicationExists(
+            named: ["Claude.app", "Claude Desktop.app"],
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
+    }
+
+    private static func applicationExists(
+        named appNames: [String],
+        fileManager: FileManager,
+        homeDirectoryURL: URL
+    ) -> Bool {
+        let applicationRoots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            homeDirectoryURL.appendingPathComponent("Applications", isDirectory: true),
+        ]
+
+        for root in applicationRoots {
+            for appName in appNames {
+                let candidatePath = root.appendingPathComponent(appName, isDirectory: true).path
+                if fileManager.fileExists(atPath: candidatePath) {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 
 }

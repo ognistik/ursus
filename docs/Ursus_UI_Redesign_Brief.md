@@ -47,6 +47,16 @@ This should be reflected directly in the UI hierarchy.
 
 Replace the current dashboard-style 4-tab structure with a calmer task-based structure.
 
+### Implemented refinement
+
+The current implementation should use a 3-tab app surface:
+
+- Setup
+- Preferences
+- Advanced
+
+The macOS Settings window may mirror the Preferences screen instead of introducing a separate settings-only hierarchy.
+
 ### Recommended top-level structure
 
 #### 1. Setup
@@ -119,6 +129,7 @@ For local stdio hosts:
 
 For apps not installed:
 - hide them rather than showing warning states
+- practical detection may use known app/config footprints or existing host config presence, as long as irrelevant apps stay out of the main path
 
 Do not show ChatGPT block in the app.
 
@@ -245,6 +256,7 @@ Do this in phases, not one giant rewrite.
 - detect installed host apps and show only relevant ones
 - keep snippets copyable, but not visible by default
 - reduce reveal-config actions to secondary affordances
+- keep the generic local stdio pattern available in underlying support logic if another surface still needs it, but not on the primary app surface
 
 ### Phase 5: polish
 - improve spacing, section rhythm, labels, helper text, and inline status treatment

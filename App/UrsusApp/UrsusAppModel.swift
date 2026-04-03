@@ -367,6 +367,30 @@ final class UrsusAppModel: ObservableObject {
         hostSetupStatusError = nil
     }
 
+    func updateInboxTagsDraft(from tags: [String]) {
+        let normalizedTags = normalizedTags(from: tags)
+        inboxTagsDraft = normalizedTags.joined(separator: ", ")
+        configurationDraftDidChange()
+    }
+
+    func addInboxTags(from rawValue: String) {
+        let additions = normalizedTags(
+            from: rawValue
+                .split(whereSeparator: { $0 == "," || $0 == "\n" })
+                .map(String.init)
+        )
+
+        guard !additions.isEmpty else {
+            return
+        }
+
+        updateInboxTagsDraft(from: parsedInboxTags + additions)
+    }
+
+    func removeInboxTag(_ tag: String) {
+        updateInboxTagsDraft(from: parsedInboxTags.filter { $0.caseInsensitiveCompare(tag) != .orderedSame })
+    }
+
     func loadStoredSelectedNoteToken() {
         if revealsStoredToken {
             hideStoredSelectedNoteToken()
@@ -453,11 +477,20 @@ final class UrsusAppModel: ObservableObject {
         activeBridgeOperation?.progressMessage
     }
 
+    var setupHostSetups: [BearHostAppSetupSnapshot] {
+        dashboard.settings?.hostAppSetups.filter(\.presentInSetup) ?? []
+    }
+
+    var inboxTagValues: [String] {
+        parsedInboxTags
+    }
+
     private var parsedInboxTags: [String] {
-        inboxTagsDraft
-            .split(whereSeparator: { $0 == "," || $0 == "\n" })
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        normalizedTags(
+            from: inboxTagsDraft
+                .split(whereSeparator: { $0 == "," || $0 == "\n" })
+                .map(String.init)
+        )
     }
 
     private func currentConfigurationDraft() -> BearAppConfigurationDraft {
@@ -618,6 +651,27 @@ final class UrsusAppModel: ObservableObject {
         }
 
         return BearBridgePortAllocator.isPortAvailable(host: host, port: port)
+    }
+
+    private func normalizedTags(from tags: [String]) -> [String] {
+        var seen = Set<String>()
+        var normalized: [String] = []
+
+        for tag in tags {
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else {
+                continue
+            }
+
+            let key = trimmed.lowercased()
+            guard seen.insert(key).inserted else {
+                continue
+            }
+
+            normalized.append(trimmed)
+        }
+
+        return normalized
     }
 
     private func reconcilePublicLauncherAutomatically() {

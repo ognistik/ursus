@@ -50,12 +50,12 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 
 ### App
 
-- Overview, Hosts, Configuration, and Token tabs exist.
-- Configuration edits auto-save with validation.
-- Configuration now also includes inline template editing for `~/Library/Application Support/Ursus/template.md`, with open/reveal actions and pre-save slot validation.
-- The app can install or repair the public launcher.
-- The app now also exposes the optional `Remote MCP Bridge` with install, remove, pause, resume, status, copy-URL actions, and an editable saved port control before install.
-- The app still exposes a lot of implementation detail and is ready for simplification.
+- The primary app surface now uses `Setup`, `Preferences`, and `Advanced` tabs instead of the old dashboard-style `Overview` / `Hosts` / `Configuration` / `Token` split.
+- `Setup` is the default landing screen and keeps the main path compact: defaults summary, Bear token, detected local host app setup, and the optional localhost bridge.
+- `Preferences` keeps durable note/template defaults compact, including inline template editing with validation and a chip-style inbox-tags editor.
+- `Advanced` now owns launcher repair, reveal-file/log actions, and tool availability controls so those details stay out of the beginner path.
+- The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume, copy-URL actions, and an editable saved port control.
+- The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
 ### CLI
 
@@ -140,6 +140,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
+- Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
 - Queue labels, logger labels, DB labels, and selected-note callback paths no longer use the old launcher identity.
 - A repo identity gate test now keeps old product strings isolated to the dedicated guard test.
 
@@ -163,8 +164,8 @@ The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has 
 
 Current near-term priorities:
 
-1. Simplify the app UI so the control-center path shows less implementation detail.
-2. Keep the optional localhost HTTP bridge stable while the app surface is simplified.
+1. Validate the calmer setup-first app surface with real-world bridge and host setup repair passes.
+2. Keep the optional localhost HTTP bridge stable while the simplified app surface settles.
 
 ## Verification Baseline
 
@@ -218,6 +219,13 @@ Phase 5 verification that passed on 2026-03-30:
 Phase 6 verification that passed on 2026-03-31:
 
 - `swift test`
+
+Phase 7 verification that passed on 2026-04-03:
+
+- `swift build`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- the app built successfully with the new `Setup` / `Preferences` / `Advanced` surface
+- detected-host filtering kept ChatGPT and the generic stdio example out of the primary app path while preserving bridge and advanced repair controls
 - `swift run ursus doctor`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - repo-internal app containers and product-facing internal type/file names were renamed to Ursus-branded names where they represented the product rather than the Bear integration domain

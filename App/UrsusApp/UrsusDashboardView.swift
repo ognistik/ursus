@@ -2,30 +2,35 @@ import BearApplication
 import BearCore
 import SwiftUI
 
+private enum UrsusDashboardSection: Hashable {
+    case setup
+    case preferences
+    case advanced
+}
+
 struct UrsusDashboardView: View {
     @ObservedObject var model: UrsusAppModel
+    @State private var selectedSection: UrsusDashboardSection = .setup
 
     var body: some View {
-        TabView {
-            UrsusOverviewView(model: model)
+        TabView(selection: $selectedSection) {
+            UrsusSetupView(model: model, selectedSection: $selectedSection)
                 .tabItem {
-                    Label("Overview", systemImage: "rectangle.grid.2x2")
+                    Label("Setup", systemImage: "sparkles.rectangle.stack")
                 }
+                .tag(UrsusDashboardSection.setup)
 
-            UrsusHostsView(model: model)
+            UrsusPreferencesView(model: model, showsStandaloneHeader: false)
                 .tabItem {
-                    Label("Hosts", systemImage: "desktopcomputer")
+                    Label("Preferences", systemImage: "slider.horizontal.3")
                 }
+                .tag(UrsusDashboardSection.preferences)
 
-            UrsusConfigurationView(model: model)
+            UrsusAdvancedView(model: model)
                 .tabItem {
-                    Label("Configuration", systemImage: "slider.horizontal.3")
+                    Label("Advanced", systemImage: "wrench.and.screwdriver")
                 }
-
-            UrsusTokenView(model: model)
-                .tabItem {
-                    Label("Token", systemImage: "key")
-                }
+                .tag(UrsusDashboardSection.advanced)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -37,155 +42,241 @@ struct UrsusDashboardView: View {
     }
 }
 
-private struct UrsusOverviewView: View {
+struct UrsusSettingsView: View {
     @ObservedObject var model: UrsusAppModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                heroSection
-                if let settings = model.dashboard.settings {
-                    cliSection(settings)
-                    bridgeSection(settings.bridge)
-                    pathSection(settings)
+        UrsusPreferencesView(model: model, showsStandaloneHeader: true)
+    }
+}
+
+private struct UrsusSetupView: View {
+    @ObservedObject var model: UrsusAppModel
+    @Binding var selectedSection: UrsusDashboardSection
+
+    var body: some View {
+        UrsusScrollSurface {
+            if let settings = model.dashboard.settings {
+                VStack(alignment: .leading, spacing: 24) {
+                    heroPanel(settings)
+                    defaultsPanel(settings)
+                    tokenPanel(settings)
+                    connectAppsPanel(settings)
+                    bridgePanel(settings.bridge)
                 }
-                diagnosticsSection
+            } else {
+                unavailablePanel(
+                    title: "Setup is unavailable",
+                    detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
+                )
             }
-            .padding(20)
         }
     }
 
-    private var heroSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Ursus")
-                    .font(.system(size: 28, weight: .semibold))
-                Text("One app for diagnostics, configuration, token management, and reusable local MCP setup across many host apps.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+    private func heroPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "Set up Ursus once, come back only when something needs repair.",
+            subtitle: "The main path is simple: review a few defaults, save your Bear token, then connect a local app or enable the optional bridge."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Ursus \(model.versionDescription)")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
 
-                HStack(spacing: 16) {
-                    overviewChip(label: "Version", value: model.versionDescription)
-                    overviewChip(label: "Bundle", value: model.bundleIdentifier)
-                    overviewChip(label: "Generated", value: model.dashboard.generatedAt.formatted(date: .abbreviated, time: .shortened))
+                ForEach(setupSteps(for: settings)) { step in
+                    UrsusChecklistRow(step: step)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    private func cliSection(_ settings: BearAppSettingsSnapshot) -> some View {
-        GroupBox("CLI Setup") {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("If you connect Ursus to Codex, Claude, or another local MCP app, use the one public launcher below. That same path also works from Terminal.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Text("Ursus keeps this launcher aligned with the current app build when the dashboard opens. Manual actions below are just a fallback if you need to repair it.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+    private func defaultsPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "1. Configure defaults",
+            subtitle: "These are the only durable settings most people need to care about up front."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                UrsusInfoRow(label: "Template management", value: settings.templateManagementEnabled ? "On" : "Off")
+                UrsusInfoRow(
+                    label: "Inbox tags",
+                    value: settings.inboxTags.isEmpty ? "None yet" : settings.inboxTags.joined(separator: ", ")
+                )
+                UrsusInfoRow(
+                    label: "New notes",
+                    value: settings.createOpensNoteByDefault ? "Open in Bear by default" : "Stay in the background by default"
+                )
+                UrsusInfoRow(
+                    label: "Default insert",
+                    value: friendlyInsertPosition(settings.defaultInsertPosition)
+                )
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text("Public launcher")
-                            .font(.headline)
-                        statusBadge(title: settings.launcherStatusTitle, status: settings.launcherStatus)
-                    }
-                    Text(settings.launcherPath)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                    Text(settings.launcherStatusDetail)
+                Button("Open Preferences") {
+                    selectedSection = .preferences
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+    }
+
+    private func tokenPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "2. Save Bear token",
+            subtitle: "Ursus stores the token in macOS Keychain and keeps it hidden unless you explicitly reveal it."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(tokenStatusTitle(for: settings))
+                        .font(.headline)
+                    UrsusStatusBadge(
+                        title: settings.selectedNoteTokenConfigured ? "Saved" : "Missing",
+                        status: settings.selectedNoteTokenConfigured ? .configured : .notConfigured
+                    )
+                }
+
+                if let detail = settings.selectedNoteTokenStatusDetail, !settings.selectedNoteTokenConfigured {
+                    Text(detail)
                         .font(.callout)
                         .foregroundStyle(.secondary)
+                }
 
-                    HStack(spacing: 10) {
-                        if let title = launcherPrimaryActionTitle(for: settings) {
-                            Button(title) {
-                                model.installPublicLauncher()
+                if settings.selectedNoteTokenConfigured {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Stored token")
+                            .font(.subheadline.weight(.semibold))
+
+                        if let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                            HStack(spacing: 10) {
+                                Text(displayedToken)
+                                    .font(.body.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+
+                                Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
+                                    model.loadStoredSelectedNoteToken()
+                                }
+                                .buttonStyle(.borderless)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(model.currentBundledCLIPath == nil)
-                        }
+                        } else {
+                            Text("The token is saved, but Ursus could not load it into the app right now.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
 
-                        Button("Copy Launcher Path") {
-                            model.copyLauncherPath()
+                            Button("Try Again") {
+                                model.loadStoredSelectedNoteToken()
+                            }
+                            .buttonStyle(.bordered)
                         }
-                        .buttonStyle(.bordered)
                     }
                 }
 
-                if model.currentBundledCLIPath != nil {
-                    Text("This app installs one launcher at `~/.local/bin/ursus` and routes it to the bundled `ursus` binary inside the current app.")
+                SecureField(
+                    settings.selectedNoteTokenConfigured
+                        ? "Paste a new Bear API token to replace the current one"
+                        : "Paste Bear API token",
+                    text: $model.tokenDraft
+                )
+                .textFieldStyle(.roundedBorder)
+
+                HStack(spacing: 10) {
+                    Button(settings.selectedNoteTokenConfigured ? "Replace Token" : "Save Token") {
+                        model.saveSelectedNoteToken()
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Remove Token", role: .destructive) {
+                        model.removeSelectedNoteToken()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!settings.selectedNoteTokenConfigured)
+                }
+
+                UrsusMessageStack(
+                    success: model.tokenStatusMessage,
+                    warning: nil,
+                    error: model.tokenStatusError
+                )
+            }
+        }
+    }
+
+    private func connectAppsPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "3. Connect an app",
+            subtitle: "Only show the apps that matter on this Mac. Copy the setup snippet if you want Ursus to run as a local stdio MCP server."
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                if let title = launcherPrimaryActionTitle(for: settings) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .firstTextBaseline, spacing: 12) {
+                            Text("Local launcher needs attention")
+                                .font(.headline)
+                            UrsusStatusBadge(title: settings.launcherStatusTitle, status: settings.launcherStatus)
+                        }
+
+                        Text("Repair the launcher before you copy setup into Codex or Claude Desktop.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+
+                        Button(title) {
+                            model.installPublicLauncher()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.currentBundledCLIPath == nil)
+                    }
+
+                    Divider()
+                }
+
+                if model.setupHostSetups.isEmpty {
+                    Text("No supported local host apps were detected. If you need an MCP URL instead of a local launcher, use the bridge below.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("This app build does not include the bundled CLI yet, so launcher actions stay unavailable until the app is rebuilt.")
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                }
+                    ForEach(Array(model.setupHostSetups.enumerated()), id: \.element.id) { index, setup in
+                        UrsusHostSetupRow(model: model, setup: setup)
 
-                if let message = model.cliStatusMessage {
-                    Text(message)
-                        .font(.callout)
-                        .foregroundStyle(.green)
-                }
-
-                if let error = model.cliStatusError {
-                    Text(error)
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                }
-            }
-        }
-    }
-
-    private func pathSection(_ settings: BearAppSettingsSnapshot) -> some View {
-        GroupBox("Paths") {
-            VStack(alignment: .leading, spacing: 12) {
-                pathRow("Config File", settings.configFilePath)
-                pathRow("Template", settings.templatePath)
-                pathRow("Bear Database", settings.databasePath)
-                pathRow("Backups", settings.backupsDirectoryPath)
-                pathRow("Debug Log", settings.debugLogPath)
-            }
-        }
-    }
-
-    private func bridgeSection(_ bridge: BearAppBridgeSnapshot) -> some View {
-        GroupBox("Remote MCP Bridge") {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Use this optional localhost HTTP bridge for apps that only support remote MCP URLs and cannot launch Ursus as a local stdio process.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Bridge status")
-                            .font(.headline)
-                        statusBadge(title: bridge.statusTitle, status: bridge.status)
+                        if index < model.setupHostSetups.count - 1 {
+                            Divider()
+                        }
                     }
+                }
 
+                UrsusMessageStack(
+                    success: model.hostSetupStatusMessage,
+                    warning: nil,
+                    error: model.hostSetupStatusError
+                )
+            }
+        }
+    }
+
+    private func bridgePanel(_ bridge: BearAppBridgeSnapshot) -> some View {
+        UrsusPanel(
+            title: "Optional localhost bridge",
+            subtitle: "Use the bridge only when an app needs an MCP URL instead of launching Ursus locally."
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(bridge.loaded ? "Bridge is running" : bridge.installed ? "Bridge is installed" : "Bridge is off")
+                        .font(.headline)
+                    UrsusStatusBadge(title: bridge.statusTitle, status: bridge.status)
+                }
+
+                if bridge.status != .ok || bridge.status == .configured {
                     Text(bridge.statusDetail)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
 
-                labeledValue("MCP URL", bridge.endpointURL)
-                labeledValue("Bridge host", bridge.host)
-                labeledValue("Bridge port", "\(bridge.port)")
-                labeledValue("Health probe", bridgeHealthSummary(bridge))
-                labeledValue("Launcher", bridge.launcherPath)
-                labeledValue("LaunchAgent", bridge.plistPath)
+                UrsusInfoRow(label: "MCP URL", value: bridge.endpointURL)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Bridge port")
-                        .font(.headline)
-                    Text("This value saves automatically to `config.json`. Set it before installing the bridge, or reinstall/resume it after edits so the running LaunchAgent picks up the new endpoint.")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .font(.subheadline.weight(.semibold))
 
                     Stepper(value: bridgePortBinding, in: 1024...65_535) {
                         HStack {
-                            Text("Bridge port")
+                            Text("Saved port")
                             Spacer()
                             Text("\(model.bridgePortDraft)")
                                 .foregroundStyle(.secondary)
@@ -193,7 +284,7 @@ private struct UrsusOverviewView: View {
                     }
                     .disabled(model.isBridgeOperationInProgress)
 
-                    bridgeValidationMessages(for: .bridgePort)
+                    configurationValidationMessages(for: .bridgePort)
                 }
 
                 HStack(spacing: 10) {
@@ -229,25 +320,8 @@ private struct UrsusOverviewView: View {
                         .disabled(model.isBridgeOperationInProgress)
                     }
 
-                    Button("Copy MCP URL") {
+                    Button("Copy URL") {
                         model.copyBridgeURL()
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                HStack(spacing: 10) {
-                    Button("Reveal LaunchAgent") {
-                        model.reveal(path: bridge.plistPath)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Reveal Stdout Log") {
-                        model.reveal(path: bridge.standardOutputLogPath)
-                    }
-                    .buttonStyle(.bordered)
-
-                    Button("Reveal Stderr Log") {
-                        model.reveal(path: bridge.standardErrorLogPath)
                     }
                     .buttonStyle(.bordered)
                 }
@@ -262,108 +336,21 @@ private struct UrsusOverviewView: View {
                     }
                 }
 
-                if let message = model.bridgeStatusMessage {
-                    Text(message)
-                        .font(.callout)
-                        .foregroundStyle(.green)
-                }
-
-                if let error = model.bridgeStatusError {
-                    Text(error)
-                        .font(.callout)
-                        .foregroundStyle(.red)
-                }
+                UrsusMessageStack(
+                    success: model.bridgeStatusMessage,
+                    warning: nil,
+                    error: model.bridgeStatusError
+                )
             }
         }
     }
 
-    private var diagnosticsSection: some View {
-        GroupBox("Runtime Checks") {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(model.dashboard.diagnostics) { check in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Image(systemName: statusSymbol(for: check.status))
-                                .foregroundStyle(statusColor(for: check.status))
-                            Text(check.key)
-                                .font(.headline)
-                            Spacer(minLength: 12)
-                            Text(check.value)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.trailing)
-                        }
-
-                        if let detail = check.detail {
-                            Text(detail)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .padding(.leading, 28)
-                        }
-                    }
-                    .padding(.vertical, 2)
-                }
-            }
+    @ViewBuilder
+    private func configurationValidationMessages(for field: BearAppConfigurationField) -> some View {
+        let issues = model.configurationIssues(for: field)
+        if !issues.isEmpty {
+            UrsusIssueList(issues: issues)
         }
-    }
-
-    private func overviewChip(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.callout)
-                .textSelection(.enabled)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.secondary.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func pathRow(_ label: String, _ path: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.headline)
-                Spacer()
-                Button("Open") {
-                    model.openFile(path: path)
-                }
-                .buttonStyle(.link)
-                Button("Reveal") {
-                    model.reveal(path: path)
-                }
-                .buttonStyle(.link)
-            }
-
-            Text(path)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-        }
-    }
-
-    private func bridgeHealthSummary(_ bridge: BearAppBridgeSnapshot) -> String {
-        if bridge.endpointProtocolCompatible {
-            return "TCP + MCP initialize OK"
-        }
-
-        if bridge.endpointTransportReachable {
-            return "TCP OK, MCP initialize failed"
-        }
-
-        return "No healthy endpoint detected"
-    }
-
-    private func bridgeAutosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<UrsusAppModel, Value>) -> Binding<Value> {
-        Binding(
-            get: { model[keyPath: keyPath] },
-            set: { newValue in
-                model[keyPath: keyPath] = newValue
-                model.configurationDraftDidChange()
-            }
-        )
     }
 
     private var bridgePortBinding: Binding<Int> {
@@ -373,395 +360,247 @@ private struct UrsusOverviewView: View {
         )
     }
 
-    @ViewBuilder
-    private func bridgeValidationMessages(for field: BearAppConfigurationField) -> some View {
-        let issues = model.configurationIssues(for: field)
-        if !issues.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(issues) { issue in
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .padding(.top, 1)
-                        Text(issue.message)
-                            .font(.caption)
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+    private func setupSteps(for settings: BearAppSettingsSnapshot) -> [UrsusSetupStep] {
+        let tokenStep = UrsusSetupStep(
+            title: "Save token",
+            detail: settings.selectedNoteTokenConfigured
+                ? "Your Bear token is already stored in Keychain."
+                : "Paste a Bear API token so selected-note flows can work.",
+            status: settings.selectedNoteTokenConfigured ? .configured : .notConfigured
+        )
+
+        let hostConfigured = model.setupHostSetups.contains { $0.status == .ok }
+        let hostNeedsAttention = model.setupHostSetups.contains { $0.status == .invalid }
+        let bridgeReady = settings.bridge.loaded
+        let connectionStatus: BearDoctorCheckStatus
+        let connectionDetail: String
+
+        if bridgeReady || hostConfigured {
+            connectionStatus = .configured
+            if bridgeReady && hostConfigured {
+                connectionDetail = "A local host is configured and the bridge is running."
+            } else if bridgeReady {
+                connectionDetail = "The bridge is ready to share an MCP URL."
+            } else {
+                connectionDetail = "A detected local app is already configured."
             }
+        } else if settings.launcherStatus == .missing || settings.launcherStatus == .invalid || settings.bridge.status == .invalid || settings.bridge.status == .failed || hostNeedsAttention {
+            connectionStatus = .invalid
+            connectionDetail = "Repair the launcher, update one app connection, or fix the bridge."
+        } else {
+            connectionStatus = .notConfigured
+            connectionDetail = "Choose one local app to connect, or enable the bridge instead."
         }
+
+        return [
+            UrsusSetupStep(
+                title: "Configure defaults",
+                detail: defaultsSummary(for: settings),
+                status: .configured
+            ),
+            tokenStep,
+            UrsusSetupStep(
+                title: "Connect an app or bridge",
+                detail: connectionDetail,
+                status: connectionStatus
+            ),
+        ]
+    }
+
+    private func defaultsSummary(for settings: BearAppSettingsSnapshot) -> String {
+        let tagSummary = settings.inboxTags.isEmpty ? "no inbox tags" : "\(settings.inboxTags.count) inbox \(settings.inboxTags.count == 1 ? "tag" : "tags")"
+        let templateSummary = settings.templateManagementEnabled ? "template on" : "template off"
+        return "\(templateSummary), \(tagSummary), insert at \(friendlyInsertPosition(settings.defaultInsertPosition).lowercased())."
+    }
+
+    private func tokenStatusTitle(for settings: BearAppSettingsSnapshot) -> String {
+        settings.selectedNoteTokenConfigured ? "Token is saved in Keychain" : "Token is missing"
     }
 }
 
-private struct UrsusHostsView: View {
+private struct UrsusPreferencesView: View {
     @ObservedObject var model: UrsusAppModel
+    let showsStandaloneHeader: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                GroupBox("Host Guidance") {
-                    Text("The app should stay host-agnostic first. Reuse the same stable CLI path and `mcp` argument across whatever local stdio MCP host you use, then keep app-specific snippets as convenience layers rather than hard dependencies.")
-                        .foregroundStyle(.secondary)
-                }
-
-                if let settings = model.dashboard.settings {
-                    GroupBox("Host Apps") {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(settings.hostAppSetups) { setup in
-                                hostCard(setup)
-                            }
-
-                            if let message = model.hostSetupStatusMessage {
-                                Text(message)
-                                    .font(.callout)
-                                    .foregroundStyle(.green)
-                            }
-
-                            if let error = model.hostSetupStatusError {
-                                Text(error)
-                                    .font(.callout)
-                                    .foregroundStyle(.red)
-                            }
+        UrsusScrollSurface {
+            if let settings = model.dashboard.settings {
+                VStack(alignment: .leading, spacing: 24) {
+                    if showsStandaloneHeader {
+                        UrsusPanel(
+                            title: "Preferences",
+                            subtitle: "These settings shape note creation, template behavior, and read-side defaults. Changes save automatically."
+                        ) {
+                            EmptyView()
                         }
                     }
+
+                    behaviorPanel
+                    inboxTagsPanel
+                    templatePanel(settings)
+                    limitsPanel
+
+                    UrsusMessageStack(
+                        success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
+                        warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
+                        error: model.configurationStatusError
+                    )
                 }
+            } else {
+                unavailablePanel(
+                    title: "Preferences are unavailable",
+                    detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
+                )
             }
-            .padding(20)
         }
     }
 
-    private func hostCard(_ setup: BearHostAppSetupSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(setup.appName)
-                    .font(.headline)
-                Spacer(minLength: 12)
-                statusBadge(title: setup.statusTitle, status: setup.status)
+    private var behaviorPanel: some View {
+        UrsusPanel(
+            title: "Note behavior",
+            subtitle: "Keep the main defaults compact and easy to scan."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
+                Divider()
+                Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
+                Divider()
+                Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Default insert position")
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
+                        Text("Top").tag(BearConfiguration.InsertDefault.top)
+                        Text("Bottom").tag(BearConfiguration.InsertDefault.bottom)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tags merge mode")
+                        .font(.subheadline.weight(.semibold))
+
+                    Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
+                        Text("Append").tag(BearConfiguration.TagsMergeMode.append)
+                        Text("Replace").tag(BearConfiguration.TagsMergeMode.replace)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
             }
+        }
+    }
 
-            if let configPath = setup.configPath {
-                labeledValue("Config Path", configPath)
+    private var inboxTagsPanel: some View {
+        UrsusPanel(
+            title: "Inbox tags",
+            subtitle: "Use tags here when you want new notes to start with a predictable inbox bucket."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                UrsusTagEditor(
+                    tags: model.inboxTagValues,
+                    onAdd: model.addInboxTags(from:),
+                    onRemove: model.removeInboxTag(_:)
+                )
+
+                configurationValidationMessages(for: .inboxTags)
             }
+        }
+    }
 
-            Text(setup.detail)
-                .font(.callout)
-                .foregroundStyle(.secondary)
+    private func templatePanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "Template",
+            subtitle: "Keep template editing in the app, but only surface it when template management is turned on."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Enable template management", isOn: autosavingBinding(\.templateManagementEnabledDraft))
 
-            DisclosureGroup("Show setup details") {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let configPath = setup.configPath {
-                        labeledValue("Config Path", configPath)
+                if model.templateManagementEnabledDraft {
+                    Text("Required slots: `{{content}}` and `{{tags}}`.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: Binding(
+                        get: { model.templateDraft },
+                        set: { newValue in
+                            model.templateDraft = newValue
+                            model.templateDraftDidChange()
+                        }
+                    ))
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 220)
+                    .padding(10)
+                    .background(UrsusPanelBackground())
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    templateValidationMessages
+
+                    HStack(spacing: 10) {
+                        Button("Save Template") {
+                            model.saveTemplate()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
+
+                        Button("Revert Changes") {
+                            model.revertTemplateDraft()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!model.templateHasUnsavedChanges)
                     }
 
-                    if let mergeNote = setup.mergeNote {
-                        Text(mergeNote)
+                    if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
+                        Text("Unsaved changes stay in the app until you save.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
 
-                    HStack(spacing: 10) {
-                        if setup.snippet != nil {
-                            Button("Copy Snippet") {
-                                model.copyHostSetupSnippet(setup)
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-
-                        if let configPath = setup.configPath {
-                            Button("Reveal Config") {
-                                model.reveal(path: configPath)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-
-                    if let snippet = setup.snippet {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(setup.snippetTitle ?? "Setup Snippet")
-                                .font(.headline)
-                            Text(snippet)
-                                .font(.system(.body, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(12)
-                                .background(Color.secondary.opacity(0.08))
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-
-                    if !setup.checks.isEmpty {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Guided Checks")
-                                .font(.headline)
-
-                            ForEach(setup.checks, id: \.self) { check in
-                                HStack(alignment: .top, spacing: 8) {
-                                    Image(systemName: "checkmark.circle")
-                                        .foregroundStyle(.secondary)
-                                        .padding(.top, 2)
-                                    Text(check)
-                                        .font(.callout)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(14)
-        .background(Color.secondary.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-    }
-}
-
-struct UrsusSettingsView: View {
-    @ObservedObject var model: UrsusAppModel
-
-    var body: some View {
-        UrsusConfigurationView(model: model)
-    }
-}
-
-private struct UrsusConfigurationView: View {
-    @ObservedObject var model: UrsusAppModel
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let settings = model.dashboard.settings {
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Configuration")
-                                .font(.title3.weight(.semibold))
-                            Text("Changes save automatically. Ursus keeps the JSON file in sync for you and shows inline issues before anything invalid is written.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-
-                    GroupBox("Live Configuration") {
-                        Form {
-                            Section("Core") {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    TextField(
-                                        "Bear database path",
-                                        text: Binding(
-                                            get: { model.databasePathDraft },
-                                            set: { model.updateDatabasePathDraft($0) }
-                                        )
-                                    )
-                                    validationMessages(for: .databasePath)
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    TextField("Inbox tags (comma or newline separated)", text: autosavingBinding(\.inboxTagsDraft), axis: .vertical)
-                                        .lineLimit(2...4)
-                                    validationMessages(for: .inboxTags)
-                                }
-
-                                Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
-                                    Text("Top").tag(BearConfiguration.InsertDefault.top)
-                                    Text("Bottom").tag(BearConfiguration.InsertDefault.bottom)
-                                }
-
-                                Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
-                                    Text("Append").tag(BearConfiguration.TagsMergeMode.append)
-                                    Text("Replace").tag(BearConfiguration.TagsMergeMode.replace)
-                                }
-                            }
-
-                            Section("Defaults") {
-                                Toggle("Template management enabled", isOn: autosavingBinding(\.templateManagementEnabledDraft))
-                                Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
-                                Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
-                                Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
-                            }
-
-                            Section("Limits") {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Stepper(value: autosavingBinding(\.defaultDiscoveryLimitDraft), in: 1...500) {
-                                        labeledNumber("Default discovery limit", model.defaultDiscoveryLimitDraft)
-                                    }
-                                    validationMessages(for: .defaultDiscoveryLimit)
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Stepper(value: autosavingBinding(\.defaultSnippetLengthDraft), in: 1...2_000) {
-                                        labeledNumber("Default snippet length", model.defaultSnippetLengthDraft)
-                                    }
-                                    validationMessages(for: .defaultSnippetLength)
-                                }
-
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Stepper(value: autosavingBinding(\.backupRetentionDaysDraft), in: 0...365) {
-                                        labeledNumber("Backup retention days", model.backupRetentionDaysDraft)
-                                    }
-                                    validationMessages(for: .backupRetentionDays)
-                                }
-                            }
-
-                            Section("Tool Availability") {
-                                Text("Some host apps do not let users hide tools. Use these toggles to control the MCP tool catalog directly inside Ursus.")
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-
-                                ForEach(BearToolCategory.allCases, id: \.self) { category in
-                                    let tools = settings.toolToggles.filter { $0.category == category }
-                                    if !tools.isEmpty {
-                                        VStack(alignment: .leading, spacing: 10) {
-                                            Text(category.title)
-                                                .font(.headline)
-
-                                            ForEach(tools) { tool in
-                                                Toggle(isOn: Binding(
-                                                    get: { model.isToolEnabledInDraft(tool.tool) },
-                                                    set: { model.setToolEnabledInDraft(tool.tool, enabled: $0) }
-                                                )) {
-                                                    VStack(alignment: .leading, spacing: 2) {
-                                                        Text(tool.title)
-                                                        Text(tool.summary)
-                                                            .font(.callout)
-                                                            .foregroundStyle(.secondary)
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .padding(.vertical, 4)
-                                    }
-                                }
-                            }
-                        }
-                        .formStyle(.grouped)
-                    }
-
-                    HStack(spacing: 10) {
-                        Button("Reveal Configuration") {
-                            model.reveal(path: settings.configFilePath)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    GroupBox("Template") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Edit the live `template.md` file here. This template is only the note body that appears below Bear's title line.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-
-                            labeledValue("Template Path", settings.templatePath)
-
-                            HStack(spacing: 10) {
-                                Button("Open Template") {
-                                    model.openFile(path: settings.templatePath)
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("Reveal Template") {
-                                    model.reveal(path: settings.templatePath)
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            Text("Required: `{{content}}`, `{{tags}}`.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-
-                            Text("Keep any spacing you want inside the template itself. Leading or trailing blank lines outside the template are trimmed.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-
-                            TextEditor(text: Binding(
-                                get: { model.templateDraft },
-                                set: { newValue in
-                                    model.templateDraft = newValue
-                                    model.templateDraftDidChange()
-                                }
-                            ))
-                            .font(.system(.body, design: .monospaced))
-                            .frame(minHeight: 220)
-                            .padding(8)
-                            .background(Color.secondary.opacity(0.06))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                            templateValidationMessages
-
-                            HStack(spacing: 10) {
-                                Button("Save Template") {
-                                    model.saveTemplate()
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
-
-                                Button("Revert Changes") {
-                                    model.revertTemplateDraft()
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(!model.templateHasUnsavedChanges)
-                            }
-
-                            if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
-                                Text("Unsaved changes are only in this app until you save.")
-                                    .font(.callout)
-                                    .foregroundStyle(.orange)
-                            }
-
-                            if let message = model.templateStatusMessage {
-                                Text(message)
-                                    .font(.callout)
-                                    .foregroundStyle(model.templateValidation.warnings.isEmpty ? .green : .orange)
-                            }
-
-                            if let error = model.templateStatusError {
-                                Text(error)
-                                    .font(.callout)
-                                    .foregroundStyle(.red)
-                            }
-                        }
-                    }
-
-                    if let message = model.configurationStatusMessage {
-                        Text(message)
-                            .font(.callout)
-                            .foregroundStyle(model.configurationValidation.warnings.isEmpty ? .green : .orange)
-                    }
-
-                    if let error = model.configurationStatusError {
-                        Text(error)
-                            .font(.callout)
-                            .foregroundStyle(.red)
-                    }
+                    UrsusMessageStack(
+                        success: model.templateValidation.warnings.isEmpty ? model.templateStatusMessage : nil,
+                        warning: model.templateValidation.warnings.isEmpty ? nil : model.templateStatusMessage,
+                        error: model.templateStatusError
+                    )
                 } else {
-                    unavailableSection
-                }
-            }
-            .padding(20)
-        }
-    }
-
-    private var unavailableSection: some View {
-        GroupBox("Configuration") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(model.dashboard.settingsError ?? "Settings are unavailable.")
-                    .foregroundStyle(.secondary)
-                Button("Reload") {
-                    model.reload()
+                    Text("Template editing is hidden while template management is off.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
     }
 
-    private func labeledNumber(_ label: String, _ value: Int) -> some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Text("\(value)")
-                .foregroundStyle(.secondary)
+    private var limitsPanel: some View {
+        UrsusPanel(
+            title: "Limits",
+            subtitle: "Keep the advanced defaults in one quiet place instead of mixing them into the main setup flow."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Stepper(value: autosavingBinding(\.defaultDiscoveryLimitDraft), in: 1...500) {
+                        UrsusNumberRow(label: "Default discovery limit", value: model.defaultDiscoveryLimitDraft)
+                    }
+                    configurationValidationMessages(for: .defaultDiscoveryLimit)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Stepper(value: autosavingBinding(\.defaultSnippetLengthDraft), in: 1...2_000) {
+                        UrsusNumberRow(label: "Default snippet length", value: model.defaultSnippetLengthDraft)
+                    }
+                    configurationValidationMessages(for: .defaultSnippetLength)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Stepper(value: autosavingBinding(\.backupRetentionDaysDraft), in: 0...365) {
+                        UrsusNumberRow(label: "Backup retention days", value: model.backupRetentionDaysDraft)
+                    }
+                    configurationValidationMessages(for: .backupRetentionDays)
+                }
+            }
         }
     }
 
@@ -778,148 +617,477 @@ private struct UrsusConfigurationView: View {
     @ViewBuilder
     private var templateValidationMessages: some View {
         if !model.templateValidation.issues.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(model.templateValidation.issues) { issue in
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .padding(.top, 1)
-                        Text(issue.message)
-                            .font(.caption)
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
+            UrsusIssueList(issues: model.templateValidation.issues)
         }
     }
 
     @ViewBuilder
-    private func validationMessages(for field: BearAppConfigurationField) -> some View {
+    private func configurationValidationMessages(for field: BearAppConfigurationField) -> some View {
         let issues = model.configurationIssues(for: field)
         if !issues.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(issues) { issue in
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: issue.severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .padding(.top, 1)
-                        Text(issue.message)
-                            .font(.caption)
-                            .foregroundStyle(issue.severity == .error ? .red : .orange)
-                            .fixedSize(horizontal: false, vertical: true)
+            UrsusIssueList(issues: issues)
+        }
+    }
+}
+
+private struct UrsusAdvancedView: View {
+    @ObservedObject var model: UrsusAppModel
+
+    var body: some View {
+        UrsusScrollSurface {
+            if let settings = model.dashboard.settings {
+                VStack(alignment: .leading, spacing: 24) {
+                    launcherPanel(settings)
+                    filesPanel(settings)
+                    toolAvailabilityPanel(settings)
+                }
+            } else {
+                unavailablePanel(
+                    title: "Advanced settings are unavailable",
+                    detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
+                )
+            }
+        }
+    }
+
+    private func launcherPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "Repair and launcher",
+            subtitle: "Keep the deeper repair controls out of the main setup path."
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text("Local launcher")
+                        .font(.headline)
+                    UrsusStatusBadge(title: settings.launcherStatusTitle, status: settings.launcherStatus)
+                }
+
+                Text(settings.launcherStatusDetail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                UrsusInfoRow(label: "Launcher path", value: settings.launcherPath)
+
+                HStack(spacing: 10) {
+                    if let actionTitle = launcherPrimaryActionTitle(for: settings) {
+                        Button(actionTitle) {
+                            model.installPublicLauncher()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.currentBundledCLIPath == nil)
+                    }
+
+                    Button("Copy Path") {
+                        model.copyLauncherPath()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                UrsusMessageStack(
+                    success: model.cliStatusMessage,
+                    warning: nil,
+                    error: model.cliStatusError
+                )
+            }
+        }
+    }
+
+    private func filesPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "Files and logs",
+            subtitle: "Reveal support files only when you need to inspect or repair something directly."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Button("Reveal Configuration") {
+                        model.reveal(path: settings.configFilePath)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Reveal Template") {
+                        model.reveal(path: settings.templatePath)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Reveal Debug Log") {
+                        model.reveal(path: settings.debugLogPath)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                if settings.bridge.installed || settings.bridge.status == .invalid || settings.bridge.status == .failed {
+                    HStack(spacing: 10) {
+                        Button("Reveal LaunchAgent") {
+                            model.reveal(path: settings.bridge.plistPath)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Reveal Bridge Stdout") {
+                            model.reveal(path: settings.bridge.standardOutputLogPath)
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Reveal Bridge Stderr") {
+                            model.reveal(path: settings.bridge.standardErrorLogPath)
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }
         }
     }
-}
 
-private struct UrsusTokenView: View {
-    @ObservedObject var model: UrsusAppModel
+    private func toolAvailabilityPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(
+            title: "Tool availability",
+            subtitle: "Keep host-control toggles available, but out of the beginner flow."
+        ) {
+            VStack(alignment: .leading, spacing: 18) {
+                ForEach(BearToolCategory.allCases, id: \.self) { category in
+                    let tools = settings.toolToggles.filter { $0.category == category }
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let settings = model.dashboard.settings {
-                    GroupBox("Bear Token") {
-                        VStack(alignment: .leading, spacing: 12) {
-                            labeledValue("Current Status", settings.selectedNoteTokenStorageDescription)
+                    if !tools.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(category.title)
+                                .font(.headline)
 
-                            if let detail = settings.selectedNoteTokenStatusDetail {
-                                Text(detail)
-                                    .font(.callout)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if settings.selectedNoteTokenConfigured {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    Text("Stored Token")
-                                        .font(.headline)
-
-                                    if let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
-                                        HStack(spacing: 10) {
-                                            Text(displayedToken)
-                                                .font(.body.monospaced())
-                                                .foregroundStyle(.secondary)
-                                                .textSelection(.enabled)
-
-                                            Button(model.revealsStoredToken ? "Hide" : "Show", systemImage: model.revealsStoredToken ? "eye.slash" : "eye") {
-                                                model.loadStoredSelectedNoteToken()
-                                            }
-                                            .buttonStyle(.borderless)
-                                        }
-                                    } else {
-                                        Text("Token is configured but could not be loaded from macOS Keychain right now.")
+                            ForEach(tools) { tool in
+                                Toggle(isOn: Binding(
+                                    get: { model.isToolEnabledInDraft(tool.tool) },
+                                    set: { model.setToolEnabledInDraft(tool.tool, enabled: $0) }
+                                )) {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(tool.title)
+                                        Text(tool.summary)
                                             .font(.callout)
                                             .foregroundStyle(.secondary)
-
-                                        Button("Try Again") {
-                                            model.loadStoredSelectedNoteToken()
-                                        }
-                                        .buttonStyle(.bordered)
                                     }
                                 }
-                            }
-
-                            SecureField(settings.selectedNoteTokenConfigured ? "Paste a new Bear API token to replace the current one" : "Paste Bear API token", text: $model.tokenDraft)
-                                .textFieldStyle(.roundedBorder)
-
-                            Text("Save stores the token in macOS Keychain. Ursus keeps it hidden by default and only loads it into the dashboard when you explicitly reveal it.")
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-
-                            HStack(spacing: 10) {
-                                Button("Save Token") {
-                                    model.saveSelectedNoteToken()
-                                }
-                                .buttonStyle(.borderedProminent)
-
-                                Button("Remove Token", role: .destructive) {
-                                    model.removeSelectedNoteToken()
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(!settings.selectedNoteTokenConfigured)
-                            }
-
-                            if let message = model.tokenStatusMessage {
-                                Text(message)
-                                    .font(.callout)
-                                    .foregroundStyle(.green)
-                            }
-
-                            if let error = model.tokenStatusError {
-                                Text(error)
-                                    .font(.callout)
-                                    .foregroundStyle(.red)
                             }
                         }
                     }
                 }
+
+                UrsusMessageStack(
+                    success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
+                    warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
+                    error: model.configurationStatusError
+                )
             }
-            .padding(20)
         }
     }
 }
 
-private func labeledValue(_ label: String, _ value: String) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-        Text(label)
-            .font(.headline)
-        Text(value)
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
+private struct UrsusHostSetupRow: View {
+    @ObservedObject var model: UrsusAppModel
+    let setup: BearHostAppSetupSnapshot
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(setup.appName)
+                    .font(.headline)
+                UrsusStatusBadge(title: setup.statusTitle, status: setup.status)
+            }
+
+            Text(setup.detail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 10) {
+                if setup.snippet != nil {
+                    Button("Copy Setup") {
+                        model.copyHostSetupSnippet(setup)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                if let configPath = setup.configPath {
+                    Button("Reveal Config") {
+                        model.reveal(path: configPath)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
     }
 }
 
-private func statusBadge(title: String, status: BearDoctorCheckStatus) -> some View {
-    Text(title)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(statusColor(for: status).opacity(0.14))
-        .foregroundStyle(statusColor(for: status))
-        .clipShape(Capsule())
+private struct UrsusChecklistRow: View {
+    let step: UrsusSetupStep
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: statusSymbol(for: step.status))
+                .foregroundStyle(statusColor(for: step.status))
+                .font(.system(size: 15, weight: .semibold))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(step.title)
+                    .font(.headline)
+
+                Text(step.detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 12)
+
+            UrsusStatusBadge(title: compactStatusTitle(for: step.status), status: step.status)
+        }
+    }
+}
+
+private struct UrsusScrollSurface<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                content
+            }
+            .frame(maxWidth: 860, alignment: .leading)
+            .padding(28)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+    }
+}
+
+private struct UrsusPanel<Content: View>: View {
+    let title: String
+    let subtitle: String?
+    @ViewBuilder let content: Content
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .tracking(-0.2)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            content
+        }
+        .padding(22)
+        .background(UrsusPanelBackground())
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+private struct UrsusPanelBackground: ShapeStyle {
+    func resolve(in environment: EnvironmentValues) -> some ShapeStyle {
+        Color.secondary.opacity(environment.colorScheme == .dark ? 0.12 : 0.06)
+    }
+}
+
+private struct UrsusInfoRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.subheadline.weight(.semibold))
+            Text(value)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+private struct UrsusNumberRow: View {
+    let label: String
+    let value: Int
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text("\(value)")
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct UrsusStatusBadge: View {
+    let title: String
+    let status: BearDoctorCheckStatus
+
+    var body: some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(statusColor(for: status).opacity(0.12))
+            .foregroundStyle(statusColor(for: status))
+            .clipShape(RoundedRectangle(cornerRadius: 999, style: .continuous))
+    }
+}
+
+private struct UrsusIssueList<Issue: Identifiable>: View where Issue: UrsusIssuePresentable {
+    let issues: [Issue]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(issues) { issue in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: issue.ursusSeverity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .foregroundStyle(issue.ursusSeverity == .error ? .red : .orange)
+                        .padding(.top, 1)
+
+                    Text(issue.ursusMessage)
+                        .font(.caption)
+                        .foregroundStyle(issue.ursusSeverity == .error ? .red : .orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+}
+
+private struct UrsusMessageStack: View {
+    let success: String?
+    let warning: String?
+    let error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let success {
+                Text(success)
+                    .font(.callout)
+                    .foregroundStyle(.green)
+            }
+
+            if let warning, warning != success {
+                Text(warning)
+                    .font(.callout)
+                    .foregroundStyle(.orange)
+            }
+
+            if let error {
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+}
+
+private struct UrsusTagEditor: View {
+    let tags: [String]
+    let onAdd: (String) -> Void
+    let onRemove: (String) -> Void
+
+    @State private var draft = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if tags.isEmpty {
+                Text("No inbox tags yet.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], alignment: .leading, spacing: 8) {
+                    ForEach(tags, id: \.self) { tag in
+                        Button {
+                            onRemove(tag)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(tag)
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                                Image(systemName: "xmark")
+                                    .font(.caption.weight(.bold))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.secondary.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                TextField("Add a tag or paste a comma-separated list", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(addDraft)
+
+                Button("Add") {
+                    addDraft()
+                }
+                .buttonStyle(.bordered)
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    private func addDraft() {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return
+        }
+
+        onAdd(trimmed)
+        draft = ""
+    }
+}
+
+private struct UrsusSetupStep: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String
+    let status: BearDoctorCheckStatus
+}
+
+private protocol UrsusIssuePresentable {
+    var ursusSeverity: BearAppConfigurationIssueSeverity { get }
+    var ursusMessage: String { get }
+}
+
+extension BearAppConfigurationIssue: UrsusIssuePresentable {
+    fileprivate var ursusSeverity: BearAppConfigurationIssueSeverity { severity }
+    fileprivate var ursusMessage: String { message }
+}
+
+extension BearTemplateValidationIssue: UrsusIssuePresentable {
+    fileprivate var ursusSeverity: BearAppConfigurationIssueSeverity {
+        severity == .error ? .error : .warning
+    }
+
+    fileprivate var ursusMessage: String { message }
+}
+
+@ViewBuilder
+private func unavailablePanel(title: String, detail: String) -> some View {
+    UrsusPanel(title: title, subtitle: detail) {
+        EmptyView()
+    }
 }
 
 private func launcherPrimaryActionTitle(for settings: BearAppSettingsSnapshot) -> String? {
@@ -944,6 +1112,26 @@ private func bridgePrimaryActionTitle(for bridge: BearAppBridgeSnapshot) -> Stri
     }
 }
 
+private func friendlyInsertPosition(_ rawValue: String) -> String {
+    switch rawValue {
+    case BearConfiguration.InsertDefault.top.rawValue:
+        return "Top"
+    default:
+        return "Bottom"
+    }
+}
+
+private func compactStatusTitle(for status: BearDoctorCheckStatus) -> String {
+    switch status {
+    case .ok, .configured:
+        return "Ready"
+    case .missing, .notConfigured:
+        return "Needs setup"
+    case .invalid, .failed:
+        return "Attention"
+    }
+}
+
 private func statusSymbol(for status: BearDoctorCheckStatus) -> String {
     switch status {
     case .ok, .configured:
@@ -965,6 +1153,7 @@ private func statusColor(for status: BearDoctorCheckStatus) -> Color {
         return .red
     }
 }
+
 #Preview {
     UrsusDashboardView(model: UrsusAppModel())
 }
