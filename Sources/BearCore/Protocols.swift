@@ -16,7 +16,6 @@ public extension BearReadStore {
 }
 
 public protocol BearWriteTransport: Sendable {
-    func resolveSelectedNoteIDUsingInstalledApp() async throws -> String?
     func resolveSelectedNoteID(token: String) async throws -> String
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt
     func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt
@@ -31,8 +30,6 @@ public protocol BearWriteTransport: Sendable {
 }
 
 public extension BearWriteTransport {
-    func resolveSelectedNoteIDUsingInstalledApp() async throws -> String? { nil }
-
     func trash(noteID: String) async throws -> MutationReceipt {
         throw BearError.unsupported("Bear trash mutations are not available through this write transport.")
     }

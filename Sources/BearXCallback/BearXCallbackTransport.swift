@@ -9,7 +9,6 @@ public actor BearXCallbackTransport: BearWriteTransport {
     private let urlOpener: @Sendable (URL, Bool) async throws -> Void
     private let selectedNoteResolveTimeout: Duration
     private let selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)?
-    private let callbackAppInstalledProvider: @Sendable () -> Bool
     private let helperInstalledProvider: @Sendable () -> Bool
 
     public init(
@@ -18,14 +17,12 @@ public actor BearXCallbackTransport: BearWriteTransport {
         urlOpener: (@Sendable (URL) async throws -> Void)? = nil,
         selectedNoteResolveTimeout: Duration = .seconds(4),
         selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil,
-        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { UrsusAppLocator.installedAppBundleURL() != nil },
         helperInstalledProvider: @escaping @Sendable () -> Bool = { BearSelectedNoteHelperLocator.installedAppBundleURL() != nil }
     ) {
         self.builder = builder
         self.readStore = readStore
         self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
         self.selectedNoteResolver = selectedNoteResolver
-        self.callbackAppInstalledProvider = callbackAppInstalledProvider
         self.helperInstalledProvider = helperInstalledProvider
         if let urlOpener {
             self.urlOpener = { url, _ in
@@ -42,7 +39,6 @@ public actor BearXCallbackTransport: BearWriteTransport {
         urlOpenerWithActivation: @escaping @Sendable (URL, Bool) async throws -> Void,
         selectedNoteResolveTimeout: Duration = .seconds(4),
         selectedNoteResolver: (@Sendable (URL, Duration) async throws -> String)? = nil,
-        callbackAppInstalledProvider: @escaping @Sendable () -> Bool = { UrsusAppLocator.installedAppBundleURL() != nil },
         helperInstalledProvider: @escaping @Sendable () -> Bool = { BearSelectedNoteHelperLocator.installedAppBundleURL() != nil }
     ) {
         self.builder = builder
@@ -50,34 +46,13 @@ public actor BearXCallbackTransport: BearWriteTransport {
         self.urlOpener = urlOpenerWithActivation
         self.selectedNoteResolveTimeout = selectedNoteResolveTimeout
         self.selectedNoteResolver = selectedNoteResolver
-        self.callbackAppInstalledProvider = callbackAppInstalledProvider
         self.helperInstalledProvider = helperInstalledProvider
     }
 
     public func resolveSelectedNoteID(token: String) async throws -> String {
         let url = try builder.resolveSelectedNoteURL(token: token)
-        let callbackAppInstalled = callbackAppInstalledProvider()
         let helperInstalled = helperInstalledProvider()
-        BearDebugLog.append("xcallback.resolve-selected-note callbackAppInstalled=\(callbackAppInstalled) helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
-
-        if let selectedNoteResolver {
-            return try await selectedNoteResolver(url, selectedNoteResolveTimeout)
-        }
-
-        return try await BearSelectedNoteHelperRunner.resolveSelectedNoteID(
-            bearURL: url,
-            timeout: selectedNoteResolveTimeout
-        )
-    }
-
-    public func resolveSelectedNoteIDUsingInstalledApp() async throws -> String? {
-        guard callbackAppInstalledProvider() else {
-            return nil
-        }
-
-        let url = try builder.resolveSelectedNoteURL()
-        let helperInstalled = helperInstalledProvider()
-        BearDebugLog.append("xcallback.resolve-selected-note host=managed-helper helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
+        BearDebugLog.append("xcallback.resolve-selected-note helperInstalled=\(helperInstalled) \(debugDescription(for: url))")
 
         if let selectedNoteResolver {
             return try await selectedNoteResolver(url, selectedNoteResolveTimeout)

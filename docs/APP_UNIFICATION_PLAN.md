@@ -33,7 +33,7 @@ These slices are already in place:
 - The app owns the bundled launch path at `Contents/MacOS/Ursus`, and the public launcher can install / repair itself to forward into that executable with a hidden `--ursus-cli` entry flag.
 - The public launcher now lives at `~/.local/bin/ursus`.
 - Host setup snippets now recommend `ursus` consistently for Codex and Claude Desktop.
-- Selected-note resolution prefers the installed app path and preserves the response-file contract.
+- Selected-note resolution continues to use the token-backed Bear callback flow and preserves the response-file contract.
 - The CLI direct utility surface now includes `--new-note` override flags for title, tags, replace/open/window behavior, plus `--backup-note`, `--restore-note`, and `--apply-template`.
 - Current status/build/helper docs are aligned to the shipped Ursus identity, and automated identity-gate tests now protect those current-truth surfaces from drifting back toward prerelease product wording.
 
