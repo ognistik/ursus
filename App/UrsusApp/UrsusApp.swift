@@ -9,16 +9,8 @@ struct UrsusApp: App {
     var body: some Scene {
         WindowGroup {
             UrsusDashboardView(model: model)
-                .frame(
-                    minWidth: 720,
-                    idealWidth: 760,
-                    maxWidth: 860,
-                    minHeight: 560,
-                    idealHeight: 640,
-                    maxHeight: 820
-                )
+                .frame(width: 720, height: 620)
         }
-        .defaultSize(width: 760, height: 640)
         .windowResizability(.contentSize)
 
         Settings {
