@@ -581,23 +581,23 @@ final class UrsusAppModel: ObservableObject {
                 result = .failure(error)
             }
 
-            await MainActor.run {
-                guard let self else {
-                    return
-                }
-
-                self.activeBridgeOperation = nil
-                self.reload()
-
-                switch result {
-                case .success(let message):
-                    self.bridgeStatusMessage = message
-                    self.bridgeStatusError = nil
-                case .failure(let error):
-                    self.bridgeStatusMessage = nil
-                    self.bridgeStatusError = self.localizedMessage(for: error)
-                }
+            await MainActor.run { [weak self, result] in
+                self?.completeBridgeOperation(with: result)
             }
+        }
+    }
+
+    private func completeBridgeOperation(with result: Result<String, Error>) {
+        activeBridgeOperation = nil
+        reload()
+
+        switch result {
+        case .success(let message):
+            bridgeStatusMessage = message
+            bridgeStatusError = nil
+        case .failure(let error):
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
         }
     }
 

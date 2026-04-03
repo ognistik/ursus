@@ -152,6 +152,10 @@ Remove from main surface:
 
 If bridge has an error, then show concise inline troubleshooting with one action.
 
+Polish refinement:
+- prefer one short recovery strip with a single primary action over exposing raw protocol-health detail
+- only the setup hero or true attention states should feel elevated; ordinary bridge controls can live in calmer section spacing
+
 ## Preferences screen behavior
 
 ### Template
@@ -262,6 +266,11 @@ Do this in phases, not one giant rewrite.
 - improve spacing, section rhythm, labels, helper text, and inline status treatment
 - reduce colored noise
 - use fewer boxes and more visual breathing room
+
+Refinement note from implementation:
+- use one prominent setup intro surface, then prefer divider-led sections over repeated cards
+- keep status badges calm and state-based (`Ready`, `Set up`, `Needs attention`) instead of surfacing internal wording everywhere
+- keep Preferences and Advanced visually quieter than Setup, while preserving all existing controls
 
 ## Files and areas to inspect first
 
