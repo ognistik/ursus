@@ -58,7 +58,7 @@ private struct UrsusSetupView: View {
     var body: some View {
         UrsusScrollSurface {
             if let settings = model.dashboard.settings {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     heroPanel(settings)
                     Divider()
                     defaultsPanel(settings)
@@ -81,27 +81,33 @@ private struct UrsusSetupView: View {
     }
 
     private func heroPanel(_ settings: BearAppSettingsSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
+        let steps = setupSteps(for: settings)
+        return VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Ursus")
-                    .font(.system(size: 30, weight: .semibold))
-                    .tracking(-0.7)
+                    .font(.system(size: 34, weight: .black))
+                    .tracking(-2.0)
 
                 Text("Local MCP and utilities for Bear")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(setupSteps(for: settings)) { step in
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
                     UrsusChecklistRow(step: step)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    if index < steps.count - 1 {
+                        Divider()
+                            .padding(.leading, 42)
+                    }
                 }
             }
-            .padding(16)
             .background(UrsusPanelBackground(style: .subtle))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color.primary.opacity(0.06), lineWidth: 1)
             )
         }
@@ -278,15 +284,16 @@ private struct UrsusSetupView: View {
 
         return UrsusPanel(title: "Remote MCP bridge") {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
-                    Text(bridgeHeadline(for: bridge))
-                        .font(.headline)
+                HStack(alignment: .center, spacing: 8) {
                     UrsusStatusBadge(title: compactStatusTitle(for: bridge.status), status: bridge.status)
+                    Text(bridgeHeadline(for: bridge))
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.primary)
                 }
 
                 Text(bridgeSummary(for: settings))
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
 
                 if let recoveryAction = bridgeRecoveryAction(for: settings) {
                     UrsusInlineNotice(
@@ -302,7 +309,7 @@ private struct UrsusSetupView: View {
                     }
                 }
 
-                UrsusInfoRow(label: "MCP URL", value: bridge.endpointURL, compact: true)
+                UrsusInfoRow(label: "MCP URL", value: bridge.endpointURL, compact: true, monospaced: true)
 
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
@@ -837,17 +844,17 @@ private struct UrsusChecklistRow: View {
     let step: UrsusSetupStep
 
     var body: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 10) {
             Image(systemName: statusSymbol(for: step.status))
                 .foregroundStyle(statusPalette(for: step.status).foreground)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
+                .frame(width: 16, alignment: .center)
 
             Text(step.title)
-                .font(.subheadline.weight(.medium))
-
-            Spacer(minLength: 12)
-
-            UrsusStatusBadge(title: compactStatusTitle(for: step.status), status: step.status)
+                .font(.subheadline)
+                .foregroundStyle(
+                    step.status == .configured || step.status == .ok ? Color.primary : Color.secondary
+                )
         }
     }
 }
@@ -909,12 +916,14 @@ private struct UrsusPanel<Content: View>: View {
     }
 
     var body: some View {
-        let stack = VStack(alignment: .leading, spacing: 14) {
+        let stack = VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(surface == .prominent ? .title2.weight(.semibold) : .title3.weight(.semibold))
-                        .tracking(surface == .prominent ? -0.4 : -0.2)
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
 
                     if let subtitle {
                         Text(subtitle)
@@ -982,15 +991,15 @@ private struct UrsusScreenHeader: View {
     var subtitle: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.title2.weight(.semibold))
-                .tracking(-0.4)
+                .font(.system(.title2, design: .default).weight(.black))
+                .tracking(-1.0)
 
             if let subtitle {
                 Text(subtitle)
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1001,23 +1010,28 @@ private struct UrsusInfoRow: View {
     let label: String
     let value: String
     var compact = false
+    var monospaced = false
 
     var body: some View {
         if compact {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(label)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
                 Spacer(minLength: 12)
                 Text(value)
+                    .font(monospaced ? .system(.caption, design: .monospaced) : .callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
                     .textSelection(.enabled)
             }
         } else {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(label)
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
                 Text(value)
+                    .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)
             }
@@ -1042,6 +1056,7 @@ private struct UrsusNumericFieldRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Text(label)
+                .foregroundStyle(.secondary)
             Spacer()
             TextField(label, value: value, formatter: ursusIntegerFormatter)
                 .textFieldStyle(.roundedBorder)
@@ -1062,12 +1077,12 @@ private struct UrsusStatusBadge: View {
 
     var body: some View {
         Text(title)
-            .font(.caption.weight(.semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .font(.caption2.weight(.bold))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
             .background(statusPalette(for: status).background)
             .foregroundStyle(statusPalette(for: status).foreground)
-            .clipShape(RoundedRectangle(cornerRadius: 999, style: .continuous))
+            .clipShape(Capsule())
     }
 }
 
@@ -1175,44 +1190,37 @@ private struct UrsusInlineNotice<Actions: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(noticeAccentColor)
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 10) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                UrsusStatusBadge(title: noticeBadgeTitle, status: noticeStatus)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(noticeAccentColor)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                actions
             }
-
-            Text(detail)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            actions
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
         }
-        .padding(16)
         .background(UrsusPanelBackground(style: .subtle))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
-    private var noticeStatus: BearDoctorCheckStatus {
+    private var noticeAccentColor: Color {
         switch tone {
-        case .neutral:
-            return .configured
-        case .warning:
-            return .notConfigured
-        case .error:
-            return .failed
-        }
-    }
-
-    private var noticeBadgeTitle: String {
-        switch tone {
-        case .neutral:
-            return "Next step"
-        case .warning:
-            return "Attention"
-        case .error:
-            return "Repair"
+        case .neutral: return .accentColor
+        case .warning: return .orange
+        case .error: return .red
         }
     }
 }
@@ -1421,18 +1429,18 @@ private func statusPalette(for status: BearDoctorCheckStatus) -> (foreground: Co
     switch status {
     case .ok, .configured:
         return (
-            foreground: Color.primary.opacity(0.72),
-            background: Color.primary.opacity(0.08)
+            foreground: Color.mint,
+            background: Color.mint.opacity(0.12)
         )
     case .missing, .notConfigured:
         return (
-            foreground: Color.orange.opacity(0.85),
-            background: Color.orange.opacity(0.12)
+            foreground: Color.orange,
+            background: Color.orange.opacity(0.1)
         )
     case .invalid, .failed:
         return (
-            foreground: Color.red.opacity(0.85),
-            background: Color.red.opacity(0.12)
+            foreground: Color.red,
+            background: Color.red.opacity(0.1)
         )
     }
 }
