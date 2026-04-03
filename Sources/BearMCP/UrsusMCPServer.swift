@@ -670,12 +670,12 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
-                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup, or `note` plus `delete_all: true` to remove all saved backups for that note.",
+                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup. `note` plus `delete_all: true` deletes all backups for that note.",
                 operationProperties: [
-                    "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to remove all saved backups for one note."),
+                    "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to delete all backups for one note."),
                     "snapshot_id": .object([
                         "type": .string("string"),
-                        "description": .string("Optional exact backup snapshot identifier to delete."),
+                        "description": .string("Optional exact backup snapshot identifier. Use this to delete one backup."),
                     ]),
                     "delete_all": .object([
                         "type": .string("boolean"),
@@ -737,7 +737,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes without renaming or deleting the tag globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags or `version` are actually needed. A matched template `{{tags}}` slot takes precedence over any raw tag-only cluster. If no template match exists, the server extends the first tag-only cluster when found; otherwise, with template management enabled it requires a valid template `{{tags}}` slot and applies the template, and with template management disabled it inserts one tag line at the configured default position. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Add one or more tags to specific Bear notes. This affects only the targeted notes; it does not rename or delete tags globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current tags or `version` are actually needed. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -771,7 +771,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
-                description: "Apply the current Bear note template to one or more notes and normalize tag-only clusters into the template `{{tags}}` slot. This tool is explicit and separate from `bear_add_tags`: it migrates all tag-only clusters found in editable content, preserves inline prose hashtags, re-renders the note through `template.md`, and returns compact receipts only. It always uses the current template even when template management is disabled for other flows, and it fails clearly if `template.md` is missing or lacks valid `{{content}}` and `{{tags}}` slots. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Apply the current template to one or more Bear notes and normalize tag-only clusters into the template `{{tags}}` slot. It preserves inline prose hashtags, returns compact receipts, and fails clearly if `template.md` is missing or invalid. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "expected_version": expectedVersionProperty(),
@@ -788,12 +788,12 @@ private enum ToolCatalog {
                     "title": .object(["type": .string("string")]),
                     "content": .object([
                         "type": .string("string"),
-                        "description": .string("Required non-empty note content."),
+                        "description": .string("Required non-empty editable note body. Do not repeat `title` inside `content` or prepend a heading that duplicates it."),
                     ]),
                     "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                     "use_only_request_tags": .object([
                         "type": .string("boolean"),
-                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change how request tags combine with configured inbox tags")) `true` uses only the supplied request tags instead of configured inbox tags. `false` appends configured inbox tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
                     "open_note": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.createOpensNoteByDefault))", overrideWhen: "the user explicitly states whether the created note should open")) `true` forces open and `false` forces closed."),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
@@ -803,14 +803,14 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert before or after a matching heading or exact editable-content string.",
+                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. `position` places the text at the top or bottom of editable content. Use `target` instead to insert before or after a matching heading or exact editable-content string. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "text": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position")),
+                        "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
                     ]),
                     "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
@@ -822,26 +822,26 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the user wants a surgical replacement or when the exact current text or `version` is not already known. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. `kind: title` changes only the title. `kind: body` replaces only the editable note content. `kind: string` replaces text only inside editable content, never inside the title, and should usually be preceded by `bear_get_notes` so `old_string` matches stored content exactly. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
+                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or `version` is not already known. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only. Defaults: `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
-                        "description": .string("Required replacement kind. Use `title` to replace only the note title, `body` to replace only editable note content, and `string` for surgical text replacement inside editable content."),
+                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only."),
                     ]),
                     "old_string": .object([
                         "type": .string("string"),
-                        "description": .string("Required for `kind: string`. Pass the exact current text as stored in the note content. Prefer `bear_get_notes` first if uncertain."),
+                        "description": .string("Required for `kind: string`. Pass the exact existing text to match within the editable body. Prefer `bear_get_notes` first if uncertain."),
                     ]),
                     "occurrence": .object([
                         "type": .string("string"),
                         "enum": .array([.string("one"), .string("all")]),
-                        "description": .string("Required for `kind: string`. Use `one` for a single exact content match and `all` to replace every matching content occurrence."),
+                        "description": .string("Required for `kind: string`. `one` replaces one exact match. `all` replaces every exact match in the editable body."),
                     ]),
                     "new_string": .object([
                         "type": .string("string"),
-                        "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full new editable content and may be empty to remove it. For `kind: string`, this is the replacement text and may be empty to remove matched content."),
+                        "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full replacement editable body and may be empty. For `kind: string`, this is the replacement for the matched text and may be empty."),
                     ]),
                     "expected_version": expectedVersionProperty(),
                     "open_note": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default `false`", overrideWhen: "the user explicitly asks to open the note after replacing")),
@@ -852,14 +852,14 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened. Use `target` to insert the attachment before or after a matching heading or exact editable-content string.",
+                description: "Attach one or more local files to Bear notes. `position` places the attachment at the top or bottom of editable content. Use `target` instead to insert before or after a matching heading or exact editable-content string. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided; `open_note` = `false`; `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "file_path": .object(["type": .string("string")]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position")),
+                        "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
                     ]),
                     "target": relativeTargetProperty(),
                     "expected_version": expectedVersionProperty(),
@@ -1114,14 +1114,14 @@ private enum ToolCatalog {
     private static func noteSelectorProperty(selectedNoteSupported: Bool) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+            "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matches exact note id first, then exact case-insensitive title across notes and archive. If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
     }
 
     private static func optionalNoteSelectorProperty(configuration: BearConfiguration, selectedNoteSupported: Bool, descriptionPrefix: String) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(selectedNoteSupported) ? " Use exactly one of `note` or `selected: true`. " : " ")Matched as exact note id first, then exact case-insensitive title across notes and archive."),
+            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(selectedNoteSupported) ? " Use exactly one of `note` or `selected: true`. " : " ")Matches exact note id first, then exact case-insensitive title across notes and archive. If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
     }
 
@@ -1143,7 +1143,7 @@ private enum ToolCatalog {
     private static func relativeTargetProperty() -> Value {
         .object([
             "type": .string("object"),
-            "description": .string("Optional relative insertion target. Use this instead of `position` when the user wants content inserted before or after a matching heading or exact editable-content string."),
+            "description": .string("Optional relative insertion target. Use this instead of `position` to insert before or after a matching heading or exact editable-content string."),
             "properties": .object([
                 "text": .object([
                     "type": .string("string"),
