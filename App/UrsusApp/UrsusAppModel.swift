@@ -67,6 +67,7 @@ final class UrsusAppModel: ObservableObject {
     @Published private var disabledToolsDraft: Set<BearToolName> = []
 
     private var configurationAutosaveTask: Task<Void, Never>?
+    private var bridgeStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
 
@@ -570,6 +571,7 @@ final class UrsusAppModel: ObservableObject {
         }
 
         activeBridgeOperation = operation
+        bridgeStatusMessageClearTask?.cancel()
         bridgeStatusMessage = nil
         bridgeStatusError = nil
 
@@ -588,16 +590,41 @@ final class UrsusAppModel: ObservableObject {
     }
 
     private func completeBridgeOperation(with result: Result<String, Error>) {
+        let completedOperation = activeBridgeOperation
         activeBridgeOperation = nil
         reload()
+        bridgeStatusMessageClearTask?.cancel()
 
         switch result {
         case .success(let message):
             bridgeStatusMessage = message
             bridgeStatusError = nil
+            if completedOperation == .pause || completedOperation == .resume {
+                scheduleBridgeStatusMessageClear()
+            }
         case .failure(let error):
             bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
+        }
+    }
+
+    private func scheduleBridgeStatusMessageClear() {
+        bridgeStatusMessageClearTask?.cancel()
+        let currentMessage = bridgeStatusMessage
+
+        bridgeStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.bridgeStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.bridgeStatusMessage = nil
+            }
         }
     }
 

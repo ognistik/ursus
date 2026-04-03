@@ -50,12 +50,12 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 
 ### App
 
-- The primary app surface now uses `Setup`, `Preferences`, and `Advanced` tabs instead of the old dashboard-style `Overview` / `Hosts` / `Configuration` / `Token` split.
-- `Setup` is the default landing screen and keeps the main path compact: one prominent intro, divider-led sections for defaults, Bear token, detected local host app setup, and the optional localhost bridge.
+- The primary app surface now uses `Setup`, `Preferences`, and `Tools` tabs instead of the old dashboard-style `Overview` / `Hosts` / `Configuration` / `Token` split.
+- `Setup` is the default landing screen and keeps the main path compact: a clean Ursus header plus divider-led sections for defaults, Bear token, detected local host app setup, and the optional localhost bridge.
 - `Setup` status treatment is now calmer and action-led, using compact state badges plus a single inline bridge repair path instead of diagnostic-heavy status walls.
 - `Preferences` keeps durable note/template defaults compact, including inline template editing with validation and a refined chip-style inbox-tags editor.
-- `Advanced` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
-- The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume, copy-URL actions, and an editable saved port control.
+- `Tools` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
+- The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume, copy-URL actions, and a saved port control that is only editable before bridge install.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
 ### CLI
@@ -225,7 +225,7 @@ Phase 7 verification that passed on 2026-04-03:
 
 - `swift build`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
-- the app built successfully with the new `Setup` / `Preferences` / `Advanced` surface
+- the app built successfully with the new `Setup` / `Preferences` / `Tools` surface
 - detected-host filtering kept ChatGPT and the generic stdio example out of the primary app path while preserving bridge and advanced repair controls
 - `swift run ursus doctor`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
