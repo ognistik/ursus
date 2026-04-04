@@ -1135,16 +1135,45 @@ private struct UrsusScrollViewChrome: NSViewRepresentable {
     }
 
     private func configure(from view: NSView) {
-        guard let scrollView = ancestorScrollView(from: view) else {
-            return
+        let scrollViews = candidateScrollViews(from: view)
+        for scrollView in scrollViews {
+            installCustomScroller(on: scrollView, axis: .vertical)
+            installCustomScroller(on: scrollView, axis: .horizontal)
+
+            scrollView.scrollerKnobStyle = knobStyle
+            scrollView.verticalScroller?.knobStyle = knobStyle
+            scrollView.horizontalScroller?.knobStyle = knobStyle
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+    }
+
+    private func candidateScrollViews(from view: NSView) -> [NSScrollView] {
+        if let window = view.window, let contentView = window.contentView {
+            let discovered = recursiveScrollViews(in: contentView)
+            if !discovered.isEmpty {
+                return discovered
+            }
         }
 
-        scrollView.scrollerStyle = .overlay
-        scrollView.scrollerKnobStyle = knobStyle
-        scrollView.verticalScroller?.scrollerStyle = .overlay
-        scrollView.verticalScroller?.knobStyle = knobStyle
-        scrollView.horizontalScroller?.scrollerStyle = .overlay
-        scrollView.horizontalScroller?.knobStyle = knobStyle
+        if let ancestor = ancestorScrollView(from: view) {
+            return [ancestor]
+        }
+
+        return []
+    }
+
+    private func recursiveScrollViews(in root: NSView) -> [NSScrollView] {
+        var results: [NSScrollView] = []
+
+        if let scrollView = root as? NSScrollView {
+            results.append(scrollView)
+        }
+
+        for subview in root.subviews {
+            results.append(contentsOf: recursiveScrollViews(in: subview))
+        }
+
+        return results
     }
 
     private func ancestorScrollView(from view: NSView) -> NSScrollView? {
@@ -1163,6 +1192,119 @@ private struct UrsusScrollViewChrome: NSViewRepresentable {
         }
 
         return nil
+    }
+
+    private func installCustomScroller(on scrollView: NSScrollView, axis: UrsusScrollerAxis) {
+        let currentScroller: NSScroller? = switch axis {
+        case .vertical:
+            scrollView.verticalScroller
+        case .horizontal:
+            scrollView.horizontalScroller
+        }
+
+        guard let currentScroller else {
+            return
+        }
+
+        if currentScroller is UrsusTintedScroller {
+            currentScroller.knobStyle = knobStyle
+            return
+        }
+
+        let replacement = UrsusTintedScroller(frame: currentScroller.frame)
+        replacement.scrollerStyle = currentScroller.scrollerStyle
+        replacement.controlSize = currentScroller.controlSize
+        replacement.knobStyle = knobStyle
+        replacement.isEnabled = currentScroller.isEnabled
+        replacement.doubleValue = currentScroller.doubleValue
+        replacement.knobProportion = currentScroller.knobProportion
+        replacement.target = currentScroller.target
+        replacement.action = currentScroller.action
+
+        switch axis {
+        case .vertical:
+            scrollView.verticalScroller = replacement
+        case .horizontal:
+            scrollView.horizontalScroller = replacement
+        }
+    }
+}
+
+private enum UrsusScrollerAxis {
+    case vertical
+    case horizontal
+}
+
+private final class UrsusTintedScroller: NSScroller {
+    override class var isCompatibleWithOverlayScrollers: Bool {
+        self == UrsusTintedScroller.self
+    }
+
+    override func drawKnob() {
+        let knobRect = rect(for: .knob)
+        guard !knobRect.isEmpty else {
+            return
+        }
+
+        let drawRect = knobRect.insetBy(dx: knobInsetX, dy: knobInsetY)
+        let radius = min(drawRect.width, drawRect.height) / 2
+        let path = NSBezierPath(roundedRect: drawRect, xRadius: radius, yRadius: radius)
+
+        knobColor.setFill()
+        path.fill()
+    }
+
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
+        let drawRect = slotRect.insetBy(dx: slotInsetX, dy: slotInsetY)
+        guard drawRect.width > 0, drawRect.height > 0 else {
+            return
+        }
+
+        let radius = min(drawRect.width, drawRect.height) / 2
+        let path = NSBezierPath(roundedRect: drawRect, xRadius: radius, yRadius: radius)
+
+        slotColor.setFill()
+        path.fill()
+    }
+
+    private var isVerticalScroller: Bool {
+        bounds.height >= bounds.width
+    }
+
+    private var knobInsetX: CGFloat {
+        isVerticalScroller ? 2.5 : 1.5
+    }
+
+    private var knobInsetY: CGFloat {
+        isVerticalScroller ? 1.5 : 2.5
+    }
+
+    private var slotInsetX: CGFloat {
+        isVerticalScroller ? 4 : 2
+    }
+
+    private var slotInsetY: CGFloat {
+        isVerticalScroller ? 2 : 4
+    }
+
+    private var usesDarkAppearance: Bool {
+        effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    private var knobColor: NSColor {
+        if usesDarkAppearance {
+            return NSColor(calibratedWhite: 0.62, alpha: 0.52)
+        }
+
+        return NSColor(calibratedWhite: 0.35, alpha: 0.45)
+    }
+
+    private var slotColor: NSColor {
+        if usesDarkAppearance {
+            return NSColor(calibratedWhite: 1.0, alpha: 0.08)
+        }
+
+        return NSColor(calibratedWhite: 0.0, alpha: 0.07)
     }
 }
 
