@@ -8,7 +8,7 @@ struct UrsusToolsView: View {
     var body: some View {
         UrsusScrollSurface {
             if let settings = model.dashboard.settings {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 20) {
                     if launcherPrimaryActionTitle(for: settings) != nil {
                         launcherPanel(settings)
                         Divider()
@@ -57,13 +57,17 @@ struct UrsusToolsView: View {
             return tools.isEmpty ? nil : (category, tools)
         }
 
-        return VStack(alignment: .leading, spacing: 16) {
-            ForEach(sections, id: \.category) { entry in
+        return VStack(alignment: .leading, spacing: 20) {
+            ForEach(Array(sections.enumerated()), id: \.element.category) { index, entry in
                 let category = entry.category
                 let tools = entry.tools
 
+                if index > 0 {
+                    Divider()
+                }
+
                 UrsusPanel(title: category.title) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
                         ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                             Toggle(isOn: Binding(
                                 get: { model.isToolEnabledInDraft(tool.tool) },
@@ -76,20 +80,15 @@ struct UrsusToolsView: View {
                                         .font(.callout)
                                         .foregroundStyle(.secondary)
                                 }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 2)
                             }
-                            .padding(14)
 
                             if index < tools.count - 1 {
                                 Divider()
                             }
                         }
                     }
-                    .background(UrsusPanelBackground(style: .subtle))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
                 }
             }
 
