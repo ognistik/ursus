@@ -21,15 +21,19 @@ struct UrsusApp: App {
 
     var body: some Scene {
         WindowGroup {
-            UrsusDashboardView(model: model)
-                .frame(width: 720, height: 620)
+            UrsusWindowSurface {
+                UrsusDashboardView(model: model)
+                    .frame(width: 720, height: 620)
+            }
         }
         .windowResizability(.contentSize)
 
         Settings {
-            UrsusSettingsView(model: model)
-                .tint(ursusMutedControlTint)
-                .frame(minWidth: 560, minHeight: 520)
+            UrsusWindowSurface {
+                UrsusSettingsView(model: model)
+                    .tint(ursusMutedControlTint)
+                    .frame(minWidth: 560, minHeight: 520)
+            }
         }
     }
 }
@@ -38,5 +42,17 @@ struct UrsusApp: App {
 final class UrsusAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+}
+
+private struct UrsusWindowSurface<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .background(
+                Color(nsColor: .windowBackgroundColor)
+                    .ignoresSafeArea()
+            )
     }
 }

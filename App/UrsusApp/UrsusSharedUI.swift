@@ -268,6 +268,40 @@ private let ursusIntegerFormatter: NumberFormatter = {
     return formatter
 }()
 
+private struct UrsusInputChrome: ViewModifier {
+    let cornerRadius: CGFloat
+    let horizontalPadding: CGFloat
+    let verticalPadding: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
+            .background(Color(nsColor: .textBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func ursusInputChrome(
+        cornerRadius: CGFloat = 8,
+        horizontalPadding: CGFloat = 10,
+        verticalPadding: CGFloat = 6
+    ) -> some View {
+        modifier(
+            UrsusInputChrome(
+                cornerRadius: cornerRadius,
+                horizontalPadding: horizontalPadding,
+                verticalPadding: verticalPadding
+            )
+        )
+    }
+}
+
 struct UrsusNumericFieldRow: View {
     let label: String
     let value: Binding<Int>
@@ -303,8 +337,9 @@ struct UrsusNumericFieldRow: View {
                     .help(helpText ?? "")
             } else {
                 TextField(label, value: value, formatter: ursusIntegerFormatter)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .multilineTextAlignment(.trailing)
+                    .ursusInputChrome()
                     .frame(width: fieldWidth)
                     .disabled(disabled)
                     .help(helpText ?? "")
@@ -717,7 +752,8 @@ struct UrsusTagEditor: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 TextField("Add a tag or paste a comma-separated list", text: $draft)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .ursusInputChrome()
                     .submitLabel(.done)
                     .onSubmit(addDraft)
 

@@ -111,13 +111,8 @@ struct UrsusPreferencesView: View {
                     ))
                     .font(.system(.body, design: .monospaced))
                     .frame(height: 158)
-                    .padding(12)
-                    .background(UrsusPanelBackground(style: .subtle))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                    )
+                    .scrollContentBackground(.hidden)
+                    .ursusInputChrome(cornerRadius: 16, horizontalPadding: 12, verticalPadding: 12)
 
                     templateValidationMessages
 

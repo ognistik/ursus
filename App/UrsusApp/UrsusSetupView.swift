@@ -162,7 +162,8 @@ struct UrsusSetupView: View {
                                 : "Paste Bear API token",
                             text: $model.tokenDraft
                         )
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
+                        .ursusInputChrome()
                     }
 
                     HStack(spacing: 10) {
