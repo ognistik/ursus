@@ -112,29 +112,25 @@ private struct UrsusSetupView: View {
                 UrsusInfoRow(
                     label: "Template management",
                     value: settings.templateManagementEnabled ? "On" : "Off",
-                    compact: true,
-                    prominentLabel: true
+                    compact: true
                 )
                 Divider()
                 UrsusInfoRow(
                     label: "Inbox tags",
                     value: settings.inboxTags.isEmpty ? "None" : settings.inboxTags.joined(separator: ", "),
-                    compact: true,
-                    prominentLabel: true
+                    compact: true
                 )
                 Divider()
                 UrsusInfoRow(
                     label: "New notes",
                     value: settings.createOpensNoteByDefault ? "Open by default" : "Stay in the background",
-                    compact: true,
-                    prominentLabel: true
+                    compact: true
                 )
                 Divider()
                 UrsusInfoRow(
                     label: "Default insert",
                     value: friendlyInsertPosition(settings.defaultInsertPosition),
-                    compact: true,
-                    prominentLabel: true
+                    compact: true
                 )
             }
         }
@@ -150,52 +146,54 @@ private struct UrsusSetupView: View {
                 }
             }
         ) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 Text("Optional. Required for selected-note flows.")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundStyle(.tertiary)
 
                 if settings.selectedNoteTokenConfigured && !showsTokenInput {
-                    if let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
-                        HStack(spacing: 10) {
-                            Text(displayedToken)
-                                .font(.body.monospaced())
+                    UrsusGroupedBlock {
+                        if let displayedToken = model.revealsStoredToken ? model.storedSelectedNoteToken : model.maskedStoredSelectedNoteToken {
+                            HStack(spacing: 10) {
+                                Text(displayedToken)
+                                    .font(.system(.callout, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+
+                                Spacer(minLength: 12)
+
+                                Button {
+                                    model.loadStoredSelectedNoteToken()
+                                } label: {
+                                    Image(systemName: model.revealsStoredToken ? "eye.slash" : "eye")
+                                }
+                                .buttonStyle(.plain)
+                                .controlSize(.small)
                                 .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                                .help(model.revealsStoredToken ? "Hide Token" : "Reveal Token")
 
-                            Spacer(minLength: 12)
-
-                            Button {
-                                model.loadStoredSelectedNoteToken()
-                            } label: {
-                                Image(systemName: model.revealsStoredToken ? "eye.slash" : "eye")
+                                Button {
+                                    model.copySelectedNoteToken()
+                                } label: {
+                                    Image(systemName: "doc.on.doc")
+                                }
+                                .buttonStyle(.plain)
+                                .controlSize(.small)
+                                .foregroundStyle(.secondary)
+                                .help("Copy Token")
                             }
-                            .buttonStyle(.plain)
-                            .controlSize(.small)
-                            .foregroundStyle(.secondary)
-                            .help(model.revealsStoredToken ? "Hide Token" : "Reveal Token")
+                        } else {
+                            HStack(spacing: 10) {
+                                Text("Saved token unavailable in the app.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.tertiary)
 
-                            Button {
-                                model.copySelectedNoteToken()
-                            } label: {
-                                Image(systemName: "doc.on.doc")
+                                Button("Try Again") {
+                                    model.loadStoredSelectedNoteToken()
+                                }
+                                .buttonStyle(.borderless)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.plain)
-                            .controlSize(.small)
-                            .foregroundStyle(.secondary)
-                            .help("Copy Token")
-                        }
-                    } else {
-                        HStack(spacing: 10) {
-                            Text("Saved token unavailable in the app.")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-
-                            Button("Try Again") {
-                                model.loadStoredSelectedNoteToken()
-                            }
-                            .buttonStyle(.borderless)
-                            .controlSize(.small)
                         }
                     }
 
@@ -212,13 +210,15 @@ private struct UrsusSetupView: View {
                         .buttonStyle(.bordered)
                     }
                 } else {
-                    SecureField(
-                        settings.selectedNoteTokenConfigured
-                            ? "Paste a new Bear API token"
-                            : "Paste Bear API token",
-                        text: $model.tokenDraft
-                    )
-                    .textFieldStyle(.roundedBorder)
+                    UrsusGroupedBlock {
+                        SecureField(
+                            settings.selectedNoteTokenConfigured
+                                ? "Paste a new Bear API token"
+                                : "Paste Bear API token",
+                            text: $model.tokenDraft
+                        )
+                        .textFieldStyle(.roundedBorder)
+                    }
 
                     HStack(spacing: 10) {
                         Button("Save Token") {
@@ -251,28 +251,30 @@ private struct UrsusSetupView: View {
             title: "Connect Apps",
             titleHelpText: "Copy a setup snippet for apps installed on this Mac."
         ) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 if let title = launcherPrimaryActionTitle(for: settings) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("Install the launcher before copying setup.")
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                    UrsusGroupedBlock {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("Install the launcher before copying setup.")
+                                .font(.footnote)
+                                .foregroundStyle(.tertiary)
 
-                        Spacer(minLength: 12)
+                            Spacer(minLength: 12)
 
-                        Button(title) {
-                            model.installPublicLauncher()
+                            Button(title) {
+                                model.installPublicLauncher()
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.currentBundledCLIPath == nil)
                         }
-                        .buttonStyle(.bordered)
-                        .disabled(model.currentBundledCLIPath == nil)
                     }
                 }
 
-                ForEach(Array(model.setupHostSetups.enumerated()), id: \.element.id) { index, setup in
-                    UrsusHostSetupRow(model: model, setup: setup)
-
-                    if index < model.setupHostSetups.count - 1 {
-                        Divider()
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(model.setupHostSetups, id: \.id) { setup in
+                        UrsusGroupedBlock {
+                            UrsusHostSetupRow(model: model, setup: setup)
+                        }
                     }
                 }
 
@@ -295,49 +297,51 @@ private struct UrsusSetupView: View {
                 UrsusStatusBadge(title: bridgeStatusTitle(for: bridge), status: bridge.status)
             }
         ) {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 14) {
                 if let bridgeStateText = bridgeStateText(for: settings) {
                     Text(bridgeStateText)
-                        .font(.caption)
+                        .font(.footnote)
                         .foregroundStyle(.tertiary)
                 }
 
-                HStack(alignment: .firstTextBaseline, spacing: 14) {
-                    Text("MCP URL")
-                        .font(.callout.weight(.medium))
-                        .foregroundStyle(.secondary)
-
-                    Spacer(minLength: 12)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(bridge.endpointURL)
-                            .font(.system(.caption, design: .monospaced))
+                UrsusGroupedBlock {
+                    HStack(alignment: .firstTextBaseline, spacing: 14) {
+                        Text("MCP URL")
+                            .font(.callout.weight(.medium))
                             .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.trailing)
-                            .textSelection(.enabled)
 
-                        Button {
-                            model.copyBridgeURL()
-                        } label: {
-                            Image(systemName: "doc.on.doc")
+                        Spacer(minLength: 12)
+
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(bridge.endpointURL)
+                                .font(.system(.callout, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.trailing)
+                                .textSelection(.enabled)
+
+                            Button {
+                                model.copyBridgeURL()
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .help("Copy URL")
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help("Copy URL")
                     }
-                }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    UrsusNumericFieldRow(
-                        label: "Port",
-                        value: bridgePortBinding,
-                        range: 1024...65_535,
-                        disabled: model.isBridgeOperationInProgress,
-                        readOnly: bridge.installed,
-                        helpText: "Port is only customizable before installing the bridge.",
-                        fieldWidth: 92
-                    )
-                    configurationValidationMessages(for: .bridgePort)
+                    VStack(alignment: .leading, spacing: 6) {
+                        UrsusNumericFieldRow(
+                            label: "Port",
+                            value: bridgePortBinding,
+                            range: 1024...65_535,
+                            disabled: model.isBridgeOperationInProgress,
+                            readOnly: bridge.installed,
+                            helpText: "Port is only customizable before installing the bridge.",
+                            fieldWidth: 92
+                        )
+                        configurationValidationMessages(for: .bridgePort)
+                    }
                 }
 
                 HStack(spacing: 10) {
@@ -378,16 +382,16 @@ private struct UrsusSetupView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isBridgeOperationInProgress)
                     }
-
                 }
 
                 if let progressMessage = model.bridgeOperationProgressMessage {
                     HStack(spacing: 10) {
                         ProgressView()
                             .controlSize(.small)
+
                         Text(progressMessage)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
                     }
                 }
 
@@ -1012,6 +1016,28 @@ private struct UrsusPanelBackground: ShapeStyle {
     }
 }
 
+private struct UrsusGroupedBlock<Content: View>: View {
+    let padding: CGFloat
+    @ViewBuilder let content: Content
+
+    init(
+        padding: CGFloat = 14,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.padding = padding
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content
+        }
+        .padding(padding)
+        .background(Color.primary.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
 private struct UrsusScreenHeader: View {
     let title: String
     var subtitle: String?
@@ -1037,7 +1063,6 @@ private struct UrsusInfoRow: View {
     let value: String
     var compact = false
     var monospaced = false
-    var prominentLabel = false
 
     var body: some View {
         if compact {
@@ -1055,7 +1080,7 @@ private struct UrsusInfoRow: View {
                     .textSelection(.enabled)
             }
         } else {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(label)
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
