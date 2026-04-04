@@ -1,0 +1,213 @@
+import BearApplication
+import BearCore
+import SwiftUI
+
+struct UrsusPreferencesView: View {
+    @ObservedObject var model: UrsusAppModel
+    let showsStandaloneHeader: Bool
+
+    var body: some View {
+        UrsusScrollSurface {
+            if let settings = model.dashboard.settings {
+                VStack(alignment: .leading, spacing: 20) {
+                    if showsStandaloneHeader {
+                        UrsusScreenHeader(title: "Preferences")
+                    }
+
+                    behaviorPanel
+                    Divider()
+                    inboxTagsPanel
+                    Divider()
+                    templatePanel(settings)
+                    Divider()
+                    limitsPanel
+
+                    UrsusMessageStack(
+                        success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
+                        warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
+                        error: model.configurationStatusError
+                    )
+                }
+            } else {
+                unavailablePanel(
+                    title: "Preferences are unavailable",
+                    detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
+                )
+            }
+        }
+    }
+
+    private var behaviorPanel: some View {
+        UrsusPanel(
+            title: "Note Behavior",
+            titleHelpText: "Tools will use these defaults, but you can command the AI to override them in your requests."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))
+                Divider()
+                Toggle("Open uses new window by default", isOn: autosavingBinding(\.openUsesNewWindowByDefaultDraft))
+                Divider()
+                Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Default insert position")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+
+                    Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
+                        Text("Top").tag(BearConfiguration.InsertDefault.top)
+                        Text("Bottom").tag(BearConfiguration.InsertDefault.bottom)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tags merge mode")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+
+                    Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
+                        Text("Append").tag(BearConfiguration.TagsMergeMode.append)
+                        Text("Replace").tag(BearConfiguration.TagsMergeMode.replace)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                }
+            }
+        }
+    }
+
+    private var inboxTagsPanel: some View {
+        UrsusPanel(title: "Inbox Tags") {
+            VStack(alignment: .leading, spacing: 12) {
+                UrsusTagEditor(
+                    tags: model.inboxTagValues,
+                    onAdd: model.addInboxTags(from:),
+                    onRemove: model.removeInboxTag(_:)
+                )
+
+                configurationValidationMessages(for: .inboxTags)
+            }
+        }
+    }
+
+    private func templatePanel(_ settings: BearAppSettingsSnapshot) -> some View {
+        UrsusPanel(title: "Template") {
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle("Enable template management", isOn: autosavingBinding(\.templateManagementEnabledDraft))
+
+                if model.templateManagementEnabledDraft {
+                    Text("Required slots: `{{content}}` and `{{tags}}`.")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+
+                    TextEditor(text: Binding(
+                        get: { model.templateDraft },
+                        set: { newValue in
+                            model.templateDraft = newValue
+                            model.templateDraftDidChange()
+                        }
+                    ))
+                    .font(.system(.body, design: .monospaced))
+                    .frame(height: 158)
+                    .padding(12)
+                    .background(UrsusPanelBackground(style: .subtle))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    )
+
+                    templateValidationMessages
+
+                    HStack(spacing: 10) {
+                        Button("Save Template") {
+                            model.saveTemplate()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
+
+                        Button("Revert Changes") {
+                            model.revertTemplateDraft()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!model.templateHasUnsavedChanges)
+                    }
+
+                    if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
+                        Text("Unsaved changes stay in the app until you save.")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    UrsusMessageStack(
+                        success: model.templateValidation.warnings.isEmpty ? model.templateStatusMessage : nil,
+                        warning: model.templateValidation.warnings.isEmpty ? nil : model.templateStatusMessage,
+                        error: model.templateStatusError
+                    )
+                }
+            }
+        }
+    }
+
+    private var limitsPanel: some View {
+        UrsusPanel(title: "Read and Backup Limits") {
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    UrsusNumericFieldRow(
+                        label: "Default discovery limit",
+                        value: autosavingBinding(\.defaultDiscoveryLimitDraft),
+                        range: 1...500,
+                        helpText: "Maximum number of note summaries returned by the Find Notes and List Backups tools."
+                    )
+                    configurationValidationMessages(for: .defaultDiscoveryLimit)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    UrsusNumericFieldRow(
+                        label: "Default snippet length",
+                        value: autosavingBinding(\.defaultSnippetLengthDraft),
+                        range: 1...2_000
+                    )
+                    configurationValidationMessages(for: .defaultSnippetLength)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 6) {
+                    UrsusNumericFieldRow(
+                        label: "Backup retention days",
+                        value: autosavingBinding(\.backupRetentionDaysDraft),
+                        range: 0...365,
+                        helpText: "Temporary backups are automatically created on note editing & replace operations."
+                    )
+                    configurationValidationMessages(for: .backupRetentionDays)
+                }
+            }
+        }
+    }
+
+    private func autosavingBinding<Value>(_ keyPath: ReferenceWritableKeyPath<UrsusAppModel, Value>) -> Binding<Value> {
+        Binding(
+            get: { model[keyPath: keyPath] },
+            set: { newValue in
+                model[keyPath: keyPath] = newValue
+                model.configurationDraftDidChange()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var templateValidationMessages: some View {
+        if !model.templateValidation.issues.isEmpty {
+            UrsusIssueList(issues: model.templateValidation.issues)
+        }
+    }
+
+    @ViewBuilder
+    private func configurationValidationMessages(for field: BearAppConfigurationField) -> some View {
+        let issues = model.configurationIssues(for: field)
+        if !issues.isEmpty {
+            UrsusIssueList(issues: issues)
+        }
+    }
+}
