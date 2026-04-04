@@ -21,12 +21,14 @@ struct UrsusDashboardView: View {
                 .tag(UrsusDashboardSection.setup)
 
             UrsusPreferencesView(model: model, showsStandaloneHeader: false)
+                .tint(ursusMutedControlTint)
                 .tabItem {
                     Label("Preferences", systemImage: "slider.horizontal.3")
                 }
                 .tag(UrsusDashboardSection.preferences)
 
             UrsusAdvancedView(model: model)
+                .tint(ursusMutedControlTint)
                 .tabItem {
                     Label("Tools", systemImage: "wrench.and.screwdriver")
                 }
@@ -95,12 +97,15 @@ private struct UrsusSetupView: View {
     private func defaultsPanel(_ settings: BearAppSettingsSnapshot) -> some View {
         UrsusPanel(
             title: "Defaults",
-            headerAccessory: {
-                Button("Edit") {
+            titleAccessory: {
+                Button {
                     selectedSection = .preferences
+                } label: {
+                    Image(systemName: "pencil")
                 }
-                .buttonStyle(.borderless)
-                .controlSize(.small)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Edit")
             }
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -163,13 +168,22 @@ private struct UrsusSetupView: View {
                             Button {
                                 model.loadStoredSelectedNoteToken()
                             } label: {
-                                Label(
-                                    model.revealsStoredToken ? "Hide" : "Show",
-                                    systemImage: model.revealsStoredToken ? "eye.slash" : "eye"
-                                )
+                                Image(systemName: model.revealsStoredToken ? "eye.slash" : "eye")
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.plain)
                             .controlSize(.small)
+                            .foregroundStyle(.secondary)
+                            .help(model.revealsStoredToken ? "Hide Token" : "Reveal Token")
+
+                            Button {
+                                model.copySelectedNoteToken()
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .buttonStyle(.plain)
+                            .controlSize(.small)
+                            .foregroundStyle(.secondary)
+                            .help("Copy Token")
                         }
                     } else {
                         HStack(spacing: 10) {
@@ -278,17 +292,40 @@ private struct UrsusSetupView: View {
             title: "Remote MCP Bridge",
             titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly.",
             headerAccessory: {
-                UrsusStatusBadge(title: compactStatusTitle(for: bridge.status), status: bridge.status)
+                UrsusStatusBadge(title: bridgeStatusTitle(for: bridge), status: bridge.status)
             }
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 if let bridgeStateText = bridgeStateText(for: settings) {
                     Text(bridgeStateText)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
 
-                UrsusInfoRow(label: "MCP URL", value: bridge.endpointURL, compact: true, monospaced: true)
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text("MCP URL")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(bridge.endpointURL)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+
+                        Button {
+                            model.copyBridgeURL()
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Copy URL")
+                    }
+                }
 
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
@@ -342,10 +379,6 @@ private struct UrsusSetupView: View {
                         .disabled(model.isBridgeOperationInProgress)
                     }
 
-                    Button("Copy URL") {
-                        model.copyBridgeURL()
-                    }
-                    .buttonStyle(.bordered)
                 }
 
                 if let progressMessage = model.bridgeOperationProgressMessage {
@@ -803,6 +836,7 @@ private struct UrsusHostSetupRow: View {
 
 private struct UrsusScrollSurface<Content: View>: View {
     @ViewBuilder let content: Content
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ScrollView {
@@ -814,6 +848,9 @@ private struct UrsusScrollSurface<Content: View>: View {
             .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .background(
+            UrsusScrollViewChrome(knobStyle: colorScheme == .dark ? .dark : .light)
+        )
     }
 }
 
@@ -827,6 +864,7 @@ private struct UrsusPanel<Content: View>: View {
     let title: String
     let subtitle: String?
     let titleHelpText: String?
+    let titleAccessory: AnyView?
     let surface: UrsusSectionSurface
     let headerAccessory: AnyView?
     @ViewBuilder let content: Content
@@ -841,6 +879,24 @@ private struct UrsusPanel<Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.titleHelpText = titleHelpText
+        self.titleAccessory = nil
+        self.surface = surface
+        self.headerAccessory = nil
+        self.content = content()
+    }
+
+    init<TitleAccessory: View>(
+        title: String,
+        subtitle: String? = nil,
+        titleHelpText: String? = nil,
+        surface: UrsusSectionSurface = .plain,
+        @ViewBuilder titleAccessory: () -> TitleAccessory,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.titleHelpText = titleHelpText
+        self.titleAccessory = AnyView(titleAccessory())
         self.surface = surface
         self.headerAccessory = nil
         self.content = content()
@@ -857,6 +913,7 @@ private struct UrsusPanel<Content: View>: View {
         self.title = title
         self.subtitle = subtitle
         self.titleHelpText = titleHelpText
+        self.titleAccessory = nil
         self.surface = surface
         self.headerAccessory = AnyView(headerAccessory())
         self.content = content()
@@ -910,6 +967,10 @@ private struct UrsusPanel<Content: View>: View {
                     Text(title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
+
+                    if let titleAccessory {
+                        titleAccessory
+                    }
 
                     if let titleHelpText {
                         UrsusHelpButton(text: titleHelpText)
@@ -1060,6 +1121,51 @@ private struct UrsusNumericFieldRow: View {
     }
 }
 
+private struct UrsusScrollViewChrome: NSViewRepresentable {
+    let knobStyle: NSScroller.KnobStyle
+
+    func makeNSView(context: Context) -> NSView {
+        NSView(frame: .zero)
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            configure(from: nsView)
+        }
+    }
+
+    private func configure(from view: NSView) {
+        guard let scrollView = ancestorScrollView(from: view) else {
+            return
+        }
+
+        scrollView.scrollerStyle = .overlay
+        scrollView.scrollerKnobStyle = knobStyle
+        scrollView.verticalScroller?.scrollerStyle = .overlay
+        scrollView.verticalScroller?.knobStyle = knobStyle
+        scrollView.horizontalScroller?.scrollerStyle = .overlay
+        scrollView.horizontalScroller?.knobStyle = knobStyle
+    }
+
+    private func ancestorScrollView(from view: NSView) -> NSScrollView? {
+        var current: NSView? = view
+
+        while let candidate = current {
+            if let scrollView = candidate as? NSScrollView {
+                return scrollView
+            }
+
+            if let enclosing = candidate.enclosingScrollView {
+                return enclosing
+            }
+
+            current = candidate.superview
+        }
+
+        return nil
+    }
+}
+
 private struct UrsusHelpButton: View {
     let text: String
     @State private var showsPopover = false
@@ -1073,7 +1179,6 @@ private struct UrsusHelpButton: View {
                 .foregroundStyle(.secondary)
         }
         .buttonStyle(.plain)
-        .help(text)
         .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
             Text(text)
                 .font(.callout)
@@ -1420,6 +1525,14 @@ private func compactStatusTitle(for status: BearDoctorCheckStatus) -> String {
     case .invalid, .failed:
         return "Needs attention"
     }
+}
+
+private func bridgeStatusTitle(for bridge: BearAppBridgeSnapshot) -> String {
+    if bridge.installed, bridge.status == .notConfigured {
+        return "Paused"
+    }
+
+    return compactStatusTitle(for: bridge.status)
 }
 
 private func hostSetupDetail(for setup: BearHostAppSetupSnapshot) -> String? {

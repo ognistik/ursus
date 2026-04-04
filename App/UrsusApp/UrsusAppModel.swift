@@ -68,6 +68,8 @@ final class UrsusAppModel: ObservableObject {
 
     private var configurationAutosaveTask: Task<Void, Never>?
     private var bridgeStatusMessageClearTask: Task<Void, Never>?
+    private var tokenStatusMessageClearTask: Task<Void, Never>?
+    private var templateStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
 
@@ -176,11 +178,13 @@ final class UrsusAppModel: ObservableObject {
             dashboard = BearAppSupport.loadDashboardSnapshot(
                 currentAppBundleURL: Bundle.main.bundleURL
             )
+            templateStatusMessageClearTask?.cancel()
             loadTemplateDraft()
             templateStatusMessage = validation.warnings.isEmpty
                 ? "Template saved."
                 : "Template saved. Review the warnings below."
             templateStatusError = nil
+            scheduleTemplateStatusMessageClear()
         } catch {
             templateStatusMessage = nil
             templateStatusError = localizedMessage(for: error)
@@ -338,6 +342,27 @@ final class UrsusAppModel: ObservableObject {
         pasteboard.setString(bridgeEndpointURL, forType: .string)
         bridgeStatusMessage = "Copied bridge MCP URL: \(bridgeEndpointURL)"
         bridgeStatusError = nil
+    }
+
+    func copySelectedNoteToken() {
+        do {
+            guard let token = try BearAppSupport.loadResolvedSelectedNoteToken()?.value, !token.isEmpty else {
+                tokenStatusMessage = nil
+                tokenStatusError = "Saved token unavailable in the app."
+                return
+            }
+
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(token, forType: .string)
+            tokenStatusMessageClearTask?.cancel()
+            tokenStatusMessage = "Token copied."
+            tokenStatusError = nil
+            scheduleTokenStatusMessageClear()
+        } catch {
+            tokenStatusMessage = nil
+            tokenStatusError = localizedMessage(for: error)
+        }
     }
 
     func copyHostSetupSnippet(_ setup: BearHostAppSetupSnapshot) {
@@ -599,7 +624,7 @@ final class UrsusAppModel: ObservableObject {
         case .success(let message):
             bridgeStatusMessage = message
             bridgeStatusError = nil
-            if completedOperation == .pause || completedOperation == .resume {
+            if completedOperation != nil {
                 scheduleBridgeStatusMessageClear()
             }
         case .failure(let error):
@@ -624,6 +649,46 @@ final class UrsusAppModel: ObservableObject {
                 }
 
                 self?.bridgeStatusMessage = nil
+            }
+        }
+    }
+
+    private func scheduleTemplateStatusMessageClear() {
+        templateStatusMessageClearTask?.cancel()
+        let currentMessage = templateStatusMessage
+
+        templateStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.templateStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.templateStatusMessage = nil
+            }
+        }
+    }
+
+    private func scheduleTokenStatusMessageClear() {
+        tokenStatusMessageClearTask?.cancel()
+        let currentMessage = tokenStatusMessage
+
+        tokenStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.tokenStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.tokenStatusMessage = nil
             }
         }
     }
