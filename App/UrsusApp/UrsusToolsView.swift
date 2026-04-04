@@ -58,19 +58,11 @@ struct UrsusToolsView: View {
         }
 
         return VStack(alignment: .leading, spacing: 16) {
-            ForEach(Array(sections.enumerated()), id: \.offset) { index, entry in
+            ForEach(sections, id: \.category) { entry in
                 let category = entry.category
                 let tools = entry.tools
 
-                if index > 0 {
-                    Divider()
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(category.title)
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
+                UrsusPanel(title: category.title) {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(tools.enumerated()), id: \.element.id) { index, tool in
                             Toggle(isOn: Binding(

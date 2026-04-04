@@ -547,8 +547,8 @@ struct UrsusStatusBadge: View {
 struct UrsusConfiguredMark: View {
     var body: some View {
         Image(systemName: "checkmark")
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .font(.footnote.weight(.bold))
+            .foregroundStyle(.secondary)
             .accessibilityHidden(true)
     }
 }

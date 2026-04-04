@@ -32,13 +32,6 @@ struct UrsusDashboardView: View {
                 }
                 .tag(UrsusDashboardSection.tools)
         }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Reload", systemImage: "arrow.clockwise") {
-                    model.reload()
-                }
-            }
-        }
     }
 }
 

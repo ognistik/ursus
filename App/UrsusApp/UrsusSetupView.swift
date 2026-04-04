@@ -450,11 +450,15 @@ private struct UrsusHostSetupRow: View {
     @ObservedObject var model: UrsusAppModel
     let setup: BearHostAppSetupSnapshot
 
+    private var isConfigured: Bool {
+        hostSetupShowsConfiguredMark(setup.status)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if hostSetupShowsConfiguredMark(setup.status) {
+                    if isConfigured {
                         UrsusConfiguredMark()
                     }
 
@@ -475,7 +479,7 @@ private struct UrsusHostSetupRow: View {
             }
 
             HStack(spacing: 10) {
-                if setup.snippet != nil {
+                if !isConfigured, setup.snippet != nil {
                     Button("Copy Setup") {
                         model.copyHostSetupSnippet(setup)
                     }

@@ -76,19 +76,24 @@ final class UrsusAppModel: ObservableObject {
     private var lastSavedTemplateDraft = ""
 
     init() {
-        applyDraft(from: dashboard.settings)
+        refreshAppState()
         reconcilePublicLauncherAutomatically()
-        loadTemplateDraft()
-        refreshStoredSelectedNoteToken()
     }
 
-    func reload() {
+    private func refreshAppState() {
         dashboard = BearAppSupport.loadDashboardSnapshot(
             currentAppBundleURL: Bundle.main.bundleURL
         )
         applyDraft(from: dashboard.settings)
         loadTemplateDraft()
-        refreshStoredSelectedNoteToken()
+        hideStoredSelectedNoteToken()
+    }
+
+    private func refreshDashboardSnapshot() {
+        dashboard = BearAppSupport.loadDashboardSnapshot(
+            currentAppBundleURL: Bundle.main.bundleURL
+        )
+        applyDraft(from: dashboard.settings)
     }
 
     func saveSelectedNoteToken() {
@@ -99,7 +104,7 @@ final class UrsusAppModel: ObservableObject {
             tokenStatusMessageClearTask?.cancel()
             tokenStatusMessage = "Token saved in macOS Keychain."
             tokenStatusError = nil
-            reload()
+            refreshAppState()
             scheduleTokenStatusMessageClear()
         } catch {
             tokenStatusMessage = nil
@@ -115,7 +120,7 @@ final class UrsusAppModel: ObservableObject {
             tokenStatusMessageClearTask?.cancel()
             tokenStatusMessage = "Token removed from macOS Keychain."
             tokenStatusError = nil
-            reload()
+            refreshAppState()
             scheduleTokenStatusMessageClear()
         } catch {
             tokenStatusMessage = nil
@@ -181,9 +186,7 @@ final class UrsusAppModel: ObservableObject {
 
         do {
             try BearAppSupport.saveTemplateDraft(templateDraft)
-            dashboard = BearAppSupport.loadDashboardSnapshot(
-                currentAppBundleURL: Bundle.main.bundleURL
-            )
+            refreshDashboardSnapshot()
             templateStatusMessageClearTask?.cancel()
             loadTemplateDraft()
             templateStatusMessage = validation.warnings.isEmpty
@@ -255,9 +258,7 @@ final class UrsusAppModel: ObservableObject {
 
         do {
             try BearAppSupport.saveConfigurationDraft(draft)
-            dashboard = BearAppSupport.loadDashboardSnapshot(
-                currentAppBundleURL: Bundle.main.bundleURL
-            )
+            refreshDashboardSnapshot()
             configurationStatusMessage = validation.warnings.isEmpty
                 ? nil
                 : "Review the warnings below."
@@ -274,7 +275,7 @@ final class UrsusAppModel: ObservableObject {
             cliStatusMessageClearTask?.cancel()
             cliStatusMessage = "Launcher installed at \(receipt.destinationPath). Local MCP hosts and Terminal should use that path."
             cliStatusError = nil
-            reload()
+            refreshAppState()
             scheduleCLIStatusMessageClear()
         } catch {
             cliStatusMessage = nil
@@ -486,10 +487,6 @@ final class UrsusAppModel: ObservableObject {
         dashboard.settings?.selectedNoteTokenConfigured == true ? "********" : nil
     }
 
-    private func refreshStoredSelectedNoteToken() {
-        hideStoredSelectedNoteToken()
-    }
-
     private func hideStoredSelectedNoteToken() {
         revealsStoredToken = false
         storedSelectedNoteToken = nil
@@ -633,7 +630,7 @@ final class UrsusAppModel: ObservableObject {
     private func completeBridgeOperation(with result: Result<String, Error>) {
         let completedOperation = activeBridgeOperation
         activeBridgeOperation = nil
-        reload()
+        refreshAppState()
         bridgeStatusMessageClearTask?.cancel()
 
         switch result {
@@ -832,7 +829,7 @@ final class UrsusAppModel: ObservableObject {
                 return
             }
 
-            reload()
+            refreshAppState()
 
             let destinationPath = result.destinationPath ?? launcherPath
             switch result.status {
