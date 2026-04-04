@@ -69,6 +69,8 @@ final class UrsusAppModel: ObservableObject {
     private var configurationAutosaveTask: Task<Void, Never>?
     private var bridgeStatusMessageClearTask: Task<Void, Never>?
     private var tokenStatusMessageClearTask: Task<Void, Never>?
+    private var cliStatusMessageClearTask: Task<Void, Never>?
+    private var hostSetupStatusMessageClearTask: Task<Void, Never>?
     private var templateStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
@@ -94,9 +96,11 @@ final class UrsusAppModel: ObservableObject {
             try BearAppSupport.saveSelectedNoteToken(tokenDraft)
             tokenDraft = ""
             hideStoredSelectedNoteToken()
+            tokenStatusMessageClearTask?.cancel()
             tokenStatusMessage = "Token saved in macOS Keychain."
             tokenStatusError = nil
             reload()
+            scheduleTokenStatusMessageClear()
         } catch {
             tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
@@ -108,9 +112,11 @@ final class UrsusAppModel: ObservableObject {
             try BearAppSupport.removeSelectedNoteToken()
             tokenDraft = ""
             hideStoredSelectedNoteToken()
+            tokenStatusMessageClearTask?.cancel()
             tokenStatusMessage = "Token removed from macOS Keychain."
             tokenStatusError = nil
             reload()
+            scheduleTokenStatusMessageClear()
         } catch {
             tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
@@ -132,7 +138,7 @@ final class UrsusAppModel: ObservableObject {
         }
 
         configurationStatusError = nil
-        configurationStatusMessage = "Saving changes..."
+        configurationStatusMessage = nil
         configurationAutosaveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else {
@@ -153,7 +159,7 @@ final class UrsusAppModel: ObservableObject {
 
         if templateValidation.hasErrors {
             templateStatusMessage = nil
-            templateStatusError = "Fix the template errors before saving."
+            templateStatusError = nil
             return
         }
 
@@ -169,7 +175,7 @@ final class UrsusAppModel: ObservableObject {
 
         guard !validation.hasErrors else {
             templateStatusMessage = nil
-            templateStatusError = "Fix the template errors before saving."
+            templateStatusError = nil
             return
         }
 
@@ -253,8 +259,8 @@ final class UrsusAppModel: ObservableObject {
                 currentAppBundleURL: Bundle.main.bundleURL
             )
             configurationStatusMessage = validation.warnings.isEmpty
-                ? "Configuration saved automatically."
-                : "Configuration saved automatically. Review the warnings below."
+                ? nil
+                : "Review the warnings below."
             configurationStatusError = nil
         } catch {
             configurationStatusMessage = nil
@@ -265,9 +271,11 @@ final class UrsusAppModel: ObservableObject {
     func installPublicLauncher() {
         do {
             let receipt = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
+            cliStatusMessageClearTask?.cancel()
             cliStatusMessage = "Launcher installed at \(receipt.destinationPath). Local MCP hosts and Terminal should use that path."
             cliStatusError = nil
             reload()
+            scheduleCLIStatusMessageClear()
         } catch {
             cliStatusMessage = nil
             cliStatusError = localizedMessage(for: error)
@@ -332,16 +340,20 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(path, forType: .string)
+        cliStatusMessageClearTask?.cancel()
         cliStatusMessage = "Copied launcher path: \(path)"
         cliStatusError = nil
+        scheduleCLIStatusMessageClear()
     }
 
     func copyBridgeURL() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(bridgeEndpointURL, forType: .string)
+        bridgeStatusMessageClearTask?.cancel()
         bridgeStatusMessage = "Copied bridge MCP URL: \(bridgeEndpointURL)"
         bridgeStatusError = nil
+        scheduleBridgeStatusMessageClear()
     }
 
     func copySelectedNoteToken() {
@@ -375,8 +387,10 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(snippet, forType: .string)
+        hostSetupStatusMessageClearTask?.cancel()
         hostSetupStatusMessage = "Copied \(setup.appName) setup snippet."
         hostSetupStatusError = nil
+        scheduleHostSetupStatusMessageClear()
     }
 
     func copyHostConfigPath(_ setup: BearHostAppSetupSnapshot) {
@@ -389,8 +403,10 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(configPath, forType: .string)
+        hostSetupStatusMessageClearTask?.cancel()
         hostSetupStatusMessage = "Copied \(setup.appName) config path: \(configPath)"
         hostSetupStatusError = nil
+        scheduleHostSetupStatusMessageClear()
     }
 
     func updateInboxTagsDraft(from tags: [String]) {
@@ -673,6 +689,46 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
+    private func scheduleCLIStatusMessageClear() {
+        cliStatusMessageClearTask?.cancel()
+        let currentMessage = cliStatusMessage
+
+        cliStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.cliStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.cliStatusMessage = nil
+            }
+        }
+    }
+
+    private func scheduleHostSetupStatusMessageClear() {
+        hostSetupStatusMessageClearTask?.cancel()
+        let currentMessage = hostSetupStatusMessage
+
+        hostSetupStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.hostSetupStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.hostSetupStatusMessage = nil
+            }
+        }
+    }
+
     private func scheduleTokenStatusMessageClear() {
         tokenStatusMessageClearTask?.cancel()
         let currentMessage = tokenStatusMessage
@@ -788,6 +844,9 @@ final class UrsusAppModel: ObservableObject {
                 cliStatusMessage = nil
             }
             cliStatusError = nil
+            if cliStatusMessage != nil {
+                scheduleCLIStatusMessageClear()
+            }
         } catch {
             cliStatusMessage = nil
             cliStatusError = localizedMessage(for: error)

@@ -93,7 +93,9 @@ struct UrsusPanel<Content: View>: View {
             VStack(alignment: .leading, spacing: 8) {
                 panelHeader
                 content
-                    .padding(16)
+                    .padding(.top, 15)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 13)
                     .background(UrsusPanelBackground(style: .subtle))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
@@ -186,7 +188,7 @@ struct UrsusGroupedBlock<Content: View>: View {
     @ViewBuilder let content: Content
 
     init(
-        padding: CGFloat = 14,
+        padding: CGFloat = 12,
         @ViewBuilder content: () -> Content
     ) {
         self.padding = padding
@@ -273,6 +275,7 @@ struct UrsusNumericFieldRow: View {
     var disabled = false
     var readOnly = false
     var helpText: String?
+    var showsHelpButton = true
     var fieldWidth: CGFloat = 80
 
     var body: some View {
@@ -282,7 +285,7 @@ struct UrsusNumericFieldRow: View {
                     .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
 
-                if let helpText {
+                if showsHelpButton, let helpText {
                     UrsusHelpButton(text: helpText)
                 }
             }
@@ -541,6 +544,15 @@ struct UrsusStatusBadge: View {
     }
 }
 
+struct UrsusConfiguredMark: View {
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.tertiary)
+            .accessibilityHidden(true)
+    }
+}
+
 struct UrsusIssueList: View {
     private let rows: [IssueRow]
 
@@ -589,18 +601,26 @@ struct UrsusMessageStack: View {
     let warning: String?
     let error: String?
 
+    private var hasContent: Bool {
+        success != nil || warning != nil || error != nil
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let success {
-                UrsusFeedbackRow(symbol: "checkmark.circle.fill", message: success, tone: .neutral)
-            }
+        Group {
+            if hasContent {
+                VStack(alignment: .leading, spacing: 6) {
+                    if let success {
+                        UrsusFeedbackRow(symbol: "checkmark.circle", message: success, tone: .neutral)
+                    }
 
-            if let warning, warning != success {
-                UrsusFeedbackRow(symbol: "exclamationmark.triangle.fill", message: warning, tone: .warning)
-            }
+                    if let warning, warning != success {
+                        UrsusFeedbackRow(symbol: "exclamationmark.triangle.fill", message: warning, tone: .warning)
+                    }
 
-            if let error {
-                UrsusFeedbackRow(symbol: "xmark.octagon.fill", message: error, tone: .error)
+                    if let error {
+                        UrsusFeedbackRow(symbol: "xmark.octagon.fill", message: error, tone: .error)
+                    }
+                }
             }
         }
     }
@@ -620,24 +640,24 @@ private struct UrsusFeedbackRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: symbol)
-                .foregroundStyle(feedbackColor)
+                .foregroundStyle(feedbackStyle)
                 .padding(.top, 1)
 
             Text(message)
                 .font(.callout)
-                .foregroundStyle(tone == .neutral ? .secondary : feedbackColor)
+                .foregroundStyle(feedbackStyle)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    private var feedbackColor: Color {
+    private var feedbackStyle: AnyShapeStyle {
         switch tone {
         case .neutral:
-            return statusPalette(for: .configured).foreground
+            return AnyShapeStyle(.secondary)
         case .warning:
-            return statusPalette(for: .notConfigured).foreground
+            return AnyShapeStyle(statusPalette(for: .notConfigured).foreground)
         case .error:
-            return statusPalette(for: .failed).foreground
+            return AnyShapeStyle(statusPalette(for: .failed).foreground)
         }
     }
 }

@@ -89,12 +89,7 @@ struct UrsusSetupView: View {
     private func tokenPanel(_ settings: BearAppSettingsSnapshot) -> some View {
         UrsusPanel(
             title: "Bear Token",
-            titleHelpText: "Token is safely stored in macOS Keychain.",
-            headerAccessory: {
-                if settings.selectedNoteTokenConfigured {
-                    UrsusStatusBadge(title: "Saved", status: .configured)
-                }
-            }
+            titleHelpText: "Token is safely stored in macOS Keychain."
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Optional. Required for selected-note flows.")
@@ -240,117 +235,132 @@ struct UrsusSetupView: View {
     private func bridgePanel(_ settings: BearAppSettingsSnapshot) -> some View {
         let bridge = settings.bridge
 
-        return UrsusPanel(
-            title: "Remote MCP Bridge",
-            titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly.",
-            headerAccessory: {
-                UrsusStatusBadge(title: bridgeStatusTitle(for: bridge), status: bridge.status)
+        if let badge = bridgeBadge(for: bridge) {
+            return AnyView(
+                UrsusPanel(
+                    title: "Remote MCP Bridge",
+                    titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly.",
+                    headerAccessory: {
+                        UrsusStatusBadge(title: badge.title, status: badge.status)
+                    }
+                ) {
+                    bridgePanelBody(settings, bridge: bridge)
+                }
+            )
+        }
+
+        return AnyView(
+            UrsusPanel(
+                title: "Remote MCP Bridge",
+                titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly."
+            ) {
+                bridgePanelBody(settings, bridge: bridge)
             }
-        ) {
-            VStack(alignment: .leading, spacing: 14) {
-                if let bridgeStateText = bridgeStateText(for: settings) {
-                    Text(bridgeStateText)
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
+        )
+    }
+
+    @ViewBuilder
+    private func bridgePanelBody(_ settings: BearAppSettingsSnapshot, bridge: BearAppBridgeSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            bridgeStatusSummary(for: settings)
+
+            UrsusGroupedBlock {
+                HStack(alignment: .firstTextBaseline, spacing: 14) {
+                    Text("MCP URL")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 12)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(bridge.endpointURL)
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.trailing)
+                            .textSelection(.enabled)
+
+                        Button {
+                            model.copyBridgeURL()
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Copy URL")
+                    }
                 }
 
-                UrsusGroupedBlock {
-                    HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        Text("MCP URL")
-                            .font(.callout.weight(.medium))
-                            .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 6) {
+                    UrsusNumericFieldRow(
+                        label: "Port",
+                        value: bridgePortBinding,
+                        range: 1024...65_535,
+                        disabled: model.isBridgeOperationInProgress,
+                        readOnly: bridge.installed,
+                        helpText: "Port is only customizable before installing the bridge.",
+                        showsHelpButton: false,
+                        fieldWidth: 92
+                    )
+                    configurationValidationMessages(for: .bridgePort)
+                }
+            }
 
-                        Spacer(minLength: 12)
-
-                        HStack(alignment: .firstTextBaseline, spacing: 8) {
-                            Text(bridge.endpointURL)
-                                .font(.system(.callout, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.trailing)
-                                .textSelection(.enabled)
-
-                            Button {
-                                model.copyBridgeURL()
-                            } label: {
-                                Image(systemName: "doc.on.doc")
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.secondary)
-                            .help("Copy URL")
-                        }
+            HStack(spacing: 10) {
+                if let recoveryAction = bridgeRecoveryAction(for: settings) {
+                    Button(recoveryAction.title) {
+                        performRecoveryAction(recoveryAction, settings: settings)
                     }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        UrsusNumericFieldRow(
-                            label: "Port",
-                            value: bridgePortBinding,
-                            range: 1024...65_535,
-                            disabled: model.isBridgeOperationInProgress,
-                            readOnly: bridge.installed,
-                            helpText: "Port is only customizable before installing the bridge.",
-                            fieldWidth: 92
+                    .buttonStyle(.bordered)
+                    .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
+                } else if let title = bridgePrimaryActionTitle(for: bridge) {
+                    Button(title) {
+                        model.installBridge(
+                            repairing: bridge.status == .invalid || bridge.status == .failed
                         )
-                        configurationValidationMessages(for: .bridgePort)
                     }
+                    .buttonStyle(.bordered)
+                    .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                 }
 
-                HStack(spacing: 10) {
-                    if let recoveryAction = bridgeRecoveryAction(for: settings) {
-                        Button(recoveryAction.title) {
-                            performRecoveryAction(recoveryAction, settings: settings)
+                if bridge.installed {
+                    if bridge.loaded {
+                        Button("Pause") {
+                            model.pauseBridge()
                         }
                         .buttonStyle(.bordered)
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
-                    } else if let title = bridgePrimaryActionTitle(for: bridge) {
-                        Button(title) {
-                            model.installBridge(
-                                repairing: bridge.status == .invalid || bridge.status == .failed
-                            )
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
-                    }
-
-                    if bridge.installed {
-                        if bridge.loaded {
-                            Button("Pause") {
-                                model.pauseBridge()
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(model.isBridgeOperationInProgress)
-                        } else {
-                            Button("Resume") {
-                                model.resumeBridge()
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(model.isBridgeOperationInProgress)
-                        }
-
-                        Button("Remove", role: .destructive) {
-                            model.removeBridge()
+                        .disabled(model.isBridgeOperationInProgress)
+                    } else {
+                        Button("Resume") {
+                            model.resumeBridge()
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isBridgeOperationInProgress)
                     }
-                }
 
-                if let progressMessage = model.bridgeOperationProgressMessage {
-                    HStack(spacing: 10) {
-                        ProgressView()
-                            .controlSize(.small)
-
-                        Text(progressMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.tertiary)
+                    Button("Remove", role: .destructive) {
+                        model.removeBridge()
                     }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isBridgeOperationInProgress)
                 }
-
-                UrsusMessageStack(
-                    success: model.bridgeStatusMessage,
-                    warning: nil,
-                    error: model.bridgeStatusError
-                )
             }
+
+            if let progressMessage = model.bridgeOperationProgressMessage {
+                HStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+
+                    Text(progressMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            UrsusMessageStack(
+                success: model.bridgeStatusMessage,
+                warning: nil,
+                error: model.bridgeStatusError
+            )
         }
     }
 
@@ -372,15 +382,15 @@ struct UrsusSetupView: View {
     private func bridgeStateText(for settings: BearAppSettingsSnapshot) -> String? {
         let bridge = settings.bridge
 
-        if bridge.loaded, bridge.status == .ok || bridge.status == .configured {
-            return nil
+        if bridge.loaded, (bridge.status == .ok || bridge.status == .configured) {
+            return "Installed and serving requests at the local MCP URL below."
         }
 
         switch bridge.status {
         case .missing:
             return "Install the bridge to get a local MCP URL."
         case .notConfigured:
-            return bridge.installed ? "Installed, but not serving requests." : nil
+            return bridge.installed ? "Installed, but not serving requests." : "Install the bridge to get a local MCP URL."
         case .invalid, .failed:
             switch bridgeRecoveryAction(for: settings) {
             case .installLauncher:
@@ -394,6 +404,16 @@ struct UrsusSetupView: View {
             }
         case .ok, .configured:
             return nil
+        }
+    }
+
+    @ViewBuilder
+    private func bridgeStatusSummary(for settings: BearAppSettingsSnapshot) -> some View {
+        if let bridgeStateText = bridgeStateText(for: settings) {
+            Text(bridgeStateText)
+                .font(.footnote)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -433,10 +453,19 @@ private struct UrsusHostSetupRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
-                Text(setup.appName)
-                    .font(.callout.weight(.medium))
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if hostSetupShowsConfiguredMark(setup.status) {
+                        UrsusConfiguredMark()
+                    }
+
+                    Text(setup.appName)
+                        .font(.callout.weight(.medium))
+                }
                 Spacer()
-                UrsusStatusBadge(title: compactStatusTitle(for: setup.status), status: setup.status)
+
+                if let badgeStatus = hostSetupBadgeStatus(for: setup.status) {
+                    UrsusStatusBadge(title: compactStatusTitle(for: badgeStatus), status: badgeStatus)
+                }
             }
 
             if let detail = hostSetupDetail(for: setup) {
@@ -501,23 +530,44 @@ private func friendlyInsertPosition(_ rawValue: String) -> String {
     }
 }
 
-private func bridgeStatusTitle(for bridge: BearAppBridgeSnapshot) -> String {
-    if bridge.installed, bridge.status == .notConfigured {
-        return "Paused"
-    }
-
-    return compactStatusTitle(for: bridge.status)
-}
-
 private func hostSetupDetail(for setup: BearHostAppSetupSnapshot) -> String? {
     switch setup.status {
     case .ok, .configured:
         return nil
     case .missing:
-        return "Open the app once if needed, then copy setup to connect it."
+        return "Open the app once if needed."
     case .notConfigured:
-        return "Copy setup to connect this app."
+        return nil
     case .invalid, .failed:
         return "Copy setup again to repair this app's connection."
+    }
+}
+
+private func bridgeBadge(for bridge: BearAppBridgeSnapshot) -> (title: String, status: BearDoctorCheckStatus)? {
+    switch bridge.status {
+    case .notConfigured where bridge.installed:
+        return ("Paused", .notConfigured)
+    case .invalid, .failed:
+        return (compactStatusTitle(for: bridge.status), bridge.status)
+    case .ok, .configured, .missing, .notConfigured:
+        return nil
+    }
+}
+
+private func hostSetupShowsConfiguredMark(_ status: BearDoctorCheckStatus) -> Bool {
+    switch status {
+    case .ok, .configured:
+        return true
+    case .missing, .notConfigured, .invalid, .failed:
+        return false
+    }
+}
+
+private func hostSetupBadgeStatus(for status: BearDoctorCheckStatus) -> BearDoctorCheckStatus? {
+    switch status {
+    case .invalid, .failed:
+        return status
+    case .ok, .configured, .missing, .notConfigured:
+        return nil
     }
 }
