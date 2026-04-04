@@ -304,7 +304,7 @@ private struct UrsusSetupView: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     Text("MCP URL")
-                        .font(.caption.weight(.semibold))
+                        .font(.callout.weight(.medium))
                         .foregroundStyle(.secondary)
 
                     Spacer(minLength: 12)
@@ -1043,20 +1043,23 @@ private struct UrsusInfoRow: View {
         if compact {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(label)
-                    .font(prominentLabel ? .caption.weight(.semibold) : .footnote)
-                    .foregroundStyle(prominentLabel ? .secondary : .tertiary)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
+
                 Spacer(minLength: 12)
+
                 Text(value)
-                    .font(monospaced ? .system(.caption, design: .monospaced) : .callout)
+                    .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
                     .textSelection(.enabled)
             }
         } else {
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(label)
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
+
                 Text(value)
                     .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
                     .foregroundStyle(.secondary)
@@ -1086,6 +1089,7 @@ private struct UrsusNumericFieldRow: View {
         HStack(spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(label)
+                    .font(.callout.weight(.medium))
                     .foregroundStyle(.secondary)
 
                 if let helpText {
