@@ -97,16 +97,14 @@ func backgroundOpenArgumentsUseLaunchServicesBackgroundMode() {
 }
 
 @Test
-func renameTagStaysBackgroundedEvenWhenShowWindowIsTrue() async throws {
+func renameTagStaysBackgrounded() async throws {
     let opener = ActivationRecordingOpener()
     let transport = BearXCallbackTransport(
         readStore: StaticReadStore(note: nil, tags: [TagSummary(name: "done", identifier: nil, noteCount: 1)]),
         urlOpenerWithActivation: opener.record
     )
 
-    _ = try await transport.renameTag(
-        RenameTagRequest(name: "todo", newName: "done", showWindow: true)
-    )
+    _ = try await transport.renameTag(RenameTagRequest(name: "todo", newName: "done"))
 
     #expect(await opener.activations == [false])
 }

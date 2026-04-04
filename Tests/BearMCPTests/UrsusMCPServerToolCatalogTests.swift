@@ -38,7 +38,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let insertDescription = try #require(insert.description)
     #expect(insertDescription.hasPrefix("Insert text into one or more Bear notes."))
     #expect(insertDescription.contains("`position` = `top`"))
-    #expect(insertDescription.contains("`new_window` = `false` when opened"))
+    #expect(insertDescription.contains("`new_window` = `false` when opened") == false)
     #expect(insertDescription.contains("`note` accepts a selector matched as exact note id first"))
     #expect(propertyDescription(named: "note", in: insert)?.contains("Use exactly one of `note` or `selected: true`") == true)
     #expect(propertyDescription(named: "selected", in: insert)?.contains("currently selected Bear note") == true)
@@ -46,6 +46,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "note", in: insert)?.contains("Do not call `bear_get_notes` only to resolve this selector") == true)
     #expect(propertyDescription(named: "position", in: insert)?.contains("Omit to use the current session default `top` when no `target` is provided") == true)
     #expect(propertyDescription(named: "target", in: insert)?.contains("before or after a matching heading") == true)
+    #expect(propertyDescription(named: "open_note", in: insert) == nil)
+    #expect(propertyDescription(named: "new_window", in: insert) == nil)
     #expect(propertyDescription(named: "expected_version", in: insert) == nil)
 
     let addFiles = try #require(tool(named: "bear_add_files", in: tools))
@@ -74,7 +76,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(addTagsDescription.contains("Do not call `bear_get_notes` only to resolve the note selector"))
     #expect(addTagsDescription.contains("exact current tags are actually needed"))
     #expect(propertyDescription(named: "note", in: addTags)?.contains("exact case-insensitive title across notes and archive") == true)
-    #expect(propertyDescription(named: "new_window", in: addTags)?.contains("the default when the note is opened: `false`") == true)
+    #expect(propertyDescription(named: "open_note", in: addTags) == nil)
+    #expect(propertyDescription(named: "new_window", in: addTags) == nil)
     #expect(propertyDescription(named: "expected_version", in: addTags) == nil)
 
     let removeTags = try #require(tool(named: "bear_remove_tags", in: tools))
@@ -88,11 +91,13 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(applyTemplateDescription.contains("normalize tag-only clusters into the template `{{tags}}` slot"))
     #expect(applyTemplateDescription.contains("preserves inline prose hashtags"))
     #expect(propertyDescription(named: "note", in: applyTemplate)?.contains("exact case-insensitive title across notes and archive") == true)
-    #expect(propertyDescription(named: "new_window", in: applyTemplate)?.contains("the default when the note is opened: `false`") == true)
+    #expect(propertyDescription(named: "open_note", in: applyTemplate) == nil)
+    #expect(propertyDescription(named: "new_window", in: applyTemplate) == nil)
 
     let deleteTags = try #require(tool(named: "bear_delete_tags", in: tools))
     #expect(try #require(deleteTags.description).contains("entire Bear app"))
     #expect(propertyDescription(named: "name", in: deleteTags)?.contains("delete across Bear") == true)
+    #expect(propertyDescription(named: "show_window", in: deleteTags) == nil)
 
     let createBackups = try #require(tool(named: "bear_create_backups", in: tools))
     #expect(try #require(createBackups.description).contains("manual capture flow as the CLI"))
@@ -119,6 +124,8 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let restore = try #require(tool(named: "bear_restore_notes", in: tools))
     #expect(try #require(restore.description).contains("If `snapshot_id` is omitted, the most recent backup"))
     #expect(propertyDescription(named: "snapshot_id", in: restore)?.contains("most recent snapshot") == true)
+    #expect(propertyDescription(named: "open_note", in: restore) == nil)
+    #expect(propertyDescription(named: "new_window", in: restore) == nil)
 
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
     #expect(try #require(getNotes.description).contains("selected: true"))

@@ -4,6 +4,8 @@ import Foundation
 import Logging
 
 public final class BearService: @unchecked Sendable {
+    private static let backgroundMutationPresentation = BearPresentationOptions.backgroundMutation
+
     private let configuration: BearConfiguration
     private let tokenStore: any BearTokenStore
     private let readStore: BearReadStore
@@ -410,7 +412,7 @@ public final class BearService: @unchecked Sendable {
                 return try await self.writeTransport.replaceAll(
                     noteID: note.ref.identifier,
                     fullText: updatedRawText,
-                    presentation: request.presentation
+                    presentation: Self.backgroundMutationPresentation
                 )
             }
 
@@ -420,8 +422,7 @@ public final class BearService: @unchecked Sendable {
                     InsertTextRequest(
                         noteID: note.ref.identifier,
                         text: request.text,
-                        position: self.resolvedInsertPosition(request.position),
-                        presentation: request.presentation
+                        position: self.resolvedInsertPosition(request.position)
                     )
                 )
             }
@@ -442,7 +443,7 @@ public final class BearService: @unchecked Sendable {
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedRawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
         }
     }
@@ -459,7 +460,7 @@ public final class BearService: @unchecked Sendable {
             return try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
         }
     }
@@ -499,8 +500,7 @@ public final class BearService: @unchecked Sendable {
                         noteID: note.ref.identifier,
                         filePath: request.filePath,
                         header: request.header,
-                        position: self.resolvedInsertPosition(request.position),
-                        presentation: request.presentation
+                        position: self.resolvedInsertPosition(request.position)
                     )
                 )
             }
@@ -547,8 +547,7 @@ public final class BearService: @unchecked Sendable {
             try await self.writeTransport.renameTag(
                 RenameTagRequest(
                     name: try self.normalizedTagName(request.name, fieldName: "name"),
-                    newName: try self.normalizedTagName(request.newName, fieldName: "new_name"),
-                    showWindow: request.showWindow
+                    newName: try self.normalizedTagName(request.newName, fieldName: "new_name")
                 )
             )
         }
@@ -564,8 +563,7 @@ public final class BearService: @unchecked Sendable {
 
             return try await self.writeTransport.deleteTag(
                 DeleteTagRequest(
-                    name: existingTag.name,
-                    showWindow: request.showWindow
+                    name: existingTag.name
                 )
             )
         }
@@ -601,7 +599,7 @@ public final class BearService: @unchecked Sendable {
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedRawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
 
             return NoteTagMutationReceipt(
@@ -646,7 +644,7 @@ public final class BearService: @unchecked Sendable {
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedRawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
 
             return NoteTagMutationReceipt(
@@ -685,7 +683,7 @@ public final class BearService: @unchecked Sendable {
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedRawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
 
             return ApplyTemplateReceipt(
@@ -706,15 +704,7 @@ public final class BearService: @unchecked Sendable {
 
         return try await applyTemplate(
             noteIDs.map { noteID in
-                ApplyTemplateRequest(
-                    noteID: noteID,
-                    presentation: BearPresentationOptions(
-                        openNote: false,
-                        newWindow: false,
-                        showWindow: false,
-                        edit: false
-                    )
-                )
+                ApplyTemplateRequest(noteID: noteID)
             }
         )
     }
@@ -791,7 +781,7 @@ public final class BearService: @unchecked Sendable {
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: snapshot.rawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
             return RestoreBackupReceipt(
                 noteID: note.ref.identifier,
@@ -820,7 +810,7 @@ public final class BearService: @unchecked Sendable {
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: snapshot.rawText,
-                presentation: request.presentation
+                presentation: Self.backgroundMutationPresentation
             )
             return RestoreBackupReceipt(
                 noteID: note.ref.identifier,
@@ -1625,12 +1615,7 @@ public final class BearService: @unchecked Sendable {
         updatedContent: String,
         anchor: AttachmentAnchor
     ) async throws -> MutationReceipt {
-        let internalPresentation = BearPresentationOptions(
-            openNote: false,
-            newWindow: false,
-            showWindow: false,
-            edit: false
-        )
+        let internalPresentation = Self.backgroundMutationPresentation
         let anchoredRawText = self.rawTextByReplacingEditableContent(
             in: note,
             plan: plan,
@@ -1677,7 +1662,7 @@ public final class BearService: @unchecked Sendable {
         return try await self.writeTransport.replaceAll(
             noteID: note.ref.identifier,
             fullText: cleanedRawText,
-            presentation: request.presentation
+            presentation: internalPresentation
         )
     }
 

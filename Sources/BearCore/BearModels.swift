@@ -1046,6 +1046,13 @@ public struct BearPresentationOptions: Codable, Hashable, Sendable {
         self.showWindow = showWindow
         self.edit = edit
     }
+
+    public static let backgroundMutation = BearPresentationOptions(
+        openNote: false,
+        newWindow: false,
+        showWindow: false,
+        edit: false
+    )
 }
 
 public struct CreateNoteRequest: Codable, Hashable, Sendable {
@@ -1085,7 +1092,7 @@ public struct InsertTextRequest: Codable, Hashable, Sendable {
         text: String,
         position: InsertPosition? = nil,
         target: RelativeTextTarget? = nil,
-        presentation: BearPresentationOptions
+        presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
         self.text = text
@@ -1109,7 +1116,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         oldString: String?,
         occurrence: ReplaceStringOccurrence?,
         newString: String,
-        presentation: BearPresentationOptions
+        presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
         self.kind = kind
@@ -1141,22 +1148,18 @@ public struct OpenTagRequest: Codable, Hashable, Sendable {
 public struct RenameTagRequest: Codable, Hashable, Sendable {
     public let name: String
     public let newName: String
-    public let showWindow: Bool?
 
-    public init(name: String, newName: String, showWindow: Bool?) {
+    public init(name: String, newName: String) {
         self.name = name
         self.newName = newName
-        self.showWindow = showWindow
     }
 }
 
 public struct DeleteTagRequest: Codable, Hashable, Sendable {
     public let name: String
-    public let showWindow: Bool?
 
-    public init(name: String, showWindow: Bool?) {
+    public init(name: String) {
         self.name = name
-        self.showWindow = showWindow
     }
 }
 
@@ -1168,7 +1171,7 @@ public struct NoteTagsRequest: Codable, Hashable, Sendable {
     public init(
         noteID: String,
         tags: [String],
-        presentation: BearPresentationOptions
+        presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
         self.tags = tags
@@ -1182,7 +1185,7 @@ public struct ApplyTemplateRequest: Codable, Hashable, Sendable {
 
     public init(
         noteID: String,
-        presentation: BearPresentationOptions
+        presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
         self.presentation = presentation
@@ -1203,7 +1206,7 @@ public struct AddFileRequest: Codable, Hashable, Sendable {
         header: String? = nil,
         position: InsertPosition? = nil,
         target: RelativeTextTarget? = nil,
-        presentation: BearPresentationOptions
+        presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
         self.filePath = filePath
@@ -1219,7 +1222,7 @@ public struct RestoreBackupRequest: Codable, Hashable, Sendable {
     public let snapshotID: String?
     public let presentation: BearPresentationOptions
 
-    public init(noteID: String, snapshotID: String?, presentation: BearPresentationOptions) {
+    public init(noteID: String, snapshotID: String?, presentation: BearPresentationOptions = .backgroundMutation) {
         self.noteID = noteID
         self.snapshotID = snapshotID
         self.presentation = presentation

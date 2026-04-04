@@ -46,9 +46,9 @@ func addFilesUseTemplateAwareAnchorFlowWhenNoteMatchesCurrentTemplate() async th
     #expect(replaceCalls[0].fullText.contains("## BEAR_MCP_ATTACHMENT_"))
     #expect(replaceCalls[0].presentation.showWindow == false)
     #expect(replaceCalls[1].fullText == "# Inbox\n\n---\n#0-inbox\n---\nLine 1\n[file:example.txt]")
-    #expect(replaceCalls[1].presentation.openNote == true)
-    #expect(replaceCalls[1].presentation.newWindow == true)
-    #expect(replaceCalls[1].presentation.edit == true)
+    #expect(replaceCalls[1].presentation.openNote == false)
+    #expect(replaceCalls[1].presentation.newWindow == false)
+    #expect(replaceCalls[1].presentation.edit == false)
 }
 
 @Test

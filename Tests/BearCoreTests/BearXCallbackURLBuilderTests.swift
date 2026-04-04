@@ -202,10 +202,10 @@ func resolveSelectedNoteURLWithoutTokenPreservesSelectedModeFlags() throws {
 }
 
 @Test
-func renameTagURLOmitsShowWindowWhenNotRequested() throws {
+func renameTagURLDoesNotIncludeShowWindow() throws {
     let builder = BearXCallbackURLBuilder()
     let url = try builder.renameTagURL(
-        request: RenameTagRequest(name: "todo", newName: "done", showWindow: nil)
+        request: RenameTagRequest(name: "todo", newName: "done")
     )
 
     let absolute = url.absoluteString
@@ -216,38 +216,16 @@ func renameTagURLOmitsShowWindowWhenNotRequested() throws {
 }
 
 @Test
-func renameTagURLIncludesExplicitShowWindowOverride() throws {
-    let builder = BearXCallbackURLBuilder()
-    let url = try builder.renameTagURL(
-        request: RenameTagRequest(name: "todo", newName: "done", showWindow: false)
-    )
-
-    let absolute = url.absoluteString
-    #expect(absolute.contains("show_window=no"))
-}
-
-@Test
-func deleteTagURLOmitsShowWindowWhenNotRequested() throws {
+func deleteTagURLDoesNotIncludeShowWindow() throws {
     let builder = BearXCallbackURLBuilder()
     let url = try builder.deleteTagURL(
-        request: DeleteTagRequest(name: "obsolete", showWindow: nil)
+        request: DeleteTagRequest(name: "obsolete")
     )
 
     let absolute = url.absoluteString
     #expect(absolute.contains("bear://x-callback-url/delete-tag"))
     #expect(absolute.contains("name=obsolete"))
     #expect(!absolute.contains("show_window="))
-}
-
-@Test
-func deleteTagURLIncludesExplicitShowWindowOverride() throws {
-    let builder = BearXCallbackURLBuilder()
-    let url = try builder.deleteTagURL(
-        request: DeleteTagRequest(name: "obsolete", showWindow: false)
-    )
-
-    let absolute = url.absoluteString
-    #expect(absolute.contains("show_window=no"))
 }
 
 @Test

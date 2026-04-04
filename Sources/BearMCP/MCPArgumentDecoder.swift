@@ -156,17 +156,30 @@ enum MCPArgumentDecoder {
         return raw
     }
 
-    static func presentation(_ object: [String: Value], defaults: BearPresentationOptions) -> BearPresentationOptions {
-        let openNoteOverride = object["open_note"]?.boolValue
-        let newWindowOverride = object["new_window"]?.boolValue
+    static func createNotePresentation(_ object: [String: Value], defaults: BearPresentationOptions) throws -> BearPresentationOptions {
+        let openNoteOverride = try optionalBool(object, "open_note")
+        let newWindowOverride = try optionalBool(object, "new_window")
+        let opensNote = openNoteOverride ?? defaults.openNote
 
         return BearPresentationOptions(
-            openNote: openNoteOverride ?? defaults.openNote,
+            openNote: opensNote,
             openNoteOverride: openNoteOverride,
             newWindow: newWindowOverride ?? defaults.newWindow,
             newWindowOverride: newWindowOverride,
-            showWindow: object["show_window"]?.boolValue ?? defaults.showWindow,
-            edit: object["edit"]?.boolValue ?? defaults.edit
+            showWindow: opensNote,
+            edit: opensNote
+        )
+    }
+
+    static func openNotePresentation(_ object: [String: Value], defaultNewWindow: Bool) throws -> BearPresentationOptions {
+        let newWindowOverride = try optionalBool(object, "new_window")
+
+        return BearPresentationOptions(
+            openNote: true,
+            newWindow: newWindowOverride ?? defaultNewWindow,
+            newWindowOverride: newWindowOverride,
+            showWindow: true,
+            edit: true
         )
     }
 

@@ -169,7 +169,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
             #expect(replaceCall.fullText == "# Test Note\n\n---\n#project-x\n---\nBody line")
             #expect(replaceCall.presentation.openNote == false)
             #expect(replaceCall.presentation.openNoteOverride == nil)
-            #expect(replaceCall.presentation.newWindow == true)
+            #expect(replaceCall.presentation.newWindow == false)
             #expect(replaceCall.presentation.newWindowOverride == nil)
         }
     } catch {

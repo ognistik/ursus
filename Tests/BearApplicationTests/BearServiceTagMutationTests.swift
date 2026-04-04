@@ -23,7 +23,7 @@ func openTagNormalizesWrappedTagBeforeSendingItToTransport() async throws {
 }
 
 @Test
-func renameTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
+func renameTagsNormalizesNames() async throws {
     let transport = TagRecordingWriteTransport()
     let service = BearService(
         configuration: makeTagMutationConfiguration(),
@@ -33,20 +33,19 @@ func renameTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
     )
 
     let receipts = try await service.renameTags([
-        RenameTagRequest(name: " #todo# ", newName: " #done# ", showWindow: nil),
+        RenameTagRequest(name: " #todo# ", newName: " #done# "),
     ])
 
     let request = try #require(await transport.renamedTags.first)
     let receipt = try #require(receipts.first)
     #expect(request.name == "todo")
     #expect(request.newName == "done")
-    #expect(request.showWindow == nil)
     #expect(receipt.tag == "todo")
     #expect(receipt.newTag == "done")
 }
 
 @Test
-func deleteTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
+func deleteTagsNormalizesNames() async throws {
     let transport = TagRecordingWriteTransport()
     let service = BearService(
         configuration: makeTagMutationConfiguration(),
@@ -58,13 +57,12 @@ func deleteTagsNormalizesNamesAndPreservesOmittedShowWindow() async throws {
     )
 
     let receipts = try await service.deleteTags([
-        DeleteTagRequest(name: " #obsolete project# ", showWindow: nil),
+        DeleteTagRequest(name: " #obsolete project# "),
     ])
 
     let request = try #require(await transport.deletedTags.first)
     let receipt = try #require(receipts.first)
     #expect(request.name == "obsolete project")
-    #expect(request.showWindow == nil)
     #expect(receipt.tag == "obsolete project")
     #expect(receipt.status == "deleted")
 }
@@ -80,7 +78,7 @@ func deleteTagsReturnsNotFoundWithoutCallingTransportWhenTagDoesNotExist() async
     )
 
     let receipts = try await service.deleteTags([
-        DeleteTagRequest(name: " #missing tag# ", showWindow: nil),
+        DeleteTagRequest(name: " #missing tag# "),
     ])
 
     let receipt = try #require(receipts.first)
@@ -103,13 +101,12 @@ func deleteTagsStillDeletesTagThatExistsOnlyInArchive() async throws {
     )
 
     let receipts = try await service.deleteTags([
-        DeleteTagRequest(name: " archived-only ", showWindow: false),
+        DeleteTagRequest(name: " archived-only "),
     ])
 
     let request = try #require(await transport.deletedTags.first)
     let receipt = try #require(receipts.first)
     #expect(request.name == "archived-only")
-    #expect(request.showWindow == false)
     #expect(receipt.tag == "archived-only")
     #expect(receipt.status == "deleted")
 }

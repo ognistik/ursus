@@ -144,33 +144,21 @@ public struct BearXCallbackURLBuilder: Sendable {
     }
 
     public func renameTagURL(request: RenameTagRequest) throws -> URL {
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "name", value: request.name),
-            URLQueryItem(name: "new_name", value: request.newName),
-        ]
-
-        if let showWindow = request.showWindow {
-            queryItems.append(URLQueryItem(name: "show_window", value: yesNo(showWindow)))
-        }
-
         return try makeURL(
             action: "rename-tag",
-            queryItems: queryItems
+            queryItems: [
+                URLQueryItem(name: "name", value: request.name),
+                URLQueryItem(name: "new_name", value: request.newName),
+            ]
         )
     }
 
     public func deleteTagURL(request: DeleteTagRequest) throws -> URL {
-        var queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "name", value: request.name),
-        ]
-
-        if let showWindow = request.showWindow {
-            queryItems.append(URLQueryItem(name: "show_window", value: yesNo(showWindow)))
-        }
-
         return try makeURL(
             action: "delete-tag",
-            queryItems: queryItems
+            queryItems: [
+                URLQueryItem(name: "name", value: request.name),
+            ]
         )
     }
 

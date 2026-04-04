@@ -135,6 +135,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Backup snapshot payloads remain one JSON file per snapshot, while backup metadata now lives in `Backups/backups.sqlite` instead of a flat `index.json`, so list/lookup/delete/prune operations no longer load whole-history metadata into memory. Backup identity and recency are driven by `snapshot_id` plus `captured_at`, not Bear's mutable note revision counter, and backup-list cursors are keyed to the normalized note-scoped date-filter query so filtered pages cannot be mixed.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
+- MCP presentation controls are now intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and the other note/tag mutation tools run as background mutations without exposed presentation overrides.
 - Batch operations matter and should stay first-class.
 - Batched MCP tools now require `operations` to be a non-empty array of operation objects, and missing versus empty `operations` batches are surfaced as distinct validation errors.
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.
