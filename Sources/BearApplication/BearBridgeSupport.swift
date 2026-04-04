@@ -178,6 +178,21 @@ public extension BearAppSupport {
         return request
     }
 
+    static func bridgeToolsListProbeRequest(
+        url: URL,
+        timeout: TimeInterval,
+        protocolVersion: String
+    ) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = timeout
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(protocolVersion, forHTTPHeaderField: "MCP-Protocol-Version")
+        request.httpBody = bridgeToolsListProbeRequestBody()
+        return request
+    }
+
     static func installBridgeLaunchAgent(
         fromAppBundleURL appBundleURL: URL,
         fileManager: FileManager = .default,
@@ -849,7 +864,7 @@ private extension BearAppSupport {
 
         if launchAgentLoaded {
             guard endpointReachable else {
-                let detail = endpointProbeDetail ?? "The endpoint did not complete the MCP initialize probe."
+                let detail = endpointProbeDetail ?? "The endpoint did not complete the MCP health probe."
                 let logHint = recentBridgeLogHint(
                     fileManager: fileManager,
                     standardOutputURL: standardOutputURL,
@@ -868,7 +883,7 @@ private extension BearAppSupport {
             return (
                 .ok,
                 "Running",
-                "The Ursus bridge LaunchAgent is loaded and passed an MCP initialize probe at \(endpointURL)."
+                "The Ursus bridge LaunchAgent is loaded and passed MCP initialize and tools/list probes at \(endpointURL)."
             )
         }
 
@@ -902,27 +917,17 @@ private extension BearAppSupport {
             )
         }
 
-        let request = bridgeHealthCheckRequest(url: url, timeout: timeout)
-
         let session = URLSession(configuration: configuration)
         defer {
             session.finishTasksAndInvalidate()
         }
 
-        let semaphore = DispatchSemaphore(value: 0)
-        let probeBox = BearBridgeURLSessionProbeBox()
-
-        let task = session.dataTask(with: request) { data, urlResponse, error in
-            probeBox.data = data
-            probeBox.response = urlResponse
-            probeBox.error = error
-            semaphore.signal()
-        }
-        task.resume()
-
-        let waitResult = semaphore.wait(timeout: .now() + timeout + 0.1)
-        if waitResult == .timedOut {
-            task.cancel()
+        let initializeProbeResult = performBridgeProbeRequest(
+            bridgeHealthCheckRequest(url: url, timeout: timeout),
+            timeout: timeout,
+            session: session
+        )
+        if initializeProbeResult.timedOut {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
                 transportReachable: true,
@@ -931,7 +936,7 @@ private extension BearAppSupport {
             )
         }
 
-        if let responseError = probeBox.error {
+        if let responseError = initializeProbeResult.error {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
                 transportReachable: true,
@@ -940,7 +945,7 @@ private extension BearAppSupport {
             )
         }
 
-        guard let httpResponse = probeBox.response as? HTTPURLResponse else {
+        guard let httpResponse = initializeProbeResult.response else {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
                 transportReachable: true,
@@ -958,7 +963,7 @@ private extension BearAppSupport {
             )
         }
 
-        guard let responseData = probeBox.data else {
+        guard let responseData = initializeProbeResult.data else {
             return BearBridgeEndpointProbeResult(
                 reachable: false,
                 transportReachable: true,
@@ -973,6 +978,78 @@ private extension BearAppSupport {
                 transportReachable: true,
                 protocolCompatible: false,
                 detail: "A TCP connection succeeded, but the bridge returned an invalid MCP initialize response."
+            )
+        }
+
+        guard let protocolVersion = bridgeNegotiatedProtocolVersion(from: responseData) else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded, but the bridge initialize response did not include a negotiated protocol version."
+            )
+        }
+
+        let toolsListProbeResult = performBridgeProbeRequest(
+            bridgeToolsListProbeRequest(
+                url: url,
+                timeout: timeout,
+                protocolVersion: protocolVersion
+            ),
+            timeout: timeout,
+            session: session
+        )
+        if toolsListProbeResult.timedOut {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the MCP tools/list probe timed out."
+            )
+        }
+
+        if let responseError = toolsListProbeResult.error {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the MCP tools/list probe failed: \(bridgeLocalizedMessage(for: responseError))"
+            )
+        }
+
+        guard let toolsListHTTPResponse = toolsListProbeResult.response else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the bridge did not return an HTTP response to tools/list."
+            )
+        }
+
+        guard toolsListHTTPResponse.statusCode == 200 else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the MCP tools/list probe returned HTTP \(toolsListHTTPResponse.statusCode)."
+            )
+        }
+
+        guard let toolsListData = toolsListProbeResult.data else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the bridge returned an empty tools/list response."
+            )
+        }
+
+        guard bridgeToolsListResponseLooksHealthy(toolsListData) else {
+            return BearBridgeEndpointProbeResult(
+                reachable: false,
+                transportReachable: true,
+                protocolCompatible: false,
+                detail: "A TCP connection succeeded and MCP initialize succeeded, but the bridge returned an invalid MCP tools/list response."
             )
         }
 
@@ -991,6 +1068,14 @@ private extension BearAppSupport {
         )
     }
 
+    static func bridgeToolsListProbeRequestBody() -> Data {
+        Data(
+            """
+            {"jsonrpc":"2.0","id":"bridge-health-check-tools-list","method":"tools/list","params":{}}
+            """.utf8
+        )
+    }
+
     static func bridgeInitializeResponseLooksHealthy(_ data: Data) -> Bool {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               object["jsonrpc"] as? String == "2.0",
@@ -1002,6 +1087,55 @@ private extension BearAppSupport {
         }
 
         return true
+    }
+
+    static func bridgeNegotiatedProtocolVersion(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = object["result"] as? [String: Any],
+              let protocolVersion = result["protocolVersion"] as? String,
+              !protocolVersion.isEmpty
+        else {
+            return nil
+        }
+
+        return protocolVersion
+    }
+
+    static func bridgeToolsListResponseLooksHealthy(_ data: Data) -> Bool {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["jsonrpc"] as? String == "2.0",
+              let result = object["result"] as? [String: Any],
+              result["tools"] as? [Any] != nil
+        else {
+            return false
+        }
+
+        return true
+    }
+
+    static func performBridgeProbeRequest(
+        _ request: URLRequest,
+        timeout: TimeInterval,
+        session: URLSession
+    ) -> (data: Data?, response: HTTPURLResponse?, error: Error?, timedOut: Bool) {
+        let semaphore = DispatchSemaphore(value: 0)
+        let probeBox = BearBridgeURLSessionProbeBox()
+
+        let task = session.dataTask(with: request) { data, urlResponse, error in
+            probeBox.data = data
+            probeBox.response = urlResponse
+            probeBox.error = error
+            semaphore.signal()
+        }
+        task.resume()
+
+        let waitResult = semaphore.wait(timeout: .now() + timeout + 0.1)
+        if waitResult == .timedOut {
+            task.cancel()
+            return (nil, nil, nil, true)
+        }
+
+        return (probeBox.data, probeBox.response as? HTTPURLResponse, probeBox.error, false)
     }
 
     static func recentBridgeLogHint(

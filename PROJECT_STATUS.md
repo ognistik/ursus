@@ -84,10 +84,12 @@ Behavior already in place:
 - `--restore-note` restores one or more explicit `NOTE_ID SNAPSHOT_ID` pairs, requires exact note ids rather than title selectors, and reports per-pair receipts.
 - `--apply-template` and `--backup-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
-- `bridge serve` now provides the first optional localhost HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
+- `bridge serve` now provides the first optional loopback HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
 - Bridge config now lives inside `~/Library/Application Support/Ursus/config.json` with default localhost settings and a stable saved port.
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and targets the stable public launcher path.
 - The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
+- The stateless bridge now uses an Ursus-owned validation pipeline instead of the SDK's localhost-only default host/origin guard, which keeps the bridge loopback-bound while allowing personal tunnel forwarding to reach the same `/mcp` endpoint.
+- The bridge now also wraps successful POST request responses as one-shot SSE events when a client advertises `Accept: ... text/event-stream`, which keeps simple JSON clients working while improving compatibility with remote MCP clients that expect streamable HTTP response formatting.
 - Repeated `initialize` requests against the running stateless bridge are now treated as compatibility handshakes, so hosts can remove and re-add the same MCP URL without reinstalling the bridge.
 - Bridge install/resume now wait for the localhost endpoint to pass an MCP `initialize` probe before reporting success, and dashboard status distinguishes `loaded` from healthy endpoint state.
 - Bridge diagnostics now go beyond TCP reachability: the app and CLI surface LaunchAgent state, protocol-health results, and recent stdout/stderr log hints for unhealthy bridges.
@@ -167,7 +169,7 @@ The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has 
 Current near-term priorities:
 
 1. Validate the calmer setup-first app surface with real-world bridge and host setup repair passes.
-2. Keep the optional localhost HTTP bridge stable while the simplified app surface settles.
+2. Keep the optional loopback HTTP bridge stable while the simplified app surface settles.
 
 ## Verification Baseline
 

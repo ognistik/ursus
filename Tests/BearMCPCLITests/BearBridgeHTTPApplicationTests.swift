@@ -60,12 +60,13 @@ func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async
         ],
         body: body
     )
-    let initializeRequest = try #require(
-        BearBridgeHTTPApplication.decodeInitializeRequest(from: request)
+    let initializeEnvelope = try #require(
+        BearBridgeHTTPApplication.decodeInitializeEnvelope(from: request)
     )
 
     let response = try await BearBridgeHTTPApplication.makeInitializeResponse(
-        for: initializeRequest,
+        id: initializeEnvelope.id,
+        clientRequestedVersion: initializeEnvelope.protocolVersion,
         server: server
     )
 
@@ -110,10 +111,11 @@ func repeatedInitializeResponseFallsBackToLatestProtocolVersion() async throws {
         ],
         body: body
     )
-    let request = try #require(BearBridgeHTTPApplication.decodeInitializeRequest(from: httpRequest))
+    let initializeEnvelope = try #require(BearBridgeHTTPApplication.decodeInitializeEnvelope(from: httpRequest))
 
     let response = try await BearBridgeHTTPApplication.makeInitializeResponse(
-        for: request,
+        id: initializeEnvelope.id,
+        clientRequestedVersion: initializeEnvelope.protocolVersion,
         server: server
     )
     let responseBody = try #require(response.bodyData)
@@ -155,6 +157,273 @@ func bridgeInitializeSucceedsWhileRuntimeIsStillStarting() async throws {
 
     #expect(initializeResponse.id == .string("cold-start-init"))
     #expect(result.serverInfo.name == "ursus")
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeToolsListSucceedsAfterInitializeOverLocalHTTP() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let initializeData = try await sendInitializeRequest(port: port, requestID: "tools-list-init")
+    let initializeResponse = try JSONDecoder().decode(Response<Initialize>.self, from: initializeData)
+    let initializeResult = try initializeResponse.result.get()
+    let toolsListData = try await sendToolsListRequest(
+        port: port,
+        requestID: "tools-list-request",
+        protocolVersion: initializeResult.protocolVersion
+    )
+
+    guard let object = try JSONSerialization.jsonObject(with: toolsListData) as? [String: Any],
+          object["jsonrpc"] as? String == "2.0",
+          let result = object["result"] as? [String: Any],
+          result["tools"] as? [Any] != nil
+    else {
+        Issue.record("Expected a valid JSON-RPC tools/list response.")
+        throw CancellationError()
+    }
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeValidationPipelineAllowsForwardedHostHeader() async throws {
+    let (server, transport) = try await BearBridgeHTTPApplication.makeStartedRuntime(
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+    defer {
+        Task {
+            await transport.disconnect()
+            await server.stop()
+        }
+    }
+
+    let initializeRequest = HTTPRequest(
+        method: "POST",
+        headers: [
+            "Host": "mcp.afadingthought.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: try makeInitializeRequestBody(requestID: "forwarded-host-init")
+    )
+    let initializeResponse = await transport.handleRequest(initializeRequest)
+    #expect(initializeResponse.statusCode == 200)
+
+    let toolsListRequest = HTTPRequest(
+        method: "POST",
+        headers: [
+            "Host": "mcp.afadingthought.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            HTTPHeaderName.protocolVersion: Version.latest,
+        ],
+        body: try makeToolsListRequestBody(requestID: "forwarded-host-tools")
+    )
+    let toolsListResponse = await transport.handleRequest(toolsListRequest)
+
+    #expect(toolsListResponse.statusCode == 200)
+    let responseBody = try #require(toolsListResponse.bodyData)
+    guard let object = try JSONSerialization.jsonObject(with: responseBody) as? [String: Any],
+          object["jsonrpc"] as? String == "2.0",
+          let result = object["result"] as? [String: Any],
+          result["tools"] as? [Any] != nil
+    else {
+        Issue.record("Expected a valid JSON-RPC tools/list response for a forwarded Host header.")
+        throw CancellationError()
+    }
+}
+
+@Test
+func bridgeWrapsInitializeResponseAsEventStreamWhenRequested() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let responseText = try await sendStreamingInitializeRequest(port: port, requestID: "streaming-init")
+    #expect(responseText.contains("event: message"))
+    #expect(responseText.contains("\"jsonrpc\":\"2.0\""))
+    #expect(responseText.contains("\"id\":\"streaming-init\""))
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeAcceptsInitializeWithExperimentalCapabilityObjects() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let responseText = try await sendStreamingInitializeRequest(
+        port: port,
+        requestID: 1,
+        body: makeInitializeRequestBodyWithExperimentalCapabilities(requestID: 1)
+    )
+    #expect(responseText.contains("event: message"))
+    #expect(responseText.contains("\"jsonrpc\":\"2.0\""))
+    #expect(responseText.contains("\"id\":1"))
+    #expect(responseText.contains("\"result\""))
+
+    let toolsListData = try await sendToolsListRequest(
+        port: port,
+        requestID: "post-experimental-init-tools-list",
+        protocolVersion: Version.latest
+    )
+    guard let object = try JSONSerialization.jsonObject(with: toolsListData) as? [String: Any],
+          object["jsonrpc"] as? String == "2.0",
+          let result = object["result"] as? [String: Any],
+          result["tools"] as? [Any] != nil
+    else {
+        Issue.record("Expected tools/list to remain available after tolerant initialize handling.")
+        throw CancellationError()
+    }
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeWrapsRepeatedInitializeCompatibilityResponseAsEventStreamWhenRequested() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    _ = try await sendInitializeRequest(port: port, requestID: "priming-init")
+    let responseText = try await sendStreamingInitializeRequest(
+        port: port,
+        requestID: "streaming-repeat-init"
+    )
+
+    #expect(responseText.contains("event: message"))
+    #expect(responseText.contains("\"jsonrpc\":\"2.0\""))
+    #expect(responseText.contains("\"id\":\"streaming-repeat-init\""))
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeWrapsToolsListResponseAsEventStreamWhenRequested() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let initializeData = try await sendInitializeRequest(port: port, requestID: "streaming-tools-list-init")
+    let initializeResponse = try JSONDecoder().decode(Response<Initialize>.self, from: initializeData)
+    let initializeResult = try initializeResponse.result.get()
+    let responseText = try await sendStreamingToolsListRequest(
+        port: port,
+        requestID: "streaming-tools-list",
+        protocolVersion: initializeResult.protocolVersion
+    )
+
+    #expect(responseText.contains("event: message"))
+    #expect(responseText.contains("\"jsonrpc\":\"2.0\""))
+    #expect(responseText.contains("\"id\":\"streaming-tools-list\""))
+    #expect(responseText.contains("\"tools\""))
 
     await application.stop()
     try await startTask.value
@@ -245,7 +514,85 @@ private func sendInitializeRequest(port: Int, requestID: String) async throws ->
     request.timeoutInterval = 2
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.httpBody = try JSONSerialization.data(
+    request.httpBody = try makeInitializeRequestBody(requestID: requestID)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    let httpResponse = try #require(response as? HTTPURLResponse)
+    #expect(httpResponse.statusCode == 200)
+    return data
+}
+
+private func sendToolsListRequest(
+    port: Int,
+    requestID: String,
+    protocolVersion: String
+) async throws -> Data {
+    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 2
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json", forHTTPHeaderField: "Accept")
+    request.setValue(protocolVersion, forHTTPHeaderField: HTTPHeaderName.protocolVersion)
+    request.httpBody = try makeToolsListRequestBody(requestID: requestID)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    let httpResponse = try #require(response as? HTTPURLResponse)
+    #expect(httpResponse.statusCode == 200)
+    return data
+}
+
+private func sendStreamingInitializeRequest(port: Int, requestID: String) async throws -> String {
+    try await sendStreamingInitializeRequest(
+        port: port,
+        requestID: requestID,
+        body: makeInitializeRequestBody(requestID: requestID)
+    )
+}
+
+private func sendStreamingInitializeRequest<T: LosslessStringConvertible>(
+    port: Int,
+    requestID: T,
+    body: Data
+) async throws -> String {
+    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 2
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+    request.httpBody = body
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    let httpResponse = try #require(response as? HTTPURLResponse)
+    #expect(httpResponse.statusCode == 200)
+    #expect(httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
+    return String(decoding: data, as: UTF8.self)
+}
+
+private func sendStreamingToolsListRequest(
+    port: Int,
+    requestID: String,
+    protocolVersion: String
+) async throws -> String {
+    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.timeoutInterval = 2
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
+    request.setValue(protocolVersion, forHTTPHeaderField: HTTPHeaderName.protocolVersion)
+    request.httpBody = try makeToolsListRequestBody(requestID: requestID)
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    let httpResponse = try #require(response as? HTTPURLResponse)
+    #expect(httpResponse.statusCode == 200)
+    #expect(httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
+    return String(decoding: data, as: UTF8.self)
+}
+
+private func makeInitializeRequestBody(requestID: String) throws -> Data {
+    try JSONSerialization.data(
         withJSONObject: [
             "jsonrpc": "2.0",
             "id": requestID,
@@ -260,9 +607,55 @@ private func sendInitializeRequest(port: Int, requestID: String) async throws ->
             ],
         ]
     )
+}
 
-    let (data, response) = try await URLSession.shared.data(for: request)
-    let httpResponse = try #require(response as? HTTPURLResponse)
-    #expect(httpResponse.statusCode == 200)
-    return data
+private func makeInitializeRequestBodyWithExperimentalCapabilities(requestID: Int) throws -> Data {
+    try JSONSerialization.data(
+        withJSONObject: [
+            "jsonrpc": "2.0",
+            "id": requestID,
+            "method": "initialize",
+            "params": [
+                "protocolVersion": Version.latest,
+                "capabilities": [
+                    "experimental": [
+                        "openai": [
+                            "connectorImport": true,
+                            "variant": "chatgpt",
+                        ],
+                    ],
+                ],
+                "clientInfo": [
+                    "name": "openai-mcp",
+                    "version": "1.0.0",
+                ],
+            ],
+        ]
+    )
+}
+
+private func makeToolsListRequestBody(requestID: String) throws -> Data {
+    try JSONSerialization.data(
+        withJSONObject: [
+            "jsonrpc": "2.0",
+            "id": requestID,
+            "method": "tools/list",
+            "params": [:],
+        ]
+    )
+}
+
+private func makeToolsListTestingServer() async -> Server {
+    let server = Server(
+        name: "ursus",
+        version: "0.1.0",
+        capabilities: .init(
+            resources: .init(listChanged: false),
+            tools: .init(listChanged: false)
+        )
+    )
+    await server.withMethodHandler(ListTools.self) { _ in
+        .init(tools: [])
+    }
+    return server
 }

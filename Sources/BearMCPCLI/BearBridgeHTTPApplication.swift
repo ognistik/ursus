@@ -7,6 +7,11 @@ import MCP
 @preconcurrency import NIOPosix
 
 actor BearBridgeHTTPApplication {
+    struct InitializeEnvelope: Sendable {
+        let id: ID
+        let protocolVersion: String
+    }
+
     struct Configuration: Sendable {
         var host: String
         var port: Int
@@ -118,15 +123,17 @@ actor BearBridgeHTTPApplication {
     func handleHTTPRequest(_ request: HTTPRequest) async -> HTTPResponse {
         if hasCompletedInitializationHandshake,
            let server,
-           let initializeRequest = Self.decodeInitializeRequest(from: request)
+           let initializeEnvelope = Self.decodeInitializeEnvelope(from: request)
         {
             logger.info("Returning compatibility initialize response for already-initialized bridge")
 
             do {
-                return try await Self.makeInitializeResponse(
-                    for: initializeRequest,
+                let response = try await Self.makeInitializeResponse(
+                    id: initializeEnvelope.id,
+                    clientRequestedVersion: initializeEnvelope.protocolVersion,
                     server: server
                 )
+                return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
             } catch {
                 logger.error(
                     "Failed to build compatibility initialize response",
@@ -165,6 +172,29 @@ actor BearBridgeHTTPApplication {
             }
         }
 
+        if let server,
+           let initializeEnvelope = Self.decodeInitializeEnvelope(from: request)
+        {
+            do {
+                let response = try await Self.makeInitializeResponse(
+                    id: initializeEnvelope.id,
+                    clientRequestedVersion: initializeEnvelope.protocolVersion,
+                    server: server
+                )
+                hasCompletedInitializationHandshake = true
+                return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
+            } catch {
+                logger.error(
+                    "Failed to build manual initialize response",
+                    metadata: ["error": "\(error)"]
+                )
+                return .error(
+                    statusCode: 500,
+                    .internalError("Failed to build initialize response")
+                )
+            }
+        }
+
         guard let transport else {
             return .error(
                 statusCode: 503,
@@ -173,14 +203,7 @@ actor BearBridgeHTTPApplication {
         }
 
         let response = await transport.handleRequest(request)
-
-        if response.statusCode == 200,
-           Self.decodeInitializeRequest(from: request) != nil
-        {
-            hasCompletedInitializationHandshake = true
-        }
-
-        return response
+        return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
     }
 
     private func teardown() async {
@@ -204,11 +227,82 @@ actor BearBridgeHTTPApplication {
 }
 
 extension BearBridgeHTTPApplication {
+    static func bridgeValidationPipeline() -> StandardValidationPipeline {
+        // Keep the bridge's stateless JSON request/response behavior, but avoid
+        // localhost-only host/origin validation so forwarded tunnel requests can
+        // reach the loopback-bound bridge without extra user-facing modes.
+        StandardValidationPipeline(validators: [
+            AcceptHeaderValidator(mode: .jsonOnly),
+            ContentTypeValidator(),
+            ProtocolVersionValidator(),
+        ])
+    }
+
+    static func wrapStreamingHTTPResponseIfRequested(
+        _ response: HTTPResponse,
+        for request: HTTPRequest
+    ) -> HTTPResponse {
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
+              requestAcceptsEventStream(request)
+        else {
+            return response
+        }
+
+        switch response {
+        case .data(let body, let headers):
+            var streamingHeaders = headers
+            streamingHeaders[HTTPHeaderName.contentType] = "text/event-stream"
+            streamingHeaders[HTTPHeaderName.cacheControl] = "no-cache"
+            streamingHeaders[HTTPHeaderName.connection] = "keep-alive"
+
+            let stream = AsyncThrowingStream<Data, Swift.Error> { continuation in
+                continuation.yield(formatSSEMessageEvent(body))
+                continuation.finish()
+            }
+
+            return .stream(stream, headers: streamingHeaders)
+
+        default:
+            return response
+        }
+    }
+
+    static func requestAcceptsEventStream(_ request: HTTPRequest) -> Bool {
+        let acceptHeader = request.header(HTTPHeaderName.accept) ?? ""
+        return acceptHeader
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .contains { $0.hasPrefix("text/event-stream") }
+    }
+
+    static func formatSSEMessageEvent(_ body: Data) -> Data {
+        let payload = String(decoding: body, as: UTF8.self)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { "data: \($0)" }
+            .joined(separator: "\n")
+
+        return Data("event: message\n\(payload)\n\n".utf8)
+    }
+
+    static func decodeJSONRPCID(_ id: Any?) -> ID? {
+        switch id {
+        case let value as String:
+            return .string(value)
+        case let value as NSNumber:
+            return .number(value.intValue)
+        default:
+            return nil
+        }
+    }
+
     static func makeStartedRuntime(
         serverFactory: ServerFactory,
         logger: Logger
     ) async throws -> (Server, StatelessHTTPServerTransport) {
-        let transport = StatelessHTTPServerTransport(logger: logger)
+        let transport = StatelessHTTPServerTransport(
+            validationPipeline: bridgeValidationPipeline(),
+            logger: logger
+        )
         let server = try await serverFactory()
 
         do {
@@ -236,12 +330,31 @@ extension BearBridgeHTTPApplication {
         return initializeRequest
     }
 
+    static func decodeInitializeEnvelope(from request: HTTPRequest) -> InitializeEnvelope? {
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
+              let body = request.body,
+              !body.isEmpty,
+              let jsonObject = try? JSONSerialization.jsonObject(with: body),
+              let dictionary = jsonObject as? [String: Any],
+              let method = dictionary["method"] as? String,
+              method == Initialize.name
+        else {
+            return nil
+        }
+
+        let id = decodeJSONRPCID(dictionary["id"]) ?? .string("")
+        let params = dictionary["params"] as? [String: Any]
+        let protocolVersion = params?["protocolVersion"] as? String ?? Version.latest
+        return InitializeEnvelope(id: id, protocolVersion: protocolVersion)
+    }
+
     static func makeInitializeResponse(
-        for request: Request<Initialize>,
+        id: ID,
+        clientRequestedVersion: String,
         server: Server
     ) async throws -> HTTPResponse {
         let negotiatedProtocolVersion = negotiatedProtocolVersion(
-            for: request.params.protocolVersion
+            for: clientRequestedVersion
         )
         let result = Initialize.Result(
             protocolVersion: negotiatedProtocolVersion,
@@ -258,7 +371,7 @@ extension BearBridgeHTTPApplication {
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
 
         return .data(
-            try encoder.encode(Initialize.response(id: request.id, result: result)),
+            try encoder.encode(Initialize.response(id: id, result: result)),
             headers: [HTTPHeaderName.contentType: "application/json"]
         )
     }

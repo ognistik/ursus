@@ -1,6 +1,6 @@
 # Ursus Architecture
 
-`Ursus` is a local macOS MCP runtime for Bear. The canonical server remains stdio, and the app can optionally install a localhost HTTP bridge for hosts that only speak MCP over HTTP.
+`Ursus` is a local macOS MCP runtime for Bear. The canonical server remains stdio, and the app can optionally install a loopback HTTP bridge for hosts that only speak MCP over HTTP.
 
 ## Layers
 
@@ -55,11 +55,11 @@
 - Debug traces log the outgoing x-callback action plus a query summary that keeps behavioral flags visible while redacting large `text` and `file` payload values. Token-backed selected-note resolution also redacts callback URL/query values so token-bearing URLs do not leak into logs.
 - `ursus mcp` still prefers a shared runtime lock for stale-process detection and predictable diagnostics, but it falls back to temp per-launch locks when Codex opens additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
-- The optional HTTP bridge runs through `ursus bridge serve`, reuses the same internal Bear service stack as `ursus mcp`, and exposes one localhost `/mcp` endpoint through the SDK's stateless HTTP transport.
+- The optional HTTP bridge runs through `ursus bridge serve`, reuses the same internal Bear service stack as `ursus mcp`, binds to loopback, and exposes one `/mcp` endpoint without adding a second bridge mode or a separate `/sse` endpoint. Plain JSON request/response clients still work, while clients that advertise `text/event-stream` receive one-shot SSE-formatted POST responses for MCP request calls.
 - The app now owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`. The public launcher at `~/.local/bin/ursus` resolves to that app executable and injects a hidden `--ursus-cli` flag, so replacing the app bundle updates Terminal and bridge launches together without copying a second CLI binary into another location.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting the stable public launcher path `~/.local/bin/ursus bridge serve`, with stdout/stderr logs under `~/Library/Application Support/Ursus/Logs/`.
 - Runtime log retention is intentionally strict: `debug.log`, `bridge.stdout.log`, and `bridge.stderr.log` each keep at most the active file plus one `.1` archive, oversized bridge logs are snapshotted then truncated in place so `launchd` can keep writing to the same file handle, and bridge removal deletes both active and archived bridge logs.
-- Bridge install/resume wait for the endpoint to pass an MCP `initialize` probe before reporting success, dashboard status distinguishes LaunchAgent state from endpoint health, and repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect or re-add the same URL cleanly.
+- Bridge install/resume wait for the endpoint to pass MCP initialize and `tools/list` probes before reporting success, dashboard status distinguishes LaunchAgent state from endpoint health, and repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect or re-add the same URL cleanly.
 - Bridge diagnostics are layered: LaunchAgent status, TCP reachability, MCP `initialize` health, and a small recent stdout/stderr log hint for unhealthy bridges.
 - App-side bridge editing exposes only the saved port. The host stays localhost-oriented in the app, and advanced host overrides remain config-only. Port edits are saved through the shared config flow, auto-skip busy ports in the UI, and still fail clearly on install/resume if the chosen port is already in use.
 - Batch inputs are supported at the MCP layer through a required non-empty `operations` array. Missing `operations` and empty `operations: []` are rejected with distinct validation errors.
