@@ -610,21 +610,21 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_delete_backups",
-                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Provide `snapshot_id` to delete one exact backup. `note` plus `delete_all: true` deletes all backups for that note.",
+                description: "Delete one or more saved backup snapshots. Use `bear_list_backups` first so deletion targets are explicit. Each operation uses exactly one mode. Provide `snapshot_id` to delete one exact backup. Delete all backups for one note by providing exactly one note target plus `delete_all: true`, and omitting `snapshot_id`.",
                 operationProperties: [
-                    "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Optional note selector. Use with `delete_all: true` to delete all backups for one note."),
+                    "note": optionalNoteSelectorProperty(configuration: configuration, selectedNoteSupported: selectedNoteSupported, descriptionPrefix: "Use this only for note-scoped delete-all mode, or to scope a `snapshot_id` delete to one note. In delete-all mode, provide exactly one of `note` or `selected: true`."),
                     "snapshot_id": .object([
                         "type": .string("string"),
-                        "description": .string("Optional exact backup snapshot identifier. Use this to delete one backup."),
+                        "description": .string("Delete one exact backup by snapshot id. This is the minimal single-backup mode. Omit `snapshot_id` when using note-scoped `delete_all: true`."),
                     ]),
                     "delete_all": .object([
                         "type": .string("boolean"),
-                        "description": .string("Optional. Set `true` with `note` to remove all saved backups for that note. Omit unless the user explicitly wants a bulk delete."),
+                        "description": .string("Use this only for note-scoped bulk delete mode to remove all saved backups for that note. Set `true` only with exactly one note target, and omit `snapshot_id` in that mode."),
                     ]),
                 ].merging(
                     selectedNoteOperationProperty(
                         selectedNoteSupported: selectedNoteSupported,
-                        description: "Optional alternative to `note`. Use with `delete_all: true` to remove all saved backups for the currently selected Bear note."
+                        description: "Alternative to `note` for note-scoped delete-all mode, or to scope a `snapshot_id` delete to the currently selected Bear note. In delete-all mode, provide exactly one of `note` or `selected: true`. Set `true` only when the user explicitly means the currently selected Bear note."
                     ),
                     uniquingKeysWith: { current, _ in current }
                 ),
@@ -732,14 +732,17 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. `position` places the text at the top or bottom of editable content. Use `target` instead to insert before or after a matching heading or exact editable-content string. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided.",
+                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `text`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "text": .object(["type": .string("string")]),
+                    "text": .object([
+                        "type": .string("string"),
+                        "description": .string("Required text to insert into the target note."),
+                    ]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
+                        "description": .string("Use this only when `target` is omitted. Set `top` or `bottom` to control placement in editable content. Omit `position` when `target` is present. Omit to use the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided."),
                     ]),
                     "target": relativeTargetProperty(),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -748,7 +751,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text is not already known. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only.",
+                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: title` and `kind: body`, omit `old_string` and `occurrence`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text is not already known.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
@@ -758,16 +761,16 @@ private enum ToolCatalog {
                     ]),
                     "old_string": .object([
                         "type": .string("string"),
-                        "description": .string("Required for `kind: string`. Pass the exact existing text to match within the editable body. Prefer `bear_get_notes` first if uncertain."),
+                        "description": .string("Use this only with `kind: string`; it is required in that mode. Pass the exact existing text to match within the editable body. Omit `old_string` for `kind: title` and `kind: body`."),
                     ]),
                     "occurrence": .object([
                         "type": .string("string"),
                         "enum": .array([.string("one"), .string("all")]),
-                        "description": .string("Required for `kind: string`. `one` replaces one exact match. `all` replaces every exact match in the editable body."),
+                        "description": .string("Use this only with `kind: string`; it is required in that mode. `one` replaces one exact match. `all` replaces every exact match in the editable body. Omit `occurrence` for `kind: title` and `kind: body`."),
                     ]),
                     "new_string": .object([
                         "type": .string("string"),
-                        "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full replacement editable body and may be empty. For `kind: string`, this is the replacement for the matched text and may be empty."),
+                        "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full replacement editable body and may be empty. For `kind: string`, this is the replacement for matched text and may be empty."),
                     ]),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["kind", "new_string"]),
@@ -775,14 +778,17 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. `position` places the attachment at the top or bottom of editable content. Use `target` instead to insert before or after a matching heading or exact editable-content string. Defaults: `position` = `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided.",
+                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `file_path`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "file_path": .object(["type": .string("string")]),
+                    "file_path": .object([
+                        "type": .string("string"),
+                        "description": .string("Required local file path to attach to the target note."),
+                    ]),
                     "position": .object([
                         "type": .string("string"),
                         "enum": .array([.string("top"), .string("bottom")]),
-                        "description": .string("Optional top or bottom placement in editable content. \(omitUnlessDescription(defaultClause: "the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided", overrideWhen: "the user explicitly asks for a different insertion position"))"),
+                        "description": .string("Use this only when `target` is omitted. Set `top` or `bottom` to control placement in editable content. Omit `position` when `target` is present. Omit to use the current session default `\(configuration.defaultInsertPosition.rawValue)` when no `target` is provided."),
                     ]),
                     "target": relativeTargetProperty(),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -968,7 +974,7 @@ private enum ToolCatalog {
         if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
                 selectedNoteSupported: selectedNoteSupported,
-                description: "Optional alternative to `note`. Use `true` to list backups for the currently selected Bear note."
+                description: "Alternative to `note`. Set `true` only when the user explicitly means the currently selected Bear note."
             )
         }
 
@@ -1032,21 +1038,21 @@ private enum ToolCatalog {
     private static func noteSelectorProperty(selectedNoteSupported: Bool) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selector. Use exactly one of `note` or `selected: true`. " : "Required note selector. ")Matches exact note id first, then exact case-insensitive title across notes and archive. If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+            "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Use this to target one note by exact note id or exact case-insensitive title across notes and archive. Use exactly one of `note` or `selected: true`. " : "Use this to target one note by exact note id or exact case-insensitive title across notes and archive. This field is required. ")If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
     }
 
     private static func optionalNoteSelectorProperty(configuration: BearConfiguration, selectedNoteSupported: Bool, descriptionPrefix: String) -> Value {
         .object([
             "type": .string("string"),
-            "description": .string("\(descriptionPrefix)\(supportsSelectedNote(selectedNoteSupported) ? " Use exactly one of `note` or `selected: true`. " : " ")Matches exact note id first, then exact case-insensitive title across notes and archive. If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
+            "description": .string("\(descriptionPrefix) Use this to target one note by exact note id or exact case-insensitive title. If multiple titles match, use the note id. Do not call `bear_get_notes` only to resolve this selector; note-targeting tools already resolve selectors server-side."),
         ])
     }
 
     private static func selectedNoteProperty(selectedNoteSupported: Bool, description: String? = nil) -> Value {
         return .object([
             "type": .string("boolean"),
-            "description": .string(description ?? "Optional alternative to `note`. Set `true` to target the currently selected Bear note. Omit unless the user explicitly wants the selected note."),
+            "description": .string(description ?? "Alternative to `note`. Set `true` only when the user explicitly means the currently selected Bear note."),
         ])
     }
 
@@ -1061,7 +1067,7 @@ private enum ToolCatalog {
     private static func relativeTargetProperty() -> Value {
         .object([
             "type": .string("object"),
-            "description": .string("Optional relative insertion target. Use this instead of `position` to insert before or after a matching heading or exact editable-content string."),
+            "description": .string("Use this insertion mode instead of `position`. Provide `text` and `placement` to insert before or after a matching heading or exact editable-content string. Omit `position` when `target` is present."),
             "properties": .object([
                 "text": .object([
                     "type": .string("string"),
@@ -1111,7 +1117,7 @@ private enum ToolCatalog {
             "notes": .object([
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
-                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "")Selectors are matched as exact note ids first, then exact case-insensitive titles."),
+                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Use this to target one or more notes by exact note id or exact case-insensitive title. Provide exactly one of `notes` or `selected: true`. " : "Use this to target one or more notes by exact note id or exact case-insensitive title. This field is required. ")Selectors are matched as exact note ids first, then exact case-insensitive titles."),
             ]),
             "location": .object([
                 "type": .string("string"),
@@ -1127,7 +1133,7 @@ private enum ToolCatalog {
         if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
                 selectedNoteSupported: selectedNoteSupported,
-                description: "Optional alternative to `notes`. Set `true` to fetch the currently selected Bear note."
+                description: "Alternative to `notes`. Set `true` only when the user explicitly means the currently selected Bear note."
             )
         }
 
@@ -1143,14 +1149,14 @@ private enum ToolCatalog {
             "notes": .object([
                 "type": .string("array"),
                 "items": .object(["type": .string("string")]),
-                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Optional note selectors. Use exactly one of `notes` or `selected: true`. " : "Required note selectors. ")Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
+                "description": .string("\(supportsSelectedNote(selectedNoteSupported) ? "Use this to target one or more notes by exact note id or exact case-insensitive title. Provide exactly one of `notes` or `selected: true`. " : "Use this to target one or more notes by exact note id or exact case-insensitive title. This field is required. ")Each selector is matched as exact note id first, then exact case-insensitive title across notes and archive. If a title matches multiple notes, use the note id instead."),
             ]),
         ]
 
         if supportsSelectedNote(selectedNoteSupported) {
             properties["selected"] = selectedNoteProperty(
                 selectedNoteSupported: selectedNoteSupported,
-                description: "Optional alternative to `notes`. Set `true` to archive the currently selected Bear note."
+                description: "Alternative to `notes`. Set `true` only when the user explicitly means the currently selected Bear note."
             )
         }
 
