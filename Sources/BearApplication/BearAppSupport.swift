@@ -52,6 +52,7 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let processLockPath: String
     public let fallbackProcessLockPath: String
     public let debugLogPath: String
+    public let runtimeConfigurationGeneration: Int
     public let cliMaintenancePrompt: BearAppCLIMaintenancePrompt?
     public let databasePath: String
     public let inboxTags: [String]
@@ -379,6 +380,7 @@ public enum BearAppSupport {
             processLockPath: BearPaths.processLockURL.path,
             fallbackProcessLockPath: BearPaths.fallbackProcessLockURL.path,
             debugLogPath: BearPaths.debugLogURL.path,
+            runtimeConfigurationGeneration: configuration.runtimeConfigurationGeneration,
             cliMaintenancePrompt: cliMaintenancePrompt(launcherStatus: launcherStatus),
             databasePath: configuration.databasePath,
             inboxTags: configuration.inboxTags,

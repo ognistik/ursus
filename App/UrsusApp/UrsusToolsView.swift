@@ -9,12 +9,15 @@ struct UrsusToolsView: View {
         UrsusScrollSurface {
             if let settings = model.dashboard.settings {
                 VStack(alignment: .leading, spacing: 20) {
+                    UrsusRuntimeRestartGuidance()
+                    Divider()
                     if launcherPrimaryActionTitle(for: settings) != nil {
                         launcherPanel(settings)
                         Divider()
                     }
                     toolAvailabilityPanel(settings)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 unavailablePanel(
                     title: "Tools are unavailable",

@@ -32,9 +32,11 @@ actor BearBridgeHTTPApplication {
     }
 
     typealias ServerFactory = @Sendable () async throws -> Server
+    typealias ReadyHandler = @Sendable () throws -> Void
 
     private let configuration: Configuration
     private let serverFactory: ServerFactory
+    private let readyHandler: ReadyHandler?
     private let logger: Logger
 
     private var channel: Channel?
@@ -47,10 +49,12 @@ actor BearBridgeHTTPApplication {
     init(
         configuration: Configuration,
         serverFactory: @escaping ServerFactory,
+        readyHandler: ReadyHandler? = nil,
         logger: Logger
     ) {
         self.configuration = configuration
         self.serverFactory = serverFactory
+        self.readyHandler = readyHandler
         self.logger = logger
     }
 
@@ -95,6 +99,7 @@ actor BearBridgeHTTPApplication {
                 } else {
                     self.server = server
                     self.transport = transport
+                    try readyHandler?()
                 }
                 self.startupTask = nil
             } catch {

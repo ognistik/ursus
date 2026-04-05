@@ -14,6 +14,8 @@ struct UrsusPreferencesView: View {
                         UrsusScreenHeader(title: "Preferences")
                     }
 
+                    UrsusRuntimeRestartGuidance()
+                    Divider()
                     behaviorPanel
                     Divider()
                     inboxTagsPanel
@@ -28,6 +30,7 @@ struct UrsusPreferencesView: View {
                         error: model.configurationStatusError
                     )
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 unavailablePanel(
                     title: "Preferences are unavailable",
@@ -143,6 +146,7 @@ struct UrsusPreferencesView: View {
                     )
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

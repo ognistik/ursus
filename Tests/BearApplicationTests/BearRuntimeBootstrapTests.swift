@@ -49,6 +49,7 @@ func loadAndSaveConfigurationFillMissingKeysAndPreserveExistingValues() throws {
     #expect(updatedOnDisk.defaultDiscoveryLimit == BearConfiguration.default.defaultDiscoveryLimit)
     #expect(updatedOnDisk.defaultSnippetLength == BearConfiguration.default.defaultSnippetLength)
     #expect(updatedOnDisk.backupRetentionDays == BearConfiguration.default.backupRetentionDays)
+    #expect(updatedOnDisk.runtimeConfigurationGeneration == 0)
     #expect(updatedText.contains("\"defaultDiscoveryLimit\""))
     #expect(updatedText.contains("\"backupRetentionDays\""))
     #expect(!updatedText.contains("\"token\""))
@@ -87,6 +88,43 @@ func saveConfigurationOmitsLegacyTokenField() throws {
 
     let updatedText = try String(contentsOf: configFileURL)
     #expect(!updatedText.contains("\"token\""))
+}
+
+@Test
+func saveConfigurationKeepsGenerationWhenRuntimeSettingsDoNotChange() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearRuntimeBootstrap.prepareSupportFiles(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let initial = try BearRuntimeBootstrap.saveConfiguration(
+        BearConfiguration.default.updatingRuntimeConfigurationGeneration(99),
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+    let savedAgain = try BearRuntimeBootstrap.saveConfiguration(
+        initial,
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(initial.runtimeConfigurationGeneration == 0)
+    #expect(savedAgain.runtimeConfigurationGeneration == 0)
 }
 
 @Test

@@ -135,6 +135,9 @@ public enum UrsusCLIRuntime {
     private static func runBridge(logger: Logger) async throws {
         let runtime = try makeRuntimeServices(logger: logger)
         let bridge = try runtime.configuration.bridge.validated()
+        defer {
+            try? BearAppSupport.clearBridgeRuntimeState()
+        }
 
         if !bridge.enabled {
             logger.info("ursus bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
@@ -154,6 +157,12 @@ public enum UrsusCLIRuntime {
                     configuration: runtime.configuration,
                     selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore)
                 ).makeServer()
+            },
+            readyHandler: {
+                try BearAppSupport.recordBridgeLoadedRuntimeState(
+                    runtimeConfigurationGeneration: runtime.configuration.runtimeConfigurationGeneration,
+                    runtimeConfigurationFingerprint: runtime.configuration.runtimeConfigurationFingerprint
+                )
             },
             logger: logger
         )

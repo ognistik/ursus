@@ -32,6 +32,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var defaultSnippetLength: Int
     public var backupRetentionDays: Int
     public var disabledTools: [BearToolName]
+    public var runtimeConfigurationGeneration: Int
     public var bridge: BearBridgeConfiguration
 
     public init(
@@ -47,6 +48,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength: Int,
         backupRetentionDays: Int,
         disabledTools: [BearToolName] = [],
+        runtimeConfigurationGeneration: Int = 0,
         bridge: BearBridgeConfiguration = .default
     ) {
         self.databasePath = databasePath
@@ -61,6 +63,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         self.defaultSnippetLength = max(1, defaultSnippetLength)
         self.backupRetentionDays = max(0, backupRetentionDays)
         self.disabledTools = Self.normalizedDisabledTools(disabledTools)
+        self.runtimeConfigurationGeneration = max(0, runtimeConfigurationGeneration)
         self.bridge = bridge
     }
 
@@ -96,6 +99,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: defaultSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
+            runtimeConfigurationGeneration: runtimeConfigurationGeneration,
             bridge: bridge
         )
     }
@@ -114,8 +118,53 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
             defaultSnippetLength: defaultSnippetLength,
             backupRetentionDays: backupRetentionDays,
             disabledTools: disabledTools,
+            runtimeConfigurationGeneration: runtimeConfigurationGeneration,
             bridge: bridge
         )
+    }
+
+    public func updatingRuntimeConfigurationGeneration(_ generation: Int) -> BearConfiguration {
+        BearConfiguration(
+            databasePath: databasePath,
+            inboxTags: inboxTags,
+            defaultInsertPosition: defaultInsertPosition,
+            templateManagementEnabled: templateManagementEnabled,
+            createOpensNoteByDefault: createOpensNoteByDefault,
+            openUsesNewWindowByDefault: openUsesNewWindowByDefault,
+            createAddsInboxTagsByDefault: createAddsInboxTagsByDefault,
+            tagsMergeMode: tagsMergeMode,
+            defaultDiscoveryLimit: defaultDiscoveryLimit,
+            defaultSnippetLength: defaultSnippetLength,
+            backupRetentionDays: backupRetentionDays,
+            disabledTools: disabledTools,
+            runtimeConfigurationGeneration: generation,
+            bridge: bridge
+        )
+    }
+
+    public func runtimeConfigurationMatches(_ other: BearConfiguration) -> Bool {
+        databasePath == other.databasePath
+            && inboxTags == other.inboxTags
+            && defaultInsertPosition == other.defaultInsertPosition
+            && templateManagementEnabled == other.templateManagementEnabled
+            && createOpensNoteByDefault == other.createOpensNoteByDefault
+            && openUsesNewWindowByDefault == other.openUsesNewWindowByDefault
+            && createAddsInboxTagsByDefault == other.createAddsInboxTagsByDefault
+            && tagsMergeMode == other.tagsMergeMode
+            && defaultDiscoveryLimit == other.defaultDiscoveryLimit
+            && defaultSnippetLength == other.defaultSnippetLength
+            && backupRetentionDays == other.backupRetentionDays
+            && disabledTools == other.disabledTools
+            && bridge == other.bridge
+    }
+
+    public var runtimeConfigurationFingerprint: String {
+        let normalized = updatingRuntimeConfigurationGeneration(0)
+        guard let data = try? BearJSON.makeEncoder().encode(normalized) else {
+            return ""
+        }
+
+        return String(decoding: data, as: UTF8.self)
     }
 
     public func isToolEnabled(_ tool: BearToolName) -> Bool {
@@ -135,6 +184,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         case defaultSnippetLength
         case backupRetentionDays
         case disabledTools
+        case runtimeConfigurationGeneration
         case bridge
     }
 
@@ -153,6 +203,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         defaultSnippetLength = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280)
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])
+        runtimeConfigurationGeneration = max(0, try container.decodeIfPresent(Int.self, forKey: .runtimeConfigurationGeneration) ?? 0)
         bridge = try container.decodeIfPresent(BearBridgeConfiguration.self, forKey: .bridge) ?? .default
     }
 
@@ -170,6 +221,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         try container.encode(defaultSnippetLength, forKey: .defaultSnippetLength)
         try container.encode(backupRetentionDays, forKey: .backupRetentionDays)
         try container.encode(disabledTools, forKey: .disabledTools)
+        try container.encode(runtimeConfigurationGeneration, forKey: .runtimeConfigurationGeneration)
         try container.encode(bridge, forKey: .bridge)
     }
 

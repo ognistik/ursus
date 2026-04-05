@@ -53,6 +53,10 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let host: String
     public let port: Int
     public let endpointURL: String
+    public let currentRuntimeConfigurationGeneration: Int
+    public let loadedRuntimeConfigurationGeneration: Int?
+    public let currentRuntimeConfigurationFingerprint: String
+    public let loadedRuntimeConfigurationFingerprint: String?
     public let launcherPath: String
     public let launchAgentLabel: String
     public let plistPath: String
@@ -73,6 +77,10 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         host: String,
         port: Int,
         endpointURL: String,
+        currentRuntimeConfigurationGeneration: Int,
+        loadedRuntimeConfigurationGeneration: Int?,
+        currentRuntimeConfigurationFingerprint: String,
+        loadedRuntimeConfigurationFingerprint: String?,
         launcherPath: String,
         launchAgentLabel: String,
         plistPath: String,
@@ -92,6 +100,10 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.host = host
         self.port = port
         self.endpointURL = endpointURL
+        self.currentRuntimeConfigurationGeneration = currentRuntimeConfigurationGeneration
+        self.loadedRuntimeConfigurationGeneration = loadedRuntimeConfigurationGeneration
+        self.currentRuntimeConfigurationFingerprint = currentRuntimeConfigurationFingerprint
+        self.loadedRuntimeConfigurationFingerprint = loadedRuntimeConfigurationFingerprint
         self.launcherPath = launcherPath
         self.launchAgentLabel = launchAgentLabel
         self.plistPath = plistPath
@@ -163,7 +175,45 @@ private final class BearBridgeURLSessionProbeBox: @unchecked Sendable {
     var error: Error?
 }
 
+private struct BearBridgeRuntimeState: Codable, Hashable, Sendable {
+    let loadedRuntimeConfigurationGeneration: Int
+    let loadedRuntimeConfigurationFingerprint: String
+    let recordedAt: Date
+}
+
 public extension BearAppSupport {
+    static func recordBridgeLoadedRuntimeState(
+        runtimeConfigurationGeneration: Int,
+        runtimeConfigurationFingerprint: String,
+        fileManager: FileManager = .default,
+        runtimeStateURL: URL = BearPaths.bridgeRuntimeStateURL
+    ) throws {
+        try fileManager.createDirectory(
+            at: runtimeStateURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let state = BearBridgeRuntimeState(
+            loadedRuntimeConfigurationGeneration: runtimeConfigurationGeneration,
+            loadedRuntimeConfigurationFingerprint: runtimeConfigurationFingerprint,
+            recordedAt: Date()
+        )
+        let data = try BearJSON.makeEncoder().encode(state)
+        try data.write(to: runtimeStateURL, options: .atomic)
+        try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: runtimeStateURL.path)
+    }
+
+    static func clearBridgeRuntimeState(
+        fileManager: FileManager = .default,
+        runtimeStateURL: URL = BearPaths.bridgeRuntimeStateURL
+    ) throws {
+        guard fileManager.fileExists(atPath: runtimeStateURL.path) else {
+            return
+        }
+
+        try fileManager.removeItem(at: runtimeStateURL)
+    }
+
     static func defaultBridgeEndpointProbe(host: String, port: Int) -> BearBridgeEndpointProbeResult {
         probeBridgeEndpoint(host: host, port: port)
     }
@@ -240,6 +290,7 @@ public extension BearAppSupport {
             configFileURL: configFileURL,
             templateURL: templateURL
         )
+        try? clearBridgeRuntimeState(fileManager: fileManager)
 
         let existedBeforeInstall = fileManager.fileExists(atPath: launchAgentPlistURL.path)
         try prepareBridgeArtifacts(
@@ -311,6 +362,7 @@ public extension BearAppSupport {
         if hadPlist {
             try fileManager.removeItem(at: launchAgentPlistURL)
         }
+        try? clearBridgeRuntimeState(fileManager: fileManager)
         try removeBridgeLogArtifacts(
             fileManager: fileManager,
             standardOutputURL: standardOutputURL,
@@ -365,6 +417,7 @@ public extension BearAppSupport {
                 launchAgentPlistURL: launchAgentPlistURL,
                 launchctlRunner: launchctlRunner
             )
+            try? clearBridgeRuntimeState(fileManager: fileManager)
         }
 
         return BearBridgeLaunchAgentActionReceipt(
@@ -413,6 +466,7 @@ public extension BearAppSupport {
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
         if !loaded {
+            try? clearBridgeRuntimeState(fileManager: fileManager)
             try prepareBridgeArtifacts(
                 fileManager: fileManager,
                 launchAgentPlistURL: launchAgentPlistURL,
@@ -448,12 +502,15 @@ public extension BearAppSupport {
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
+        bridgeRuntimeStateURL: URL = BearPaths.bridgeRuntimeStateURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
         endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
     ) -> BearAppBridgeSnapshot {
         let installed = fileManager.fileExists(atPath: launchAgentPlistURL.path)
         let bridge: BearBridgeConfiguration
         let endpointURL: String
+        let currentRuntimeConfigurationGeneration = configuration.runtimeConfigurationGeneration
+        let currentRuntimeConfigurationFingerprint = configuration.runtimeConfigurationFingerprint
 
         do {
             bridge = try configuration.bridge.validated()
@@ -464,6 +521,10 @@ public extension BearAppSupport {
                 host: configuration.bridge.host,
                 port: configuration.bridge.port,
                 endpointURL: "invalid bridge URL",
+                currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
+                loadedRuntimeConfigurationGeneration: nil,
+                currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
+                loadedRuntimeConfigurationFingerprint: nil,
                 launcherPath: launcherURL.path,
                 launchAgentLabel: BearBridgeLaunchAgent.label,
                 plistPath: launchAgentPlistURL.path,
@@ -503,6 +564,10 @@ public extension BearAppSupport {
         let endpointProbeResult = loaded
             ? endpointProbe(bridge.host, bridge.port)
             : BearBridgeEndpointProbeResult(reachable: false, transportReachable: false, protocolCompatible: false)
+        let bridgeRuntimeState = loadBridgeRuntimeState(
+            fileManager: fileManager,
+            runtimeStateURL: bridgeRuntimeStateURL
+        )
 
         let state = bridgeState(
             configuration: bridge,
@@ -527,6 +592,10 @@ public extension BearAppSupport {
             host: bridge.host,
             port: bridge.port,
             endpointURL: endpointURL,
+            currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
+            loadedRuntimeConfigurationGeneration: bridgeRuntimeState?.loadedRuntimeConfigurationGeneration,
+            currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
+            loadedRuntimeConfigurationFingerprint: bridgeRuntimeState?.loadedRuntimeConfigurationFingerprint,
             launcherPath: launcherURL.path,
             launchAgentLabel: BearBridgeLaunchAgent.label,
             plistPath: launchAgentPlistURL.path,
@@ -546,6 +615,19 @@ public extension BearAppSupport {
 }
 
 private extension BearAppSupport {
+    static func loadBridgeRuntimeState(
+        fileManager: FileManager,
+        runtimeStateURL: URL
+    ) -> BearBridgeRuntimeState? {
+        guard fileManager.fileExists(atPath: runtimeStateURL.path),
+              let data = try? Data(contentsOf: runtimeStateURL)
+        else {
+            return nil
+        }
+
+        return try? BearJSON.makeDecoder().decode(BearBridgeRuntimeState.self, from: data)
+    }
+
     static func selectedBridgePort(
         forInstallFrom bridge: BearBridgeConfiguration,
         fileManager: FileManager,

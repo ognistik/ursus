@@ -236,7 +236,7 @@ struct UrsusSetupView: View {
     private func bridgePanel(_ settings: BearAppSettingsSnapshot) -> some View {
         let bridge = settings.bridge
 
-        if let badge = bridgeBadge(for: bridge) {
+        if let badge = bridgeBadge(for: settings) {
             return AnyView(
                 UrsusPanel(
                     title: "Remote MCP Bridge",
@@ -325,8 +325,12 @@ struct UrsusSetupView: View {
 
                 if bridge.installed {
                     if bridge.loaded {
-                        Button("Pause") {
-                            model.pauseBridge()
+                        Button(bridgeRestartRequired(for: settings) ? "Restart" : "Pause") {
+                            if bridgeRestartRequired(for: settings) {
+                                model.restartBridge()
+                            } else {
+                                model.pauseBridge()
+                            }
                         }
                         .buttonStyle(.bordered)
                         .disabled(model.isBridgeOperationInProgress)
@@ -382,6 +386,10 @@ struct UrsusSetupView: View {
 
     private func bridgeStateText(for settings: BearAppSettingsSnapshot) -> String? {
         let bridge = settings.bridge
+
+        if bridgeRestartRequired(for: settings) {
+            return "Installed and serving requests, but recent changes will not apply until restart."
+        }
 
         if bridge.loaded, (bridge.status == .ok || bridge.status == .configured) {
             return "Installed and serving requests at the local MCP URL below."
@@ -444,6 +452,19 @@ struct UrsusSetupView: View {
         case .repairBridge:
             model.installBridge(repairing: settings.bridge.status == .invalid || settings.bridge.status == .failed)
         }
+    }
+
+    private func bridgeRestartRequired(for settings: BearAppSettingsSnapshot) -> Bool {
+        let bridge = settings.bridge
+        guard bridge.installed,
+              bridge.loaded,
+              bridge.status == .ok || bridge.status == .configured,
+              let loadedFingerprint = bridge.loadedRuntimeConfigurationFingerprint
+        else {
+            return false
+        }
+
+        return loadedFingerprint != bridge.currentRuntimeConfigurationFingerprint
     }
 }
 
@@ -548,7 +569,18 @@ private func hostSetupDetail(for setup: BearHostAppSetupSnapshot) -> String? {
     }
 }
 
-private func bridgeBadge(for bridge: BearAppBridgeSnapshot) -> (title: String, status: BearDoctorCheckStatus)? {
+private func bridgeBadge(for settings: BearAppSettingsSnapshot) -> (title: String, status: BearDoctorCheckStatus)? {
+    let bridge = settings.bridge
+
+    if bridge.installed,
+       bridge.loaded,
+       (bridge.status == .ok || bridge.status == .configured),
+       let loadedFingerprint = bridge.loadedRuntimeConfigurationFingerprint,
+       loadedFingerprint != bridge.currentRuntimeConfigurationFingerprint
+    {
+        return ("Restart Required", .notConfigured)
+    }
+
     switch bridge.status {
     case .notConfigured where bridge.installed:
         return ("Paused", .notConfigured)

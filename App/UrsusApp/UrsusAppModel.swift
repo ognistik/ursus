@@ -6,6 +6,7 @@ import Foundation
 enum UrsusBridgeOperation: Equatable {
     case install
     case repair
+    case restart
     case pause
     case resume
     case remove
@@ -16,6 +17,8 @@ enum UrsusBridgeOperation: Equatable {
             return "Installing the bridge and waiting for the MCP endpoint to become ready..."
         case .repair:
             return "Repairing the bridge and waiting for the MCP endpoint to become ready..."
+        case .restart:
+            return "Restarting the bridge and waiting for the MCP endpoint to become ready..."
         case .pause:
             return "Pausing the bridge..."
         case .resume:
@@ -297,6 +300,14 @@ final class UrsusAppModel: ObservableObject {
             return receipt.status == .installed
                 ? "Bridge installed and started at \(receipt.endpointURL)."
                 : "Bridge repaired and restarted at \(receipt.endpointURL)."
+        }
+    }
+
+    func restartBridge() {
+        let appBundleURL = Bundle.main.bundleURL
+        runBridgeOperation(.restart) {
+            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
+            return "Bridge restarted at \(receipt.endpointURL)."
         }
     }
 

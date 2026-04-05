@@ -96,6 +96,7 @@ struct UrsusPanel<Content: View>: View {
                     .padding(.top, 15)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .background(UrsusPanelBackground(style: .subtle))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
@@ -103,12 +104,14 @@ struct UrsusPanel<Content: View>: View {
                             .stroke(Color.primary.opacity(0.06), lineWidth: 1)
                     )
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         } else if surface == .subtle {
             VStack(alignment: .leading, spacing: 12) {
                 panelHeader
                 content
             }
             .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(UrsusPanelBackground(style: .subtle))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
@@ -121,6 +124,7 @@ struct UrsusPanel<Content: View>: View {
                 content
             }
             .padding(24)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(UrsusPanelBackground(style: .prominent))
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
@@ -200,6 +204,7 @@ struct UrsusGroupedBlock<Content: View>: View {
             content
         }
         .padding(padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(0.035))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -221,6 +226,19 @@ struct UrsusScreenHeader: View {
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+}
+
+struct UrsusRuntimeRestartGuidance: View {
+    static let message = "Changes save automatically. Restart your MCP client to apply them. If the Remote MCP Bridge is running, restart it too."
+
+    var body: some View {
+        UrsusGroupedBlock(padding: 10) {
+            Text(Self.message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

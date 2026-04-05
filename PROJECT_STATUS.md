@@ -54,8 +54,10 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - `Setup` is the default landing screen and keeps the main path compact: a clean Ursus header plus divider-led sections for defaults, Bear token, detected local host app setup, and the optional localhost bridge.
 - `Setup` status treatment is now calmer and action-led, using compact state badges plus a single inline bridge repair path instead of diagnostic-heavy status walls.
 - `Preferences` keeps durable note/template defaults compact, including inline template editing with validation and a refined chip-style inbox-tags editor.
+- `Preferences` and `Tools` now each open with one quiet auto-save/restart note instead of repeating restart warnings inside individual controls.
 - `Tools` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
-- The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume, copy-URL actions, and a saved port control that is only editable before bridge install.
+- The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
+- The Setup bridge card now derives a `Restart Required` state from persisted runtime config generation versus the generation last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
 ### CLI
@@ -143,6 +145,7 @@ These paths describe the codebase as it exists after Phase 6:
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
+- Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records the generation it loaded in a small runtime state file so the app can flag stale-yet-serving bridge processes without guessing about client restarts.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
 - Queue labels, logger labels, DB labels, and selected-note callback paths no longer use the old launcher identity.

@@ -53,6 +53,10 @@ public enum BearPaths {
         applicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
     }
 
+    public static var bridgeRuntimeStateURL: URL {
+        runtimeLockDirectoryURL.appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
+    }
+
     public static var processLockURL: URL {
         runtimeLockDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false)
     }

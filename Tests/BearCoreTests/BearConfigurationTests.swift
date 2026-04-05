@@ -38,6 +38,7 @@ func configurationEncodingOmitsLegacyTokenField() throws {
     let text = try #require(String(data: data, encoding: .utf8))
 
     #expect(text.contains("\"disabledTools\" : ["))
+    #expect(text.contains("\"runtimeConfigurationGeneration\" : 0"))
     #expect(!text.contains("\"token\""))
 }
 

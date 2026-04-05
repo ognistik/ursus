@@ -37,7 +37,7 @@ public enum BearRuntimeBootstrap {
         )
         let configuration = try BearConfiguration.load(from: configFileURL)
         BearDebugLog.append(
-            "config.loaded path=\(configFileURL.path) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) bridgeEnabled=\(configuration.bridge.enabled) bridgeHost=\(configuration.bridge.host) bridgePort=\(configuration.bridge.port)"
+            "config.loaded path=\(configFileURL.path) runtimeGeneration=\(configuration.runtimeConfigurationGeneration) inboxTags=\(configuration.inboxTags) createAddsInboxTagsByDefault=\(configuration.createAddsInboxTagsByDefault) tagsMergeMode=\(configuration.tagsMergeMode.rawValue) createOpensNoteByDefault=\(configuration.createOpensNoteByDefault) openUsesNewWindowByDefault=\(configuration.openUsesNewWindowByDefault) defaultDiscoveryLimit=\(configuration.defaultDiscoveryLimit) defaultSnippetLength=\(configuration.defaultSnippetLength) backupRetentionDays=\(configuration.backupRetentionDays) disabledTools=\(configuration.disabledTools.map(\.rawValue)) bridgeEnabled=\(configuration.bridge.enabled) bridgeHost=\(configuration.bridge.host) bridgePort=\(configuration.bridge.port)"
         )
         return configuration
     }
@@ -49,16 +49,30 @@ public enum BearRuntimeBootstrap {
         configDirectoryURL: URL = BearPaths.configDirectoryURL,
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL
-    ) throws -> BearConfiguration {
+        ) throws -> BearConfiguration {
         try prepareSupportFiles(
             fileManager: fileManager,
             configDirectoryURL: configDirectoryURL,
             configFileURL: configFileURL,
             templateURL: templateURL
         )
-        try writeConfiguration(configuration, to: configFileURL)
-        BearDebugLog.append("config.saved path=\(configFileURL.path)")
-        return configuration
+        let existingConfiguration = try? BearConfiguration.load(from: configFileURL)
+        let nextGeneration: Int
+
+        if let existingConfiguration {
+            nextGeneration = existingConfiguration.runtimeConfigurationMatches(configuration)
+                ? existingConfiguration.runtimeConfigurationGeneration
+                : existingConfiguration.runtimeConfigurationGeneration + 1
+        } else {
+            nextGeneration = configuration.runtimeConfigurationGeneration
+        }
+
+        let persistedConfiguration = configuration.updatingRuntimeConfigurationGeneration(nextGeneration)
+        try writeConfiguration(persistedConfiguration, to: configFileURL)
+        BearDebugLog.append(
+            "config.saved path=\(configFileURL.path) runtimeGeneration=\(persistedConfiguration.runtimeConfigurationGeneration)"
+        )
+        return persistedConfiguration
     }
 
     public static func doctorReport(logger: Logger) -> String {
