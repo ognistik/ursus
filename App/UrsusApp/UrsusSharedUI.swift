@@ -231,7 +231,7 @@ struct UrsusScreenHeader: View {
 }
 
 struct UrsusRuntimeRestartGuidance: View {
-    static let message = "Changes save automatically. Restart your MCP client to apply them. If the Remote MCP Bridge is running, restart it too."
+    static let message = "Changes save automatically, but take effect only after reloading. If the Remote MCP Bridge is running, restart it first, then relaunch your MCP client."
 
     var body: some View {
         UrsusGroupedBlock(padding: 10) {
@@ -724,18 +724,6 @@ struct UrsusTagEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(tags.isEmpty ? "No inbox tags yet." : "\(tags.count) tag\(tags.count == 1 ? "" : "s")")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                if !tags.isEmpty {
-                    Text("Click a tag to remove it.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-            }
-
             if tags.isEmpty {
                 Text("New notes stay untagged until you add one here.")
                     .font(.callout)
@@ -769,23 +757,17 @@ struct UrsusTagEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                TextField("Add a tag or paste a comma-separated list", text: $draft)
+                TextField("Add default inbox tag", text: $draft)
                     .textFieldStyle(.plain)
                     .ursusInputChrome()
                     .submitLabel(.done)
                     .onSubmit(addDraft)
 
-                HStack(spacing: 10) {
-                    Button("Add Tag") {
-                        addDraft()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    Text("Duplicates and extra spacing are cleaned up automatically.")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                Button("Add Tag") {
+                    addDraft()
                 }
+                .buttonStyle(.bordered)
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }

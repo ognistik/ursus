@@ -82,7 +82,10 @@ struct UrsusPreferencesView: View {
     }
 
     private var inboxTagsPanel: some View {
-        UrsusPanel(title: "Inbox Tags") {
+        UrsusPanel(
+            title: "Inbox Tags",
+            titleHelpText: "Applied by default when creating notes."
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 UrsusTagEditor(
                     tags: model.inboxTagValues,
@@ -108,13 +111,14 @@ struct UrsusPreferencesView: View {
                     TextEditor(text: Binding(
                         get: { model.templateDraft },
                         set: { newValue in
-                            model.templateDraft = newValue
+                            model.templateDraft = limitedTemplateText(newValue, maxLines: 7)
                             model.templateDraftDidChange()
                         }
                     ))
                     .font(.system(.body, design: .monospaced))
-                    .frame(height: 158)
+                    .scrollDisabled(true)                   // no scrolling, no scrollbar
                     .scrollContentBackground(.hidden)
+                    .frame(height: 7 * 16)                  // 20pt per line — adjust if needed
                     .ursusInputChrome(cornerRadius: 16, horizontalPadding: 12, verticalPadding: 12)
 
                     templateValidationMessages
@@ -193,6 +197,11 @@ struct UrsusPreferencesView: View {
                 model.configurationDraftDidChange()
             }
         )
+    }
+    
+    private func limitedTemplateText(_ text: String, maxLines: Int) -> String {
+        let lines = text.components(separatedBy: .newlines)
+        return lines.prefix(maxLines).joined(separator: "\n")
     }
 
     @ViewBuilder
