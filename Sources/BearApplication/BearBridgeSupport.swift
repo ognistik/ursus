@@ -53,6 +53,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let host: String
     public let port: Int
     public let endpointURL: String
+    public let currentSelectedNoteTokenConfigured: Bool
+    public let loadedSelectedNoteTokenConfigured: Bool?
     public let currentRuntimeConfigurationGeneration: Int
     public let loadedRuntimeConfigurationGeneration: Int?
     public let currentRuntimeConfigurationFingerprint: String
@@ -79,6 +81,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         host: String,
         port: Int,
         endpointURL: String,
+        currentSelectedNoteTokenConfigured: Bool,
+        loadedSelectedNoteTokenConfigured: Bool?,
         currentRuntimeConfigurationGeneration: Int,
         loadedRuntimeConfigurationGeneration: Int?,
         currentRuntimeConfigurationFingerprint: String,
@@ -104,6 +108,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.host = host
         self.port = port
         self.endpointURL = endpointURL
+        self.currentSelectedNoteTokenConfigured = currentSelectedNoteTokenConfigured
+        self.loadedSelectedNoteTokenConfigured = loadedSelectedNoteTokenConfigured
         self.currentRuntimeConfigurationGeneration = currentRuntimeConfigurationGeneration
         self.loadedRuntimeConfigurationGeneration = loadedRuntimeConfigurationGeneration
         self.currentRuntimeConfigurationFingerprint = currentRuntimeConfigurationFingerprint
@@ -152,7 +158,19 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     }
 
     public var restartRequired: Bool {
-        runtimeConfigurationRestartRequired || implementationRestartRequired
+        runtimeConfigurationRestartRequired || implementationRestartRequired || selectedNoteTokenRestartRequired
+    }
+
+    public var selectedNoteTokenRestartRequired: Bool {
+        guard installed,
+              loaded,
+              status == .ok || status == .configured,
+              let loadedSelectedNoteTokenConfigured
+        else {
+            return false
+        }
+
+        return loadedSelectedNoteTokenConfigured != currentSelectedNoteTokenConfigured
     }
 }
 
@@ -211,6 +229,7 @@ private final class BearBridgeURLSessionProbeBox: @unchecked Sendable {
 }
 
 private struct BearBridgeRuntimeState: Codable, Hashable, Sendable {
+    let loadedSelectedNoteTokenConfigured: Bool?
     let loadedRuntimeConfigurationGeneration: Int
     let loadedRuntimeConfigurationFingerprint: String
     let loadedBridgeImplementationMarker: String?
@@ -219,6 +238,7 @@ private struct BearBridgeRuntimeState: Codable, Hashable, Sendable {
 
 public extension BearAppSupport {
     static func recordBridgeLoadedRuntimeState(
+        selectedNoteTokenConfigured: Bool,
         runtimeConfigurationGeneration: Int,
         runtimeConfigurationFingerprint: String,
         bridgeImplementationMarker: String? = nil,
@@ -231,6 +251,7 @@ public extension BearAppSupport {
         )
 
         let state = BearBridgeRuntimeState(
+            loadedSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
             loadedRuntimeConfigurationGeneration: runtimeConfigurationGeneration,
             loadedRuntimeConfigurationFingerprint: runtimeConfigurationFingerprint,
             loadedBridgeImplementationMarker: bridgeImplementationMarker,
@@ -535,6 +556,7 @@ public extension BearAppSupport {
 
     static func bridgeSnapshot(
         configuration: BearConfiguration,
+        selectedNoteTokenConfigured: Bool = BearSelectedNoteTokenResolver.configured(),
         fileManager: FileManager = .default,
         currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearBridgeLaunchAgent.launcherURL,
@@ -569,6 +591,8 @@ public extension BearAppSupport {
                 host: configuration.bridge.host,
                 port: configuration.bridge.port,
                 endpointURL: "invalid bridge URL",
+                currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
+                loadedSelectedNoteTokenConfigured: bridgeRuntimeState?.loadedSelectedNoteTokenConfigured,
                 currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
                 loadedRuntimeConfigurationGeneration: nil,
                 currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
@@ -638,6 +662,8 @@ public extension BearAppSupport {
             host: bridge.host,
             port: bridge.port,
             endpointURL: endpointURL,
+            currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
+            loadedSelectedNoteTokenConfigured: bridgeRuntimeState?.loadedSelectedNoteTokenConfigured,
             currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
             loadedRuntimeConfigurationGeneration: bridgeRuntimeState?.loadedRuntimeConfigurationGeneration,
             currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,

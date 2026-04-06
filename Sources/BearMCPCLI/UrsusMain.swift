@@ -160,6 +160,7 @@ public enum UrsusCLIRuntime {
             },
             readyHandler: {
                 try BearAppSupport.recordBridgeLoadedRuntimeState(
+                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore),
                     runtimeConfigurationGeneration: runtime.configuration.runtimeConfigurationGeneration,
                     runtimeConfigurationFingerprint: runtime.configuration.runtimeConfigurationFingerprint,
                     bridgeImplementationMarker: UrsusCLILocator.currentBridgeImplementationMarker()

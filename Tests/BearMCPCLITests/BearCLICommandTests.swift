@@ -148,6 +148,8 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
             host: "127.0.0.1",
             port: 6190,
             endpointURL: "http://127.0.0.1:6190/mcp",
+            currentSelectedNoteTokenConfigured: true,
+            loadedSelectedNoteTokenConfigured: true,
             currentRuntimeConfigurationGeneration: 3,
             loadedRuntimeConfigurationGeneration: 2,
             currentRuntimeConfigurationFingerprint: "current-fingerprint",

@@ -363,6 +363,7 @@ public enum BearAppSupport {
         )
         let bridge = bridgeSnapshot(
             configuration: configuration,
+            selectedNoteTokenConfigured: tokenStatus.isConfigured,
             fileManager: fileManager,
             currentAppBundleURL: currentAppBundleURL,
             launcherURL: launcherURL,

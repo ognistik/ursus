@@ -693,6 +693,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
         standardErrorURL: stderrURL
     ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
     try BearAppSupport.recordBridgeLoadedRuntimeState(
+        selectedNoteTokenConfigured: true,
         runtimeConfigurationGeneration: 2,
         runtimeConfigurationFingerprint: "loaded-fingerprint",
         bridgeImplementationMarker: "loaded-bridge-impl",
@@ -705,6 +706,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
 
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
+        selectedNoteTokenConfigured: true,
         fileManager: fileManager,
         currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
@@ -721,6 +723,8 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     )
 
     #expect(snapshot.loaded == true)
+    #expect(snapshot.currentSelectedNoteTokenConfigured == true)
+    #expect(snapshot.loadedSelectedNoteTokenConfigured == true)
     #expect(snapshot.currentRuntimeConfigurationGeneration == 4)
     #expect(snapshot.loadedRuntimeConfigurationGeneration == 2)
     #expect(snapshot.currentRuntimeConfigurationFingerprint == configuration.runtimeConfigurationFingerprint)
@@ -785,6 +789,7 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
         standardErrorURL: stderrURL
     ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
     try BearAppSupport.recordBridgeLoadedRuntimeState(
+        selectedNoteTokenConfigured: true,
         runtimeConfigurationGeneration: 4,
         runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
         bridgeImplementationMarker: "stale-bridge-impl",
@@ -797,6 +802,7 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
 
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
+        selectedNoteTokenConfigured: true,
         fileManager: fileManager,
         currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
@@ -814,7 +820,149 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
 
     #expect(snapshot.runtimeConfigurationRestartRequired == false)
     #expect(snapshot.implementationRestartRequired == true)
+    #expect(snapshot.selectedNoteTokenRestartRequired == false)
     #expect(snapshot.restartRequired == true)
+}
+
+@Test
+func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+    let bridgeRuntimeStateURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
+        .appendingPathComponent("Runtime", isDirectory: true)
+        .appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\nexit 0\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30,
+        runtimeConfigurationGeneration: 4,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.recordBridgeLoadedRuntimeState(
+        selectedNoteTokenConfigured: false,
+        runtimeConfigurationGeneration: 4,
+        runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
+        bridgeImplementationMarker: "stable-bridge-impl",
+        fileManager: fileManager,
+        runtimeStateURL: bridgeRuntimeStateURL
+    )
+
+    let snapshotAfterTokenAdded = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true,
+        fileManager: fileManager,
+        currentAppBundleURL: appBundleURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        bridgeRuntimeStateURL: bridgeRuntimeStateURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: true)
+        }
+    )
+
+    #expect(snapshotAfterTokenAdded.selectedNoteTokenRestartRequired == true)
+    #expect(snapshotAfterTokenAdded.restartRequired == true)
+
+    let currentImplementationMarker = try #require(snapshotAfterTokenAdded.currentBridgeImplementationMarker)
+    try BearAppSupport.recordBridgeLoadedRuntimeState(
+        selectedNoteTokenConfigured: true,
+        runtimeConfigurationGeneration: 4,
+        runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
+        bridgeImplementationMarker: currentImplementationMarker,
+        fileManager: fileManager,
+        runtimeStateURL: bridgeRuntimeStateURL
+    )
+
+    let snapshotAfterTokenRemovedAndReadded = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true,
+        fileManager: fileManager,
+        currentAppBundleURL: appBundleURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        bridgeRuntimeStateURL: bridgeRuntimeStateURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: true)
+        }
+    )
+
+    #expect(snapshotAfterTokenRemovedAndReadded.selectedNoteTokenRestartRequired == false)
+    #expect(snapshotAfterTokenRemovedAndReadded.restartRequired == false)
+
+    let snapshotAfterTokenRemoved = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        selectedNoteTokenConfigured: false,
+        fileManager: fileManager,
+        currentAppBundleURL: appBundleURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        bridgeRuntimeStateURL: bridgeRuntimeStateURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: true)
+        }
+    )
+
+    #expect(snapshotAfterTokenRemoved.selectedNoteTokenRestartRequired == true)
+    #expect(snapshotAfterTokenRemoved.restartRequired == true)
 }
 
 @Test
