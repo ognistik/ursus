@@ -7,14 +7,14 @@ import Testing
 @Test
 func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { Date(timeIntervalSince1970: 1_710_000_500) }
     )
     let note = makeBackupStoreNote(
@@ -32,8 +32,10 @@ func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
         )
     )
     let snapshot = try #require(await store.snapshot(noteID: "note-1", snapshotID: summary.snapshotID))
-    let rows = try fetchMetadataRows(at: temporaryDirectory)
-    let snapshotURL = temporaryDirectory.appendingPathComponent("\(summary.snapshotID).json", isDirectory: false)
+    let rows = try fetchMetadataRows(at: sandbox.metadataURL)
+    let snapshotURL = sandbox.backupsDirectoryURL
+        .appendingPathComponent("note-1", isDirectory: true)
+        .appendingPathComponent("\(summary.snapshotID).json", isDirectory: false)
 
     #expect(rows.count == 1)
     #expect(rows.first?.snapshotID == summary.snapshotID)
@@ -52,15 +54,15 @@ func backupFileStoreCaptureWritesMetadataRowAndSnapshotFile() async throws {
 @Test
 func backupFileStoreListsUnfilteredNoteScopedHistoryFromSQLiteMetadata() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -88,15 +90,15 @@ func backupFileStoreListsUnfilteredNoteScopedHistoryFromSQLiteMetadata() async t
 @Test
 func backupFileStoreFiltersByInclusiveFromDateOnCapturedAt() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -123,15 +125,15 @@ func backupFileStoreFiltersByInclusiveFromDateOnCapturedAt() async throws {
 @Test
 func backupFileStoreFiltersByInclusiveToDateOnCapturedAt() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -157,15 +159,15 @@ func backupFileStoreFiltersByInclusiveToDateOnCapturedAt() async throws {
 @Test
 func backupFileStoreFiltersByInclusiveBoundedDateRangeOnCapturedAt() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -194,14 +196,14 @@ func backupFileStoreFiltersByInclusiveBoundedDateRangeOnCapturedAt() async throw
 @Test
 func backupFileStoreReturnsEmptyFilteredResultSetWhenNoSnapshotsMatch() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { Date(timeIntervalSince1970: 1_710_000_000) }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -226,15 +228,15 @@ func backupFileStoreReturnsEmptyFilteredResultSetWhenNoSnapshotsMatch() async th
 @Test
 func backupFileStorePaginatesFilteredHistoryAndCarriesFilterIdentityInCursor() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -278,15 +280,15 @@ func backupFileStorePaginatesFilteredHistoryAndCarriesFilterIdentityInCursor() a
 @Test
 func backupFileStoreExactSnapshotLookupReturnsRequestedSnapshot() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let note = makeBackupStoreNote(id: "note-a", title: "A", body: "Original")
@@ -306,14 +308,14 @@ func backupFileStoreExactSnapshotLookupReturnsRequestedSnapshot() async throws {
 @Test
 func backupFileStoreDeletesOneSnapshotAndAllSnapshotsForNote() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
         now: { Date(timeIntervalSince1970: 1_710_000_500) }
     )
     let noteA = makeBackupStoreNote(id: "note-a", title: "A", body: "Line A")
@@ -332,29 +334,44 @@ func backupFileStoreDeletesOneSnapshotAndAllSnapshotsForNote() async throws {
             filterKey: "all"
         )
     )
-    let rows = try fetchMetadataRows(at: temporaryDirectory)
+    let rows = try fetchMetadataRows(at: sandbox.metadataURL)
 
     #expect(deletedSingle == 1)
     #expect(deletedAllForNoteB == 1)
     #expect(remaining.items.count == 1)
     #expect(remaining.items.first?.snapshotID == snapshotA2.snapshotID)
     #expect(rows.map(\.snapshotID) == [snapshotA2.snapshotID])
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("\(snapshotA1.snapshotID).json").path) == false)
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("\(snapshotB1.snapshotID).json").path) == false)
+    #expect(
+        fileManager.fileExists(
+            atPath: sandbox.backupsDirectoryURL
+                .appendingPathComponent("note-a", isDirectory: true)
+                .appendingPathComponent("\(snapshotA1.snapshotID).json", isDirectory: false)
+                .path
+        ) == false
+    )
+    #expect(
+        fileManager.fileExists(
+            atPath: sandbox.backupsDirectoryURL
+                .appendingPathComponent("note-b", isDirectory: true)
+                .appendingPathComponent("\(snapshotB1.snapshotID).json", isDirectory: false)
+                .path
+        ) == false
+    )
+    #expect(fileManager.fileExists(atPath: sandbox.backupsDirectoryURL.appendingPathComponent("note-b", isDirectory: true).path) == false)
 }
 
 @Test
 func backupFileStoreLazyPruningRemovesExpiredRowsAndFiles() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
     let clock = LockedClock(startingAt: Date(timeIntervalSince1970: 1_710_000_000))
-    let store = BearBackupFileStore(
+    let store = makeBackupStore(
+        sandbox: sandbox,
         retentionDays: 1,
-        directoryURL: temporaryDirectory,
         now: { clock.now() }
     )
     let original = makeBackupStoreNote(id: "note-a", title: "A", body: "Original")
@@ -364,7 +381,7 @@ func backupFileStoreLazyPruningRemovesExpiredRowsAndFiles() async throws {
     let current = makeBackupStoreNote(id: "note-a", title: "A", body: "Current")
     let kept = try #require(await store.capture(note: current, reason: .replaceContent, operationGroupID: "op-new"))
 
-    let rows = try fetchMetadataRows(at: temporaryDirectory)
+    let rows = try fetchMetadataRows(at: sandbox.metadataURL)
     let listed = try await store.list(
         BackupListQuery(
             noteID: "note-a",
@@ -375,22 +392,33 @@ func backupFileStoreLazyPruningRemovesExpiredRowsAndFiles() async throws {
 
     #expect(rows.map(\.snapshotID) == [kept.snapshotID])
     #expect(listed.items.map(\.snapshotID) == [kept.snapshotID])
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("\(expired.snapshotID).json").path) == false)
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("\(kept.snapshotID).json").path))
+    #expect(
+        fileManager.fileExists(
+            atPath: sandbox.backupsDirectoryURL
+                .appendingPathComponent("note-a", isDirectory: true)
+                .appendingPathComponent("\(expired.snapshotID).json", isDirectory: false)
+                .path
+        ) == false
+    )
+    #expect(
+        fileManager.fileExists(
+            atPath: sandbox.backupsDirectoryURL
+                .appendingPathComponent("note-a", isDirectory: true)
+                .appendingPathComponent("\(kept.snapshotID).json", isDirectory: false)
+                .path
+        )
+    )
 }
 
 @Test
 func backupFileStoreRetentionZeroDisablesCaptureAndCleansExistingArtifacts() async throws {
     let fileManager = FileManager.default
-    let temporaryDirectory = makeTemporaryBackupDirectory()
+    let sandbox = makeTemporaryBackupSandbox()
     defer {
-        try? fileManager.removeItem(at: temporaryDirectory)
+        try? fileManager.removeItem(at: sandbox.rootURL)
     }
 
-    let enabledStore = BearBackupFileStore(
-        retentionDays: 30,
-        directoryURL: temporaryDirectory
-    )
+    let enabledStore = makeBackupStore(sandbox: sandbox, retentionDays: 30)
     let note = makeBackupStoreNote(
         id: "note-1",
         title: "Inbox",
@@ -398,10 +426,7 @@ func backupFileStoreRetentionZeroDisablesCaptureAndCleansExistingArtifacts() asy
     )
 
     let summary = try #require(await enabledStore.capture(note: note, reason: .insertText, operationGroupID: "op-1"))
-    let disabledStore = BearBackupFileStore(
-        retentionDays: 0,
-        directoryURL: temporaryDirectory
-    )
+    let disabledStore = makeBackupStore(sandbox: sandbox, retentionDays: 0)
     let capture = try await disabledStore.capture(note: note, reason: .manual, operationGroupID: "op-2")
     let listed = try await disabledStore.list(
         BackupListQuery(
@@ -413,9 +438,78 @@ func backupFileStoreRetentionZeroDisablesCaptureAndCleansExistingArtifacts() asy
 
     #expect(capture == nil)
     #expect(listed.items.isEmpty)
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("\(summary.snapshotID).json").path) == false)
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("backups.sqlite").path) == false)
-    #expect(fileManager.fileExists(atPath: temporaryDirectory.appendingPathComponent("index.json").path) == false)
+    #expect(
+        fileManager.fileExists(
+            atPath: sandbox.backupsDirectoryURL
+                .appendingPathComponent("note-1", isDirectory: true)
+                .appendingPathComponent("\(summary.snapshotID).json", isDirectory: false)
+                .path
+        ) == false
+    )
+    #expect(fileManager.fileExists(atPath: sandbox.metadataURL.path) == false)
+    #expect(fileManager.fileExists(atPath: sandbox.quarantineDirectoryURL.path) == false)
+}
+
+@Test
+func backupFileStoreRebuildsMetadataSelfHealsLayoutAndQuarantinesMalformedFiles() async throws {
+    let fileManager = FileManager.default
+    let sandbox = makeTemporaryBackupSandbox()
+    defer {
+        try? fileManager.removeItem(at: sandbox.rootURL)
+    }
+
+    let snapshot = BearBackupSnapshot(
+        snapshotID: "snapshot-1",
+        noteID: "note-a",
+        version: 3,
+        title: "Inbox",
+        rawText: "# Inbox\n\nBody",
+        modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
+        capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
+        reason: .manual,
+        operationGroupID: "op-1"
+    )
+
+    let wrongFolderURL = sandbox.backupsDirectoryURL
+        .appendingPathComponent("wrong-folder", isDirectory: true)
+        .appendingPathComponent("wrong-name.json", isDirectory: false)
+    try fileManager.createDirectory(at: wrongFolderURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    let data = try BearJSON.makeEncoder().encode(snapshot)
+    try data.write(to: wrongFolderURL, options: .atomic)
+
+    let malformedURL = sandbox.backupsDirectoryURL
+        .appendingPathComponent("broken", isDirectory: true)
+        .appendingPathComponent("bad.json", isDirectory: false)
+    try fileManager.createDirectory(at: malformedURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try Data("not-json".utf8).write(to: malformedURL, options: .atomic)
+
+    let store = makeBackupStore(
+        sandbox: sandbox,
+        retentionDays: 30,
+        now: { Date(timeIntervalSince1970: 1_710_000_500) }
+    )
+
+    let listed = try await store.list(
+        BackupListQuery(
+            noteID: "note-a",
+            limit: 10,
+            filterKey: "all"
+        )
+    )
+    let rows = try fetchMetadataRows(at: sandbox.metadataURL)
+    let canonicalURL = sandbox.backupsDirectoryURL
+        .appendingPathComponent("note-a", isDirectory: true)
+        .appendingPathComponent("snapshot-1.json", isDirectory: false)
+    let quarantinedBadURL = sandbox.quarantineDirectoryURL.appendingPathComponent("bad.json", isDirectory: false)
+
+    #expect(listed.items.map(\.snapshotID) == ["snapshot-1"])
+    #expect(rows.map(\.snapshotID) == ["snapshot-1"])
+    #expect(fileManager.fileExists(atPath: canonicalURL.path))
+    #expect(fileManager.fileExists(atPath: wrongFolderURL.path) == false)
+    #expect(fileManager.fileExists(atPath: sandbox.backupsDirectoryURL.appendingPathComponent("wrong-folder", isDirectory: true).path) == false)
+    #expect(fileManager.fileExists(atPath: quarantinedBadURL.path))
+    #expect(fileManager.fileExists(atPath: malformedURL.path) == false)
+    #expect(fileManager.fileExists(atPath: sandbox.backupsDirectoryURL.appendingPathComponent("broken", isDirectory: true).path) == false)
 }
 
 private struct BackupMetadataRow: Sendable {
@@ -425,13 +519,42 @@ private struct BackupMetadataRow: Sendable {
     let fileName: String
 }
 
-private func makeTemporaryBackupDirectory() -> URL {
-    FileManager.default.temporaryDirectory
-        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+private struct BackupTestSandbox: Sendable {
+    let rootURL: URL
+    let backupsDirectoryURL: URL
+    let metadataURL: URL
+    let quarantineDirectoryURL: URL
 }
 
-private func fetchMetadataRows(at directoryURL: URL) throws -> [BackupMetadataRow] {
-    let metadataURL = directoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
+private func makeTemporaryBackupSandbox() -> BackupTestSandbox {
+    let rootURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let backupsDirectoryURL = rootURL.appendingPathComponent("Backups", isDirectory: true)
+    let metadataURL = rootURL.appendingPathComponent("backups.sqlite", isDirectory: false)
+    let quarantineDirectoryURL = backupsDirectoryURL.appendingPathComponent("_quarantine", isDirectory: true)
+    return BackupTestSandbox(
+        rootURL: rootURL,
+        backupsDirectoryURL: backupsDirectoryURL,
+        metadataURL: metadataURL,
+        quarantineDirectoryURL: quarantineDirectoryURL
+    )
+}
+
+private func makeBackupStore(
+    sandbox: BackupTestSandbox,
+    retentionDays: Int,
+    now: @escaping @Sendable () -> Date = { Date() }
+) -> BearBackupFileStore {
+    BearBackupFileStore(
+        retentionDays: retentionDays,
+        directoryURL: sandbox.backupsDirectoryURL,
+        metadataURL: sandbox.metadataURL,
+        quarantineDirectoryURL: sandbox.quarantineDirectoryURL,
+        now: now
+    )
+}
+
+private func fetchMetadataRows(at metadataURL: URL) throws -> [BackupMetadataRow] {
     guard FileManager.default.fileExists(atPath: metadataURL.path) else {
         return []
     }

@@ -118,7 +118,8 @@ These paths describe the codebase as it exists after Phase 6:
 - app support root: `~/Library/Application Support/Ursus`
 - bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.ursus.plist`
 - backups: `~/Library/Application Support/Ursus/Backups`
-- backup metadata DB: `~/Library/Application Support/Ursus/Backups/backups.sqlite`
+- backup metadata DB: `~/Library/Application Support/Ursus/backups.sqlite`
+- backup quarantine: `~/Library/Application Support/Ursus/Backups/_quarantine`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
 - current app bundle state: `~/Library/Application Support/Ursus/Runtime/current-app-bundle.json`
 - bridge runtime state: `~/Library/Application Support/Ursus/Runtime/bridge-runtime-state.json`
@@ -138,7 +139,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Discovery tools return compact note summaries with attachment presence metadata and attachment-match evidence only; `bear_get_notes` remains the full-note fetch, and attachment OCR/search text is opt-in there.
 - Discovery page size and snippet length now come only from config defaults. MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides anymore, and cursor continuation keeps using the configured defaults.
 - Backup MCP discovery is now note-scoped and paginated with opaque cursors. `bear_create_backups` reuses the manual capture path, `bear_list_backups` supports optional inclusive `from` / `to` filters on the backup creation timestamp, `bear_compare_backup` returns compact metadata plus bounded diff hunks, and backup list results no longer include stored snippets or Bear revision numbers.
-- Backup snapshot payloads remain one JSON file per snapshot, while backup metadata now lives in `Backups/backups.sqlite` instead of a flat `index.json`, so list/lookup/delete/prune operations no longer load whole-history metadata into memory. Backup identity and recency are driven by `snapshot_id` plus `captured_at`, not Bear's mutable note revision counter, and backup-list cursors are keyed to the normalized note-scoped date-filter query so filtered pages cannot be mixed.
+- Backup snapshot payloads now live in canonical per-note folders under `Backups/<note-id>/<snapshot-id>.json`, while backup metadata now lives in the root-level `backups.sqlite` index instead of a flat `index.json`. The store keeps a lightweight backup-tree fingerprint in SQLite so normal access can skip the expensive recursive reconciliation pass, then rebuilds the metadata index from disk only when the tree changes. Malformed or ambiguous files are quarantined under `Backups/_quarantine`, expired snapshots are removed during reconciliation, and empty backup folders are cleaned up after moves and deletions. Backup identity and recency are driven by `snapshot_id` plus `captured_at`, not Bear's mutable note revision counter, and backup-list cursors are keyed to the normalized note-scoped date-filter query so filtered pages cannot be mixed.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - MCP presentation controls are now intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and the other note/tag mutation tools run as background mutations without exposed presentation overrides.

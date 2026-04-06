@@ -6,6 +6,7 @@ public actor BearBackupFileStore: BearBackupStore {
     private let retentionDays: Int
     private let directoryURL: URL
     private let metadataURL: URL
+    private let quarantineDirectoryURL: URL
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
     private var databaseQueue: DatabaseQueue?
@@ -13,12 +14,15 @@ public actor BearBackupFileStore: BearBackupStore {
     public init(
         retentionDays: Int,
         directoryURL: URL = BearPaths.backupsDirectoryURL,
+        metadataURL: URL = BearPaths.backupsMetadataURL,
+        quarantineDirectoryURL: URL = BearPaths.backupsQuarantineDirectoryURL,
         fileManager: FileManager = .default,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.retentionDays = max(0, retentionDays)
         self.directoryURL = directoryURL
-        self.metadataURL = directoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
+        self.metadataURL = metadataURL
+        self.quarantineDirectoryURL = quarantineDirectoryURL
         self.fileManager = fileManager
         self.now = now
     }
@@ -30,8 +34,6 @@ public actor BearBackupFileStore: BearBackupStore {
         }
 
         let dbQueue = try prepareMetadataStore()
-        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
-
         let snapshotID = UUID().uuidString.lowercased()
         let fileName = "\(snapshotID).json"
         let capturedAt = now()
@@ -47,13 +49,20 @@ public actor BearBackupFileStore: BearBackupStore {
             operationGroupID: operationGroupID
         )
 
+        let snapshotURL = snapshotFileURL(noteID: snapshot.noteID, fileName: fileName)
+        try fileManager.createDirectory(
+            at: snapshotURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
         let snapshotData = try BearJSON.makeEncoder().encode(snapshot)
-        try snapshotData.write(to: snapshotFileURL(named: fileName), options: .atomic)
+        try snapshotData.write(to: snapshotURL, options: .atomic)
         let record = BackupMetadataRecord(snapshot: snapshot, fileName: fileName)
 
         try dbQueue.write { db in
             try record.insert(db)
         }
+        try syncStoredBackupTreeFingerprint(using: dbQueue)
 
         return record.summary
     }
@@ -162,11 +171,12 @@ public actor BearBackupFileStore: BearBackupStore {
             return nil
         }
 
-        let snapshotURL = snapshotFileURL(named: entry.fileName)
+        let snapshotURL = snapshotFileURL(noteID: entry.noteID, fileName: entry.fileName)
         guard fileManager.fileExists(atPath: snapshotURL.path) else {
             _ = try dbQueue.write { db in
                 try entry.delete(db)
             }
+            try syncStoredBackupTreeFingerprint(using: dbQueue)
             return nil
         }
 
@@ -197,10 +207,12 @@ public actor BearBackupFileStore: BearBackupStore {
             return 0
         }
 
-        try removeSnapshotFile(named: entry.fileName)
+        try removeSnapshotFile(noteID: entry.noteID, named: entry.fileName)
         _ = try dbQueue.write { db in
             try entry.delete(db)
         }
+        try cleanupEmptyBackupDirectories()
+        try syncStoredBackupTreeFingerprint(using: dbQueue)
         return 1
     }
 
@@ -228,7 +240,7 @@ public actor BearBackupFileStore: BearBackupStore {
         }
 
         for entry in entries {
-            try removeSnapshotFile(named: entry.fileName)
+            try removeSnapshotFile(noteID: entry.noteID, named: entry.fileName)
         }
 
         try dbQueue.write { db in
@@ -237,12 +249,33 @@ public actor BearBackupFileStore: BearBackupStore {
                 arguments: [noteID]
             )
         }
+        try cleanupEmptyBackupDirectories()
+        try syncStoredBackupTreeFingerprint(using: dbQueue)
         return entries.count
     }
 
     private func prepareMetadataStore() throws -> DatabaseQueue {
         let dbQueue = try openMetadataStore()
-        try pruneExpiredSnapshots(using: dbQueue)
+        let prunedExpiredSnapshots = try pruneExpiredSnapshots(using: dbQueue)
+        if prunedExpiredSnapshots {
+            try cleanupEmptyBackupDirectories()
+            try persistBackupTreeFingerprint(
+                try computeBackupTreeFingerprint(),
+                using: dbQueue
+            )
+        }
+
+        let currentFingerprint = try computeBackupTreeFingerprint()
+        let storedFingerprint = try loadStoredBackupTreeFingerprint(using: dbQueue)
+
+        if currentFingerprint != storedFingerprint {
+            try rebuildMetadataIndex(using: dbQueue)
+            try persistBackupTreeFingerprint(
+                try computeBackupTreeFingerprint(),
+                using: dbQueue
+            )
+        }
+
         return dbQueue
     }
 
@@ -252,6 +285,10 @@ public actor BearBackupFileStore: BearBackupStore {
         }
 
         try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: metadataURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
 
         var configuration = Configuration()
         configuration.label = "ursus.backups"
@@ -281,12 +318,28 @@ public actor BearBackupFileStore: BearBackupStore {
                 columns: ["captured_at"]
             )
         }
+        migrator.registerMigration("createMetadataState") { db in
+            try db.create(table: "metadata_state") { table in
+                table.column("key", .text).notNull().primaryKey()
+                table.column("value", .text).notNull()
+            }
+        }
         try migrator.migrate(dbQueue)
         databaseQueue = dbQueue
         return dbQueue
     }
 
-    private func pruneExpiredSnapshots(using dbQueue: DatabaseQueue) throws {
+    private func rebuildMetadataIndex(using dbQueue: DatabaseQueue) throws {
+        let records = try collectReconciledMetadataRecords()
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM snapshots")
+            for record in records {
+                try record.insert(db)
+            }
+        }
+    }
+
+    private func pruneExpiredSnapshots(using dbQueue: DatabaseQueue) throws -> Bool {
         let cutoff = now().addingTimeInterval(-Double(retentionDays) * 86_400).timeIntervalSince1970
         let expiredEntries = try dbQueue.read { db in
             try BackupMetadataRecord.fetchAll(
@@ -300,12 +353,12 @@ public actor BearBackupFileStore: BearBackupStore {
             )
         }
 
-        guard !expiredEntries.isEmpty else {
-            return
+        guard expiredEntries.isEmpty == false else {
+            return false
         }
 
         for entry in expiredEntries {
-            try? removeSnapshotFile(named: entry.fileName)
+            try? removeSnapshotFile(noteID: entry.noteID, named: entry.fileName)
         }
 
         let snapshotIDs = expiredEntries.map(\.snapshotID)
@@ -316,18 +369,203 @@ public actor BearBackupFileStore: BearBackupStore {
                 arguments: StatementArguments(snapshotIDs)
             )
         }
+
+        return true
+    }
+
+    private func loadStoredBackupTreeFingerprint(using dbQueue: DatabaseQueue) throws -> String? {
+        try dbQueue.read { db in
+            try BackupMetadataStateRecord.fetchOne(db, key: BackupMetadataStateKey.backupTreeFingerprint.rawValue)?.value
+        }
+    }
+
+    private func persistBackupTreeFingerprint(_ fingerprint: String, using dbQueue: DatabaseQueue) throws {
+        try dbQueue.write { db in
+            try BackupMetadataStateRecord(
+                key: BackupMetadataStateKey.backupTreeFingerprint.rawValue,
+                value: fingerprint
+            ).save(db)
+        }
+    }
+
+    private func syncStoredBackupTreeFingerprint(using dbQueue: DatabaseQueue) throws {
+        try persistBackupTreeFingerprint(try computeBackupTreeFingerprint(), using: dbQueue)
+    }
+
+    private func computeBackupTreeFingerprint() throws -> String {
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let entries = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        )
+
+        let parts = try entries.sorted(by: { $0.path < $1.path }).compactMap { url -> String? in
+            if url.standardizedFileURL == quarantineDirectoryURL.standardizedFileURL {
+                return nil
+            }
+
+            let values = try url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey, .fileSizeKey])
+            let modificationTime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
+
+            if values.isDirectory == true {
+                return "D|\(url.lastPathComponent)|\(modificationTime)"
+            }
+
+            guard url.pathExtension.lowercased() == "json" else {
+                return nil
+            }
+
+            let fileSize = values.fileSize ?? 0
+            return "F|\(url.lastPathComponent)|\(modificationTime)|\(fileSize)"
+        }
+
+        return parts.joined(separator: "\n")
+    }
+
+    private func collectReconciledMetadataRecords() throws -> [BackupMetadataRecord] {
+        try fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+
+        let candidateURLs = try enumeratedSnapshotURLs()
+        var records: [BackupMetadataRecord] = []
+        var indexedSnapshotIDs = Set<String>()
+
+        for candidateURL in candidateURLs {
+            guard fileManager.fileExists(atPath: candidateURL.path) else {
+                continue
+            }
+
+            guard let snapshot = try loadSnapshot(at: candidateURL) else {
+                try quarantineSnapshotFile(at: candidateURL)
+                continue
+            }
+
+            guard snapshotIdentityIsValid(snapshot) else {
+                try quarantineSnapshotFile(at: candidateURL)
+                continue
+            }
+
+            if snapshotIsExpired(snapshot) {
+                try? fileManager.removeItem(at: candidateURL)
+                continue
+            }
+
+            let canonicalURL = snapshotFileURL(noteID: snapshot.noteID, fileName: "\(snapshot.snapshotID).json")
+            if candidateURL.standardizedFileURL != canonicalURL.standardizedFileURL {
+                let moveResult = try reconcileSnapshotLocation(
+                    snapshot: snapshot,
+                    from: candidateURL,
+                    to: canonicalURL
+                )
+                switch moveResult {
+                case .indexed:
+                    break
+                case .discarded:
+                    continue
+                }
+            }
+
+            if indexedSnapshotIDs.contains(snapshot.snapshotID) {
+                try quarantineSnapshotFile(at: canonicalURL)
+                continue
+            }
+
+            indexedSnapshotIDs.insert(snapshot.snapshotID)
+            records.append(BackupMetadataRecord(snapshot: snapshot, fileName: canonicalURL.lastPathComponent))
+        }
+
+        try cleanupEmptyBackupDirectories()
+        return records
+    }
+
+    private func reconcileSnapshotLocation(
+        snapshot: BearBackupSnapshot,
+        from sourceURL: URL,
+        to canonicalURL: URL
+    ) throws -> ReconcileMoveResult {
+        try fileManager.createDirectory(
+            at: canonicalURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        if fileManager.fileExists(atPath: canonicalURL.path) {
+            if let canonicalSnapshot = try loadSnapshot(at: canonicalURL),
+               snapshotIdentityIsValid(canonicalSnapshot) {
+                if canonicalSnapshot == snapshot {
+                    try? fileManager.removeItem(at: sourceURL)
+                    return .discarded
+                }
+
+                try quarantineSnapshotFile(at: sourceURL)
+                return .discarded
+            }
+
+            try quarantineSnapshotFile(at: canonicalURL)
+        }
+
+        guard fileManager.fileExists(atPath: sourceURL.path) else {
+            return .discarded
+        }
+
+        try fileManager.moveItem(at: sourceURL, to: canonicalURL)
+        return .indexed
+    }
+
+    private func loadSnapshot(at url: URL) throws -> BearBackupSnapshot? {
+        let data = try Data(contentsOf: url)
+        return try? BearJSON.makeDecoder().decode(BearBackupSnapshot.self, from: data)
+    }
+
+    private func snapshotIsExpired(_ snapshot: BearBackupSnapshot) -> Bool {
+        let cutoff = now().addingTimeInterval(-Double(retentionDays) * 86_400)
+        return snapshot.capturedAt < cutoff
+    }
+
+    private func enumeratedSnapshotURLs() throws -> [URL] {
+        guard let enumerator = fileManager.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return []
+        }
+
+        var urls: [URL] = []
+        for case let url as URL in enumerator {
+            if url.standardizedFileURL == quarantineDirectoryURL.standardizedFileURL {
+                enumerator.skipDescendants()
+                continue
+            }
+
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            if values?.isDirectory == true {
+                continue
+            }
+
+            if url.pathExtension.lowercased() == "json" {
+                urls.append(url)
+            }
+        }
+
+        return urls.sorted { $0.path < $1.path }
     }
 
     private func cleanupDisabledBackups() throws {
         if fileManager.fileExists(atPath: directoryURL.path) {
-            let contents = try fileManager.contentsOfDirectory(
-                at: directoryURL,
-                includingPropertiesForKeys: nil,
-                options: [.skipsHiddenFiles]
-            )
-            for url in contents where url.pathExtension.lowercased() == "json" {
+            let urls = try enumeratedAllBackupJSONURLs()
+            for url in urls {
                 try? fileManager.removeItem(at: url)
             }
+            try cleanupEmptyBackupDirectories()
+        }
+
+        if fileManager.fileExists(atPath: quarantineDirectoryURL.path) {
+            let urls = try enumeratedAllBackupJSONURLs(in: quarantineDirectoryURL)
+            for url in urls {
+                try? fileManager.removeItem(at: url)
+            }
+            try cleanupEmptyDirectories(startingAt: quarantineDirectoryURL, keepingRoot: true)
         }
 
         try? fileManager.removeItem(at: metadataURL)
@@ -336,16 +574,138 @@ public actor BearBackupFileStore: BearBackupStore {
         databaseQueue = nil
     }
 
-    private func removeSnapshotFile(named fileName: String) throws {
-        let snapshotURL = snapshotFileURL(named: fileName)
+    private func enumeratedAllBackupJSONURLs(in rootURL: URL? = nil) throws -> [URL] {
+        let rootURL = rootURL ?? directoryURL
+        guard fileManager.fileExists(atPath: rootURL.path),
+              let enumerator = fileManager.enumerator(
+                at: rootURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return []
+        }
+
+        var urls: [URL] = []
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            if values?.isDirectory == true {
+                continue
+            }
+            if url.pathExtension.lowercased() == "json" {
+                urls.append(url)
+            }
+        }
+        return urls
+    }
+
+    private func quarantineSnapshotFile(at sourceURL: URL) throws {
+        guard fileManager.fileExists(atPath: sourceURL.path) else {
+            return
+        }
+
+        try fileManager.createDirectory(at: quarantineDirectoryURL, withIntermediateDirectories: true)
+        let destinationURL = uniqueQuarantineURL(for: sourceURL)
+
+        guard sourceURL.standardizedFileURL != destinationURL.standardizedFileURL else {
+            return
+        }
+
+        try fileManager.moveItem(at: sourceURL, to: destinationURL)
+    }
+
+    private func uniqueQuarantineURL(for sourceURL: URL) -> URL {
+        let baseName = sourceURL.deletingPathExtension().lastPathComponent
+        let pathExtension = sourceURL.pathExtension
+        var candidate = quarantineDirectoryURL.appendingPathComponent(sourceURL.lastPathComponent, isDirectory: false)
+        if fileManager.fileExists(atPath: candidate.path) == false {
+            return candidate
+        }
+
+        let token = UUID().uuidString.lowercased()
+        let fileName = pathExtension.isEmpty
+            ? "\(baseName)-\(token)"
+            : "\(baseName)-\(token).\(pathExtension)"
+        candidate = quarantineDirectoryURL.appendingPathComponent(fileName, isDirectory: false)
+        return candidate
+    }
+
+    private func removeSnapshotFile(noteID: String, named fileName: String) throws {
+        let snapshotURL = snapshotFileURL(noteID: noteID, fileName: fileName)
         guard fileManager.fileExists(atPath: snapshotURL.path) else {
             return
         }
         try fileManager.removeItem(at: snapshotURL)
     }
 
-    private func snapshotFileURL(named fileName: String) -> URL {
-        directoryURL.appendingPathComponent(fileName, isDirectory: false)
+    private func snapshotFileURL(noteID: String, fileName: String) -> URL {
+        directoryURL
+            .appendingPathComponent(noteID, isDirectory: true)
+            .appendingPathComponent(fileName, isDirectory: false)
+    }
+
+    private func cleanupEmptyBackupDirectories() throws {
+        try cleanupEmptyDirectories(startingAt: directoryURL, keepingRoot: true)
+        try cleanupEmptyDirectories(startingAt: quarantineDirectoryURL, keepingRoot: true)
+    }
+
+    private func cleanupEmptyDirectories(startingAt rootURL: URL, keepingRoot: Bool) throws {
+        guard fileManager.fileExists(atPath: rootURL.path) else {
+            return
+        }
+
+        guard let enumerator = fileManager.enumerator(
+            at: rootURL,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles],
+            errorHandler: nil
+        ) else {
+            return
+        }
+
+        var directories: [URL] = []
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+            if values?.isDirectory == true {
+                directories.append(url)
+            }
+        }
+
+        for directory in directories.sorted(by: { $0.path.count > $1.path.count }) {
+            try removeDirectoryIfEmpty(directory)
+        }
+
+        if keepingRoot == false {
+            try removeDirectoryIfEmpty(rootURL)
+        }
+    }
+
+    private func removeDirectoryIfEmpty(_ directoryURL: URL) throws {
+        guard fileManager.fileExists(atPath: directoryURL.path) else {
+            return
+        }
+
+        let contents = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )
+
+        if contents.isEmpty {
+            try fileManager.removeItem(at: directoryURL)
+        }
+    }
+
+    private func snapshotIdentityIsValid(_ snapshot: BearBackupSnapshot) -> Bool {
+        pathComponentIsValid(snapshot.noteID) && pathComponentIsValid(snapshot.snapshotID)
+    }
+
+    private func pathComponentIsValid(_ value: String) -> Bool {
+        value.isEmpty == false &&
+        value != "." &&
+        value != ".." &&
+        value.contains("/") == false &&
+        value.contains(":") == false &&
+        value.contains("\0") == false
     }
 
     private func emptyPage(limit: Int) -> BackupSummaryPage {
@@ -354,6 +714,11 @@ public actor BearBackupFileStore: BearBackupStore {
             page: DiscoveryPageInfo(limit: limit, returned: 0, hasMore: false, nextCursor: nil)
         )
     }
+}
+
+private enum ReconcileMoveResult {
+    case indexed
+    case discarded
 }
 
 private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord, Hashable, Sendable {
@@ -443,6 +808,17 @@ private struct BackupMetadataRecord: Codable, FetchableRecord, PersistableRecord
             reason: reason
         )
     }
+}
+
+private enum BackupMetadataStateKey: String {
+    case backupTreeFingerprint = "backup_tree_fingerprint"
+}
+
+private struct BackupMetadataStateRecord: Codable, FetchableRecord, PersistableRecord, Hashable, Sendable {
+    static let databaseTableName = "metadata_state"
+
+    let key: String
+    let value: String
 }
 
 private func databasePlaceholders(count: Int) -> String {

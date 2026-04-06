@@ -340,9 +340,14 @@ func listBackupsRejectsMismatchedCursorWhenDateFiltersDiffer() async throws {
     }
 
     let clock = LocalClock(current: Date(timeIntervalSince1970: 1_710_000_000))
+    let backupsDirectoryURL = temporaryDirectory.appendingPathComponent("Backups", isDirectory: true)
+    let metadataURL = temporaryDirectory.appendingPathComponent("backups.sqlite", isDirectory: false)
+    let quarantineDirectoryURL = backupsDirectoryURL.appendingPathComponent("_quarantine", isDirectory: true)
     let backupStore = BearBackupFileStore(
         retentionDays: 30,
-        directoryURL: temporaryDirectory,
+        directoryURL: backupsDirectoryURL,
+        metadataURL: metadataURL,
+        quarantineDirectoryURL: quarantineDirectoryURL,
         now: { clock.now() }
     )
     _ = try await backupStore.capture(note: note, reason: .insertText, operationGroupID: "op-1")

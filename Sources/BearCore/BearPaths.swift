@@ -36,7 +36,11 @@ public enum BearPaths {
     }
 
     public static var backupsMetadataURL: URL {
-        backupsDirectoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
+        applicationSupportDirectoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
+    }
+
+    public static var backupsQuarantineDirectoryURL: URL {
+        backupsDirectoryURL.appendingPathComponent("_quarantine", isDirectory: true)
     }
 
     public static var publicCLIDirectoryURL: URL {
