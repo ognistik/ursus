@@ -201,6 +201,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
     #expect(try #require(find.description).hasPrefix("Find Bear notes with text, tag, inbox-tag, and date filters"))
+    #expect(try #require(find.description).contains("returned notes may include `hasBackups`"))
     #expect(propertyDescription(named: "limit", in: find) == nil)
     #expect(propertyDescription(named: "snippet_length", in: find) == nil)
     #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)
@@ -216,6 +217,7 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     #expect(propertyDescription(named: "selected", in: insert) == nil)
 
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
+    #expect(try #require(getNotes.description).contains("returned notes may include `hasBackups`"))
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes) == nil)
 }
 
@@ -255,6 +257,66 @@ func toolCatalogOmitsDisabledToolsFromConfiguration() {
     #expect(tool(named: "bear_delete_tags", in: tools) == nil)
     #expect(tool(named: "bear_find_notes", in: tools) == nil)
     #expect(tool(named: "bear_get_notes", in: tools) != nil)
+}
+
+@Test
+func bridgeSurfaceMarkerTracksServedCatalogChanges() {
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+
+    let selectedEnabledMarker = UrsusMCPServer.bridgeSurfaceMarker(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    )
+    let selectedDisabledMarker = UrsusMCPServer.bridgeSurfaceMarker(
+        configuration: configuration,
+        selectedNoteTokenConfigured: false
+    )
+    let disabledToolsMarker = UrsusMCPServer.bridgeSurfaceMarker(
+        configuration: configuration.updatingDisabledTools([.getNotes]),
+        selectedNoteTokenConfigured: true
+    )
+
+    #expect(selectedEnabledMarker != selectedDisabledMarker)
+    #expect(selectedEnabledMarker != disabledToolsMarker)
+}
+
+@Test
+func toolCatalogOmitsBackupHintWhenBackupListingIsUnavailable() throws {
+    let noRetention = BearConfiguration(
+        databasePath: "/tmp/bear.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 0
+    )
+    let disabledListBackups = BearConfiguration.default.updatingDisabledTools([.listBackups])
+
+    let noRetentionTools = UrsusMCPServer.toolCatalog(configuration: noRetention)
+    let disabledListBackupsTools = UrsusMCPServer.toolCatalog(configuration: disabledListBackups)
+
+    let noRetentionFind = try #require(tool(named: "bear_find_notes", in: noRetentionTools))
+    let disabledFind = try #require(tool(named: "bear_find_notes", in: disabledListBackupsTools))
+
+    #expect(try #require(noRetentionFind.description).contains("returned notes may include `hasBackups`") == false)
+    #expect(try #require(disabledFind.description).contains("returned notes may include `hasBackups`") == false)
 }
 
 private func tool(named name: String, in tools: [Tool]) -> Tool? {

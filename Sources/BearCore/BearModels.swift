@@ -87,7 +87,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
     public let tags: [String]
     public let createdAt: Date
     public let modifiedAt: Date
-    public let version: Int
+    public let hasBackups: Bool?
     public let attachments: [NoteAttachment]
     public let encrypted: Bool?
 
@@ -98,7 +98,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         tags: [String],
         createdAt: Date,
         modifiedAt: Date,
-        version: Int,
+        hasBackups: Bool? = nil,
         attachments: [NoteAttachment],
         encrypted: Bool? = nil
     ) {
@@ -108,7 +108,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         self.tags = tags
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
-        self.version = version
+        self.hasBackups = hasBackups
         self.attachments = attachments
         self.encrypted = encrypted
     }
@@ -632,6 +632,7 @@ public struct NoteSummary: Codable, Hashable, Sendable {
     public let title: String
     public let snippet: String
     public let hasAttachments: Bool
+    public let hasBackups: Bool?
     public let matchedFields: [FindSearchField]?
     public let tags: [String]
     public let createdAt: Date
@@ -642,6 +643,7 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         title: String,
         snippet: String,
         hasAttachments: Bool,
+        hasBackups: Bool? = nil,
         matchedFields: [FindSearchField]? = nil,
         tags: [String],
         createdAt: Date,
@@ -651,6 +653,7 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         self.title = title
         self.snippet = snippet
         self.hasAttachments = hasAttachments
+        self.hasBackups = hasBackups
         self.matchedFields = matchedFields
         self.tags = tags
         self.createdAt = createdAt

@@ -47,6 +47,7 @@ func findNotesByInboxTagsUsesTemplateContentForBodySnippetAndHasAttachments() as
     #expect(summary.hasAttachments == true)
     #expect(summary.matchedFields == nil)
     #expect(payload["hasAttachments"] as? Bool == true)
+    #expect(payload["hasBackups"] == nil)
     #expect(payload["attachmentSnippet"] == nil)
     #expect(payload["archived"] == nil)
     #expect(readStore.lastFindQuery?.tagsAny == ["0-inbox"])
@@ -124,6 +125,7 @@ func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
     let summary = try #require(batch.results.first?.items?.first)
     #expect(summary.noteID == "tag-1")
     #expect(summary.hasAttachments == false)
+    #expect(summary.hasBackups == nil)
     #expect(readStore.lastFindQuery?.tagsAll == ["deep work", "project"])
     #expect(readStore.lastFindQuery?.location == .archive)
     #expect(readStore.lastFindQuery?.paging.limit == 1)
@@ -167,8 +169,41 @@ func findNotesReportsAttachmentMatchesWithoutReturningAttachmentText() throws {
     #expect(summary.snippet == "Body stays clean")
     #expect(summary.hasAttachments == true)
     #expect(summary.matchedFields == [.attachments])
+    #expect(payload["hasBackups"] == nil)
     #expect(payload["attachmentSnippet"] == nil)
     #expect(payload["archived"] == nil)
+}
+
+@Test
+func findNotesIncludesHasBackupsWhenBackupLookupIsAvailable() throws {
+    let note = makeNote(
+        id: "note-1",
+        title: "Backed Up",
+        body: "Body text",
+        tags: ["project"],
+        archived: false
+    )
+    let readStore = DiscoveryReadStore(findBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        backupPresenceLookup: { noteIDs in
+            Set(noteIDs.filter { $0 == "note-1" })
+        },
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(text: "Body"),
+    ])
+
+    let summary = try #require(batch.results.first?.items?.first)
+    let payload = try encodedJSONObject(summary)
+    #expect(summary.hasBackups == true)
+    #expect(payload["hasBackups"] as? Bool == true)
 }
 
 @Test

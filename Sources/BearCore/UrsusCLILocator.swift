@@ -28,55 +28,6 @@ public enum UrsusCLILocator {
         "Build or reinstall `\(UrsusAppLocator.appName)` so it contains `\(bundledRelativePath)`."
     }
 
-    public static func bridgeImplementationMarker(
-        forAppBundleURL bundleURL: URL,
-        fileManager: FileManager = .default
-    ) throws -> String {
-        let executableURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
-        return try bridgeImplementationMarker(
-            executableURL: executableURL,
-            bundle: Bundle(url: bundleURL),
-            fileManager: fileManager
-        )
-    }
-
-    public static func currentBridgeImplementationMarker(
-        fileManager: FileManager = .default,
-        bundle: Bundle = .main,
-        processArguments: [String] = CommandLine.arguments
-    ) -> String? {
-        if bundle.bundleURL.pathExtension == "app",
-           fileManager.fileExists(atPath: bundle.bundleURL.path)
-        {
-            return try? bridgeImplementationMarker(
-                forAppBundleURL: bundle.bundleURL,
-                fileManager: fileManager
-            )
-        }
-
-        if let executableURL = bundle.executableURL,
-           fileManager.fileExists(atPath: executableURL.path)
-        {
-            return try? bridgeImplementationMarker(
-                executableURL: executableURL,
-                bundle: bundle,
-                fileManager: fileManager
-            )
-        }
-
-        guard let executablePath = processArguments.first,
-              !executablePath.isEmpty
-        else {
-            return nil
-        }
-
-        return try? bridgeImplementationMarker(
-            executableURL: URL(fileURLWithPath: executablePath, isDirectory: false),
-            bundle: nil,
-            fileManager: fileManager
-        )
-    }
-
     public static func bundledExecutableURL(
         forAppBundleURL bundleURL: URL,
         fileManager: FileManager = .default
@@ -238,28 +189,5 @@ public enum UrsusCLILocator {
 
     private static func shellSingleQuoted(_ value: String) -> String {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
-    }
-
-    private static func bridgeImplementationMarker(
-        executableURL: URL,
-        bundle: Bundle?,
-        fileManager: FileManager
-    ) throws -> String {
-        guard fileManager.fileExists(atPath: executableURL.path) else {
-            throw BearError.configuration("Bridge implementation marker could not be computed because `\(executableURL.path)` does not exist.")
-        }
-
-        let attributes = try fileManager.attributesOfItem(atPath: executableURL.path)
-        let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
-        let modifiedAt = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let bundleVersion = bundle?.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
-        let shortVersion = bundle?.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
-
-        return [
-            "size=\(fileSize)",
-            "modified=\(modifiedAt)",
-            "bundleVersion=\(bundleVersion)",
-            "shortVersion=\(shortVersion)",
-        ].joined(separator: "|")
     }
 }

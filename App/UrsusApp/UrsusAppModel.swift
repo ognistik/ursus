@@ -1,5 +1,6 @@
 import AppKit
 import BearApplication
+import BearCLIRuntime
 import BearCore
 import Foundation
 
@@ -32,7 +33,8 @@ enum UrsusBridgeOperation: Equatable {
 @MainActor
 final class UrsusAppModel: ObservableObject {
     @Published private(set) var dashboard = BearAppSupport.loadDashboardSnapshot(
-        currentAppBundleURL: Bundle.main.bundleURL
+        currentAppBundleURL: Bundle.main.bundleURL,
+        bridgeSurfaceMarkerProvider: UrsusCLIRuntime.bridgeSurfaceMarker
     )
     @Published var tokenDraft = ""
     @Published var revealsStoredToken = false
@@ -87,7 +89,8 @@ final class UrsusAppModel: ObservableObject {
     private func refreshAppState() {
         persistCurrentAppBundleLocation()
         dashboard = BearAppSupport.loadDashboardSnapshot(
-            currentAppBundleURL: Bundle.main.bundleURL
+            currentAppBundleURL: Bundle.main.bundleURL,
+            bridgeSurfaceMarkerProvider: UrsusCLIRuntime.bridgeSurfaceMarker
         )
         applyDraft(from: dashboard.settings)
         loadTemplateDraft()
@@ -97,7 +100,8 @@ final class UrsusAppModel: ObservableObject {
     private func refreshDashboardSnapshot() {
         persistCurrentAppBundleLocation()
         dashboard = BearAppSupport.loadDashboardSnapshot(
-            currentAppBundleURL: Bundle.main.bundleURL
+            currentAppBundleURL: Bundle.main.bundleURL,
+            bridgeSurfaceMarkerProvider: UrsusCLIRuntime.bridgeSurfaceMarker
         )
         applyDraft(from: dashboard.settings)
     }

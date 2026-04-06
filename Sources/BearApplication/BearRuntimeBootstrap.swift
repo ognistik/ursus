@@ -75,8 +75,13 @@ public enum BearRuntimeBootstrap {
         return persistedConfiguration
     }
 
-    public static func doctorReport(logger: Logger) -> String {
-        let snapshot = BearAppSupport.loadDashboardSnapshot()
+    public static func doctorReport(
+        logger: Logger,
+        bridgeSurfaceMarkerProvider: ((BearConfiguration, Bool) -> String?)? = nil
+    ) -> String {
+        let snapshot = BearAppSupport.loadDashboardSnapshot(
+            bridgeSurfaceMarkerProvider: bridgeSurfaceMarkerProvider
+        )
         let lines = snapshot.diagnostics.map(\.renderedLine)
 
         logger.info("Generated ursus doctor report.")

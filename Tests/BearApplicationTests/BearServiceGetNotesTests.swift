@@ -85,6 +85,8 @@ func getNotesUsesTemplateStrippedCanonicalContentAndOmitsAttachmentTextByDefault
     #expect(fetched.attachments.first?.attachmentID == "attachment-1")
     #expect(fetched.attachments.first?.searchText == nil)
     #expect(attachmentPayload["searchText"] == nil)
+    #expect(payload["version"] == nil)
+    #expect(payload["hasBackups"] == nil)
 }
 
 @Test
@@ -127,6 +129,36 @@ func getNotesIncludesAttachmentTextWhenExplicitlyRequested() async throws {
     let attachmentPayload = try #require((payload["attachments"] as? [[String: Any]])?.first)
     #expect(fetched.attachments.first?.searchText == "Attachment OCR")
     #expect(attachmentPayload["searchText"] as? String == "Attachment OCR")
+    #expect(payload["version"] == nil)
+}
+
+@Test
+func getNotesIncludesHasBackupsWhenBackupLookupIsAvailable() throws {
+    let note = makeFetchedSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"],
+        archived: false
+    )
+    let readStore = GetNotesReadStore(noteByID: ["note-1": note])
+    let service = BearService(
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: GetNotesSilentWriteTransport(),
+        backupPresenceLookup: { noteIDs in
+            Set(noteIDs.filter { $0 == "note-1" })
+        },
+        logger: Logger(label: "BearServiceGetNotesTests")
+    )
+
+    let notes = try service.getNotes(selectors: ["note-1"], location: .notes)
+
+    let fetched = try #require(notes.first)
+    let payload = try encodedJSONObject(fetched)
+    #expect(fetched.hasBackups == true)
+    #expect(payload["hasBackups"] as? Bool == true)
+    #expect(payload["version"] == nil)
 }
 
 @Test

@@ -759,7 +759,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
         selectedNoteTokenConfigured: true,
         runtimeConfigurationGeneration: 2,
         runtimeConfigurationFingerprint: "loaded-fingerprint",
-        bridgeImplementationMarker: "loaded-bridge-impl",
+        bridgeSurfaceMarker: "loaded-bridge-surface",
         fileManager: fileManager,
         runtimeStateURL: bridgeRuntimeStateURL
     )
@@ -770,8 +770,8 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: true,
+        currentBridgeSurfaceMarker: "current-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -792,13 +792,13 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     #expect(snapshot.loadedRuntimeConfigurationGeneration == 2)
     #expect(snapshot.currentRuntimeConfigurationFingerprint == configuration.runtimeConfigurationFingerprint)
     #expect(snapshot.loadedRuntimeConfigurationFingerprint == "loaded-fingerprint")
-    #expect(snapshot.currentBridgeImplementationMarker != nil)
-    #expect(snapshot.loadedBridgeImplementationMarker == "loaded-bridge-impl")
+    #expect(snapshot.currentBridgeSurfaceMarker == "current-bridge-surface")
+    #expect(snapshot.loadedBridgeSurfaceMarker == "loaded-bridge-surface")
     #expect(snapshot.status == .ok)
 }
 
 @Test
-func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws {
+func bridgeSnapshotMarksRestartRequiredWhenSurfaceMarkerChanges() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
@@ -855,7 +855,7 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
         selectedNoteTokenConfigured: true,
         runtimeConfigurationGeneration: 4,
         runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
-        bridgeImplementationMarker: "stale-bridge-impl",
+        bridgeSurfaceMarker: "stale-bridge-surface",
         fileManager: fileManager,
         runtimeStateURL: bridgeRuntimeStateURL
     )
@@ -866,8 +866,8 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: true,
+        currentBridgeSurfaceMarker: "current-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -882,7 +882,7 @@ func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws 
     )
 
     #expect(snapshot.runtimeConfigurationRestartRequired == false)
-    #expect(snapshot.implementationRestartRequired == true)
+    #expect(snapshot.surfaceRestartRequired == true)
     #expect(snapshot.selectedNoteTokenRestartRequired == false)
     #expect(snapshot.restartRequired == true)
 }
@@ -949,7 +949,7 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
         selectedNoteTokenConfigured: false,
         runtimeConfigurationGeneration: 4,
         runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
-        bridgeImplementationMarker: "stable-bridge-impl",
+        bridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
         runtimeStateURL: bridgeRuntimeStateURL
     )
@@ -957,8 +957,8 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
     let snapshotAfterTokenAdded = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: true,
+        currentBridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -975,12 +975,11 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
     #expect(snapshotAfterTokenAdded.selectedNoteTokenRestartRequired == true)
     #expect(snapshotAfterTokenAdded.restartRequired == true)
 
-    let currentImplementationMarker = try #require(snapshotAfterTokenAdded.currentBridgeImplementationMarker)
     try BearAppSupport.recordBridgeLoadedRuntimeState(
         selectedNoteTokenConfigured: true,
         runtimeConfigurationGeneration: 4,
         runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
-        bridgeImplementationMarker: currentImplementationMarker,
+        bridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
         runtimeStateURL: bridgeRuntimeStateURL
     )
@@ -988,8 +987,8 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
     let snapshotAfterTokenRemovedAndReadded = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: true,
+        currentBridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -1009,8 +1008,8 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
     let snapshotAfterTokenRemoved = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: false,
+        currentBridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -1087,7 +1086,7 @@ func bridgeSnapshotFallsBackToLiveProbeWhenRuntimeStateLacksTokenMarker() throws
     {
       "loadedRuntimeConfigurationGeneration" : 4,
       "loadedRuntimeConfigurationFingerprint" : "\(configuration.runtimeConfigurationFingerprint)",
-      "loadedBridgeImplementationMarker" : "stable-bridge-impl",
+      "loadedBridgeSurfaceMarker" : "stable-bridge-surface",
       "recordedAt" : "2026-04-06T15:00:00Z"
     }
     """.write(to: bridgeRuntimeStateURL, atomically: true, encoding: .utf8)
@@ -1098,8 +1097,8 @@ func bridgeSnapshotFallsBackToLiveProbeWhenRuntimeStateLacksTokenMarker() throws
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         selectedNoteTokenConfigured: false,
+        currentBridgeSurfaceMarker: "stable-bridge-surface",
         fileManager: fileManager,
-        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,

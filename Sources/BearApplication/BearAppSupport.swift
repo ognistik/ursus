@@ -262,6 +262,7 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
+        bridgeSurfaceMarkerProvider: ((BearConfiguration, Bool) -> String?)? = nil,
         launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
@@ -286,6 +287,7 @@ public enum BearAppSupport {
                 configFileURL: configFileURL,
                 templateURL: templateURL,
                 currentAppBundleURL: currentAppBundleURL,
+                bridgeSurfaceMarkerProvider: bridgeSurfaceMarkerProvider,
                 launcherURL: launcherURL,
                 bridgeLaunchAgentPlistURL: bridgeLaunchAgentPlistURL,
                 bridgeStandardOutputURL: bridgeStandardOutputURL,
@@ -341,6 +343,7 @@ public enum BearAppSupport {
         configFileURL: URL = BearPaths.configFileURL,
         templateURL: URL = BearPaths.noteTemplateURL,
         currentAppBundleURL: URL? = nil,
+        bridgeSurfaceMarkerProvider: ((BearConfiguration, Bool) -> String?)? = nil,
         launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         bridgeLaunchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         bridgeStandardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
@@ -355,6 +358,7 @@ public enum BearAppSupport {
             templateURL: templateURL
         )
         let tokenStatus = BearSelectedNoteTokenResolver.status(tokenStore: tokenStore)
+        let currentBridgeSurfaceMarker = bridgeSurfaceMarkerProvider?(configuration, tokenStatus.isConfigured)
 
         let launcherStatus = launcherStatus(
             fileManager: fileManager,
@@ -364,8 +368,8 @@ public enum BearAppSupport {
         let bridge = bridgeSnapshot(
             configuration: configuration,
             selectedNoteTokenConfigured: tokenStatus.isConfigured,
+            currentBridgeSurfaceMarker: currentBridgeSurfaceMarker,
             fileManager: fileManager,
-            currentAppBundleURL: currentAppBundleURL,
             launcherURL: launcherURL,
             launchAgentPlistURL: bridgeLaunchAgentPlistURL,
             standardOutputURL: bridgeStandardOutputURL,

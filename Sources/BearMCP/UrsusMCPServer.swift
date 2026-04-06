@@ -1,9 +1,17 @@
 import BearApplication
 import BearCore
+import CryptoKit
 import Foundation
 import MCP
 
 public final class UrsusMCPServer: Sendable {
+    public static let serverName = "ursus"
+    public static let serverVersion = "0.1.0"
+    // Bump this only when the served MCP behavior changes in a way that
+    // `tools/list` will not naturally reflect. Tool-schema and description
+    // edits should flow through the catalog hash without touching this epoch.
+    public static let bridgeSurfaceEpoch = 1
+
     private let service: BearService
     private let configuration: BearConfiguration
     private let selectedNoteTokenConfigured: Bool
@@ -20,8 +28,8 @@ public final class UrsusMCPServer: Sendable {
 
     public func makeServer() async -> Server {
         let server = Server(
-            name: "ursus",
-            version: "0.1.0",
+            name: Self.serverName,
+            version: Self.serverVersion,
             capabilities: .init(
                 resources: .init(listChanged: false),
                 tools: .init(listChanged: false)
@@ -526,6 +534,31 @@ public final class UrsusMCPServer: Sendable {
             return configuration.isToolEnabled(toolName)
         }
     }
+
+    public static func bridgeSurfaceMarker(
+        configuration: BearConfiguration,
+        selectedNoteTokenConfigured: Bool? = nil
+    ) -> String {
+        let surface = BridgeSurfaceDescriptor(
+            epoch: bridgeSurfaceEpoch,
+            serverName: serverName,
+            serverVersion: serverVersion,
+            tools: toolCatalog(
+                configuration: configuration,
+                selectedNoteTokenConfigured: selectedNoteTokenConfigured
+            )
+        )
+        let data = (try? BearJSON.makeEncoder().encode(surface)) ?? Data()
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+private struct BridgeSurfaceDescriptor: Codable, Sendable {
+    let epoch: Int
+    let serverName: String
+    let serverVersion: String
+    let tools: [Tool]
 }
 
 private enum ToolCatalog {
@@ -533,13 +566,13 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.",
+                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
+                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(backupDiscoverabilityHint(configuration: configuration))\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -570,13 +603,13 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_tag",
-                description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Discovery excludes trash.",
+                description: "Find Bear notes by one or more Bear tags and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Use `bear_open_tag` instead when the goal is UI navigation to one tag. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
                 operationProperties: findNotesByTagOperationProperties(configuration: configuration),
                 required: ["tags"]
             ),
             batchedDiscoveryTool(
                 name: "bear_find_notes_by_inbox_tags",
-                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash. Each operation object may be empty to use the configured inbox tags with default matching and note location.",
+                description: "Find Bear notes by the configured inbox tags and return compact summaries. Current inbox tags: \(formattedTagList(configuration.inboxTags)). Discovery excludes trash. Each operation object may be empty to use the configured inbox tags with default matching and note location.\(backupDiscoverabilityHint(configuration: configuration))",
                 operationProperties: findNotesByInboxTagsOperationProperties(configuration: configuration),
                 required: []
             ),
@@ -1142,6 +1175,15 @@ private enum ToolCatalog {
 
     private static func getNotesRequiredFields(selectedNoteSupported: Bool) -> [String] {
         supportsSelectedNote(selectedNoteSupported) ? [] : ["notes"]
+    }
+
+    private static func backupDiscoverabilityHint(configuration: BearConfiguration) -> String {
+        guard configuration.backupRetentionDays > 0,
+              configuration.isToolEnabled(.listBackups) else {
+            return ""
+        }
+
+        return " When backups are enabled, returned notes may include `hasBackups`; if it is `true`, use `bear_list_backups` to inspect saved snapshots."
     }
 
     private static func archiveNotesInputProperties(selectedNoteSupported: Bool) -> [String: Value] {

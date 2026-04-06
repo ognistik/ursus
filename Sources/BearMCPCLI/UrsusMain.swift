@@ -11,6 +11,16 @@ import MCP
 public enum UrsusCLIRuntime {
     public static let embeddedInvocationFlag = "--ursus-cli"
 
+    public static func bridgeSurfaceMarker(
+        configuration: BearConfiguration,
+        selectedNoteTokenConfigured: Bool
+    ) -> String {
+        UrsusMCPServer.bridgeSurfaceMarker(
+            configuration: configuration,
+            selectedNoteTokenConfigured: selectedNoteTokenConfigured
+        )
+    }
+
     public static func cliArgumentsForEmbeddedApp(from processArguments: [String]) -> [String]? {
         guard processArguments.dropFirst().first == embeddedInvocationFlag else {
             return nil
@@ -32,7 +42,12 @@ public enum UrsusCLIRuntime {
             case .bridge(.help):
                 print(BearCLICommand.bridgeUsageText)
             case .doctor:
-                print(BearRuntimeBootstrap.doctorReport(logger: logger))
+                print(
+                    BearRuntimeBootstrap.doctorReport(
+                        logger: logger,
+                        bridgeSurfaceMarkerProvider: bridgeSurfaceMarker
+                    )
+                )
             case .paths:
                 print(
                     [
@@ -47,7 +62,15 @@ public enum UrsusCLIRuntime {
                 )
             case .bridge(.status):
                 let configuration = try BearRuntimeBootstrap.loadConfiguration()
-                let snapshot = BearAppSupport.bridgeSnapshot(configuration: configuration)
+                let selectedNoteTokenConfigured = BearSelectedNoteTokenResolver.configured()
+                let snapshot = BearAppSupport.bridgeSnapshot(
+                    configuration: configuration,
+                    selectedNoteTokenConfigured: selectedNoteTokenConfigured,
+                    currentBridgeSurfaceMarker: bridgeSurfaceMarker(
+                        configuration: configuration,
+                        selectedNoteTokenConfigured: selectedNoteTokenConfigured
+                    )
+                )
                 print(renderBridgeStatus(snapshot))
             case .bridge(.printURL):
                 let configuration = try BearRuntimeBootstrap.loadConfiguration()
@@ -140,6 +163,11 @@ public enum UrsusCLIRuntime {
     private static func runBridge(logger: Logger) async throws {
         let runtime = try makeRuntimeServices(logger: logger)
         let bridge = try runtime.configuration.bridge.validated()
+        let selectedNoteTokenConfigured = BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore)
+        let currentBridgeSurfaceMarker = bridgeSurfaceMarker(
+            configuration: runtime.configuration,
+            selectedNoteTokenConfigured: selectedNoteTokenConfigured
+        )
         defer {
             try? BearAppSupport.clearBridgeRuntimeState()
         }
@@ -160,15 +188,15 @@ public enum UrsusCLIRuntime {
                 await UrsusMCPServer(
                     service: runtime.service,
                     configuration: runtime.configuration,
-                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore)
+                    selectedNoteTokenConfigured: selectedNoteTokenConfigured
                 ).makeServer()
             },
             readyHandler: {
                 try BearAppSupport.recordBridgeLoadedRuntimeState(
-                    selectedNoteTokenConfigured: BearSelectedNoteTokenResolver.configured(tokenStore: runtime.tokenStore),
+                    selectedNoteTokenConfigured: selectedNoteTokenConfigured,
                     runtimeConfigurationGeneration: runtime.configuration.runtimeConfigurationGeneration,
                     runtimeConfigurationFingerprint: runtime.configuration.runtimeConfigurationFingerprint,
-                    bridgeImplementationMarker: UrsusCLILocator.currentBridgeImplementationMarker()
+                    bridgeSurfaceMarker: currentBridgeSurfaceMarker
                 )
             },
             logger: logger
@@ -214,12 +242,19 @@ public enum UrsusCLIRuntime {
         )
         let writeTransport = BearXCallbackTransport(readStore: databaseReader)
         let backupStore = BearBackupFileStore(retentionDays: configuration.backupRetentionDays)
+        let backupAvailabilityReader = BearBackupAvailabilityReader(retentionDays: configuration.backupRetentionDays)
+        let backupPresenceLookup: (@Sendable ([String]) throws -> Set<String>)? = configuration.isToolEnabled(.listBackups) && backupAvailabilityReader.isEnabled
+            ? { @Sendable noteIDs in
+                try backupAvailabilityReader.noteIDsWithBackups(noteIDs)
+            }
+            : nil
         let service = BearService(
             configuration: configuration,
             tokenStore: tokenStore,
             readStore: databaseReader,
             writeTransport: writeTransport,
             backupStore: backupStore,
+            backupPresenceLookup: backupPresenceLookup,
             logger: logger
         )
 

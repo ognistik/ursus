@@ -59,8 +59,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let loadedRuntimeConfigurationGeneration: Int?
     public let currentRuntimeConfigurationFingerprint: String
     public let loadedRuntimeConfigurationFingerprint: String?
-    public let currentBridgeImplementationMarker: String?
-    public let loadedBridgeImplementationMarker: String?
+    public let currentBridgeSurfaceMarker: String?
+    public let loadedBridgeSurfaceMarker: String?
     public let launcherPath: String
     public let launchAgentLabel: String
     public let plistPath: String
@@ -87,8 +87,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         loadedRuntimeConfigurationGeneration: Int?,
         currentRuntimeConfigurationFingerprint: String,
         loadedRuntimeConfigurationFingerprint: String?,
-        currentBridgeImplementationMarker: String?,
-        loadedBridgeImplementationMarker: String?,
+        currentBridgeSurfaceMarker: String?,
+        loadedBridgeSurfaceMarker: String?,
         launcherPath: String,
         launchAgentLabel: String,
         plistPath: String,
@@ -114,8 +114,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.loadedRuntimeConfigurationGeneration = loadedRuntimeConfigurationGeneration
         self.currentRuntimeConfigurationFingerprint = currentRuntimeConfigurationFingerprint
         self.loadedRuntimeConfigurationFingerprint = loadedRuntimeConfigurationFingerprint
-        self.currentBridgeImplementationMarker = currentBridgeImplementationMarker
-        self.loadedBridgeImplementationMarker = loadedBridgeImplementationMarker
+        self.currentBridgeSurfaceMarker = currentBridgeSurfaceMarker
+        self.loadedBridgeSurfaceMarker = loadedBridgeSurfaceMarker
         self.launcherPath = launcherPath
         self.launchAgentLabel = launchAgentLabel
         self.plistPath = plistPath
@@ -144,21 +144,21 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         return loadedRuntimeConfigurationFingerprint != currentRuntimeConfigurationFingerprint
     }
 
-    public var implementationRestartRequired: Bool {
+    public var surfaceRestartRequired: Bool {
         guard installed,
               loaded,
               status == .ok || status == .configured,
-              let loadedBridgeImplementationMarker,
-              let currentBridgeImplementationMarker
+              let loadedBridgeSurfaceMarker,
+              let currentBridgeSurfaceMarker
         else {
             return false
         }
 
-        return loadedBridgeImplementationMarker != currentBridgeImplementationMarker
+        return loadedBridgeSurfaceMarker != currentBridgeSurfaceMarker
     }
 
     public var restartRequired: Bool {
-        runtimeConfigurationRestartRequired || implementationRestartRequired || selectedNoteTokenRestartRequired
+        runtimeConfigurationRestartRequired || surfaceRestartRequired || selectedNoteTokenRestartRequired
     }
 
     public var selectedNoteTokenRestartRequired: Bool {
@@ -235,7 +235,7 @@ private struct BearBridgeRuntimeState: Codable, Hashable, Sendable {
     let loadedSelectedNoteTokenConfigured: Bool?
     let loadedRuntimeConfigurationGeneration: Int
     let loadedRuntimeConfigurationFingerprint: String
-    let loadedBridgeImplementationMarker: String?
+    let loadedBridgeSurfaceMarker: String?
     let recordedAt: Date
 }
 
@@ -244,7 +244,7 @@ public extension BearAppSupport {
         selectedNoteTokenConfigured: Bool,
         runtimeConfigurationGeneration: Int,
         runtimeConfigurationFingerprint: String,
-        bridgeImplementationMarker: String? = nil,
+        bridgeSurfaceMarker: String? = nil,
         fileManager: FileManager = .default,
         runtimeStateURL: URL = BearPaths.bridgeRuntimeStateURL
     ) throws {
@@ -257,7 +257,7 @@ public extension BearAppSupport {
             loadedSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
             loadedRuntimeConfigurationGeneration: runtimeConfigurationGeneration,
             loadedRuntimeConfigurationFingerprint: runtimeConfigurationFingerprint,
-            loadedBridgeImplementationMarker: bridgeImplementationMarker,
+            loadedBridgeSurfaceMarker: bridgeSurfaceMarker,
             recordedAt: Date()
         )
         let data = try BearJSON.makeEncoder().encode(state)
@@ -560,8 +560,8 @@ public extension BearAppSupport {
     static func bridgeSnapshot(
         configuration: BearConfiguration,
         selectedNoteTokenConfigured: Bool = BearSelectedNoteTokenResolver.configured(),
+        currentBridgeSurfaceMarker: String? = nil,
         fileManager: FileManager = .default,
-        currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearBridgeLaunchAgent.launcherURL,
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
@@ -580,11 +580,6 @@ public extension BearAppSupport {
         let runtimeStateLoadedSelectedNoteTokenConfigured = bridgeRuntimeState?.loadedSelectedNoteTokenConfigured
         let currentRuntimeConfigurationGeneration = configuration.runtimeConfigurationGeneration
         let currentRuntimeConfigurationFingerprint = configuration.runtimeConfigurationFingerprint
-        let appBundleURLForBridgeImplementation = currentAppBundleURL
-            ?? UrsusAppLocator.installedAppBundleURL(fileManager: fileManager)
-        let currentBridgeImplementationMarker = appBundleURLForBridgeImplementation.flatMap {
-            try? UrsusCLILocator.bridgeImplementationMarker(forAppBundleURL: $0, fileManager: fileManager)
-        }
 
         do {
             bridge = try configuration.bridge.validated()
@@ -601,8 +596,8 @@ public extension BearAppSupport {
                 loadedRuntimeConfigurationGeneration: nil,
                 currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
                 loadedRuntimeConfigurationFingerprint: nil,
-                currentBridgeImplementationMarker: currentBridgeImplementationMarker,
-                loadedBridgeImplementationMarker: bridgeRuntimeState?.loadedBridgeImplementationMarker,
+                currentBridgeSurfaceMarker: currentBridgeSurfaceMarker,
+                loadedBridgeSurfaceMarker: bridgeRuntimeState?.loadedBridgeSurfaceMarker,
                 launcherPath: launcherURL.path,
                 launchAgentLabel: BearBridgeLaunchAgent.label,
                 plistPath: launchAgentPlistURL.path,
@@ -674,8 +669,8 @@ public extension BearAppSupport {
             loadedRuntimeConfigurationGeneration: bridgeRuntimeState?.loadedRuntimeConfigurationGeneration,
             currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
             loadedRuntimeConfigurationFingerprint: bridgeRuntimeState?.loadedRuntimeConfigurationFingerprint,
-            currentBridgeImplementationMarker: currentBridgeImplementationMarker,
-            loadedBridgeImplementationMarker: bridgeRuntimeState?.loadedBridgeImplementationMarker,
+            currentBridgeSurfaceMarker: currentBridgeSurfaceMarker,
+            loadedBridgeSurfaceMarker: bridgeRuntimeState?.loadedBridgeSurfaceMarker,
             launcherPath: launcherURL.path,
             launchAgentLabel: BearBridgeLaunchAgent.label,
             plistPath: launchAgentPlistURL.path,

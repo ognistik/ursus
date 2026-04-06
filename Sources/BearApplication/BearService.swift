@@ -11,6 +11,7 @@ public final class BearService: @unchecked Sendable {
     private let readStore: BearReadStore
     private let writeTransport: BearWriteTransport
     private let backupStore: (any BearBackupStore)?
+    private let backupPresenceLookup: (@Sendable ([String]) throws -> Set<String>)?
     private let logger: Logger
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -32,6 +33,7 @@ public final class BearService: @unchecked Sendable {
         readStore: BearReadStore,
         writeTransport: BearWriteTransport,
         backupStore: (any BearBackupStore)? = nil,
+        backupPresenceLookup: (@Sendable ([String]) throws -> Set<String>)? = nil,
         logger: Logger
     ) {
         self.configuration = configuration
@@ -39,6 +41,7 @@ public final class BearService: @unchecked Sendable {
         self.readStore = readStore
         self.writeTransport = writeTransport
         self.backupStore = backupStore
+        self.backupPresenceLookup = backupPresenceLookup
         self.logger = logger
     }
 
@@ -246,16 +249,12 @@ public final class BearService: @unchecked Sendable {
         let trimmedSelectors = selectors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 
         var seen: Set<String> = []
-        var notes: [BearFetchedNote] = []
+        var resolvedNotes: [BearNote] = []
 
         for selector in trimmedSelectors {
             if let exactIDMatch = try readStore.note(id: selector), noteMatchesLocation(exactIDMatch, location: location) {
                 if seen.insert(exactIDMatch.ref.identifier).inserted {
-                    notes.append(try fetchedNote(
-                        from: exactIDMatch,
-                        template: noteTemplate,
-                        includeAttachmentText: includeAttachmentText
-                    ))
+                    resolvedNotes.append(exactIDMatch)
                 }
                 continue
             }
@@ -264,15 +263,19 @@ public final class BearService: @unchecked Sendable {
                 .sorted(by: noteSortOrder)
 
             for note in titleMatches where seen.insert(note.ref.identifier).inserted {
-                notes.append(try fetchedNote(
-                    from: note,
-                    template: noteTemplate,
-                    includeAttachmentText: includeAttachmentText
-                ))
+                resolvedNotes.append(note)
             }
         }
 
-        return notes
+        let noteIDsWithBackups = loadNoteIDsWithBackups(for: resolvedNotes.map(\.ref.identifier))
+        return try resolvedNotes.map { note in
+            try fetchedNote(
+                from: note,
+                template: noteTemplate,
+                includeAttachmentText: includeAttachmentText,
+                hasBackups: noteIDsWithBackups.map { $0.contains(note.ref.identifier) }
+            )
+        }
     }
 
     public func listTags(
@@ -1307,6 +1310,7 @@ public final class BearService: @unchecked Sendable {
     private func makeDiscoverySummaries(notes: [BearNote], query: FindNotesQuery) throws -> [NoteSummary] {
         let resolvedSnippetLength = resolvedSnippetLength()
         let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+        let noteIDsWithBackups = loadNoteIDsWithBackups(for: notes.map(\.ref.identifier))
 
         return try notes.map { note in
             let attachments = try readStore.attachments(noteID: note.ref.identifier)
@@ -1315,6 +1319,7 @@ public final class BearService: @unchecked Sendable {
                 title: note.title,
                 snippet: discoverySnippet(for: note, template: noteTemplate, limit: resolvedSnippetLength),
                 hasAttachments: attachments.isEmpty == false,
+                hasBackups: noteIDsWithBackups.map { $0.contains(note.ref.identifier) },
                 matchedFields: matchedFields(for: note, attachments: attachments, query: query),
                 tags: note.tags,
                 createdAt: note.revision.createdAt,
@@ -1373,7 +1378,8 @@ public final class BearService: @unchecked Sendable {
     private func fetchedNote(
         from note: BearNote,
         template: String?,
-        includeAttachmentText: Bool
+        includeAttachmentText: Bool,
+        hasBackups: Bool?
     ) throws -> BearFetchedNote {
         if note.encrypted {
             return BearFetchedNote(
@@ -1383,7 +1389,7 @@ public final class BearService: @unchecked Sendable {
                 tags: note.tags,
                 createdAt: note.revision.createdAt,
                 modifiedAt: note.revision.modifiedAt,
-                version: note.revision.version,
+                hasBackups: hasBackups,
                 attachments: [],
                 encrypted: true
             )
@@ -1409,9 +1415,25 @@ public final class BearService: @unchecked Sendable {
             tags: note.tags,
             createdAt: note.revision.createdAt,
             modifiedAt: note.revision.modifiedAt,
-            version: note.revision.version,
+            hasBackups: hasBackups,
             attachments: attachments
         )
+    }
+
+    private func loadNoteIDsWithBackups(for noteIDs: [String]) -> Set<String>? {
+        guard let backupPresenceLookup else {
+            return nil
+        }
+
+        do {
+            return try backupPresenceLookup(noteIDs)
+        } catch {
+            logger.warning(
+                "Skipping backup availability hints because the backup index could not be read.",
+                metadata: ["error": "\(Self.renderOperationError(error))"]
+            )
+            return nil
+        }
     }
 
     private func renderedContent(for note: BearNote, template: String?) -> String {
