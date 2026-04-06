@@ -52,6 +52,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let enabled: Bool
     public let host: String
     public let port: Int
+    public let authMode: BearBridgeAuthMode
     public let endpointURL: String
     public let currentSelectedNoteTokenConfigured: Bool
     public let loadedSelectedNoteTokenConfigured: Bool?
@@ -80,6 +81,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         enabled: Bool,
         host: String,
         port: Int,
+        authMode: BearBridgeAuthMode,
         endpointURL: String,
         currentSelectedNoteTokenConfigured: Bool,
         loadedSelectedNoteTokenConfigured: Bool?,
@@ -107,6 +109,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.enabled = enabled
         self.host = host
         self.port = port
+        self.authMode = authMode
         self.endpointURL = endpointURL
         self.currentSelectedNoteTokenConfigured = currentSelectedNoteTokenConfigured
         self.loadedSelectedNoteTokenConfigured = loadedSelectedNoteTokenConfigured
@@ -172,6 +175,14 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
 
         return loadedSelectedNoteTokenConfigured != currentSelectedNoteTokenConfigured
     }
+
+    public var requiresOAuth: Bool {
+        authMode.requiresOAuth
+    }
+
+    public var authModeSummary: String {
+        requiresOAuth ? "OAuth required for all bridge requests" : "Open local bridge"
+    }
 }
 
 public enum BearBridgeLaunchAgentInstallStatus: String, Codable, Hashable, Sendable {
@@ -205,6 +216,7 @@ public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
     public let reachable: Bool
     public let transportReachable: Bool
     public let protocolCompatible: Bool
+    public let authChallengeSeen: Bool
     public let selectedNoteTokenConfigured: Bool?
     public let detail: String?
 
@@ -212,12 +224,14 @@ public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
         reachable: Bool,
         transportReachable: Bool? = nil,
         protocolCompatible: Bool? = nil,
+        authChallengeSeen: Bool = false,
         selectedNoteTokenConfigured: Bool? = nil,
         detail: String? = nil
     ) {
         self.reachable = reachable
         self.transportReachable = transportReachable ?? reachable
         self.protocolCompatible = protocolCompatible ?? reachable
+        self.authChallengeSeen = authChallengeSeen
         self.selectedNoteTokenConfigured = selectedNoteTokenConfigured
         self.detail = detail
     }
@@ -303,6 +317,14 @@ public extension BearAppSupport {
         request.setValue(protocolVersion, forHTTPHeaderField: "MCP-Protocol-Version")
         request.httpBody = bridgeToolsListProbeRequestBody()
         return request
+    }
+
+    static func bridgeResponseRequiresOAuth(_ response: HTTPURLResponse) -> Bool {
+        guard let challenge = response.value(forHTTPHeaderField: "WWW-Authenticate") else {
+            return false
+        }
+
+        return challenge.lowercased().contains("bearer")
     }
 
     static func installBridgeLaunchAgent(
@@ -589,6 +611,7 @@ public extension BearAppSupport {
                 enabled: configuration.bridge.enabled,
                 host: configuration.bridge.host,
                 port: configuration.bridge.port,
+                authMode: configuration.bridge.authMode,
                 endpointURL: "invalid bridge URL",
                 currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
                 loadedSelectedNoteTokenConfigured: runtimeStateLoadedSelectedNoteTokenConfigured,
@@ -650,6 +673,7 @@ public extension BearAppSupport {
             endpointTransportReachable: endpointProbeResult.transportReachable,
             endpointReachable: endpointProbeResult.reachable,
             endpointProtocolCompatible: endpointProbeResult.protocolCompatible,
+            endpointAuthChallengeSeen: endpointProbeResult.authChallengeSeen,
             endpointProbeDetail: endpointProbeResult.detail,
             loadError: loadError,
             endpointURL: endpointURL,
@@ -662,6 +686,7 @@ public extension BearAppSupport {
             enabled: bridge.enabled,
             host: bridge.host,
             port: bridge.port,
+            authMode: bridge.authMode,
             endpointURL: endpointURL,
             currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
             loadedSelectedNoteTokenConfigured: loadedSelectedNoteTokenConfigured,
@@ -964,6 +989,7 @@ private extension BearAppSupport {
         endpointTransportReachable: Bool,
         endpointReachable: Bool,
         endpointProtocolCompatible: Bool,
+        endpointAuthChallengeSeen: Bool,
         endpointProbeDetail: String?,
         loadError: String?,
         endpointURL: String,
@@ -1020,6 +1046,27 @@ private extension BearAppSupport {
         }
 
         if launchAgentLoaded {
+            if configuration.requiresOAuth && endpointAuthChallengeSeen {
+                return (
+                    .ok,
+                    "Running",
+                    "The Ursus bridge LaunchAgent is loaded and requiring OAuth for all requests on \(endpointURL)."
+                )
+            }
+
+            if !configuration.requiresOAuth && endpointAuthChallengeSeen {
+                let logHint = recentBridgeLogHint(
+                    fileManager: fileManager,
+                    standardOutputURL: standardOutputURL,
+                    standardErrorURL: standardErrorURL
+                )
+                return (
+                    .failed,
+                    "Unexpected auth challenge",
+                    "The Ursus bridge LaunchAgent responded with an OAuth challenge even though bridge auth mode is open.\(logHint) Check \(standardErrorURL.path) and \(standardOutputURL.path) for bridge startup errors."
+                )
+            }
+
             guard endpointReachable else {
                 let detail = endpointProbeDetail ?? "The endpoint did not complete the MCP health probe."
                 let logHint = recentBridgeLogHint(
@@ -1108,6 +1155,18 @@ private extension BearAppSupport {
                 transportReachable: true,
                 protocolCompatible: false,
                 detail: "A TCP connection succeeded, but the bridge did not return an HTTP response."
+            )
+        }
+
+        if httpResponse.statusCode == 401,
+           bridgeResponseRequiresOAuth(httpResponse)
+        {
+            return BearBridgeEndpointProbeResult(
+                reachable: true,
+                transportReachable: true,
+                protocolCompatible: true,
+                authChallengeSeen: true,
+                detail: "The bridge is reachable and challenged the MCP request with OAuth."
             )
         }
 

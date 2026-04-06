@@ -16,19 +16,32 @@ actor BearBridgeHTTPApplication {
         var host: String
         var port: Int
         var endpoint: String
+        var authMode: BearBridgeAuthMode
         var sessionTimeout: TimeInterval
 
         init(
             host: String,
             port: Int,
             endpoint: String = "/mcp",
+            authMode: BearBridgeAuthMode = .open,
             sessionTimeout: TimeInterval = 3600
         ) {
             self.host = host
             self.port = port
             self.endpoint = endpoint
+            self.authMode = authMode
             self.sessionTimeout = sessionTimeout
         }
+    }
+
+    enum Route: Equatable {
+        case mcp
+        case oauthProtectedResourceMetadata
+        case oauthAuthorizationServerMetadata
+        case oauthAuthorize
+        case oauthToken
+        case oauthRegister
+        case notFound
     }
 
     typealias ServerFactory = @Sendable () async throws -> Server
@@ -60,6 +73,10 @@ actor BearBridgeHTTPApplication {
 
     var endpoint: String {
         configuration.endpoint
+    }
+
+    var authMode: BearBridgeAuthMode {
+        configuration.authMode
     }
 
     func start() async throws {
@@ -126,6 +143,23 @@ actor BearBridgeHTTPApplication {
     }
 
     func handleHTTPRequest(_ request: HTTPRequest) async -> HTTPResponse {
+        switch Self.route(for: request.path, mcpEndpoint: configuration.endpoint) {
+        case .mcp:
+            break
+        case .oauthProtectedResourceMetadata,
+             .oauthAuthorizationServerMetadata,
+             .oauthAuthorize,
+             .oauthToken,
+             .oauthRegister:
+            return Self.oauthEndpointNotImplementedResponse()
+        case .notFound:
+            return .error(statusCode: 404, .invalidRequest("Not Found"))
+        }
+
+        if configuration.authMode.requiresOAuth {
+            return Self.oauthRequiredResponse(for: request)
+        }
+
         if hasCompletedInitializationHandshake,
            let server,
            let initializeEnvelope = Self.decodeInitializeEnvelope(from: request)
@@ -388,6 +422,69 @@ extension BearBridgeHTTPApplication {
 
         return Version.latest
     }
+
+    static func route(for requestPath: String?, mcpEndpoint: String) -> Route {
+        let normalizedPath = normalizedPath(from: requestPath) ?? mcpEndpoint
+
+        if normalizedPath == mcpEndpoint {
+            return .mcp
+        }
+
+        if normalizedPath.hasPrefix("/.well-known/oauth-protected-resource") {
+            return .oauthProtectedResourceMetadata
+        }
+
+        if normalizedPath.hasPrefix("/.well-known/oauth-authorization-server") {
+            return .oauthAuthorizationServerMetadata
+        }
+
+        if normalizedPath.hasPrefix("/oauth/authorize") {
+            return .oauthAuthorize
+        }
+
+        if normalizedPath.hasPrefix("/oauth/token") {
+            return .oauthToken
+        }
+
+        if normalizedPath.hasPrefix("/oauth/register") {
+            return .oauthRegister
+        }
+
+        return .notFound
+    }
+
+    static func normalizedPath(from requestPath: String?) -> String? {
+        guard let requestPath else {
+            return nil
+        }
+
+        let trimmedPath = requestPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else {
+            return nil
+        }
+
+        return trimmedPath.split(separator: "?").first.map(String.init) ?? trimmedPath
+    }
+
+    static func oauthRequiredResponse(for request: HTTPRequest) -> HTTPResponse {
+        let hasAuthorizationHeader = request.header(HTTPHeaderName.authorization)?.isEmpty == false
+        let challenge = hasAuthorizationHeader
+            ? #"Bearer realm="ursus-bridge", error="invalid_token""#
+            : #"Bearer realm="ursus-bridge""#
+
+        return .error(
+            statusCode: 401,
+            .invalidRequest("OAuth is required for the Ursus HTTP bridge."),
+            extraHeaders: [HTTPHeaderName.wwwAuthenticate: challenge]
+        )
+    }
+
+    static func oauthEndpointNotImplementedResponse() -> HTTPResponse {
+        .error(
+            statusCode: 501,
+            .invalidRequest("OAuth bridge endpoints are not implemented yet.")
+        )
+    }
 }
 
 private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
@@ -436,22 +533,9 @@ private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sen
         context: ChannelHandlerContext,
         app: BearBridgeHTTPApplication
     ) async {
-        let head = state.head
-        let path = head.uri.split(separator: "?").first.map(String.init) ?? head.uri
-        let endpoint = await app.endpoint
-
-        guard path == endpoint else {
-            await writeResponse(
-                .error(statusCode: 404, .invalidRequest("Not Found")),
-                version: head.version,
-                context: context
-            )
-            return
-        }
-
         let request = makeHTTPRequest(from: state)
         let response = await app.handleHTTPRequest(request)
-        await writeResponse(response, version: head.version, context: context)
+        await writeResponse(response, version: state.head.version, context: context)
     }
 
     private func makeHTTPRequest(from state: RequestState) -> HTTPRequest {
@@ -473,7 +557,12 @@ private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sen
             body = nil
         }
 
-        return HTTPRequest(method: state.head.method.rawValue, headers: headers, body: body)
+        return HTTPRequest(
+            method: state.head.method.rawValue,
+            headers: headers,
+            body: body,
+            path: state.head.uri
+        )
     }
 
     private func writeResponse(

@@ -9,6 +9,7 @@ func bridgeConfigurationDefaultsToLocalhostWithStableURL() throws {
     #expect(bridge.enabled == false)
     #expect(bridge.host == "127.0.0.1")
     #expect(bridge.port == 6190)
+    #expect(bridge.authMode == .open)
     #expect(try bridge.endpointURLString() == "http://127.0.0.1:6190/mcp")
 }
 
@@ -37,6 +38,26 @@ func configurationDecodesLegacyJSONWithoutBridgeBlock() throws {
     )
 
     #expect(configuration.bridge == .default)
+}
+
+@Test
+func bridgeConfigurationDecodesLegacyBridgeBlockWithoutAuthMode() throws {
+    let json = """
+    {
+      "bridge": {
+        "enabled": true,
+        "host": "localhost",
+        "port": 6201
+      }
+    }
+    """
+
+    let configuration = try BearJSON.makeDecoder().decode(
+        BearConfiguration.self,
+        from: Data(json.utf8)
+    )
+
+    #expect(configuration.bridge == BearBridgeConfiguration(enabled: true, host: "localhost", port: 6201, authMode: .open))
 }
 
 @Test

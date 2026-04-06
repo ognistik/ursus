@@ -328,6 +328,22 @@ struct UrsusSetupView: View {
                     )
                     configurationValidationMessages(for: .bridgePort)
                 }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("Require OAuth for all bridge requests", isOn: bridgeRequiresOAuthBinding)
+                        .disabled(model.isBridgeOperationInProgress)
+
+                    Text(
+                        bridge.requiresOAuth
+                            ? "Protection: OAuth is required for the entire `/mcp` bridge surface."
+                            : "Protection: Bridge requests stay open, matching the current local behavior."
+                    )
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             HStack(spacing: 10) {
@@ -408,6 +424,16 @@ struct UrsusSetupView: View {
         )
     }
 
+    private var bridgeRequiresOAuthBinding: Binding<Bool> {
+        Binding(
+            get: { model.bridgeRequiresOAuthDraft },
+            set: {
+                model.bridgeRequiresOAuthDraft = $0
+                model.configurationDraftDidChange()
+            }
+        )
+    }
+
     private func bridgeStateText(for settings: BearAppSettingsSnapshot) -> String? {
         let bridge = settings.bridge
 
@@ -416,6 +442,9 @@ struct UrsusSetupView: View {
         }
 
         if bridge.loaded, (bridge.status == .ok || bridge.status == .configured) {
+            if bridge.requiresOAuth {
+                return "Installed and serving requests at the local MCP URL below. OAuth is required for every bridge request."
+            }
             return "Installed and serving requests at the local MCP URL below."
         }
 

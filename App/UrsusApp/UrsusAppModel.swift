@@ -60,6 +60,7 @@ final class UrsusAppModel: ObservableObject {
     @Published var inboxTagsDraft = ""
     @Published var bridgeHostDraft = BearBridgeConfiguration.defaultHost
     @Published var bridgePortDraft = BearBridgeConfiguration.preferredPort
+    @Published var bridgeRequiresOAuthDraft = false
     @Published var defaultInsertPositionDraft: BearConfiguration.InsertDefault = .bottom
     @Published var templateManagementEnabledDraft = true
     @Published var createOpensNoteByDefaultDraft = true
@@ -556,6 +557,7 @@ final class UrsusAppModel: ObservableObject {
             inboxTags: parsedInboxTags,
             bridgeHost: bridgeHostDraft,
             bridgePort: bridgePortDraft,
+            bridgeRequiresOAuth: bridgeRequiresOAuthDraft,
             defaultInsertPosition: defaultInsertPositionDraft,
             templateManagementEnabled: templateManagementEnabledDraft,
             createOpensNoteByDefault: createOpensNoteByDefaultDraft,
@@ -587,6 +589,7 @@ final class UrsusAppModel: ObservableObject {
         inboxTagsDraft = settings.inboxTags.joined(separator: ", ")
         bridgeHostDraft = settings.bridge.host
         bridgePortDraft = settings.bridge.port
+        bridgeRequiresOAuthDraft = settings.bridge.requiresOAuth
         defaultInsertPositionDraft = BearConfiguration.InsertDefault(rawValue: settings.defaultInsertPosition) ?? .bottom
         templateManagementEnabledDraft = settings.templateManagementEnabled
         createOpensNoteByDefaultDraft = settings.createOpensNoteByDefault

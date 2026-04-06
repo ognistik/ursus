@@ -1,6 +1,15 @@
 import Darwin
 import Foundation
 
+public enum BearBridgeAuthMode: String, Codable, Hashable, Sendable {
+    case open
+    case oauth
+
+    public var requiresOAuth: Bool {
+        self == .oauth
+    }
+}
+
 public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
     public static let defaultHost = "127.0.0.1"
     public static let defaultEndpointPath = "/mcp"
@@ -9,15 +18,18 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
     public var enabled: Bool
     public var host: String
     public var port: Int
+    public var authMode: BearBridgeAuthMode
 
     public init(
         enabled: Bool = false,
         host: String = BearBridgeConfiguration.defaultHost,
-        port: Int = BearBridgeConfiguration.preferredPort
+        port: Int = BearBridgeConfiguration.preferredPort,
+        authMode: BearBridgeAuthMode = .open
     ) {
         self.enabled = enabled
         self.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
         self.port = port
+        self.authMode = authMode
     }
 
     public static var `default`: BearBridgeConfiguration {
@@ -26,6 +38,10 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
 
     public var endpointPath: String {
         Self.defaultEndpointPath
+    }
+
+    public var requiresOAuth: Bool {
+        authMode.requiresOAuth
     }
 
     public func validated() throws -> BearBridgeConfiguration {
@@ -39,7 +55,12 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
         }
 
         try BearBridgePortAllocator.validate(port: port)
-        return BearBridgeConfiguration(enabled: enabled, host: normalizedHost, port: port)
+        return BearBridgeConfiguration(
+            enabled: enabled,
+            host: normalizedHost,
+            port: port,
+            authMode: authMode
+        )
     }
 
     public func endpointURL() throws -> URL {
@@ -87,6 +108,30 @@ public struct BearBridgeConfiguration: Codable, Hashable, Sendable {
         }
 
         return true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case enabled
+        case host
+        case port
+        case authMode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        host = (try container.decodeIfPresent(String.self, forKey: .host) ?? Self.defaultHost)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        port = try container.decodeIfPresent(Int.self, forKey: .port) ?? Self.preferredPort
+        authMode = try container.decodeIfPresent(BearBridgeAuthMode.self, forKey: .authMode) ?? .open
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(enabled, forKey: .enabled)
+        try container.encode(host, forKey: .host)
+        try container.encode(port, forKey: .port)
+        try container.encode(authMode, forKey: .authMode)
     }
 }
 

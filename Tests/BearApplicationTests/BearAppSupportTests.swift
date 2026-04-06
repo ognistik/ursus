@@ -82,6 +82,7 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     #expect(dashboard.settings?.bridge.status == BearDoctorCheckStatus.missing)
     #expect(dashboard.settings?.bridge.statusTitle == "Not installed")
     #expect(dashboard.settings?.bridge.endpointURL == "http://127.0.0.1:6190/mcp")
+    #expect(dashboard.settings?.bridge.requiresOAuth == false)
 
     let bundledCLIDiagnostic = try #require(diagnostic(named: "bundled-cli", in: dashboard.diagnostics))
     #expect(bundledCLIDiagnostic.status == BearDoctorCheckStatus.missing)
@@ -1648,6 +1649,70 @@ func saveConfigurationDraftUpdatesBridgeHostAndPort() throws {
 
     #expect(configuration.bridge == BearBridgeConfiguration(enabled: false, host: "localhost", port: 6202))
     #expect(configuration.runtimeConfigurationGeneration == 1)
+}
+
+@Test
+func saveConfigurationDraftUpdatesBridgeAuthMode() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.saveConfigurationDraft(
+        BearAppConfigurationDraft(
+            databasePath: "/tmp/updated.sqlite",
+            inboxTags: ["0-inbox"],
+            bridgeHost: "127.0.0.1",
+            bridgePort: 6190,
+            bridgeRequiresOAuth: true,
+            defaultInsertPosition: .bottom,
+            templateManagementEnabled: true,
+            createOpensNoteByDefault: true,
+            openUsesNewWindowByDefault: true,
+            createAddsInboxTagsByDefault: true,
+            tagsMergeMode: .append,
+            defaultDiscoveryLimit: 20,
+            defaultSnippetLength: 280,
+            backupRetentionDays: 30,
+            disabledTools: []
+        ),
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    let configuration = try BearRuntimeBootstrap.loadConfiguration(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL
+    )
+
+    #expect(configuration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6190, authMode: .oauth))
+    #expect(configuration.runtimeConfigurationGeneration == 1)
+}
+
+@Test
+func bridgeResponseRequiresOAuthRecognizesBearerChallenges() throws {
+    let response = try #require(
+        HTTPURLResponse(
+            url: URL(string: "http://127.0.0.1:6190/mcp")!,
+            statusCode: 401,
+            httpVersion: nil,
+            headerFields: ["WWW-Authenticate": #"Bearer realm="ursus-bridge""#]
+        )
+    )
+
+    #expect(BearAppSupport.bridgeResponseRequiresOAuth(response) == true)
 }
 
 @Test

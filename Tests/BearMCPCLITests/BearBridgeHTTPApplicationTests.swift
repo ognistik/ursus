@@ -28,6 +28,17 @@ func decodeInitializeRequestRejectsNonInitializePayloads() throws {
 }
 
 @Test
+func bridgeRouterClassifiesMCPAndOAuthPaths() {
+    #expect(BearBridgeHTTPApplication.route(for: "/mcp", mcpEndpoint: "/mcp") == .mcp)
+    #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-protected-resource", mcpEndpoint: "/mcp") == .oauthProtectedResourceMetadata)
+    #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-authorization-server?resource=http://127.0.0.1:6190/mcp", mcpEndpoint: "/mcp") == .oauthAuthorizationServerMetadata)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/authorize", mcpEndpoint: "/mcp") == .oauthAuthorize)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/token", mcpEndpoint: "/mcp") == .oauthToken)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/register", mcpEndpoint: "/mcp") == .oauthRegister)
+    #expect(BearBridgeHTTPApplication.route(for: "/unknown", mcpEndpoint: "/mcp") == .notFound)
+}
+
+@Test
 func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async throws {
     let server = Server(
         name: "ursus",
@@ -204,6 +215,122 @@ func bridgeToolsListSucceedsAfterInitializeOverLocalHTTP() async throws {
         Issue.record("Expected a valid JSON-RPC tools/list response.")
         throw CancellationError()
     }
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeReturnsPlaceholderForOAuthMetadataRoutes() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/.well-known/oauth-authorization-server"
+    )
+
+    #expect(response.statusCode == 501)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeReturnsNotFoundForUnknownRoutes() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/not-found"
+    )
+
+    #expect(response.statusCode == 404)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeRequiresOAuthAcrossEntireMCPSurfaceWhenEnabled() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: try makeInitializeRequestBody(requestID: "oauth-required")
+    )
+
+    #expect(response.statusCode == 401)
+    #expect(response.httpResponse.value(forHTTPHeaderField: HTTPHeaderName.wwwAuthenticate)?.contains("Bearer") == true)
 
     await application.stop()
     try await startTask.value
@@ -508,18 +635,18 @@ private func tcpConnects(port: Int) -> Bool {
 }
 
 private func sendInitializeRequest(port: Int, requestID: String) async throws -> Data {
-    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 2
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.httpBody = try makeInitializeRequestBody(requestID: requestID)
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    let httpResponse = try #require(response as? HTTPURLResponse)
-    #expect(httpResponse.statusCode == 200)
-    return data
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: try makeInitializeRequestBody(requestID: requestID)
+    )
+    #expect(response.statusCode == 200)
+    return response.data
 }
 
 private func sendToolsListRequest(
@@ -527,19 +654,19 @@ private func sendToolsListRequest(
     requestID: String,
     protocolVersion: String
 ) async throws -> Data {
-    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 2
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json", forHTTPHeaderField: "Accept")
-    request.setValue(protocolVersion, forHTTPHeaderField: HTTPHeaderName.protocolVersion)
-    request.httpBody = try makeToolsListRequestBody(requestID: requestID)
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    let httpResponse = try #require(response as? HTTPURLResponse)
-    #expect(httpResponse.statusCode == 200)
-    return data
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            HTTPHeaderName.protocolVersion: protocolVersion,
+        ],
+        body: try makeToolsListRequestBody(requestID: requestID)
+    )
+    #expect(response.statusCode == 200)
+    return response.data
 }
 
 private func sendStreamingInitializeRequest(port: Int, requestID: String) async throws -> String {
@@ -555,19 +682,19 @@ private func sendStreamingInitializeRequest<T: LosslessStringConvertible>(
     requestID: T,
     body: Data
 ) async throws -> String {
-    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.timeoutInterval = 2
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-    request.httpBody = body
-
-    let (data, response) = try await URLSession.shared.data(for: request)
-    let httpResponse = try #require(response as? HTTPURLResponse)
-    #expect(httpResponse.statusCode == 200)
-    #expect(httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
-    return String(decoding: data, as: UTF8.self)
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+        ],
+        body: body
+    )
+    #expect(response.statusCode == 200)
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
+    return String(decoding: response.data, as: UTF8.self)
 }
 
 private func sendStreamingToolsListRequest(
@@ -575,20 +702,50 @@ private func sendStreamingToolsListRequest(
     requestID: String,
     protocolVersion: String
 ) async throws -> String {
-    let url = try #require(URL(string: "http://127.0.0.1:\(port)/mcp"))
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            HTTPHeaderName.protocolVersion: protocolVersion,
+        ],
+        body: try makeToolsListRequestBody(requestID: requestID)
+    )
+    #expect(response.statusCode == 200)
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
+    return String(decoding: response.data, as: UTF8.self)
+}
+
+private struct HTTPTestResponse {
+    let data: Data
+    let httpResponse: HTTPURLResponse
+
+    var statusCode: Int {
+        httpResponse.statusCode
+    }
+}
+
+private func sendHTTPRequest(
+    port: Int,
+    path: String,
+    method: String = "GET",
+    headers: [String: String] = [:],
+    body: Data? = nil
+) async throws -> HTTPTestResponse {
+    let url = try #require(URL(string: "http://127.0.0.1:\(port)\(path)"))
     var request = URLRequest(url: url)
-    request.httpMethod = "POST"
+    request.httpMethod = method
     request.timeoutInterval = 2
-    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("application/json, text/event-stream", forHTTPHeaderField: "Accept")
-    request.setValue(protocolVersion, forHTTPHeaderField: HTTPHeaderName.protocolVersion)
-    request.httpBody = try makeToolsListRequestBody(requestID: requestID)
+    for (name, value) in headers {
+        request.setValue(value, forHTTPHeaderField: name)
+    }
+    request.httpBody = body
 
     let (data, response) = try await URLSession.shared.data(for: request)
     let httpResponse = try #require(response as? HTTPURLResponse)
-    #expect(httpResponse.statusCode == 200)
-    #expect(httpResponse.value(forHTTPHeaderField: "Content-Type") == "text/event-stream")
-    return String(decoding: data, as: UTF8.self)
+    return HTTPTestResponse(data: data, httpResponse: httpResponse)
 }
 
 private func makeInitializeRequestBody(requestID: String) throws -> Data {

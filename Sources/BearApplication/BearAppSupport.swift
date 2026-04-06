@@ -144,6 +144,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let inboxTags: [String]
     public let bridgeHost: String
     public let bridgePort: Int
+    public let bridgeRequiresOAuth: Bool
     public let defaultInsertPosition: BearConfiguration.InsertDefault
     public let templateManagementEnabled: Bool
     public let createOpensNoteByDefault: Bool
@@ -160,6 +161,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         inboxTags: [String],
         bridgeHost: String,
         bridgePort: Int,
+        bridgeRequiresOAuth: Bool = false,
         defaultInsertPosition: BearConfiguration.InsertDefault,
         templateManagementEnabled: Bool,
         createOpensNoteByDefault: Bool,
@@ -175,6 +177,7 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         self.inboxTags = inboxTags
         self.bridgeHost = bridgeHost.trimmingCharacters(in: .whitespacesAndNewlines)
         self.bridgePort = bridgePort
+        self.bridgeRequiresOAuth = bridgeRequiresOAuth
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
         self.createOpensNoteByDefault = createOpensNoteByDefault
@@ -552,7 +555,8 @@ public enum BearAppSupport {
         let validatedBridge = try BearBridgeConfiguration(
             enabled: currentConfiguration.bridge.enabled,
             host: draft.bridgeHost,
-            port: draft.bridgePort
+            port: draft.bridgePort,
+            authMode: draft.bridgeRequiresOAuth ? .oauth : .open
         ).validated()
 
         let updatedConfiguration = BearConfiguration(

@@ -182,7 +182,8 @@ public enum UrsusCLIRuntime {
             configuration: .init(
                 host: bridge.host,
                 port: bridge.port,
-                endpoint: bridge.endpointPath
+                endpoint: bridge.endpointPath,
+                authMode: bridge.authMode
             ),
             serverFactory: {
                 await UrsusMCPServer(
@@ -387,11 +388,13 @@ public enum UrsusCLIRuntime {
         let plistMatchesExpected = bridge.plistMatchesExpected ? "yes" : "no"
         let transportHealth = bridge.endpointTransportReachable ? "tcp-ok" : "tcp-failed"
         let protocolHealth = bridge.endpointProtocolCompatible ? "initialize-ok" : "initialize-failed"
+        let authMode = bridge.requiresOAuth ? "oauth-required" : "open"
         return [
             "Bridge \(status)",
             "Host: \(bridge.host)",
             "Port: \(bridge.port)",
             "URL: \(bridge.endpointURL)",
+            "Auth mode: \(authMode)",
             "Status: \(bridge.statusTitle)",
             "Detail: \(bridge.statusDetail)",
             "LaunchAgent installed: \(launchAgentInstalled)",
