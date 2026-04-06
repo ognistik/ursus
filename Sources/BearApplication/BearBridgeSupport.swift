@@ -205,17 +205,20 @@ public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
     public let reachable: Bool
     public let transportReachable: Bool
     public let protocolCompatible: Bool
+    public let selectedNoteTokenConfigured: Bool?
     public let detail: String?
 
     public init(
         reachable: Bool,
         transportReachable: Bool? = nil,
         protocolCompatible: Bool? = nil,
+        selectedNoteTokenConfigured: Bool? = nil,
         detail: String? = nil
     ) {
         self.reachable = reachable
         self.transportReachable = transportReachable ?? reachable
         self.protocolCompatible = protocolCompatible ?? reachable
+        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured
         self.detail = detail
     }
 }
@@ -574,6 +577,7 @@ public extension BearAppSupport {
         )
         let bridge: BearBridgeConfiguration
         let endpointURL: String
+        let runtimeStateLoadedSelectedNoteTokenConfigured = bridgeRuntimeState?.loadedSelectedNoteTokenConfigured
         let currentRuntimeConfigurationGeneration = configuration.runtimeConfigurationGeneration
         let currentRuntimeConfigurationFingerprint = configuration.runtimeConfigurationFingerprint
         let appBundleURLForBridgeImplementation = currentAppBundleURL
@@ -592,7 +596,7 @@ public extension BearAppSupport {
                 port: configuration.bridge.port,
                 endpointURL: "invalid bridge URL",
                 currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
-                loadedSelectedNoteTokenConfigured: bridgeRuntimeState?.loadedSelectedNoteTokenConfigured,
+                loadedSelectedNoteTokenConfigured: runtimeStateLoadedSelectedNoteTokenConfigured,
                 currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
                 loadedRuntimeConfigurationGeneration: nil,
                 currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
@@ -638,6 +642,8 @@ public extension BearAppSupport {
         let endpointProbeResult = loaded
             ? endpointProbe(bridge.host, bridge.port)
             : BearBridgeEndpointProbeResult(reachable: false, transportReachable: false, protocolCompatible: false)
+        let loadedSelectedNoteTokenConfigured = runtimeStateLoadedSelectedNoteTokenConfigured
+            ?? endpointProbeResult.selectedNoteTokenConfigured
 
         let state = bridgeState(
             configuration: bridge,
@@ -663,7 +669,7 @@ public extension BearAppSupport {
             port: bridge.port,
             endpointURL: endpointURL,
             currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
-            loadedSelectedNoteTokenConfigured: bridgeRuntimeState?.loadedSelectedNoteTokenConfigured,
+            loadedSelectedNoteTokenConfigured: loadedSelectedNoteTokenConfigured,
             currentRuntimeConfigurationGeneration: currentRuntimeConfigurationGeneration,
             loadedRuntimeConfigurationGeneration: bridgeRuntimeState?.loadedRuntimeConfigurationGeneration,
             currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
@@ -1212,7 +1218,8 @@ private extension BearAppSupport {
         return BearBridgeEndpointProbeResult(
             reachable: true,
             transportReachable: true,
-            protocolCompatible: true
+            protocolCompatible: true,
+            selectedNoteTokenConfigured: bridgeAdvertisedSelectedNoteSupport(from: toolsListData)
         )
     }
 
@@ -1267,6 +1274,66 @@ private extension BearAppSupport {
         }
 
         return true
+    }
+
+    static func bridgeAdvertisedSelectedNoteSupport(from data: Data) -> Bool? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = object["result"] as? [String: Any],
+              let tools = result["tools"] as? [[String: Any]]
+        else {
+            return nil
+        }
+
+        let topLevelToolNames: Set<String> = [
+            "bear_get_notes",
+            "bear_archive_notes",
+        ]
+        let operationToolNames: Set<String> = [
+            "bear_create_backups",
+            "bear_list_backups",
+            "bear_compare_backup",
+            "bear_delete_backups",
+            "bear_add_tags",
+            "bear_remove_tags",
+            "bear_apply_template",
+            "bear_insert_text",
+            "bear_replace_content",
+            "bear_add_files",
+            "bear_open_notes",
+            "bear_restore_notes",
+        ]
+
+        var inspectedKnownTool = false
+
+        for tool in tools {
+            guard let name = tool["name"] as? String,
+                  let inputSchema = tool["inputSchema"] as? [String: Any],
+                  let properties = inputSchema["properties"] as? [String: Any]
+            else {
+                continue
+            }
+
+            if topLevelToolNames.contains(name) {
+                inspectedKnownTool = true
+                if properties["selected"] != nil {
+                    return true
+                }
+                continue
+            }
+
+            if operationToolNames.contains(name),
+               let operations = properties["operations"] as? [String: Any],
+               let items = operations["items"] as? [String: Any],
+               let operationProperties = items["properties"] as? [String: Any]
+            {
+                inspectedKnownTool = true
+                if operationProperties["selected"] != nil {
+                    return true
+                }
+            }
+        }
+
+        return inspectedKnownTool ? false : nil
     }
 
     static func performBridgeProbeRequest(
@@ -1367,5 +1434,11 @@ private extension BearAppSupport {
 
     static func bridgeLocalizedMessage(for error: Error) -> String {
         (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+    }
+}
+
+extension BearAppSupport {
+    static func testBridgeAdvertisedSelectedNoteSupport(from data: Data) -> Bool? {
+        bridgeAdvertisedSelectedNoteSupport(from: data)
     }
 }
