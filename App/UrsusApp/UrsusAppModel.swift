@@ -79,11 +79,13 @@ final class UrsusAppModel: ObservableObject {
     private var lastSavedTemplateDraft = ""
 
     init() {
+        persistCurrentAppBundleLocation()
         refreshAppState()
         reconcilePublicLauncherAutomatically()
     }
 
     private func refreshAppState() {
+        persistCurrentAppBundleLocation()
         dashboard = BearAppSupport.loadDashboardSnapshot(
             currentAppBundleURL: Bundle.main.bundleURL
         )
@@ -93,6 +95,7 @@ final class UrsusAppModel: ObservableObject {
     }
 
     private func refreshDashboardSnapshot() {
+        persistCurrentAppBundleLocation()
         dashboard = BearAppSupport.loadDashboardSnapshot(
             currentAppBundleURL: Bundle.main.bundleURL
         )
@@ -828,6 +831,10 @@ final class UrsusAppModel: ObservableObject {
         }
 
         return normalized
+    }
+
+    private func persistCurrentAppBundleLocation() {
+        try? UrsusAppLocator.recordCurrentAppBundleURL(Bundle.main.bundleURL)
     }
 
     private func reconcilePublicLauncherAutomatically() {

@@ -152,6 +152,8 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
             loadedRuntimeConfigurationGeneration: 2,
             currentRuntimeConfigurationFingerprint: "current-fingerprint",
             loadedRuntimeConfigurationFingerprint: "loaded-fingerprint",
+            currentBridgeImplementationMarker: "current-impl",
+            loadedBridgeImplementationMarker: "loaded-impl",
             launcherPath: "/tmp/ursus",
             launchAgentLabel: "com.aft.ursus",
             plistPath: "/tmp/com.aft.ursus.plist",

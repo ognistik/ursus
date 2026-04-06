@@ -38,7 +38,7 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - Temp fallback runtime locks now live under `TMPDIR/ursus/Runtime/...`.
 - The public launcher path is now `~/.local/bin/ursus`.
 - Launcher repair/install, bridge diagnostics, and CLI help/doctor/status output now point at the `ursus` launcher and `Ursus.app`.
-- Selected-note helper lookup now prefers the embedded helper in `/Applications/Ursus.app` but still falls back to `~/Applications/Ursus.app` when needed.
+- Selected-note helper lookup now prefers the embedded helper in the app bundle the user most recently opened, while still falling back to `/Applications/Ursus.app` and `~/Applications/Ursus.app` when needed.
 - Host setup snippets and diagnostics now recommend `ursus` as the host-side server identity for Codex and Claude Desktop.
 - Broader app copy now presents the product as Ursus while keeping Bear wording only for Bear-specific domains like the Bear database, Bear notes, and Bear tokens.
 - Current docs, local build/reset guidance, and helper docs are aligned to the shipped Ursus identity.
@@ -57,7 +57,7 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - `Preferences` and `Tools` now each open with one quiet auto-save/restart note instead of repeating restart warnings inside individual controls.
 - `Tools` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
 - The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
-- The Setup bridge card now derives a `Restart Required` state from persisted runtime config generation versus the generation last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
+- The Setup bridge card now derives a `Restart Required` state from both persisted runtime config drift and bridge implementation drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
 ### CLI
@@ -120,6 +120,8 @@ These paths describe the codebase as it exists after Phase 6:
 - backups: `~/Library/Application Support/Ursus/Backups`
 - backup metadata DB: `~/Library/Application Support/Ursus/Backups/backups.sqlite`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
+- current app bundle state: `~/Library/Application Support/Ursus/Runtime/current-app-bundle.json`
+- bridge runtime state: `~/Library/Application Support/Ursus/Runtime/bridge-runtime-state.json`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
 - debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
 - bridge stdout log: `~/Library/Application Support/Ursus/Logs/bridge.stdout.log`
@@ -145,7 +147,8 @@ These paths describe the codebase as it exists after Phase 6:
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.
 - Bridge LaunchAgent unload now checks actual loaded state first so a stale plist does not abort install/remove with `launchctl bootout` I/O errors.
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
-- Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records the generation it loaded in a small runtime state file so the app can flag stale-yet-serving bridge processes without guessing about client restarts.
+- Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records both the config generation/fingerprint and a lightweight bridge implementation marker in a small runtime state file so the app can flag stale-yet-serving bridge processes after config edits or app/runtime updates without guessing about client restarts.
+- The app now records the most recently opened `Ursus.app` bundle path in runtime state, so launcher validation, CLI diagnostics, and selected-note helper lookup can continue to find a nonstandard install location after the app has been opened once.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
 - Queue labels, logger labels, DB labels, and selected-note callback paths no longer use the old launcher identity.

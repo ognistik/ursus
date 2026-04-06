@@ -128,8 +128,10 @@ func helperLocatorPrefersEmbeddedHelperInsideInstalledAppBundle() throws {
 
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
-        preferredAppBundleURL: mainAppBundleURL,
-        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true)
+        candidateMainAppBundleURLs: [
+            mainAppBundleURL,
+            userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true),
+        ]
     )
 
     #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
@@ -156,8 +158,10 @@ func helperLocatorIgnoresStandaloneHelperBundleWithoutContainingApp() throws {
 
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
-        preferredAppBundleURL: applicationsDirectoryURL.appendingPathComponent("Ursus.app", isDirectory: true),
-        userSpecificAppBundleURL: userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true)
+        candidateMainAppBundleURLs: [
+            applicationsDirectoryURL.appendingPathComponent("Ursus.app", isDirectory: true),
+            userHomeURL.appendingPathComponent("Applications/Ursus.app", isDirectory: true),
+        ]
     )
 
     #expect(locatedURL == nil)
@@ -187,9 +191,81 @@ func helperLocatorFallsBackToUserInstallWhenPreferredAppLacksEmbeddedHelper() th
 
     let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
         fileManager: fileManager,
-        preferredAppBundleURL: preferredAppBundleURL,
-        userSpecificAppBundleURL: userAppBundleURL
+        candidateMainAppBundleURLs: [preferredAppBundleURL, userAppBundleURL]
     )
 
     #expect(locatedURL?.standardizedFileURL == embeddedHelperBundleURL.standardizedFileURL)
+}
+
+@Test
+func appLocatorUsesRecordedCustomInstallLocationBeforeStandardPaths() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let customAppBundleURL = temporaryRoot
+        .appendingPathComponent("Desktop", isDirectory: true)
+        .appendingPathComponent("Ursus.app", isDirectory: true)
+    let stateURL = temporaryRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
+        .appendingPathComponent("Runtime", isDirectory: true)
+        .appendingPathComponent("current-app-bundle.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: customAppBundleURL, withIntermediateDirectories: true)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    try UrsusAppLocator.recordCurrentAppBundleURL(
+        customAppBundleURL,
+        fileManager: fileManager,
+        stateURL: stateURL
+    )
+
+    let locatedURL = UrsusAppLocator.installedAppBundleURL(
+        fileManager: fileManager,
+        stateURL: stateURL
+    )
+
+    #expect(locatedURL?.standardizedFileURL == customAppBundleURL.standardizedFileURL)
+}
+
+@Test
+func helperLocatorUsesRecordedCustomInstallLocationWhenItContainsEmbeddedHelper() throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let customAppBundleURL = temporaryRoot
+        .appendingPathComponent("Desktop", isDirectory: true)
+        .appendingPathComponent("Ursus.app", isDirectory: true)
+    let helperBundleURL = customAppBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Helpers", isDirectory: true)
+        .appendingPathComponent("Ursus Helper.app", isDirectory: true)
+    let stateURL = temporaryRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
+        .appendingPathComponent("Runtime", isDirectory: true)
+        .appendingPathComponent("current-app-bundle.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: helperBundleURL, withIntermediateDirectories: true)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    try UrsusAppLocator.recordCurrentAppBundleURL(
+        customAppBundleURL,
+        fileManager: fileManager,
+        stateURL: stateURL
+    )
+
+    let locatedURL = BearSelectedNoteHelperLocator.installedAppBundleURL(
+        fileManager: fileManager,
+        stateURL: stateURL
+    )
+
+    #expect(locatedURL?.standardizedFileURL == helperBundleURL.standardizedFileURL)
 }

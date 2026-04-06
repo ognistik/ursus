@@ -325,8 +325,8 @@ struct UrsusSetupView: View {
 
                 if bridge.installed {
                     if bridge.loaded {
-                        Button(bridgeRestartRequired(for: settings) ? "Restart" : "Pause") {
-                            if bridgeRestartRequired(for: settings) {
+                        Button(bridge.restartRequired ? "Restart" : "Pause") {
+                            if bridge.restartRequired {
                                 model.restartBridge()
                             } else {
                                 model.pauseBridge()
@@ -387,7 +387,7 @@ struct UrsusSetupView: View {
     private func bridgeStateText(for settings: BearAppSettingsSnapshot) -> String? {
         let bridge = settings.bridge
 
-        if bridgeRestartRequired(for: settings) {
+        if bridge.restartRequired {
             return "Installed and serving requests, but recent changes will not apply until restart."
         }
 
@@ -454,18 +454,6 @@ struct UrsusSetupView: View {
         }
     }
 
-    private func bridgeRestartRequired(for settings: BearAppSettingsSnapshot) -> Bool {
-        let bridge = settings.bridge
-        guard bridge.installed,
-              bridge.loaded,
-              bridge.status == .ok || bridge.status == .configured,
-              let loadedFingerprint = bridge.loadedRuntimeConfigurationFingerprint
-        else {
-            return false
-        }
-
-        return loadedFingerprint != bridge.currentRuntimeConfigurationFingerprint
-    }
 }
 
 private struct UrsusHostSetupRow: View {
@@ -572,12 +560,7 @@ private func hostSetupDetail(for setup: BearHostAppSetupSnapshot) -> String? {
 private func bridgeBadge(for settings: BearAppSettingsSnapshot) -> (title: String, status: BearDoctorCheckStatus)? {
     let bridge = settings.bridge
 
-    if bridge.installed,
-       bridge.loaded,
-       (bridge.status == .ok || bridge.status == .configured),
-       let loadedFingerprint = bridge.loadedRuntimeConfigurationFingerprint,
-       loadedFingerprint != bridge.currentRuntimeConfigurationFingerprint
-    {
+    if bridge.restartRequired {
         return ("Restart Required", .notConfigured)
     }
 

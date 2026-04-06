@@ -161,7 +161,8 @@ public enum UrsusCLIRuntime {
             readyHandler: {
                 try BearAppSupport.recordBridgeLoadedRuntimeState(
                     runtimeConfigurationGeneration: runtime.configuration.runtimeConfigurationGeneration,
-                    runtimeConfigurationFingerprint: runtime.configuration.runtimeConfigurationFingerprint
+                    runtimeConfigurationFingerprint: runtime.configuration.runtimeConfigurationFingerprint,
+                    bridgeImplementationMarker: UrsusCLILocator.currentBridgeImplementationMarker()
                 )
             },
             logger: logger

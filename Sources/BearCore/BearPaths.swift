@@ -57,6 +57,10 @@ public enum BearPaths {
         runtimeLockDirectoryURL.appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
     }
 
+    public static var currentAppBundleStateURL: URL {
+        runtimeLockDirectoryURL.appendingPathComponent("current-app-bundle.json", isDirectory: false)
+    }
+
     public static var processLockURL: URL {
         runtimeLockDirectoryURL.appendingPathComponent(".server.lock", isDirectory: false)
     }

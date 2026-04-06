@@ -268,9 +268,13 @@ public enum BearAppSupport {
         bridgeStandardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL,
-        callbackAppBundleURLProvider: (FileManager) -> URL? = UrsusAppLocator.installedAppBundleURL,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = { fileManager in
+            UrsusAppLocator.installedAppBundleURL(fileManager: fileManager)
+        },
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusAppLocator.executableURL,
-        helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
+        helperBundleURLProvider: (FileManager) -> URL? = { fileManager in
+            BearSelectedNoteHelperLocator.installedAppBundleURL(fileManager: fileManager)
+        },
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run
     ) -> BearAppDashboardSnapshot {
@@ -360,6 +364,7 @@ public enum BearAppSupport {
         let bridge = bridgeSnapshot(
             configuration: configuration,
             fileManager: fileManager,
+            currentAppBundleURL: currentAppBundleURL,
             launcherURL: launcherURL,
             launchAgentPlistURL: bridgeLaunchAgentPlistURL,
             standardOutputURL: bridgeStandardOutputURL,
@@ -752,9 +757,13 @@ public enum BearAppSupport {
         launcherURL: URL = UrsusCLILocator.publicLauncherURL,
         homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true),
         bundledCLIExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusCLILocator.bundledExecutableURL,
-        callbackAppBundleURLProvider: (FileManager) -> URL? = UrsusAppLocator.installedAppBundleURL,
+        callbackAppBundleURLProvider: (FileManager) -> URL? = { fileManager in
+            UrsusAppLocator.installedAppBundleURL(fileManager: fileManager)
+        },
         callbackAppExecutableURLResolver: (URL, FileManager) throws -> URL = UrsusAppLocator.executableURL,
-        helperBundleURLProvider: (FileManager) -> URL? = BearSelectedNoteHelperLocator.installedAppBundleURL,
+        helperBundleURLProvider: (FileManager) -> URL? = { fileManager in
+            BearSelectedNoteHelperLocator.installedAppBundleURL(fileManager: fileManager)
+        },
         helperExecutableURLResolver: (URL, FileManager) throws -> URL = BearSelectedNoteHelperLocator.executableURL
     ) -> [BearDoctorCheck] {
         var checks = [

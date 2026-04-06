@@ -1,11 +1,73 @@
 import Foundation
 
 public enum UrsusAppLocator {
+    private struct PersistedAppBundleState: Codable, Hashable, Sendable {
+        let appBundlePath: String
+        let recordedAt: Date
+    }
+
     public static let appName = "Ursus.app"
     public static let preferredInstallDirectoryPath = "/Applications"
 
-    public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
-        standardAppBundleURLs.first(where: { fileManager.fileExists(atPath: $0.path) })
+    public static func installedAppBundleURL(
+        fileManager: FileManager = .default
+    ) -> URL? {
+        installedAppBundleURL(
+            fileManager: fileManager,
+            stateURL: BearPaths.currentAppBundleStateURL
+        )
+    }
+
+    public static func installedAppBundleURL(
+        fileManager: FileManager = .default,
+        stateURL: URL = BearPaths.currentAppBundleStateURL
+    ) -> URL? {
+        installedAppBundleCandidates(fileManager: fileManager, stateURL: stateURL).first
+    }
+
+    public static func recordCurrentAppBundleURL(
+        _ bundleURL: URL,
+        fileManager: FileManager = .default,
+        stateURL: URL = BearPaths.currentAppBundleStateURL
+    ) throws {
+        let standardizedURL = bundleURL.standardizedFileURL
+        guard standardizedURL.lastPathComponent == appName else {
+            throw BearError.configuration("Ursus app path `\(standardizedURL.path)` is not `\(appName)`.")
+        }
+
+        try fileManager.createDirectory(
+            at: stateURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+
+        let state = PersistedAppBundleState(
+            appBundlePath: standardizedURL.path,
+            recordedAt: Date()
+        )
+        let data = try BearJSON.makeEncoder().encode(state)
+        try data.write(to: stateURL, options: .atomic)
+        try? fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: stateURL.path)
+    }
+
+    public static func recordedAppBundleURL(
+        fileManager: FileManager = .default,
+        stateURL: URL = BearPaths.currentAppBundleStateURL
+    ) -> URL? {
+        guard fileManager.fileExists(atPath: stateURL.path),
+              let data = try? Data(contentsOf: stateURL),
+              let state = try? BearJSON.makeDecoder().decode(PersistedAppBundleState.self, from: data)
+        else {
+            return nil
+        }
+
+        let bundleURL = URL(fileURLWithPath: state.appBundlePath, isDirectory: true).standardizedFileURL
+        guard bundleURL.lastPathComponent == appName,
+              fileManager.fileExists(atPath: bundleURL.path)
+        else {
+            return nil
+        }
+
+        return bundleURL
     }
 
     public static var preferredAppBundleURL: URL {
@@ -75,8 +137,36 @@ public enum UrsusAppLocator {
         return executableURL
     }
 
+    static func installedAppBundleCandidates(
+        fileManager: FileManager = .default,
+        stateURL: URL = BearPaths.currentAppBundleStateURL
+    ) -> [URL] {
+        var seen: Set<String> = []
+        var candidates: [URL] = []
+
+        for bundleURL in candidateAppBundleURLs(stateURL: stateURL) {
+            let standardizedPath = bundleURL.standardizedFileURL.path
+            guard seen.insert(standardizedPath).inserted else {
+                continue
+            }
+
+            guard fileManager.fileExists(atPath: standardizedPath) else {
+                continue
+            }
+
+            candidates.append(bundleURL.standardizedFileURL)
+        }
+
+        return candidates
+    }
+
     private static var standardAppBundleURLs: [URL] {
         [preferredAppBundleURL, userSpecificAppBundleURL]
+    }
+
+    private static func candidateAppBundleURLs(stateURL: URL) -> [URL] {
+        let recordedURL = recordedAppBundleURL(stateURL: stateURL)
+        return [recordedURL, preferredAppBundleURL, userSpecificAppBundleURL].compactMap { $0 }
     }
 
     private static var userApplicationsDirectoryPath: String {

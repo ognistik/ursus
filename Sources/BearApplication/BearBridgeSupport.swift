@@ -57,6 +57,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let loadedRuntimeConfigurationGeneration: Int?
     public let currentRuntimeConfigurationFingerprint: String
     public let loadedRuntimeConfigurationFingerprint: String?
+    public let currentBridgeImplementationMarker: String?
+    public let loadedBridgeImplementationMarker: String?
     public let launcherPath: String
     public let launchAgentLabel: String
     public let plistPath: String
@@ -81,6 +83,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         loadedRuntimeConfigurationGeneration: Int?,
         currentRuntimeConfigurationFingerprint: String,
         loadedRuntimeConfigurationFingerprint: String?,
+        currentBridgeImplementationMarker: String?,
+        loadedBridgeImplementationMarker: String?,
         launcherPath: String,
         launchAgentLabel: String,
         plistPath: String,
@@ -104,6 +108,8 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.loadedRuntimeConfigurationGeneration = loadedRuntimeConfigurationGeneration
         self.currentRuntimeConfigurationFingerprint = currentRuntimeConfigurationFingerprint
         self.loadedRuntimeConfigurationFingerprint = loadedRuntimeConfigurationFingerprint
+        self.currentBridgeImplementationMarker = currentBridgeImplementationMarker
+        self.loadedBridgeImplementationMarker = loadedBridgeImplementationMarker
         self.launcherPath = launcherPath
         self.launchAgentLabel = launchAgentLabel
         self.plistPath = plistPath
@@ -118,6 +124,35 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.status = status
         self.statusTitle = statusTitle
         self.statusDetail = statusDetail
+    }
+
+    public var runtimeConfigurationRestartRequired: Bool {
+        guard installed,
+              loaded,
+              status == .ok || status == .configured,
+              let loadedRuntimeConfigurationFingerprint
+        else {
+            return false
+        }
+
+        return loadedRuntimeConfigurationFingerprint != currentRuntimeConfigurationFingerprint
+    }
+
+    public var implementationRestartRequired: Bool {
+        guard installed,
+              loaded,
+              status == .ok || status == .configured,
+              let loadedBridgeImplementationMarker,
+              let currentBridgeImplementationMarker
+        else {
+            return false
+        }
+
+        return loadedBridgeImplementationMarker != currentBridgeImplementationMarker
+    }
+
+    public var restartRequired: Bool {
+        runtimeConfigurationRestartRequired || implementationRestartRequired
     }
 }
 
@@ -178,6 +213,7 @@ private final class BearBridgeURLSessionProbeBox: @unchecked Sendable {
 private struct BearBridgeRuntimeState: Codable, Hashable, Sendable {
     let loadedRuntimeConfigurationGeneration: Int
     let loadedRuntimeConfigurationFingerprint: String
+    let loadedBridgeImplementationMarker: String?
     let recordedAt: Date
 }
 
@@ -185,6 +221,7 @@ public extension BearAppSupport {
     static func recordBridgeLoadedRuntimeState(
         runtimeConfigurationGeneration: Int,
         runtimeConfigurationFingerprint: String,
+        bridgeImplementationMarker: String? = nil,
         fileManager: FileManager = .default,
         runtimeStateURL: URL = BearPaths.bridgeRuntimeStateURL
     ) throws {
@@ -196,6 +233,7 @@ public extension BearAppSupport {
         let state = BearBridgeRuntimeState(
             loadedRuntimeConfigurationGeneration: runtimeConfigurationGeneration,
             loadedRuntimeConfigurationFingerprint: runtimeConfigurationFingerprint,
+            loadedBridgeImplementationMarker: bridgeImplementationMarker,
             recordedAt: Date()
         )
         let data = try BearJSON.makeEncoder().encode(state)
@@ -498,6 +536,7 @@ public extension BearAppSupport {
     static func bridgeSnapshot(
         configuration: BearConfiguration,
         fileManager: FileManager = .default,
+        currentAppBundleURL: URL? = nil,
         launcherURL: URL = BearBridgeLaunchAgent.launcherURL,
         launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
@@ -507,10 +546,19 @@ public extension BearAppSupport {
         endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
     ) -> BearAppBridgeSnapshot {
         let installed = fileManager.fileExists(atPath: launchAgentPlistURL.path)
+        let bridgeRuntimeState = loadBridgeRuntimeState(
+            fileManager: fileManager,
+            runtimeStateURL: bridgeRuntimeStateURL
+        )
         let bridge: BearBridgeConfiguration
         let endpointURL: String
         let currentRuntimeConfigurationGeneration = configuration.runtimeConfigurationGeneration
         let currentRuntimeConfigurationFingerprint = configuration.runtimeConfigurationFingerprint
+        let appBundleURLForBridgeImplementation = currentAppBundleURL
+            ?? UrsusAppLocator.installedAppBundleURL(fileManager: fileManager)
+        let currentBridgeImplementationMarker = appBundleURLForBridgeImplementation.flatMap {
+            try? UrsusCLILocator.bridgeImplementationMarker(forAppBundleURL: $0, fileManager: fileManager)
+        }
 
         do {
             bridge = try configuration.bridge.validated()
@@ -525,6 +573,8 @@ public extension BearAppSupport {
                 loadedRuntimeConfigurationGeneration: nil,
                 currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
                 loadedRuntimeConfigurationFingerprint: nil,
+                currentBridgeImplementationMarker: currentBridgeImplementationMarker,
+                loadedBridgeImplementationMarker: bridgeRuntimeState?.loadedBridgeImplementationMarker,
                 launcherPath: launcherURL.path,
                 launchAgentLabel: BearBridgeLaunchAgent.label,
                 plistPath: launchAgentPlistURL.path,
@@ -564,10 +614,6 @@ public extension BearAppSupport {
         let endpointProbeResult = loaded
             ? endpointProbe(bridge.host, bridge.port)
             : BearBridgeEndpointProbeResult(reachable: false, transportReachable: false, protocolCompatible: false)
-        let bridgeRuntimeState = loadBridgeRuntimeState(
-            fileManager: fileManager,
-            runtimeStateURL: bridgeRuntimeStateURL
-        )
 
         let state = bridgeState(
             configuration: bridge,
@@ -596,6 +642,8 @@ public extension BearAppSupport {
             loadedRuntimeConfigurationGeneration: bridgeRuntimeState?.loadedRuntimeConfigurationGeneration,
             currentRuntimeConfigurationFingerprint: currentRuntimeConfigurationFingerprint,
             loadedRuntimeConfigurationFingerprint: bridgeRuntimeState?.loadedRuntimeConfigurationFingerprint,
+            currentBridgeImplementationMarker: currentBridgeImplementationMarker,
+            loadedBridgeImplementationMarker: bridgeRuntimeState?.loadedBridgeImplementationMarker,
             launcherPath: launcherURL.path,
             launchAgentLabel: BearBridgeLaunchAgent.label,
             plistPath: launchAgentPlistURL.path,

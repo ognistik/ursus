@@ -7,17 +7,27 @@ public enum BearSelectedNoteHelperLocator {
     public static func installedAppBundleURL(fileManager: FileManager = .default) -> URL? {
         installedAppBundleURL(
             fileManager: fileManager,
-            preferredAppBundleURL: UrsusAppLocator.preferredAppBundleURL,
-            userSpecificAppBundleURL: UrsusAppLocator.userSpecificAppBundleURL
+            stateURL: BearPaths.currentAppBundleStateURL
         )
     }
 
     public static func installedAppBundleURL(
         fileManager: FileManager = .default,
-        preferredAppBundleURL: URL,
-        userSpecificAppBundleURL: URL
+        stateURL: URL = BearPaths.currentAppBundleStateURL
     ) -> URL? {
-        let candidateMainAppBundleURLs = [preferredAppBundleURL, userSpecificAppBundleURL]
+        installedAppBundleURL(
+            fileManager: fileManager,
+            candidateMainAppBundleURLs: UrsusAppLocator.installedAppBundleCandidates(
+                fileManager: fileManager,
+                stateURL: stateURL
+            )
+        )
+    }
+
+    public static func installedAppBundleURL(
+        fileManager: FileManager = .default,
+        candidateMainAppBundleURLs: [URL]
+    ) -> URL? {
         for mainAppBundleURL in candidateMainAppBundleURLs where fileManager.fileExists(atPath: mainAppBundleURL.path) {
             if let helperBundleURL = embeddedAppBundleURL(
                 inAppBundleURL: mainAppBundleURL,

@@ -642,6 +642,11 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
 func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
     let launcherURL = tempRoot
         .appendingPathComponent(".local", isDirectory: true)
         .appendingPathComponent("bin", isDirectory: true)
@@ -659,8 +664,11 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
         .appendingPathComponent("Runtime", isDirectory: true)
         .appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
 
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
     try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\nexit 0\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
     try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
@@ -687,6 +695,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     try BearAppSupport.recordBridgeLoadedRuntimeState(
         runtimeConfigurationGeneration: 2,
         runtimeConfigurationFingerprint: "loaded-fingerprint",
+        bridgeImplementationMarker: "loaded-bridge-impl",
         fileManager: fileManager,
         runtimeStateURL: bridgeRuntimeStateURL
     )
@@ -697,6 +706,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     let snapshot = BearAppSupport.bridgeSnapshot(
         configuration: configuration,
         fileManager: fileManager,
+        currentAppBundleURL: appBundleURL,
         launcherURL: launcherURL,
         launchAgentPlistURL: launchAgentPlistURL,
         standardOutputURL: stdoutURL,
@@ -715,7 +725,96 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     #expect(snapshot.loadedRuntimeConfigurationGeneration == 2)
     #expect(snapshot.currentRuntimeConfigurationFingerprint == configuration.runtimeConfigurationFingerprint)
     #expect(snapshot.loadedRuntimeConfigurationFingerprint == "loaded-fingerprint")
+    #expect(snapshot.currentBridgeImplementationMarker != nil)
+    #expect(snapshot.loadedBridgeImplementationMarker == "loaded-bridge-impl")
     #expect(snapshot.status == .ok)
+}
+
+@Test
+func bridgeSnapshotMarksRestartRequiredWhenImplementationMarkerChanges() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let appBundleURL = tempRoot.appendingPathComponent("Ursus.app", isDirectory: true)
+    let bundledCLIURL = appBundleURL
+        .appendingPathComponent("Contents", isDirectory: true)
+        .appendingPathComponent("MacOS", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+    let bridgeRuntimeStateURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
+        .appendingPathComponent("Runtime", isDirectory: true)
+        .appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: bundledCLIURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\nexit 0\n".write(to: bundledCLIURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledCLIURL.path)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30,
+        runtimeConfigurationGeneration: 4,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    try BearAppSupport.recordBridgeLoadedRuntimeState(
+        runtimeConfigurationGeneration: 4,
+        runtimeConfigurationFingerprint: configuration.runtimeConfigurationFingerprint,
+        bridgeImplementationMarker: "stale-bridge-impl",
+        fileManager: fileManager,
+        runtimeStateURL: bridgeRuntimeStateURL
+    )
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let snapshot = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        fileManager: fileManager,
+        currentAppBundleURL: appBundleURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        bridgeRuntimeStateURL: bridgeRuntimeStateURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: true)
+        }
+    )
+
+    #expect(snapshot.runtimeConfigurationRestartRequired == false)
+    #expect(snapshot.implementationRestartRequired == true)
+    #expect(snapshot.restartRequired == true)
 }
 
 @Test
