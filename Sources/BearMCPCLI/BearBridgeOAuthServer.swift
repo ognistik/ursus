@@ -10,6 +10,7 @@ struct BearBridgeOAuthServer {
         var mcpEndpoint: String
         var authDatabaseURL: URL
         var supportedScopes: [String]
+        var protectedResourceScope: String
         var authorizationCodeLifetime: TimeInterval
         var accessTokenLifetime: TimeInterval
         var refreshTokenLifetime: TimeInterval
@@ -21,6 +22,7 @@ struct BearBridgeOAuthServer {
             mcpEndpoint: String,
             authDatabaseURL: URL,
             supportedScopes: [String] = ["mcp"],
+            protectedResourceScope: String = "mcp",
             authorizationCodeLifetime: TimeInterval = 300,
             accessTokenLifetime: TimeInterval = 3_600,
             refreshTokenLifetime: TimeInterval = 30 * 24 * 3_600,
@@ -31,6 +33,7 @@ struct BearBridgeOAuthServer {
             self.mcpEndpoint = mcpEndpoint
             self.authDatabaseURL = authDatabaseURL
             self.supportedScopes = supportedScopes
+            self.protectedResourceScope = protectedResourceScope
             self.authorizationCodeLifetime = authorizationCodeLifetime
             self.accessTokenLifetime = accessTokenLifetime
             self.refreshTokenLifetime = refreshTokenLifetime
@@ -75,6 +78,21 @@ struct BearBridgeOAuthServer {
         case .mcp, .notFound:
             return BearBridgeHTTPApplication.notFoundResponse()
         }
+    }
+
+    func hasAuthorizedMCPAccess(for request: HTTPRequest) async throws -> Bool {
+        guard let accessToken = BearBridgeHTTPApplication.bearerToken(
+            from: request.header(HTTPHeaderName.authorization)
+        ) else {
+            return false
+        }
+
+        let resource = endpointContext(for: request).resourceURL.absoluteString
+        return try await store.validatedAccessToken(
+            rawToken: accessToken,
+            resource: resource,
+            requiredScopes: [configuration.protectedResourceScope]
+        ) != nil
     }
 }
 

@@ -351,6 +351,63 @@ func bridgeRequiresOAuthAcrossEntireMCPSurfaceWhenEnabled() async throws {
 }
 
 @Test
+func bridgeRejectsInvalidBearerTokenOnProtectedMCPSurface() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Authorization": "Bearer invalid-token",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: try makeInitializeRequestBody(requestID: "oauth-invalid-token")
+    )
+
+    #expect(response.statusCode == 401)
+    let challenge = response.httpResponse.value(forHTTPHeaderField: HTTPHeaderName.wwwAuthenticate)
+    #expect(challenge?.contains(#"error="invalid_token""#) == true)
+    #expect(challenge?.contains("resource_metadata=") == true)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
 func bridgeServesOAuthMetadataWhenEnabled() async throws {
     let fileManager = FileManager.default
     let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -623,6 +680,89 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
 
     let completedRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
     #expect(completedRequest?.status == .completed)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeAllowsAuthenticatedMCPRequestsAndRepeatedInitializeWhenOAuthEnabled() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let oauthFlow = try await performBridgeOAuthAuthorizationCodeFlow(
+        port: port,
+        authDatabaseURL: authDatabaseURL,
+        clientName: "Authenticated MCP Test Client"
+    )
+
+    let initializeData = try await sendInitializeRequest(
+        port: port,
+        requestID: "oauth-tools-list-init",
+        bearerToken: oauthFlow.accessToken
+    )
+    let initializeResponse = try JSONDecoder().decode(Response<Initialize>.self, from: initializeData)
+    let initializeResult = try initializeResponse.result.get()
+
+    let toolsListData = try await sendToolsListRequest(
+        port: port,
+        requestID: "oauth-tools-list-request",
+        protocolVersion: initializeResult.protocolVersion,
+        bearerToken: oauthFlow.accessToken
+    )
+
+    guard let object = try JSONSerialization.jsonObject(with: toolsListData) as? [String: Any],
+          object["jsonrpc"] as? String == "2.0",
+          let result = object["result"] as? [String: Any],
+          result["tools"] as? [Any] != nil
+    else {
+        Issue.record("Expected a valid authenticated JSON-RPC tools/list response.")
+        throw CancellationError()
+    }
+
+    let repeatedInitializeData = try await sendInitializeRequest(
+        port: port,
+        requestID: "oauth-repeat-init",
+        bearerToken: oauthFlow.accessToken
+    )
+    let repeatedInitializeResponse = try JSONDecoder().decode(
+        Response<Initialize>.self,
+        from: repeatedInitializeData
+    )
+    let repeatedInitializeResult = try repeatedInitializeResponse.result.get()
+    #expect(repeatedInitializeResponse.id == .string("oauth-repeat-init"))
+    #expect(repeatedInitializeResult.protocolVersion == initializeResult.protocolVersion)
 
     await application.stop()
     try await startTask.value
@@ -1089,15 +1229,24 @@ private func tcpConnects(port: Int) -> Bool {
     return connectResult == 0
 }
 
-private func sendInitializeRequest(port: Int, requestID: String) async throws -> Data {
+private func sendInitializeRequest(
+    port: Int,
+    requestID: String,
+    bearerToken: String? = nil
+) async throws -> Data {
+    var headers = [
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    ]
+    if let bearerToken {
+        headers["Authorization"] = "Bearer \(bearerToken)"
+    }
+
     let response = try await sendHTTPRequest(
         port: port,
         path: "/mcp",
         method: "POST",
-        headers: [
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        ],
+        headers: headers,
         body: try makeInitializeRequestBody(requestID: requestID)
     )
     #expect(response.statusCode == 200)
@@ -1107,17 +1256,23 @@ private func sendInitializeRequest(port: Int, requestID: String) async throws ->
 private func sendToolsListRequest(
     port: Int,
     requestID: String,
-    protocolVersion: String
+    protocolVersion: String,
+    bearerToken: String? = nil
 ) async throws -> Data {
+    var headers = [
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        HTTPHeaderName.protocolVersion: protocolVersion,
+    ]
+    if let bearerToken {
+        headers["Authorization"] = "Bearer \(bearerToken)"
+    }
+
     let response = try await sendHTTPRequest(
         port: port,
         path: "/mcp",
         method: "POST",
-        headers: [
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            HTTPHeaderName.protocolVersion: protocolVersion,
-        ],
+        headers: headers,
         body: try makeToolsListRequestBody(requestID: requestID)
     )
     #expect(response.statusCode == 200)
@@ -1180,6 +1335,12 @@ private struct HTTPTestResponse {
     var statusCode: Int {
         httpResponse.statusCode
     }
+}
+
+private struct OAuthFlowResult {
+    let clientID: String
+    let accessToken: String
+    let refreshToken: String
 }
 
 private func sendHTTPRequest(
@@ -1282,6 +1443,88 @@ private func makeToolsListRequestBody(requestID: String) throws -> Data {
             "method": "tools/list",
             "params": [:],
         ]
+    )
+}
+
+private func performBridgeOAuthAuthorizationCodeFlow(
+    port: Int,
+    authDatabaseURL: URL,
+    clientName: String
+) async throws -> OAuthFlowResult {
+    let registrationBody = try JSONSerialization.data(
+        withJSONObject: [
+            "redirect_uris": ["https://example.com/callback"],
+            "client_name": clientName,
+            "token_endpoint_auth_method": "none",
+        ]
+    )
+    let registrationResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/register",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: registrationBody
+    )
+    let registrationObject = try #require(
+        try JSONSerialization.jsonObject(with: registrationResponse.data) as? [String: Any]
+    )
+    let clientID = try #require(registrationObject["client_id"] as? String)
+
+    let verifier = "phase5-verifier-abcdefghijklmnopqrstuvwxyz-0123456789"
+    let challenge = try PKCE.makeChallenge(from: verifier)
+    let authorizationResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/authorize?response_type=code&client_id=\(clientID)&redirect_uri=https://example.com/callback&state=phase5-state&resource=http://127.0.0.1:\(port)/mcp&scope=mcp&code_challenge=\(challenge)&code_challenge_method=S256",
+        followRedirects: false
+    )
+
+    #expect(authorizationResponse.statusCode == 200)
+
+    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
+    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    let pendingRequestID = try #require(reviewSnapshot.pendingRequests.first?.id)
+    _ = try await store.approvePendingAuthorizationRequest(id: pendingRequestID)
+
+    let statusResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/request-status?request_id=\(pendingRequestID)"
+    )
+    let statusObject = try #require(
+        try JSONSerialization.jsonObject(with: statusResponse.data) as? [String: Any]
+    )
+    let location = try #require(statusObject["redirect_url"] as? String)
+    let redirectURL = try #require(URL(string: location))
+    let redirectComponents = try #require(
+        URLComponents(url: redirectURL, resolvingAgainstBaseURL: false)
+    )
+    let code = try #require(
+        redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value
+    )
+
+    let tokenExchangeResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/token",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+        ],
+        body: Data(
+            "grant_type=authorization_code&client_id=\(clientID)&code=\(code)&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&code_verifier=\(verifier)&resource=http%3A%2F%2F127.0.0.1%3A\(port)%2Fmcp".utf8
+        )
+    )
+    let tokenObject = try #require(
+        try JSONSerialization.jsonObject(with: tokenExchangeResponse.data) as? [String: Any]
+    )
+    let accessToken = try #require(tokenObject["access_token"] as? String)
+    let refreshToken = try #require(tokenObject["refresh_token"] as? String)
+    return OAuthFlowResult(
+        clientID: clientID,
+        accessToken: accessToken,
+        refreshToken: refreshToken
     )
 }
 

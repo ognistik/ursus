@@ -235,6 +235,79 @@ func bridgeAuthStoreApproveAndDenyPendingRequests() async throws {
 }
 
 @Test
+func bridgeAuthStoreValidatesAccessTokenResourceAndScope() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Access Client",
+            redirectURIs: ["https://example.com/callback"]
+        )
+    )
+    let grant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: client.id,
+            scope: "mcp notes:read",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+    let refreshToken = try await store.issueRefreshToken(
+        BearBridgeRefreshTokenDraft(
+            clientID: client.id,
+            grantID: grant.id,
+            scope: grant.scope,
+            expiresAt: fixedNow.addingTimeInterval(86_400),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+    let accessToken = try await store.issueAccessToken(
+        BearBridgeAccessTokenDraft(
+            clientID: client.id,
+            grantID: grant.id,
+            refreshTokenID: refreshToken.record.id,
+            scope: grant.scope,
+            expiresAt: fixedNow.addingTimeInterval(3_600),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+
+    #expect(
+        try await store.validatedAccessToken(
+            rawToken: accessToken.token,
+            resource: "https://bridge.example/mcp",
+            requiredScopes: ["mcp"]
+        )?.id == accessToken.record.id
+    )
+    #expect(
+        try await store.validatedAccessToken(
+            rawToken: accessToken.token,
+            resource: "https://other.example/mcp",
+            requiredScopes: ["mcp"]
+        ) == nil
+    )
+    #expect(
+        try await store.validatedAccessToken(
+            rawToken: accessToken.token,
+            resource: "https://bridge.example/mcp",
+            requiredScopes: ["tools:call"]
+        ) == nil
+    )
+}
+
+@Test
 func bridgeSnapshotAuthCounts() async throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

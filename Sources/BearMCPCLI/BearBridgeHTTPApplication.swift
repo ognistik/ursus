@@ -188,14 +188,29 @@ actor BearBridgeHTTPApplication {
         }
 
         if configuration.authMode.requiresOAuth {
-            return .mcp(
-                Self.oauthRequiredResponse(
-                    for: request,
-                    host: configuration.host,
-                    port: configuration.port,
-                    mcpEndpoint: configuration.endpoint
+            do {
+                guard try await oauthServer.hasAuthorizedMCPAccess(for: request) else {
+                    return .mcp(
+                        Self.oauthRequiredResponse(
+                            for: request,
+                            host: configuration.host,
+                            port: configuration.port,
+                            mcpEndpoint: configuration.endpoint
+                        )
+                    )
+                }
+            } catch {
+                logger.error(
+                    "Failed to validate bridge OAuth bearer token",
+                    metadata: ["error": "\(error)"]
                 )
-            )
+                return .mcp(
+                    .error(
+                        statusCode: 500,
+                        .internalError("Failed to validate OAuth access token")
+                    )
+                )
+            }
         }
 
         if hasCompletedInitializationHandshake,
@@ -538,6 +553,24 @@ extension BearBridgeHTTPApplication {
             .invalidRequest("OAuth is required for the Ursus HTTP bridge."),
             extraHeaders: [HTTPHeaderName.wwwAuthenticate: challenge]
         )
+    }
+
+    static func bearerToken(from authorizationHeader: String?) -> String? {
+        guard let authorizationHeader else {
+            return nil
+        }
+
+        let components = authorizationHeader
+            .split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+        guard components.count == 2,
+              components[0].caseInsensitiveCompare("Bearer") == .orderedSame
+        else {
+            return nil
+        }
+
+        let token = components[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        return token.isEmpty ? nil : token
     }
 
     static func oauthProtectedResourceMetadataURL(

@@ -894,6 +894,38 @@ public actor BearBridgeAuthStore {
         return record?.makeModel()
     }
 
+    public func validatedAccessToken(
+        rawToken: String,
+        resource: String? = nil,
+        requiredScopes: [String] = []
+    ) throws -> BearBridgeAccessToken? {
+        guard let accessToken = try accessToken(for: rawToken) else {
+            return nil
+        }
+
+        if let normalizedResource = Self.normalizedOptionalString(resource) {
+            guard let storedResource = Self.metadataValue(named: "resource", in: accessToken.metadataJSON),
+                  storedResource == normalizedResource
+            else {
+                return nil
+            }
+        }
+
+        let normalizedRequiredScopes = requiredScopes.compactMap(Self.normalizedOptionalString)
+        if !normalizedRequiredScopes.isEmpty {
+            let tokenScopes = Set(
+                accessToken.scope
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init)
+            )
+            guard normalizedRequiredScopes.allSatisfy(tokenScopes.contains) else {
+                return nil
+            }
+        }
+
+        return accessToken
+    }
+
     @discardableResult
     public func revokeAuthorizationCode(rawCode: String, clientID: String? = nil, reason: String? = nil) throws -> BearBridgeAuthRevocation {
         try revokeSecret(rawValue: rawCode, kind: .authorizationCode, clientID: clientID, reason: reason)

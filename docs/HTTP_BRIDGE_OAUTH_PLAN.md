@@ -8,11 +8,11 @@
   - `UrsusCLIRuntime.runBridge` creates the optional HTTP bridge, builds `UrsusMCPServer`, and records bridge runtime state once the bridge is ready.
 - `Sources/BearMCPCLI/BearBridgeHTTPApplication.swift`
   - `BearBridgeHTTPApplication.start()` owns the NIO HTTP server lifecycle.
-  - `handleHTTPRequest(_:)` manually answers `initialize` and repeated `initialize` compatibility handshakes before delegating all other MCP traffic to `StatelessHTTPServerTransport`.
+  - `handleHTTPRequest(_:)` manually answers `initialize` and repeated `initialize` compatibility handshakes, serves bridge-local OAuth routes, and validates bearer tokens on protected `/mcp` requests before delegating authorized MCP traffic to `StatelessHTTPServerTransport`.
   - `bridgeValidationPipeline()` intentionally removes the SDK’s localhost-only host/origin guard so forwarded tunnel requests can reach the loopback-bound bridge.
-  - `BearBridgeHTTPHandler.handleRequest(...)` currently hard-rejects every path except the configured MCP endpoint and `makeHTTPRequest(...)` drops both the request path and peer socket identity before handing the request to the MCP transport.
+  - `BearBridgeHTTPHandler.handleRequest(...)` preserves the incoming request path so the bridge layer can distinguish `/mcp` from OAuth discovery and authorization routes before MCP transport handling.
 - `Sources/BearCore/BearBridgeConfiguration.swift`
-  - The bridge config currently knows only `enabled`, `host`, and `port`, and validation enforces loopback-only bind addresses.
+  - The bridge config now includes a bridge-scoped auth mode while still enforcing loopback-only bind addresses.
 
 ### Actual MCP registration points
 
@@ -26,15 +26,14 @@
 - `Sources/BearApplication/BearBridgeSupport.swift`
   - `BearAppBridgeSnapshot` is the current bridge status payload.
   - `bridgeSnapshot(...)` is the central bridge health/status builder.
-  - `probeBridgeEndpoint(...)` and `probeBridgeProtocol(...)` assume unauthenticated `initialize` and `tools/list`.
+  - `probeBridgeEndpoint(...)` and `probeBridgeProtocol(...)` now treat an OAuth Bearer challenge on `/mcp` as a healthy protected-bridge signal instead of a generic failure.
 - `App/UrsusApp/UrsusSetupView.swift`
   - The Setup tab already has a compact `Remote MCP Bridge` card with minimal controls and status text.
   - This is the right place for a very small remote-auth status/review affordance.
 
 ### Important code-level constraints discovered
 
-1. The current bridge cannot serve OAuth discovery or authorization endpoints at all.
-   - `BearBridgeHTTPHandler` only accepts the MCP endpoint path, so `/.well-known/oauth-protected-resource`, `/.well-known/oauth-authorization-server`, `/oauth/authorize`, `/oauth/token`, and any consent/status routes would all 404 today.
+1. The bridge now serves OAuth discovery and authorization endpoints from the same loopback-bound HTTP process, so future work no longer needs another transport refactor just to add routes.
 
 2. The current bridge cannot classify request source robustly enough for local-vs-remote policy.
    - The bridge handler has access to the NIO channel, but it does not preserve peer address.
@@ -45,9 +44,9 @@
    - The SDK `Tool` type supports `_meta` with arbitrary additional fields, but not a typed `securitySchemes` property.
    - That is enough for Ursus to emit host-specific auth metadata if needed, but the exact ChatGPT-consumed shape is not enforced by the SDK.
 
-4. The current bridge/app diagnostics strongly favor keeping `initialize` and `tools/list` public.
-   - Existing bridge readiness checks rely on unauthenticated `initialize` and `tools/list`.
-   - Preserving that behavior keeps the app simple and avoids teaching the app its own bridge OAuth flow just for health checks.
+4. The bridge/app diagnostics already recognize protected bridges without needing their own OAuth flow.
+   - Existing readiness checks now treat a `401` Bearer challenge on `/mcp` as transport-up plus OAuth-configured.
+   - Future diagnostics can stay lightweight unless we decide a fully authenticated probe is worth the extra complexity.
 
 ## 2. Recommended architecture
 
@@ -347,7 +346,6 @@ Primary files:
 Notes for next phase:
 
 - Authorization currently auto-approves through the bridge-local single-owner flow so Phase 3 can validate end-to-end HTTP OAuth without landing the app approval UI early.
-- `/mcp` remains challenge-only in bridge OAuth mode; token-backed MCP access is still deferred to Phase 5.
 - The next phase should replace auto-approval with app-mediated pending-request review, approval, denial, and remembered-grant management.
 
 ### Phase 4: Local-owner consent mediation via Ursus.app
@@ -373,28 +371,31 @@ Implemented behavior:
 
 Notes for next phase:
 
-- `/mcp` remains challenge-only in bridge OAuth mode; token-backed MCP access is still deferred to Phase 5.
 - The next phase should validate bearer tokens on protected MCP requests while leaving OAuth discovery, registration, authorize, status, and token lifecycle routes public.
 
 ### Phase 5: Full-bridge OAuth enforcement
 
-Likely files:
+Status: completed on 2026-04-06
 
-- `Sources/BearMCP/UrsusMCPServer.swift`
-- bridge auth router/classifier files
+Implemented:
+
+- `Sources/BearMCPCLI/BearBridgeHTTPApplication.swift`
+- `Sources/BearMCPCLI/BearBridgeOAuthServer.swift`
+- `Sources/BearApplication/BearBridgeAuthStore.swift`
 - `Tests/BearMCPCLITests/BearBridgeHTTPApplicationTests.swift`
+- `Tests/BearApplicationTests/BearBridgeAuthStoreTests.swift`
 
-Work:
+Implemented behavior:
 
-- enforce `401` on the full `/mcp` surface when bridge OAuth is enabled and the request lacks valid authorization
-- keep OAuth discovery and token lifecycle routes public
-- verify repeated `initialize` still works correctly after authorization
+- Protected `/mcp` requests in bridge OAuth mode now parse `Authorization: Bearer ...` at the bridge boundary, validate the issued access token against the durable bridge-auth store, and reject invalid, expired, revoked, malformed, or wrong-resource tokens with the existing Bearer challenge flow.
+- Valid protected-bridge tokens now allow authenticated `initialize`, repeated compatibility `initialize`, and `tools/list` requests to reach the existing stateless MCP transport without changing stdio or Bear business logic.
+- OAuth discovery, registration, authorize, request-status, and token lifecycle routes remain public while bridge OAuth is enabled.
+- The durable auth store now exposes a small access-token validation helper that checks both protected-resource binding and required scopes for bridge-issued bearer tokens.
+- Tests now cover authenticated MCP access, repeated `initialize` after authorization, invalid bearer-token failures, and durable access-token validation rules.
 
-Checkpoint:
+Notes for next phase:
 
-- bridge-open mode still works with no OAuth
-- bridge-protected mode returns `401` + `WWW-Authenticate` on unauthenticated MCP requests
-- authenticated `initialize` and `tools/list` succeed end-to-end
+- The remaining work is interoperability hardening against more real remote hosts and tunnel setups rather than more core bridge OAuth plumbing.
 
 ### Phase 6: Host interoperability validation
 
@@ -427,9 +428,9 @@ Because Ursus intentionally has no user accounts, the authorization server needs
 
 OAuth discovery and audience binding need the canonical HTTPS resource identity that users expose to remote hosts, not `http://127.0.0.1:6190/mcp`. Ursus will need a clean way to configure or derive that public origin for OAuth-enabled bridge deployments.
 
-### 4. Current bridge health probes assume public `initialize` and `tools/list`
+### 4. Protected-bridge diagnostics are intentionally lightweight
 
-If Ursus moves to full-bridge auth, app diagnostics will need an OAuth-aware health probe or a lighter “transport up / auth configured” model for protected bridges.
+Ursus now treats a `401` Bearer challenge on `/mcp` as a healthy protected-bridge signal. A future authenticated probe is still optional, but no longer blocks Phase 5.
 
 ## 9. Recommendation
 
