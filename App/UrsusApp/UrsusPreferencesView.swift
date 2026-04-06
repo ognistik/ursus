@@ -84,7 +84,7 @@ struct UrsusPreferencesView: View {
     private var inboxTagsPanel: some View {
         UrsusPanel(
             title: "Inbox Tags",
-            titleHelpText: "Applied by default when creating notes."
+            titleHelpText: "Tags you keep ready for quick capture. When enabled in Note Behavior, new notes can start in this inbox automatically."
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 UrsusTagEditor(
@@ -155,7 +155,10 @@ struct UrsusPreferencesView: View {
     }
 
     private var limitsPanel: some View {
-        UrsusPanel(title: "Read and Backup Limits") {
+        UrsusPanel(
+            title: "Read and Backup Limits",
+            titleHelpText: "Ursus can create backups automatically before edits, or on demand through backup tools."
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     UrsusNumericFieldRow(
@@ -180,9 +183,7 @@ struct UrsusPreferencesView: View {
                     UrsusNumericFieldRow(
                         label: "Backup retention days",
                         value: autosavingBinding(\.backupRetentionDaysDraft),
-                        range: 0...365,
-                        helpText: "Temporary backups are automatically created on note editing & replace operations."
-                    )
+                        range: 0...365                    )
                     configurationValidationMessages(for: .backupRetentionDays)
                 }
             }

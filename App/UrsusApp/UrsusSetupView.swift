@@ -194,8 +194,7 @@ struct UrsusSetupView: View {
         let supportedSetups = model.setupHostSetups
 
         return UrsusPanel(
-            title: "Connect Apps",
-            titleHelpText: "Copy a setup snippet for apps installed on this Mac."
+            title: "Connect Apps"
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 if supportedSetups.isEmpty {
@@ -265,7 +264,7 @@ struct UrsusSetupView: View {
             return AnyView(
                 UrsusPanel(
                     title: "Remote MCP Bridge",
-                    titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly.",
+                    titleHelpText: "Use this when an app supports a local MCP URL instead of launching Ursus directly.",
                     headerAccessory: {
                         UrsusStatusBadge(title: badge.title, status: badge.status)
                     }
@@ -278,7 +277,7 @@ struct UrsusSetupView: View {
         return AnyView(
             UrsusPanel(
                 title: "Remote MCP Bridge",
-                titleHelpText: "Use this when an app needs a local MCP URL instead of launching Ursus directly."
+                titleHelpText: "Use this when an app supports a local MCP URL instead of launching Ursus directly."
             ) {
                 bridgePanelBody(settings, bridge: bridge)
             }
