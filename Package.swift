@@ -125,6 +125,7 @@ let package = Package(
             name: "BearMCPCLITests",
             dependencies: [
                 "BearCLIRuntime",
+                "BearApplication",
                 "BearCore",
                 .product(name: "MCP", package: "swift-sdk"),
             ]

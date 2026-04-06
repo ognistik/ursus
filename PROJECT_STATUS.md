@@ -59,6 +59,7 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
 - The `Remote MCP Bridge` now also carries one bridge-scoped auth toggle: open by default, or `Require OAuth for all bridge requests` for the entire `/mcp` surface. This applies only to the optional HTTP bridge; stdio remains untouched.
 - When bridge OAuth is enabled, Ursus now keeps durable bridge-auth state in a small local SQLite store under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`, covering registered clients, remembered grants, pending authorization requests, authorization codes, refresh/access tokens, and revocations.
+- Protected bridges now also serve a built-in bridge-local OAuth 2.1 authorization server, including protected-resource metadata, authorization-server metadata, dynamic client registration for public clients, an authorization endpoint that records pending requests before issuing PKCE-backed authorization codes, and a token endpoint for authorization-code and refresh-token exchange.
 - The Setup bridge card now shows a compact auth-state summary for the protected bridge, including whether auth storage is ready plus remembered grant and pending-request counts, without exposing the full approval/review UI before later phases.
 - The Setup bridge card now derives a `Restart Required` state from persisted runtime config drift, selected-note token availability drift, and MCP bridge-surface drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
@@ -156,6 +157,7 @@ These paths describe the codebase as it exists after Phase 6:
 - The bridge HTTP handler now preserves request paths and routes `/mcp` separately from future OAuth bridge paths, so OAuth well-known and authorization endpoints can be added without another transport-layer refactor.
 - Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records the config generation/fingerprint, selected-note token availability, and a canonical MCP bridge-surface marker in a small runtime state file so the app can flag stale-yet-serving bridge processes after config edits, token availability changes, or MCP-surface updates without guessing about client restarts.
 - Bridge OAuth Phase 2 storage is now in place entirely inside the optional bridge/application layers: `BearPaths` exposes the auth-store location, `BearBridgeAuthStore` persists bridge-local OAuth state in SQLite with hashed secrets at rest, and `bridgeSnapshot` surfaces compact auth counts to the app and CLI without changing stdio or Bear note logic.
+- Bridge OAuth Phase 3 is now in place inside the optional bridge runtime: the HTTP bridge serves OAuth discovery/registration/authorize/token routes on the same loopback-bound process, `/mcp` Bearer challenges now advertise protected-resource metadata, dynamic client registration is limited to public clients, and authorization currently auto-approves through the bridge-local single-owner flow until the app-driven consent UI lands in the next phase.
 - The app now records the most recently opened `Ursus.app` bundle path in runtime state, so launcher validation, CLI diagnostics, and selected-note helper lookup can continue to find a nonstandard install location after the app has been opened once.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
@@ -182,8 +184,8 @@ The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has 
 
 Current near-term priorities:
 
-1. Implement Phase 3 of the HTTP bridge OAuth work: protected-resource metadata, authorization-server metadata, client registration, authorize, and token endpoints on top of the new durable bridge-auth store.
-2. Implement the built-in bridge-local authorization server endpoints on top of the new multi-route bridge boundary without expanding the consent UI beyond the planned local-owner mediation flow.
+1. Implement Phase 4 of the HTTP bridge OAuth work: surface pending bridge auth requests in `Ursus.app` and replace the temporary auto-approval path with local-owner approve/deny mediation plus durable remembered-grant review/revoke UI.
+2. Implement Phase 5 bridge access-token enforcement so protected `/mcp` requests can succeed with the Phase 3-issued bearer tokens while keeping OAuth discovery/token lifecycle routes public.
 
 ## Verification Baseline
 
@@ -258,6 +260,14 @@ Bridge-launch packaging verification that passed on 2026-04-02:
 - `./.build/UrsusApp/Build/Products/Debug/Ursus.app/Contents/MacOS/Ursus --ursus-cli --help`
 - verified the app executable now owns the in-bundle launch path used by the public launcher and bridge runtime
 - verified the build no longer produces `Contents/Resources/bin/ursus`
+
+HTTP bridge OAuth Phase 3 verification that passed on 2026-04-06:
+
+- `swift test --filter BearMCPCLITests`
+- `swift test`
+- `swift run ursus paths`
+- `swift run ursus bridge status`
+- bridge tests now cover protected-resource metadata, authorization-server metadata, dynamic client registration, authorization-code + PKCE exchange, refresh-token rotation, and updated `WWW-Authenticate` discovery challenges
 - verified the selected-note helper still bundles at `Contents/Library/Helpers/Ursus Helper.app`
 
 HTTP bridge OAuth Phase 2 verification that passed on 2026-04-06:

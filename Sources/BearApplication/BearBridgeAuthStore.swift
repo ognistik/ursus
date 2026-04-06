@@ -454,6 +454,48 @@ public actor BearBridgeAuthStore {
         return record?.makeModel()
     }
 
+    public func activeGrant(
+        clientID: String,
+        scope: String,
+        resource: String? = nil
+    ) throws -> BearBridgeAuthGrant? {
+        let dbQueue = try prepareDatabaseQueue()
+        let normalizedScope = try Self.normalizedRequiredString(scope, label: "Grant scope")
+        let normalizedResource = Self.normalizedOptionalString(resource)
+        let record = try dbQueue.read { db in
+            try BridgeAuthGrantRecord.fetchOne(
+                db,
+                sql: """
+                SELECT *
+                FROM grants
+                WHERE client_id = ?
+                    AND scope = ?
+                    AND revoked_at IS NULL
+                    AND (
+                        (resource IS NULL AND ? IS NULL)
+                        OR resource = ?
+                    )
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                arguments: [clientID, normalizedScope, normalizedResource, normalizedResource]
+            )
+        }
+        return record?.makeModel()
+    }
+
+    public func ensureGrant(_ draft: BearBridgeAuthGrantDraft) throws -> BearBridgeAuthGrant {
+        if let existing = try activeGrant(
+            clientID: draft.clientID,
+            scope: draft.scope,
+            resource: draft.resource
+        ) {
+            return existing
+        }
+
+        return try createGrant(draft)
+    }
+
     public func revokeGrant(id: String) throws -> BearBridgeAuthGrant? {
         let dbQueue = try prepareDatabaseQueue()
         let revokedAt = now()

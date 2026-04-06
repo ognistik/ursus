@@ -325,27 +325,30 @@ Notes for next phase:
 
 ### Phase 3: Built-in authorization server
 
-Likely files:
+Status: completed on 2026-04-06
+
+Implemented:
+
+- The bridge now serves real OAuth discovery metadata at `/.well-known/oauth-protected-resource/...` and `/.well-known/oauth-authorization-server`, using the current bridge origin/resource identity instead of the earlier placeholders.
+- Protected `/mcp` challenges now advertise `resource_metadata` so a clean OAuth client can discover the built-in authorization server from a `401` response.
+- `POST /oauth/register` now supports dynamic client registration for public clients and persists registrations in the Phase 2 durable auth store.
+- `GET /oauth/authorize` now validates PKCE authorization requests, creates durable pending authorization requests, reuses or creates durable grants, and issues authorization codes through the shared auth store.
+- `POST /oauth/token` now exchanges authorization codes and refresh tokens for opaque bearer tokens, rotates refresh tokens, and stores all issued secrets hashed at rest through the shared auth store.
+- Tests now cover OAuth discovery, dynamic client registration, authorization-code + PKCE exchange, refresh-token rotation, and the updated discovery challenge on protected `/mcp`.
+
+Primary files:
 
 - new bridge-auth files under `BearCLIRuntime` and/or `BearApplication`
 - `Sources/BearMCPCLI/BearBridgeHTTPApplication.swift`
+- `Sources/BearMCPCLI/BearBridgeOAuthServer.swift`
+- `Sources/BearApplication/BearBridgeAuthStore.swift`
 - new tests in `Tests/BearMCPCLITests`
 
-Work:
+Notes for next phase:
 
-- implement:
-  - Protected Resource Metadata
-  - Authorization Server Metadata
-  - Dynamic Client Registration
-  - Authorization endpoint with pending-request creation
-  - Token endpoint for code exchange + refresh
-- use SDK auth helpers where they fit, but keep custom routing for authorization endpoints and local consent flow
-
-Checkpoint:
-
-- OAuth discovery works from a clean client
-- DCR works for a public client
-- auth code + PKCE + refresh token flow works end-to-end
+- Authorization currently auto-approves through the bridge-local single-owner flow so Phase 3 can validate end-to-end HTTP OAuth without landing the app approval UI early.
+- `/mcp` remains challenge-only in bridge OAuth mode; token-backed MCP access is still deferred to Phase 5.
+- The next phase should replace auto-approval with app-mediated pending-request review, approval, denial, and remembered-grant management.
 
 ### Phase 4: Local-owner consent mediation via Ursus.app
 

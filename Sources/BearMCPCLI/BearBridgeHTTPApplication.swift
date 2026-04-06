@@ -7,6 +7,20 @@ import MCP
 @preconcurrency import NIOPosix
 
 actor BearBridgeHTTPApplication {
+    enum BridgeHTTPResponse: Sendable {
+        case mcp(HTTPResponse)
+        case plain(statusCode: Int, headers: [String: String] = [:], body: Data? = nil)
+
+        var statusCode: Int {
+            switch self {
+            case .mcp(let response):
+                response.statusCode
+            case .plain(let statusCode, _, _):
+                statusCode
+            }
+        }
+    }
+
     struct InitializeEnvelope: Sendable {
         let id: ID
         let protocolVersion: String
@@ -18,19 +32,22 @@ actor BearBridgeHTTPApplication {
         var endpoint: String
         var authMode: BearBridgeAuthMode
         var sessionTimeout: TimeInterval
+        var authDatabaseURL: URL
 
         init(
             host: String,
             port: Int,
             endpoint: String = "/mcp",
             authMode: BearBridgeAuthMode = .open,
-            sessionTimeout: TimeInterval = 3600
+            sessionTimeout: TimeInterval = 3600,
+            authDatabaseURL: URL = BearPaths.bridgeAuthDatabaseURL
         ) {
             self.host = host
             self.port = port
             self.endpoint = endpoint
             self.authMode = authMode
             self.sessionTimeout = sessionTimeout
+            self.authDatabaseURL = authDatabaseURL
         }
     }
 
@@ -51,6 +68,7 @@ actor BearBridgeHTTPApplication {
     private let serverFactory: ServerFactory
     private let readyHandler: ReadyHandler?
     private let logger: Logger
+    private let oauthServer: BearBridgeOAuthServer
 
     private var channel: Channel?
     private var eventLoopGroup: MultiThreadedEventLoopGroup?
@@ -69,6 +87,14 @@ actor BearBridgeHTTPApplication {
         self.serverFactory = serverFactory
         self.readyHandler = readyHandler
         self.logger = logger
+        self.oauthServer = BearBridgeOAuthServer(
+            configuration: .init(
+                host: configuration.host,
+                port: configuration.port,
+                mcpEndpoint: configuration.endpoint,
+                authDatabaseURL: configuration.authDatabaseURL
+            )
+        )
     }
 
     var endpoint: String {
@@ -142,7 +168,7 @@ actor BearBridgeHTTPApplication {
         logger.info("Ursus bridge stopped")
     }
 
-    func handleHTTPRequest(_ request: HTTPRequest) async -> HTTPResponse {
+    func handleHTTPRequest(_ request: HTTPRequest) async -> BridgeHTTPResponse {
         switch Self.route(for: request.path, mcpEndpoint: configuration.endpoint) {
         case .mcp:
             break
@@ -151,13 +177,23 @@ actor BearBridgeHTTPApplication {
              .oauthAuthorize,
              .oauthToken,
              .oauthRegister:
-            return Self.oauthEndpointNotImplementedResponse()
+            guard configuration.authMode.requiresOAuth else {
+                return Self.notFoundResponse()
+            }
+            return await oauthServer.handle(request: request)
         case .notFound:
-            return .error(statusCode: 404, .invalidRequest("Not Found"))
+            return Self.notFoundResponse()
         }
 
         if configuration.authMode.requiresOAuth {
-            return Self.oauthRequiredResponse(for: request)
+            return .mcp(
+                Self.oauthRequiredResponse(
+                    for: request,
+                    host: configuration.host,
+                    port: configuration.port,
+                    mcpEndpoint: configuration.endpoint
+                )
+            )
         }
 
         if hasCompletedInitializationHandshake,
@@ -172,15 +208,17 @@ actor BearBridgeHTTPApplication {
                     clientRequestedVersion: initializeEnvelope.protocolVersion,
                     server: server
                 )
-                return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
+                return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
             } catch {
                 logger.error(
                     "Failed to build compatibility initialize response",
                     metadata: ["error": "\(error)"]
                 )
-                return .error(
-                    statusCode: 500,
-                    .internalError("Failed to build initialize response")
+                return .mcp(
+                    .error(
+                        statusCode: 500,
+                        .internalError("Failed to build initialize response")
+                    )
                 )
             }
         }
@@ -204,9 +242,11 @@ actor BearBridgeHTTPApplication {
                     "Ursus bridge runtime failed during startup",
                     metadata: ["error": "\(error)"]
                 )
-                return .error(
-                    statusCode: 503,
-                    .internalError("Ursus bridge is still starting up")
+                return .mcp(
+                    .error(
+                        statusCode: 503,
+                        .internalError("Ursus bridge is still starting up")
+                    )
                 )
             }
         }
@@ -221,28 +261,32 @@ actor BearBridgeHTTPApplication {
                     server: server
                 )
                 hasCompletedInitializationHandshake = true
-                return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
+                return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
             } catch {
                 logger.error(
                     "Failed to build manual initialize response",
                     metadata: ["error": "\(error)"]
                 )
-                return .error(
-                    statusCode: 500,
-                    .internalError("Failed to build initialize response")
+                return .mcp(
+                    .error(
+                        statusCode: 500,
+                        .internalError("Failed to build initialize response")
+                    )
                 )
             }
         }
 
         guard let transport else {
-            return .error(
-                statusCode: 503,
-                .internalError("Ursus bridge transport is not ready yet")
+            return .mcp(
+                .error(
+                    statusCode: 503,
+                    .internalError("Ursus bridge transport is not ready yet")
+                )
             )
         }
 
         let response = await transport.handleRequest(request)
-        return Self.wrapStreamingHTTPResponseIfRequested(response, for: request)
+        return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
     }
 
     private func teardown() async {
@@ -466,11 +510,22 @@ extension BearBridgeHTTPApplication {
         return trimmedPath.split(separator: "?").first.map(String.init) ?? trimmedPath
     }
 
-    static func oauthRequiredResponse(for request: HTTPRequest) -> HTTPResponse {
+    static func oauthRequiredResponse(
+        for request: HTTPRequest,
+        host: String,
+        port: Int,
+        mcpEndpoint: String
+    ) -> HTTPResponse {
         let hasAuthorizationHeader = request.header(HTTPHeaderName.authorization)?.isEmpty == false
+        let resourceMetadata = oauthProtectedResourceMetadataURL(
+            for: request,
+            host: host,
+            port: port,
+            mcpEndpoint: mcpEndpoint
+        )
         let challenge = hasAuthorizationHeader
-            ? #"Bearer realm="ursus-bridge", error="invalid_token""#
-            : #"Bearer realm="ursus-bridge""#
+            ? #"Bearer realm="ursus-bridge", error="invalid_token", resource_metadata="\#(resourceMetadata)""#
+            : #"Bearer realm="ursus-bridge", resource_metadata="\#(resourceMetadata)""#
 
         return .error(
             statusCode: 401,
@@ -479,10 +534,31 @@ extension BearBridgeHTTPApplication {
         )
     }
 
-    static func oauthEndpointNotImplementedResponse() -> HTTPResponse {
-        .error(
-            statusCode: 501,
-            .invalidRequest("OAuth bridge endpoints are not implemented yet.")
+    static func oauthProtectedResourceMetadataURL(
+        for request: HTTPRequest,
+        host: String,
+        port: Int,
+        mcpEndpoint: String
+    ) -> String {
+        let origin = BearBridgeOAuthServer.originURL(
+            hostHeader: request.header(HTTPHeaderName.host),
+            fallbackHost: host,
+            fallbackPort: port
+        )
+        var metadataURL = origin
+            .appendingPathComponent(".well-known", isDirectory: true)
+            .appendingPathComponent("oauth-protected-resource", isDirectory: true)
+        for component in mcpEndpoint.split(separator: "/", omittingEmptySubsequences: true) {
+            metadataURL.appendPathComponent(String(component), isDirectory: false)
+        }
+        return metadataURL.absoluteString
+    }
+
+    static func notFoundResponse() -> BridgeHTTPResponse {
+        .plain(
+            statusCode: 404,
+            headers: [HTTPHeaderName.contentType: "text/plain; charset=utf-8"],
+            body: Data("Not Found".utf8)
         )
     }
 }
@@ -566,7 +642,7 @@ private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sen
     }
 
     private func writeResponse(
-        _ response: HTTPResponse,
+        _ response: BearBridgeHTTPApplication.BridgeHTTPResponse,
         version: HTTPVersion,
         context: ChannelHandlerContext
     ) async {
@@ -574,7 +650,7 @@ private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sen
         let eventLoop = unsafeContext.eventLoop
 
         switch response {
-        case .stream(let stream, let headers):
+        case .mcp(.stream(let stream, let headers)):
             eventLoop.execute {
                 var responseHead = HTTPResponseHead(
                     version: version,
@@ -609,14 +685,35 @@ private final class BearBridgeHTTPHandler: ChannelInboundHandler, @unchecked Sen
                 unsafeContext.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
             }
 
-        default:
-            let headers = response.headers
-            let bodyData = response.bodyData
+        case .mcp(let mcpResponse):
+            let headers = mcpResponse.headers
+            let bodyData = mcpResponse.bodyData
 
             eventLoop.execute {
                 var responseHead = HTTPResponseHead(
                     version: version,
                     status: HTTPResponseStatus(statusCode: response.statusCode)
+                )
+                for (name, value) in headers {
+                    responseHead.headers.add(name: name, value: value)
+                }
+
+                unsafeContext.write(self.wrapOutboundOut(.head(responseHead)), promise: nil)
+
+                if let bodyData {
+                    var buffer = unsafeContext.channel.allocator.buffer(capacity: bodyData.count)
+                    buffer.writeBytes(bodyData)
+                    unsafeContext.write(self.wrapOutboundOut(.body(.byteBuffer(buffer))), promise: nil)
+                }
+
+                unsafeContext.writeAndFlush(self.wrapOutboundOut(.end(nil)), promise: nil)
+            }
+
+        case .plain(let statusCode, let headers, let bodyData):
+            eventLoop.execute {
+                var responseHead = HTTPResponseHead(
+                    version: version,
+                    status: HTTPResponseStatus(statusCode: statusCode)
                 )
                 for (name, value) in headers {
                     responseHead.headers.add(name: name, value: value)
