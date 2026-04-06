@@ -121,6 +121,18 @@ func parseRestoreNoteRequiresEvenPairs() throws {
 }
 
 @Test
+func parseRestoreNoteWithoutArgumentsBuildsEmptyRequestList() throws {
+    let command = try BearCLICommand.parse(arguments: ["--restore-note"])
+
+    switch command {
+    case .restoreNote(let requests):
+        #expect(requests.isEmpty)
+    default:
+        Issue.record("Expected bare '--restore-note' to parse as .restoreNote([]).")
+    }
+}
+
+@Test
 func parseRestoreNoteBuildsPairRequests() throws {
     let command = try BearCLICommand.parse(arguments: [
         "--restore-note",

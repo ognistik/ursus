@@ -78,15 +78,20 @@ public enum UrsusCLIRuntime {
                 print(renderBackupSummaries(summaries))
             case .restoreNote(let requests):
                 let runtime = try makeRuntimeServices(logger: logger)
-                let receipts = try await runtime.service.restoreCLIBackups(
-                    requests.map {
-                        RestoreBackupRequest(
-                            noteID: $0.noteID,
-                            snapshotID: $0.snapshotID,
-                            presentation: BearPresentationOptions()
-                        )
-                    }
-                )
+                let receipts: [RestoreBackupReceipt]
+                if requests.isEmpty {
+                    receipts = try await runtime.service.restoreLatestBackupsForTargets([.selected])
+                } else {
+                    receipts = try await runtime.service.restoreCLIBackups(
+                        requests.map {
+                            RestoreBackupRequest(
+                                noteID: $0.noteID,
+                                snapshotID: $0.snapshotID,
+                                presentation: BearPresentationOptions()
+                            )
+                        }
+                    )
+                }
                 print(renderRestoreBackupReceipts(receipts))
             case .applyTemplate(let selectors):
                 let runtime = try makeRuntimeServices(logger: logger)

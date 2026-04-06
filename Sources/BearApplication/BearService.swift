@@ -763,6 +763,19 @@ public final class BearService: @unchecked Sendable {
         try await archiveNoteTargets(noteSelectors.map(NoteTarget.selector))
     }
 
+    public func restoreLatestBackupsForTargets(_ targets: [NoteTarget]) async throws -> [RestoreBackupReceipt] {
+        let noteIDs = try await resolveConcreteNoteIDs(targets)
+        guard !noteIDs.isEmpty else {
+            throw BearError.invalidInput("Restore-note CLI requires one or more note targets.")
+        }
+
+        return try await restoreCLIBackups(
+            noteIDs.map { noteID in
+                RestoreBackupRequest(noteID: noteID, snapshotID: nil)
+            }
+        )
+    }
+
     public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
         let requests = try requireNonEmptyOperations(requests)
         return try await mutateEach(requests) { request in

@@ -210,6 +210,45 @@ func restoreCLIBackupsRequiresExactNoteIDs() async throws {
 }
 
 @Test
+func restoreLatestBackupsForTargetsUsesSelectedNoteAndMostRecentSnapshot() async throws {
+    let selected = makeBackupServiceNote(id: "selected-note", title: "Selected", body: "Current")
+    let readStore = BackupServiceReadStore(noteByID: ["selected-note": selected], notesByTitle: [:])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        snapshots: [
+            "snapshot-latest": BearBackupSnapshot(
+                snapshotID: "snapshot-latest",
+                noteID: "selected-note",
+                version: 4,
+                title: "Selected",
+                rawText: "# Selected\n\nPrevious",
+                modifiedAt: Date(timeIntervalSince1970: 1_710_000_500),
+                capturedAt: Date(timeIntervalSince1970: 1_710_000_550),
+                reason: .manual,
+                operationGroupID: "op-latest"
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        tokenStore: InMemoryBearTokenStore(token: "secret-token"),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let receipts = try await service.restoreLatestBackupsForTargets([NoteTarget.selected])
+
+    let replace = try #require(await writeTransport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replace.noteID == "selected-note")
+    #expect(replace.fullText == "# Selected\n\nPrevious")
+    #expect(receipt.noteID == "selected-note")
+    #expect(receipt.snapshotID == "snapshot-latest")
+}
+
+@Test
 func listBackupsResolvesSelectorsAndReturnsPerOperationErrors() async throws {
     let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current")
     let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])

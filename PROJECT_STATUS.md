@@ -66,7 +66,7 @@ Current direct utility commands:
 
 - `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
 - `ursus --backup-note [note-id-or-title ...]`
-- `ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
+- `ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]`
 - `ursus --apply-template [note-id-or-title ...]`
 - `ursus bridge serve`
 - `ursus bridge status`
@@ -83,8 +83,9 @@ Behavior already in place:
 - CLI-created empty notes now preserve one empty editable body line inside the templated `{{content}}` slot so the caret lands in the body without breaking template structure.
 - Short aliases now exist for explicit `--new-note` subflags: `-t`, `-c`, `-g`, `-rt`, `-on`, and `-nw`.
 - `--backup-note` captures one durable backup snapshot per selected or explicitly targeted note and prints machine-friendly receipt lines that include both `note_id` and `snapshot_id`.
-- `--restore-note` restores one or more explicit `NOTE_ID SNAPSHOT_ID` pairs, requires exact note ids rather than title selectors, and reports per-pair receipts.
-- `--apply-template` and `--backup-note` target the selected Bear note when called without arguments.
+- Bare `--restore-note` restores the selected Bear note from its most recent backup snapshot and reports a compact receipt.
+- Passed `--restore-note` arguments restore one or more explicit `NOTE_ID SNAPSHOT_ID` pairs, require exact note ids rather than title selectors, and report per-pair receipts.
+- `--apply-template`, `--backup-note`, and bare `--restore-note` target the selected Bear note when called without arguments.
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 - `bridge serve` now provides the first optional loopback HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
 - Bridge config now lives inside `~/Library/Application Support/Ursus/config.json` with default localhost settings and a stable saved port.

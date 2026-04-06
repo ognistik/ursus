@@ -80,7 +80,7 @@ enum BearCLICommand {
           ursus --new-note
           ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]
           ursus --backup-note [note-id-or-title ...]
-          ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]
+          ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]
           ursus --apply-template [note-id-or-title ...]
 
         Notes:
@@ -93,8 +93,9 @@ enum BearCLICommand {
           `--title` also accepts `-t`, `--content` accepts `-c`, `--tags` accepts `-g`, `--replace-tags` accepts `-rt`, `--open-note` accepts `-on`, and `--new-window` accepts `-nw`.
           `--tags` accepts a comma-separated list and may be passed more than once.
           `--new-window` requires `--open-note`.
-          `--backup-note` and `--apply-template` use the selected Bear note when no note ids or titles are passed.
-          `--restore-note` requires exact note-id/snapshot-id pairs.
+          `--backup-note`, `--restore-note`, and `--apply-template` use the selected Bear note when no note ids or titles are passed.
+          Bare `--restore-note` restores the selected Bear note from its most recent backup snapshot.
+          Passed `--restore-note` arguments must be exact note-id/snapshot-id pairs.
           Passed note arguments resolve as exact note id first, then exact case-insensitive title.
           Quote titles with spaces, for example: ursus --apply-template "Project Notes"
         """
@@ -226,7 +227,7 @@ enum BearCLICommand {
 
     private static func parseRestoreNoteRequests(_ arguments: [String]) throws -> [RestoreNoteRequest] {
         guard arguments.isEmpty == false else {
-            throw BearError.invalidInput("Command '--restore-note' requires NOTE_ID SNAPSHOT_ID pairs.\n\n\(usageText)")
+            return []
         }
 
         guard arguments.count.isMultiple(of: 2) else {
