@@ -10,12 +10,27 @@ func templateValidatorAcceptsOneContentAndOneTagsSlot() {
 }
 
 @Test
-func templateValidatorRejectsMissingRequiredSlots() {
+func templateValidatorCombinesMissingRequiredSlots() {
     let report = BearTemplateValidator.validate("{{title}}\n\nBody only\n")
 
-    #expect(report.errors.count == 2)
-    #expect(report.errors.contains(where: { $0.message == "Template must include one `{{content}}` slot." }))
-    #expect(report.errors.contains(where: { $0.message == "Template must include one `{{tags}}` slot." }))
+    #expect(report.errors.count == 1)
+    #expect(report.errors.first?.message == "Template must include one `{{content}}` slot and one `{{tags}}` slot.")
+}
+
+@Test
+func templateValidatorStillFlagsMissingContentSeparately() {
+    let report = BearTemplateValidator.validate("{{tags}}\n")
+
+    #expect(report.errors.count == 1)
+    #expect(report.errors.first?.message == "Template must include one `{{content}}` slot.")
+}
+
+@Test
+func templateValidatorStillFlagsMissingTagsSeparately() {
+    let report = BearTemplateValidator.validate("{{content}}\n")
+
+    #expect(report.errors.count == 1)
+    #expect(report.errors.first?.message == "Template must include one `{{tags}}` slot.")
 }
 
 @Test

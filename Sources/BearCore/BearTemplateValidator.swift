@@ -50,42 +50,51 @@ public enum BearTemplateValidator {
 
         var issues: [BearTemplateValidationIssue] = []
 
-        switch contentMatches {
-        case 1:
-            break
-        case 0:
+        if contentMatches == 0, tagsMatches == 0 {
             issues.append(
                 BearTemplateValidationIssue(
                     severity: .error,
-                    message: "Template must include one `{{content}}` slot."
+                    message: "Template must include one `{{content}}` slot and one `{{tags}}` slot."
                 )
             )
-        default:
-            issues.append(
-                BearTemplateValidationIssue(
-                    severity: .error,
-                    message: "Template can include `{{content}}` only once."
+        } else {
+            switch contentMatches {
+            case 1:
+                break
+            case 0:
+                issues.append(
+                    BearTemplateValidationIssue(
+                        severity: .error,
+                        message: "Template must include one `{{content}}` slot."
+                    )
                 )
-            )
-        }
+            default:
+                issues.append(
+                    BearTemplateValidationIssue(
+                        severity: .error,
+                        message: "Template can include `{{content}}` only once."
+                    )
+                )
+            }
 
-        switch tagsMatches {
-        case 1:
-            break
-        case 0:
-            issues.append(
-                BearTemplateValidationIssue(
-                    severity: .error,
-                    message: "Template must include one `{{tags}}` slot."
+            switch tagsMatches {
+            case 1:
+                break
+            case 0:
+                issues.append(
+                    BearTemplateValidationIssue(
+                        severity: .error,
+                        message: "Template must include one `{{tags}}` slot."
+                    )
                 )
-            )
-        default:
-            issues.append(
-                BearTemplateValidationIssue(
-                    severity: .error,
-                    message: "Template can include `{{tags}}` only once."
+            default:
+                issues.append(
+                    BearTemplateValidationIssue(
+                        severity: .error,
+                        message: "Template can include `{{tags}}` only once."
+                    )
                 )
-            )
+            }
         }
 
         if normalizedTemplate.contains("{{title}}") {
