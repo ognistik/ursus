@@ -299,24 +299,29 @@ Notes for next phase:
 
 ### Phase 2: Bridge auth state/storage and app snapshot plumbing
 
-Likely files:
+Status: completed on 2026-04-06
 
+Implemented:
+
+- `BearPaths` now exposes bridge-auth storage under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`.
+- `BearBridgeAuthStore` now provides durable SQLite-backed storage for registered clients, remembered grants, pending authorization requests, authorization codes, refresh tokens, access tokens, and revocations, while hashing bearer secrets at rest.
+- Bridge/app snapshot plumbing now includes a compact auth snapshot with storage readiness plus client/grant/request/token counts.
+- The Setup bridge card now shows a minimal auth-state summary, and `ursus bridge status` now reports auth-storage readiness and compact counts.
+- Tests now cover auth-store creation, durability across reopen, runtime path wiring, and bridge snapshot auth-count plumbing.
+
+Primary files:
+
+- `Sources/BearApplication/BearBridgeAuthStore.swift`
 - `Sources/BearApplication/BearBridgeSupport.swift`
-- `Sources/BearApplication/BearAppSupport.swift`
 - `Sources/BearCore/BearPaths.swift`
-- `Sources/BearApplication/BearRuntimeBootstrap.swift`
-- app snapshot/UI model files as needed
+- `Sources/BearMCPCLI/UrsusMain.swift`
+- `App/UrsusApp/UrsusSetupView.swift`
+- `Tests/BearApplicationTests/BearBridgeAuthStoreTests.swift`
 
-Work:
+Notes for next phase:
 
-- add local auth store paths and bridge auth snapshot fields
-- add durable store for clients, grants, pending requests, auth codes, refresh/access tokens, revocations
-- expose compact auth status/grant counts to the app
-
-Checkpoint:
-
-- app can show “remote protection configured/not configured”
-- grant store survives bridge restarts
+- No OAuth discovery, registration, authorize, token, or consent endpoints are implemented yet.
+- The durable store and compact app/CLI status plumbing are now in place so Phase 3 can focus on HTTP authorization-server behavior rather than another storage refactor.
 
 ### Phase 3: Built-in authorization server
 

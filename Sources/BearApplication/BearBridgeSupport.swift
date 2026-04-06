@@ -53,6 +53,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public let host: String
     public let port: Int
     public let authMode: BearBridgeAuthMode
+    public let auth: BearBridgeAuthStoreSnapshot
     public let endpointURL: String
     public let currentSelectedNoteTokenConfigured: Bool
     public let loadedSelectedNoteTokenConfigured: Bool?
@@ -82,6 +83,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         host: String,
         port: Int,
         authMode: BearBridgeAuthMode,
+        auth: BearBridgeAuthStoreSnapshot,
         endpointURL: String,
         currentSelectedNoteTokenConfigured: Bool,
         loadedSelectedNoteTokenConfigured: Bool?,
@@ -110,6 +112,7 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         self.host = host
         self.port = port
         self.authMode = authMode
+        self.auth = auth
         self.endpointURL = endpointURL
         self.currentSelectedNoteTokenConfigured = currentSelectedNoteTokenConfigured
         self.loadedSelectedNoteTokenConfigured = loadedSelectedNoteTokenConfigured
@@ -182,6 +185,22 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
 
     public var authModeSummary: String {
         requiresOAuth ? "OAuth required for all bridge requests" : "Open local bridge"
+    }
+
+    public var authStateSummary: String {
+        if requiresOAuth {
+            if auth.storageReady {
+                return "OAuth ready. \(auth.compactSummary)."
+            }
+
+            return "OAuth enabled. Auth storage will be prepared when the protected bridge starts."
+        }
+
+        if auth.hasStoredAuthState {
+            return "Stored auth state is retained for the protected bridge. \(auth.compactSummary)."
+        }
+
+        return "Auth storage stays idle until bridge OAuth is enabled."
     }
 }
 
@@ -589,6 +608,7 @@ public extension BearAppSupport {
         standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
         standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
         bridgeRuntimeStateURL: URL = BearPaths.bridgeRuntimeStateURL,
+        bridgeAuthDatabaseURL: URL = BearPaths.bridgeAuthDatabaseURL,
         launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
         endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
     ) -> BearAppBridgeSnapshot {
@@ -599,6 +619,11 @@ public extension BearAppSupport {
         )
         let bridge: BearBridgeConfiguration
         let endpointURL: String
+        let authSnapshot = (try? BearBridgeAuthStore.loadSnapshot(
+            databaseURL: bridgeAuthDatabaseURL,
+            fileManager: fileManager,
+            prepareIfMissing: configuration.bridge.enabled && configuration.bridge.authMode.requiresOAuth
+        )) ?? .empty(storagePath: bridgeAuthDatabaseURL.path)
         let runtimeStateLoadedSelectedNoteTokenConfigured = bridgeRuntimeState?.loadedSelectedNoteTokenConfigured
         let currentRuntimeConfigurationGeneration = configuration.runtimeConfigurationGeneration
         let currentRuntimeConfigurationFingerprint = configuration.runtimeConfigurationFingerprint
@@ -612,6 +637,7 @@ public extension BearAppSupport {
                 host: configuration.bridge.host,
                 port: configuration.bridge.port,
                 authMode: configuration.bridge.authMode,
+                auth: authSnapshot,
                 endpointURL: "invalid bridge URL",
                 currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
                 loadedSelectedNoteTokenConfigured: runtimeStateLoadedSelectedNoteTokenConfigured,
@@ -687,6 +713,7 @@ public extension BearAppSupport {
             host: bridge.host,
             port: bridge.port,
             authMode: bridge.authMode,
+            auth: authSnapshot,
             endpointURL: endpointURL,
             currentSelectedNoteTokenConfigured: selectedNoteTokenConfigured,
             loadedSelectedNoteTokenConfigured: loadedSelectedNoteTokenConfigured,

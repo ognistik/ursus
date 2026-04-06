@@ -39,6 +39,14 @@ public enum BearPaths {
         applicationSupportDirectoryURL.appendingPathComponent("backups.sqlite", isDirectory: false)
     }
 
+    public static var bridgeAuthDirectoryURL: URL {
+        applicationSupportDirectoryURL.appendingPathComponent("Auth", isDirectory: true)
+    }
+
+    public static var bridgeAuthDatabaseURL: URL {
+        bridgeAuthDirectoryURL.appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    }
+
     public static var backupsQuarantineDirectoryURL: URL {
         backupsDirectoryURL.appendingPathComponent("_quarantine", isDirectory: true)
     }

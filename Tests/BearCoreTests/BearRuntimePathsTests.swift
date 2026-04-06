@@ -11,6 +11,8 @@ func runtimeArtifactsUseLibraryLocations() {
     #expect(BearPaths.debugLogURL.path.hasSuffix("/Library/Application Support/Ursus/Logs/debug.log"))
     #expect(BearPaths.backupsDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus/Backups"))
     #expect(BearPaths.backupsMetadataURL.path.hasSuffix("/Library/Application Support/Ursus/backups.sqlite"))
+    #expect(BearPaths.bridgeAuthDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus/Auth"))
+    #expect(BearPaths.bridgeAuthDatabaseURL.path.hasSuffix("/Library/Application Support/Ursus/Auth/bridge-auth.sqlite"))
     #expect(BearPaths.backupsQuarantineDirectoryURL.path.hasSuffix("/Library/Application Support/Ursus/Backups/_quarantine"))
     #expect(BearPaths.publicCLIDirectoryURL.path.hasSuffix("/.local/bin"))
     #expect(BearPaths.publicCLIExecutableURL.path.hasSuffix("/.local/bin/ursus"))

@@ -181,6 +181,17 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
             host: "127.0.0.1",
             port: 6190,
             authMode: .open,
+            auth: BearBridgeAuthStoreSnapshot(
+                storagePath: "/tmp/bridge-auth.sqlite",
+                storageReady: true,
+                registeredClientCount: 2,
+                activeGrantCount: 1,
+                pendingAuthorizationRequestCount: 0,
+                activeAuthorizationCodeCount: 0,
+                activeRefreshTokenCount: 1,
+                activeAccessTokenCount: 1,
+                revocationCount: 0
+            ),
             endpointURL: "http://127.0.0.1:6190/mcp",
             currentSelectedNoteTokenConfigured: true,
             loadedSelectedNoteTokenConfigured: true,

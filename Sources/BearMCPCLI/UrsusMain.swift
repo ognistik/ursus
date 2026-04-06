@@ -55,6 +55,7 @@ public enum UrsusCLIRuntime {
                         BearPaths.noteTemplateURL.path,
                         BearPaths.publicCLIExecutableURL.path,
                         BearPaths.backupsMetadataURL.path,
+                        BearPaths.bridgeAuthDatabaseURL.path,
                         BearPaths.processLockURL.path,
                         BearPaths.debugLogURL.path,
                         BearPaths.defaultBearDatabaseURL.path,
@@ -174,6 +175,10 @@ public enum UrsusCLIRuntime {
 
         if !bridge.enabled {
             logger.info("ursus bridge serve is starting while bridge.enabled=false; direct CLI bridge runs are still allowed.")
+        }
+
+        if bridge.authMode.requiresOAuth {
+            _ = try BearBridgeAuthStore.prepareStorage()
         }
 
         try maintainBridgeLogs()
@@ -395,6 +400,8 @@ public enum UrsusCLIRuntime {
             "Port: \(bridge.port)",
             "URL: \(bridge.endpointURL)",
             "Auth mode: \(authMode)",
+            "Auth storage: \(bridge.auth.storageReady ? "ready" : "not-initialized")",
+            "Auth counts: clients=\(bridge.auth.registeredClientCount) grants=\(bridge.auth.activeGrantCount) pending_requests=\(bridge.auth.pendingAuthorizationRequestCount)",
             "Status: \(bridge.statusTitle)",
             "Detail: \(bridge.statusDetail)",
             "LaunchAgent installed: \(launchAgentInstalled)",

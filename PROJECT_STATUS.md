@@ -58,6 +58,8 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - `Tools` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
 - The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
 - The `Remote MCP Bridge` now also carries one bridge-scoped auth toggle: open by default, or `Require OAuth for all bridge requests` for the entire `/mcp` surface. This applies only to the optional HTTP bridge; stdio remains untouched.
+- When bridge OAuth is enabled, Ursus now keeps durable bridge-auth state in a small local SQLite store under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`, covering registered clients, remembered grants, pending authorization requests, authorization codes, refresh/access tokens, and revocations.
+- The Setup bridge card now shows a compact auth-state summary for the protected bridge, including whether auth storage is ready plus remembered grant and pending-request counts, without exposing the full approval/review UI before later phases.
 - The Setup bridge card now derives a `Restart Required` state from persisted runtime config drift, selected-note token availability drift, and MCP bridge-surface drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
@@ -121,6 +123,7 @@ These paths describe the codebase as it exists after Phase 6:
 - bridge LaunchAgent plist path: `~/Library/LaunchAgents/com.aft.ursus.plist`
 - backups: `~/Library/Application Support/Ursus/Backups`
 - backup metadata DB: `~/Library/Application Support/Ursus/backups.sqlite`
+- bridge auth DB: `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`
 - backup quarantine: `~/Library/Application Support/Ursus/Backups/_quarantine`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
 - current app bundle state: `~/Library/Application Support/Ursus/Runtime/current-app-bundle.json`
@@ -152,6 +155,7 @@ These paths describe the codebase as it exists after Phase 6:
 - Bridge port edits now save through the app config flow and take effect on the next bridge install or resume. Host overrides remain config-only for advanced users.
 - The bridge HTTP handler now preserves request paths and routes `/mcp` separately from future OAuth bridge paths, so OAuth well-known and authorization endpoints can be added without another transport-layer refactor.
 - Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records the config generation/fingerprint, selected-note token availability, and a canonical MCP bridge-surface marker in a small runtime state file so the app can flag stale-yet-serving bridge processes after config edits, token availability changes, or MCP-surface updates without guessing about client restarts.
+- Bridge OAuth Phase 2 storage is now in place entirely inside the optional bridge/application layers: `BearPaths` exposes the auth-store location, `BearBridgeAuthStore` persists bridge-local OAuth state in SQLite with hashed secrets at rest, and `bridgeSnapshot` surfaces compact auth counts to the app and CLI without changing stdio or Bear note logic.
 - The app now records the most recently opened `Ursus.app` bundle path in runtime state, so launcher validation, CLI diagnostics, and selected-note helper lookup can continue to find a nonstandard install location after the app has been opened once.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
@@ -178,8 +182,8 @@ The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has 
 
 Current near-term priorities:
 
-1. Build Phase 2 of the HTTP bridge OAuth work: durable auth state/storage plus compact app snapshots for pending requests and grants.
-2. Implement the built-in bridge-local authorization server endpoints on top of the new multi-route bridge boundary.
+1. Implement Phase 3 of the HTTP bridge OAuth work: protected-resource metadata, authorization-server metadata, client registration, authorize, and token endpoints on top of the new durable bridge-auth store.
+2. Implement the built-in bridge-local authorization server endpoints on top of the new multi-route bridge boundary without expanding the consent UI beyond the planned local-owner mediation flow.
 
 ## Verification Baseline
 
@@ -255,5 +259,11 @@ Bridge-launch packaging verification that passed on 2026-04-02:
 - verified the app executable now owns the in-bundle launch path used by the public launcher and bridge runtime
 - verified the build no longer produces `Contents/Resources/bin/ursus`
 - verified the selected-note helper still bundles at `Contents/Library/Helpers/Ursus Helper.app`
+
+HTTP bridge OAuth Phase 2 verification that passed on 2026-04-06:
+
+- `swift test`
+- `swift run ursus paths`
+- verified `swift run ursus paths` now includes `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.
