@@ -6,7 +6,6 @@ struct UrsusSetupView: View {
     @ObservedObject var model: UrsusAppModel
     @Binding var selectedSection: UrsusDashboardSection
     @State private var showsTokenInput = false
-    @State private var showsLauncherPathCopiedNotice = false
 
     var body: some View {
         UrsusScrollSurface {
@@ -209,6 +208,12 @@ struct UrsusSetupView: View {
                         model.copyLauncherPath()
                     }
                     .buttonStyle(.bordered)
+
+                    UrsusMessageStack(
+                        success: model.cliStatusMessage,
+                        warning: nil,
+                        error: model.cliStatusError
+                    )
                 } else {
                     Text("Setup is available for supported apps found on this Mac.")
                         .font(.footnote)
