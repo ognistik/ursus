@@ -50,9 +50,34 @@ private struct UrsusWindowSurface<Content: View>: View {
 
     var body: some View {
         content
+            .background(UrsusInitialFirstResponderResetView())
             .background(
                 Color(nsColor: .windowBackgroundColor)
                     .ignoresSafeArea()
             )
+    }
+}
+
+private struct UrsusInitialFirstResponderResetView: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        UrsusInitialFirstResponderResetNSView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class UrsusInitialFirstResponderResetNSView: NSView {
+        private var didResetInitialFirstResponder = false
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard !didResetInitialFirstResponder else {
+                return
+            }
+
+            didResetInitialFirstResponder = true
+            DispatchQueue.main.async { [weak self] in
+                self?.window?.makeFirstResponder(nil)
+            }
+        }
     }
 }

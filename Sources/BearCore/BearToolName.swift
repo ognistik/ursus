@@ -99,49 +99,49 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
     public var summary: String {
         switch self {
         case .findNotes:
-            return "Search note summaries with text, tags, filters, and pagination."
+            return "Search across your Bear library using combinations of text, tags, dates, pinned state, todos, and attachment content."
         case .getNotes:
-            return "Fetch full note bodies, versions, and attachment metadata."
+            return "Fetch the full body of notes, metadata, and attachment details."
         case .listTags:
-            return "Discover canonical Bear tags before tagging or navigation."
+            return "Show the tags that exist in Bear so related actions can use the correct names."
         case .findNotesByTag:
-            return "Search note summaries by one or more Bear tags."
+            return "Find notes that match one or more specific Bear tags."
         case .findNotesByInboxTags:
-            return "Search note summaries using the configured inbox tags."
+            return "Find notes that use your configured inbox tags."
         case .createBackups:
-            return "Capture saved backup snapshots for notes."
+            return "Save snapshots of notes so you can recover earlier states later. Useful before risky edits, bulk changes, or cleanup passes."
         case .listBackups:
-            return "Inspect saved backup snapshots for one note."
+            return "Show the saved backup history for a note, including support for narrowing by date."
         case .compareBackup:
-            return "Compare a saved backup snapshot with the current note."
+            return "Compare a saved snapshot against the current note so you can inspect what changed before restoring anything."
         case .deleteBackups:
-            return "Remove saved backup snapshots."
+            return "Remove saved backup snapshots when they are no longer needed. This can delete a single backup or clear the backup history for a note."
         case .openTag:
-            return "Open a Bear tag in the Bear app UI."
+            return "Open a Bear tag directly in the Bear app."
         case .renameTags:
-            return "Rename Bear tags globally."
+            return "Rename a tag across Bear globally, not just in one note."
         case .deleteTags:
             return "Delete Bear tags globally."
         case .addTags:
-            return "Add tags to notes."
+            return "Add one or more tags to specific notes."
         case .removeTags:
-            return "Remove tags from notes."
+            return "Remove specific tags from specific notes while leaving those tags available elsewhere in Bear. This is the note-level cleanup tool, not a global tag deletion."
         case .applyTemplate:
-            return "Apply the current template to notes."
+            return "Reformat existing notes using your current Ursus template while preserving their actual content and normalizing tag placement."
         case .createNotes:
-            return "Create new Bear notes."
+            return "Create new Bear notes with your configured template, open note, and tag behavior. Default tag and open behavior can be overriden on command."
         case .insertText:
-            return "Insert text into note content."
+            return "Add new text into an existing note without replacing everything else. It can insert at the top, bottom, or relative to specific text or headings inside the note."
         case .replaceContent:
-            return "Replace note titles or body content."
+            return "Edit a note directly by replacing its title, replacing the entire body, or swapping exact text inside the body."
         case .addFiles:
-            return "Attach local files to notes."
+            return "Attach local files to notes and place them at a chosen position in the note content."
         case .openNotes:
-            return "Open notes in Bear."
+            return "Open one or more notes in Bear so you can view or continue working on them in the app."
         case .archiveNotes:
-            return "Archive notes."
+            return "Move notes into Bear's archive without deleting them."
         case .restoreNotes:
-            return "Restore notes from backups."
+            return "Restore a note from one of its saved backups. Use this to roll back unwanted edits or recover an earlier version of the note."
         }
     }
 
