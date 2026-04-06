@@ -123,6 +123,118 @@ func bridgeAuthStorePersistence() async throws {
 }
 
 @Test
+func bridgeAuthStoreReviewSnapshotAndGrantRevocation() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Review Client",
+            redirectURIs: ["https://example.com/callback"]
+        )
+    )
+    let grant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: client.id,
+            scope: "mcp",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+    let pendingRequest = try await store.createPendingAuthorizationRequest(
+        BearBridgePendingAuthorizationRequestDraft(
+            clientID: client.id,
+            requestedScope: "mcp",
+            redirectURI: "https://example.com/callback",
+            expiresAt: fixedNow.addingTimeInterval(300),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+
+    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    #expect(reviewSnapshot.storageReady == true)
+    #expect(reviewSnapshot.pendingRequests.count == 1)
+    #expect(reviewSnapshot.pendingRequests.first?.clientDisplayName == "Review Client")
+    #expect(reviewSnapshot.pendingRequests.first?.resource == "https://bridge.example/mcp")
+    #expect(reviewSnapshot.activeGrants.count == 1)
+    #expect(reviewSnapshot.activeGrants.first?.clientDisplayName == "Review Client")
+
+    _ = try await store.revokeGrant(id: grant.id)
+    let revokedReviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    #expect(revokedReviewSnapshot.pendingRequests.count == 1)
+    #expect(revokedReviewSnapshot.activeGrants.isEmpty)
+
+    let loadedPendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequest.id)
+    #expect(loadedPendingRequest?.status == .pending)
+}
+
+@Test
+func bridgeAuthStoreApproveAndDenyPendingRequests() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Approval Client",
+            redirectURIs: ["https://example.com/callback"]
+        )
+    )
+    let approvableRequest = try await store.createPendingAuthorizationRequest(
+        BearBridgePendingAuthorizationRequestDraft(
+            clientID: client.id,
+            requestedScope: "mcp",
+            redirectURI: "https://example.com/callback",
+            expiresAt: fixedNow.addingTimeInterval(300),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+    let deniableRequest = try await store.createPendingAuthorizationRequest(
+        BearBridgePendingAuthorizationRequestDraft(
+            clientID: client.id,
+            requestedScope: "mcp",
+            redirectURI: "https://example.com/callback",
+            state: "state-2",
+            expiresAt: fixedNow.addingTimeInterval(300),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+
+    let approvedRequest = try await store.approvePendingAuthorizationRequest(id: approvableRequest.id)
+    let deniedRequest = try await store.denyPendingAuthorizationRequest(id: deniableRequest.id)
+
+    #expect(approvedRequest?.status == .approved)
+    #expect(deniedRequest?.status == .denied)
+    #expect(try await store.activeGrant(clientID: client.id, scope: "mcp", resource: "https://bridge.example/mcp") != nil)
+
+    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    #expect(reviewSnapshot.pendingRequests.isEmpty)
+    #expect(reviewSnapshot.activeGrants.count == 1)
+}
+
+@Test
 func bridgeSnapshotAuthCounts() async throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

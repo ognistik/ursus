@@ -34,6 +34,7 @@ func bridgeRouterClassifiesMCPAndOAuthPaths() {
     #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-protected-resource", mcpEndpoint: "/mcp") == .oauthProtectedResourceMetadata)
     #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-authorization-server?resource=http://127.0.0.1:6190/mcp", mcpEndpoint: "/mcp") == .oauthAuthorizationServerMetadata)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/authorize", mcpEndpoint: "/mcp") == .oauthAuthorize)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/request-status?request_id=abc", mcpEndpoint: "/mcp") == .oauthRequestStatus)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/token", mcpEndpoint: "/mcp") == .oauthToken)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/register", mcpEndpoint: "/mcp") == .oauthRegister)
     #expect(BearBridgeHTTPApplication.route(for: "/unknown", mcpEndpoint: "/mcp") == .notFound)
@@ -541,27 +542,40 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
     let clientID = try #require(registrationObject["client_id"] as? String)
     let verifier = "test-verifier-abcdefghijklmnopqrstuvwxyz-0123456789"
     let challenge = try PKCE.makeChallenge(from: verifier)
-    let redirectResponse = try await sendHTTPRequest(
+    let authorizationResponse = try await sendHTTPRequest(
         port: port,
         path: "/oauth/authorize?response_type=code&client_id=\(clientID)&redirect_uri=https://example.com/callback&state=state-123&resource=http://127.0.0.1:\(port)/mcp&scope=mcp&code_challenge=\(challenge)&code_challenge_method=S256",
         followRedirects: false
     )
 
-    #expect(redirectResponse.statusCode == 302)
-    let location = try #require(
-        redirectResponse.httpResponse.value(forHTTPHeaderField: "Location")
+    #expect(authorizationResponse.statusCode == 200)
+    let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
+    #expect(authorizationHTML.contains("Approval needed in Ursus.app"))
+
+    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
+    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    let pendingRequestID = try #require(reviewSnapshot.pendingRequests.first?.id)
+    let pendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
+    #expect(pendingRequest?.clientID == clientID)
+    #expect(pendingRequest?.requestedScope == "mcp")
+    #expect(pendingRequest?.status == .pending)
+
+    _ = try await store.approvePendingAuthorizationRequest(id: pendingRequestID)
+
+    let statusResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/request-status?request_id=\(pendingRequestID)"
     )
+
+    #expect(statusResponse.statusCode == 200)
+    let statusJSONObject = try JSONSerialization.jsonObject(with: statusResponse.data)
+    let statusObject = try #require(statusJSONObject as? [String: Any])
+    #expect(statusObject["status"] as? String == "approved")
+    let location = try #require(statusObject["redirect_url"] as? String)
     let redirectURL = try #require(URL(string: location))
     let redirectComponents = try #require(URLComponents(url: redirectURL, resolvingAgainstBaseURL: false))
     let code = try #require(redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value)
     #expect(redirectComponents.queryItems?.first(where: { $0.name == "state" })?.value == "state-123")
-
-    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
-    let authorizationCode = try await store.authorizationCode(for: code)
-    let pendingRequestID = try #require(authorizationCode?.pendingRequestID)
-    let pendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
-    #expect(pendingRequest?.clientID == clientID)
-    #expect(pendingRequest?.requestedScope == "mcp")
 
     let tokenExchangeResponse = try await sendHTTPRequest(
         port: port,
@@ -606,6 +620,172 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
     #expect(rotatedRefreshToken != refreshToken)
     #expect((refreshObject["access_token"] as? String)?.isEmpty == false)
     #expect(refreshObject["scope"] as? String == "mcp")
+
+    let completedRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
+    #expect(completedRequest?.status == .completed)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeAuthorizationStatusReturnsDeniedRedirectAfterLocalDenial() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let registrationBody = try JSONSerialization.data(
+        withJSONObject: [
+            "redirect_uris": ["https://example.com/callback"],
+            "client_name": "Denied OAuth Flow Test Client",
+            "token_endpoint_auth_method": "none",
+        ]
+    )
+    let registrationResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/register",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: registrationBody
+    )
+    let registrationObject = try #require(
+        try JSONSerialization.jsonObject(with: registrationResponse.data) as? [String: Any]
+    )
+    let clientID = try #require(registrationObject["client_id"] as? String)
+    let challenge = try PKCE.makeChallenge(from: "denied-verifier-abcdefghijklmnopqrstuvwxyz")
+
+    let authorizationResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/authorize?response_type=code&client_id=\(clientID)&redirect_uri=https://example.com/callback&state=denied-state&resource=http://127.0.0.1:\(port)/mcp&scope=mcp&code_challenge=\(challenge)&code_challenge_method=S256",
+        followRedirects: false
+    )
+
+    #expect(authorizationResponse.statusCode == 200)
+
+    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
+    let pendingReviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    let pendingRequestID = try #require(pendingReviewSnapshot.pendingRequests.first?.id)
+    _ = try await store.denyPendingAuthorizationRequest(id: pendingRequestID)
+
+    let statusResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/request-status?request_id=\(pendingRequestID)"
+    )
+
+    #expect(statusResponse.statusCode == 200)
+    let statusJSONObject = try JSONSerialization.jsonObject(with: statusResponse.data)
+    let statusObject = try #require(statusJSONObject as? [String: Any])
+    #expect(statusObject["status"] as? String == "denied")
+    let location = try #require(statusObject["redirect_url"] as? String)
+    #expect(location.contains("error=access_denied"))
+    #expect(location.contains("state=denied-state"))
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeRememberedGrantSkipsLocalPromptOnRepeatAuthorization() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Remembered Client",
+            redirectURIs: ["https://example.com/callback"],
+            metadataJSON: #"{"client_name":"Remembered Client"}"#
+        )
+    )
+    _ = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: client.id,
+            scope: "mcp",
+            resource: "http://127.0.0.1:\(port)/mcp",
+            metadataJSON: #"{"approved_by":"test"}"#
+        )
+    )
+
+    let verifier = "remembered-verifier-abcdefghijklmnopqrstuvwxyz"
+    let challenge = try PKCE.makeChallenge(from: verifier)
+    let authorizationResponse = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/authorize?response_type=code&client_id=\(client.id)&redirect_uri=https://example.com/callback&state=repeat-state&resource=http://127.0.0.1:\(port)/mcp&scope=mcp&code_challenge=\(challenge)&code_challenge_method=S256",
+        followRedirects: false
+    )
+
+    #expect(authorizationResponse.statusCode == 302)
+    let location = try #require(authorizationResponse.httpResponse.value(forHTTPHeaderField: "Location"))
+    #expect(location.contains("code="))
+    #expect(location.contains("state=repeat-state"))
+
+    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
+    #expect(reviewSnapshot.pendingRequests.isEmpty)
+    #expect(reviewSnapshot.activeGrants.count == 1)
 
     await application.stop()
     try await startTask.value

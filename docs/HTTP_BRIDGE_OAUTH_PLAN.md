@@ -352,24 +352,29 @@ Notes for next phase:
 
 ### Phase 4: Local-owner consent mediation via Ursus.app
 
-Likely files:
+Status: completed on 2026-04-06
+
+Implemented:
 
 - `App/UrsusApp/UrsusAppModel.swift`
 - `App/UrsusApp/UrsusSetupView.swift`
-- shared app support/auth store files
+- `App/UrsusApp/UrsusBridgeAuthReviewSheet.swift`
+- shared bridge-auth store/runtime files
 
-Work:
+Implemented behavior:
 
-- surface pending auth requests in the app
-- add approve/deny UI
-- browser authorization page polls request status until local approval resolves
-- persist remembered grants for one-time consent behavior
+- `GET /oauth/authorize` now creates a pending authorization request and returns a small browser waiting page when no remembered grant exists, instead of using the temporary Phase 3 auto-approval path.
+- The waiting page polls `GET /oauth/request-status`, which resolves to redirect-ready success or denial URLs once the local app owner responds.
+- `Ursus.app` now polls bridge-auth review state in the background, auto-surfaces a bridge access review sheet when new requests arrive while the app is open, and exposes approve/deny actions for pending requests.
+- App approval now persists a remembered grant immediately, so repeat authorizations for the same client/resource/scope set can skip the prompt.
+- The Setup bridge card now exposes a `Review Access` entry point, and the review sheet also shows remembered grants with revoke actions.
+- Grant revocation now clears remembered-grant reuse and revokes associated stored authorization codes, refresh tokens, and access tokens in the bridge auth store.
+- Tests now cover pending review snapshots, approve/deny transitions, revocation, denied request resolution, remembered-grant repeat authorization, and request completion after token exchange.
 
-Checkpoint:
+Notes for next phase:
 
-- first-time remote client approval requires local app consent
-- repeat authorization for an approved client does not reprompt unnecessarily
-- revoke works and forces reapproval
+- `/mcp` remains challenge-only in bridge OAuth mode; token-backed MCP access is still deferred to Phase 5.
+- The next phase should validate bearer tokens on protected MCP requests while leaving OAuth discovery, registration, authorize, status, and token lifecycle routes public.
 
 ### Phase 5: Full-bridge OAuth enforcement
 

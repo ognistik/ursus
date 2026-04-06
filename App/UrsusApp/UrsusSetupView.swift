@@ -344,10 +344,25 @@ struct UrsusSetupView: View {
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                    Text(bridge.authStateSummary)
+                    Text(model.bridgeAuthSummary ?? bridge.authStateSummary)
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    if model.bridgeAuthPendingRequestCount > 0 {
+                        Text("\(model.bridgeAuthPendingRequestCount) pending approval request\(model.bridgeAuthPendingRequestCount == 1 ? "" : "s") waiting in Ursus.app.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if bridge.requiresOAuth || model.bridgeAuthHasVisibleState || bridge.auth.hasStoredAuthState {
+                        Button("Review Access") {
+                            model.openBridgeAuthReview()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isBridgeOperationInProgress)
+                    }
                 }
             }
 

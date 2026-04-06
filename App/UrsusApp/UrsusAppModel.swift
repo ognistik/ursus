@@ -55,6 +55,11 @@ final class UrsusAppModel: ObservableObject {
     @Published private(set) var templateValidation = BearTemplateValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var activeBridgeOperation: UrsusBridgeOperation?
+    @Published var showsBridgeAuthReview = false
+    @Published private(set) var bridgeAuthReview: BearBridgeAuthReviewSnapshot?
+    @Published private(set) var bridgeAuthStatusMessage: String?
+    @Published private(set) var bridgeAuthStatusError: String?
+    @Published private(set) var bridgeAuthActionInProgress = false
 
     @Published var databasePathDraft = ""
     @Published var inboxTagsDraft = ""
@@ -74,17 +79,27 @@ final class UrsusAppModel: ObservableObject {
 
     private var configurationAutosaveTask: Task<Void, Never>?
     private var bridgeStatusMessageClearTask: Task<Void, Never>?
+    private var bridgeAuthRefreshTask: Task<Void, Never>?
+    private var bridgeAuthStatusMessageClearTask: Task<Void, Never>?
     private var tokenStatusMessageClearTask: Task<Void, Never>?
     private var cliStatusMessageClearTask: Task<Void, Never>?
     private var hostSetupStatusMessageClearTask: Task<Void, Never>?
     private var templateStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
+    private var lastPendingBridgeAuthRequestIDs = Set<String>()
+    private let bridgeAuthStore = BearBridgeAuthStore()
 
     init() {
         persistCurrentAppBundleLocation()
         refreshAppState()
+        startBridgeAuthRefreshLoop()
         reconcilePublicLauncherAutomatically()
+    }
+
+    deinit {
+        bridgeAuthRefreshTask?.cancel()
+        bridgeAuthStatusMessageClearTask?.cancel()
     }
 
     private func refreshAppState() {
@@ -347,6 +362,61 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
+    func openBridgeAuthReview() {
+        showsBridgeAuthReview = true
+        Task { [weak self] in
+            await self?.refreshBridgeAuthReviewNow()
+        }
+    }
+
+    func approveBridgeAuthorizationRequest(_ request: BearBridgePendingAuthorizationRequestSummary) {
+        runBridgeAuthAction {
+            guard let resolvedRequest = try await self.bridgeAuthStore.approvePendingAuthorizationRequest(id: request.id) else {
+                throw BearError.configuration("The selected bridge authorization request is no longer available.")
+            }
+
+            switch resolvedRequest.status {
+            case .approved:
+                return "Approved \(request.clientTitle)."
+            case .expired:
+                throw BearError.configuration("That bridge authorization request already expired.")
+            case .pending, .denied, .completed:
+                return "Updated \(request.clientTitle)."
+            }
+        }
+    }
+
+    func denyBridgeAuthorizationRequest(_ request: BearBridgePendingAuthorizationRequestSummary) {
+        runBridgeAuthAction {
+            guard let resolvedRequest = try await self.bridgeAuthStore.denyPendingAuthorizationRequest(id: request.id) else {
+                throw BearError.configuration("The selected bridge authorization request is no longer available.")
+            }
+
+            switch resolvedRequest.status {
+            case .denied:
+                return "Denied \(request.clientTitle)."
+            case .expired:
+                throw BearError.configuration("That bridge authorization request already expired.")
+            case .pending, .approved, .completed:
+                return "Updated \(request.clientTitle)."
+            }
+        }
+    }
+
+    func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
+        runBridgeAuthAction {
+            guard let revokedGrant = try await self.bridgeAuthStore.revokeGrant(id: grant.id) else {
+                throw BearError.configuration("The selected remembered grant is no longer available.")
+            }
+
+            guard !revokedGrant.isActive else {
+                throw BearError.configuration("Failed to revoke the selected remembered grant.")
+            }
+
+            return "Revoked access for \(grant.clientTitle)."
+        }
+    }
+
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
@@ -533,6 +603,34 @@ final class UrsusAppModel: ObservableObject {
 
     var bridgeOperationProgressMessage: String? {
         activeBridgeOperation?.progressMessage
+    }
+
+    var bridgeAuthPendingRequests: [BearBridgePendingAuthorizationRequestSummary] {
+        bridgeAuthReview?.pendingRequests ?? []
+    }
+
+    var bridgeAuthGrantSummaries: [BearBridgeAuthGrantSummary] {
+        bridgeAuthReview?.activeGrants ?? []
+    }
+
+    var bridgeAuthHasVisibleState: Bool {
+        bridgeAuthReview?.hasStoredAuthState == true
+    }
+
+    var bridgeAuthPendingRequestCount: Int {
+        bridgeAuthReview?.pendingRequests.count ?? 0
+    }
+
+    var bridgeAuthSummary: String? {
+        guard let bridgeAuthReview else {
+            return nil
+        }
+
+        guard bridgeAuthReview.storageReady || bridgeAuthReview.hasStoredAuthState else {
+            return nil
+        }
+
+        return bridgeAuthReview.compactSummary
     }
 
     var setupHostSetups: [BearHostAppSetupSnapshot] {
@@ -763,6 +861,107 @@ final class UrsusAppModel: ObservableObject {
                 }
 
                 self?.tokenStatusMessage = nil
+            }
+        }
+    }
+
+    private func startBridgeAuthRefreshLoop() {
+        bridgeAuthRefreshTask?.cancel()
+        bridgeAuthRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshBridgeAuthReviewNow()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    private func refreshBridgeAuthReviewNow() async {
+        let shouldLoadReview = await MainActor.run {
+            if let settings = dashboard.settings {
+                return settings.bridge.requiresOAuth || settings.bridge.auth.hasStoredAuthState || showsBridgeAuthReview || bridgeAuthHasVisibleState
+            }
+
+            return showsBridgeAuthReview || bridgeAuthHasVisibleState
+        }
+
+        guard shouldLoadReview else {
+            await MainActor.run {
+                bridgeAuthReview = nil
+                lastPendingBridgeAuthRequestIDs = []
+            }
+            return
+        }
+
+        let snapshot = try? await bridgeAuthStore.reviewSnapshot(prepareIfMissing: false)
+        await MainActor.run {
+            bridgeAuthReview = snapshot
+
+            let pendingIDs = Set(snapshot?.pendingRequests.map(\.id) ?? [])
+            let hasNewPendingRequests = !pendingIDs.subtracting(lastPendingBridgeAuthRequestIDs).isEmpty
+            lastPendingBridgeAuthRequestIDs = pendingIDs
+
+            if hasNewPendingRequests {
+                showsBridgeAuthReview = true
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+    }
+
+    private func runBridgeAuthAction(
+        work: @escaping @MainActor @Sendable () async throws -> String
+    ) {
+        guard !bridgeAuthActionInProgress else {
+            return
+        }
+
+        bridgeAuthActionInProgress = true
+        bridgeAuthStatusMessageClearTask?.cancel()
+        bridgeAuthStatusMessage = nil
+        bridgeAuthStatusError = nil
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            let result: Result<String, Error>
+            do {
+                result = .success(try await work())
+            } catch {
+                result = .failure(error)
+            }
+
+            bridgeAuthActionInProgress = false
+            await refreshBridgeAuthReviewNow()
+
+            switch result {
+            case .success(let message):
+                bridgeAuthStatusMessage = message
+                bridgeAuthStatusError = nil
+                scheduleBridgeAuthStatusMessageClear()
+            case .failure(let error):
+                bridgeAuthStatusMessage = nil
+                bridgeAuthStatusError = localizedMessage(for: error)
+            }
+        }
+    }
+
+    private func scheduleBridgeAuthStatusMessageClear() {
+        bridgeAuthStatusMessageClearTask?.cancel()
+        let currentMessage = bridgeAuthStatusMessage
+
+        bridgeAuthStatusMessageClearTask = Task { [weak self, currentMessage] in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await MainActor.run {
+                guard self?.bridgeAuthStatusMessage == currentMessage else {
+                    return
+                }
+
+                self?.bridgeAuthStatusMessage = nil
             }
         }
     }

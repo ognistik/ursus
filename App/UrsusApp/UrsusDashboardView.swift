@@ -32,6 +32,9 @@ struct UrsusDashboardView: View {
                 }
                 .tag(UrsusDashboardSection.tools)
         }
+        .sheet(isPresented: $model.showsBridgeAuthReview) {
+            UrsusBridgeAuthReviewSheet(model: model)
+        }
     }
 }
 

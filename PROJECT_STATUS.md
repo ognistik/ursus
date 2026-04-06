@@ -59,8 +59,8 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
 - The `Remote MCP Bridge` now also carries one bridge-scoped auth toggle: open by default, or `Require OAuth for all bridge requests` for the entire `/mcp` surface. This applies only to the optional HTTP bridge; stdio remains untouched.
 - When bridge OAuth is enabled, Ursus now keeps durable bridge-auth state in a small local SQLite store under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`, covering registered clients, remembered grants, pending authorization requests, authorization codes, refresh/access tokens, and revocations.
-- Protected bridges now also serve a built-in bridge-local OAuth 2.1 authorization server, including protected-resource metadata, authorization-server metadata, dynamic client registration for public clients, an authorization endpoint that records pending requests before issuing PKCE-backed authorization codes, and a token endpoint for authorization-code and refresh-token exchange.
-- The Setup bridge card now shows a compact auth-state summary for the protected bridge, including whether auth storage is ready plus remembered grant and pending-request counts, without exposing the full approval/review UI before later phases.
+- Protected bridges now also serve a built-in bridge-local OAuth 2.1 authorization server, including protected-resource metadata, authorization-server metadata, dynamic client registration for public clients, an authorization endpoint that either reuses a remembered grant or creates a pending local-owner approval request, a small `/oauth/request-status` polling route for the browser handoff, and a token endpoint for authorization-code and refresh-token exchange.
+- The Setup bridge card now shows a compact auth-state summary for the protected bridge plus a `Review Access` action, and the app can surface a bridge access review sheet with pending approve/deny controls and remembered-grant revoke controls without teaching stdio or Bear note logic about bridge OAuth.
 - The Setup bridge card now derives a `Restart Required` state from persisted runtime config drift, selected-note token availability drift, and MCP bridge-surface drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
@@ -157,7 +157,7 @@ These paths describe the codebase as it exists after Phase 6:
 - The bridge HTTP handler now preserves request paths and routes `/mcp` separately from future OAuth bridge paths, so OAuth well-known and authorization endpoints can be added without another transport-layer refactor.
 - Runtime-affecting config now carries a persisted monotonic `runtimeConfigurationGeneration`, and the serving bridge records the config generation/fingerprint, selected-note token availability, and a canonical MCP bridge-surface marker in a small runtime state file so the app can flag stale-yet-serving bridge processes after config edits, token availability changes, or MCP-surface updates without guessing about client restarts.
 - Bridge OAuth Phase 2 storage is now in place entirely inside the optional bridge/application layers: `BearPaths` exposes the auth-store location, `BearBridgeAuthStore` persists bridge-local OAuth state in SQLite with hashed secrets at rest, and `bridgeSnapshot` surfaces compact auth counts to the app and CLI without changing stdio or Bear note logic.
-- Bridge OAuth Phase 3 is now in place inside the optional bridge runtime: the HTTP bridge serves OAuth discovery/registration/authorize/token routes on the same loopback-bound process, `/mcp` Bearer challenges now advertise protected-resource metadata, dynamic client registration is limited to public clients, and authorization currently auto-approves through the bridge-local single-owner flow until the app-driven consent UI lands in the next phase.
+- Bridge OAuth Phase 3 and Phase 4 are now in place entirely inside the optional bridge/app layers: the HTTP bridge serves OAuth discovery/registration/authorize/token/status routes on the same loopback-bound process, `/mcp` Bearer challenges advertise protected-resource metadata, first-time authorization waits for local approval in `Ursus.app`, remembered grants auto-approve repeat authorizations, and the app provides a minimal pending-request plus revoke surface for stored bridge access.
 - The app now records the most recently opened `Ursus.app` bundle path in runtime state, so launcher validation, CLI diagnostics, and selected-note helper lookup can continue to find a nonstandard install location after the app has been opened once.
 - Bridge log maintenance now runs on install/resume and while the bridge is serving, snapshots oversized stdout/stderr logs into a single `.1` archive before truncating the live file in place, and bridge removal deletes the whole bridge-log family.
 - Host setup snapshots now include a lightweight presentation flag so the app can hide irrelevant local integrations from the main setup flow while still keeping generic/remote guidance available in underlying support logic and diagnostics.
@@ -184,8 +184,8 @@ The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has 
 
 Current near-term priorities:
 
-1. Implement Phase 4 of the HTTP bridge OAuth work: surface pending bridge auth requests in `Ursus.app` and replace the temporary auto-approval path with local-owner approve/deny mediation plus durable remembered-grant review/revoke UI.
-2. Implement Phase 5 bridge access-token enforcement so protected `/mcp` requests can succeed with the Phase 3-issued bearer tokens while keeping OAuth discovery/token lifecycle routes public.
+1. Implement Phase 5 bridge access-token enforcement so protected `/mcp` requests can succeed with the Phase 3-issued bearer tokens while keeping OAuth discovery/token lifecycle routes public.
+2. Validate the protected bridge against more real remote-host interoperability cases once bearer-token MCP access lands.
 
 ## Verification Baseline
 
@@ -275,5 +275,16 @@ HTTP bridge OAuth Phase 2 verification that passed on 2026-04-06:
 - `swift test`
 - `swift run ursus paths`
 - verified `swift run ursus paths` now includes `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`
+
+HTTP bridge OAuth Phase 4 verification that passed on 2026-04-06:
+
+- `swift test --filter BearApplicationTests`
+- `swift test --filter BearMCPCLITests`
+- `swift test`
+- `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
+- `swift run ursus bridge status`
+- bridge auth-store tests now cover review snapshots, approve/deny transitions, and revoke behavior for remembered grants
+- bridge runtime tests now cover pending authorization pages, denied request resolution, remembered-grant repeat authorization, and request completion after token exchange
+- the app target built successfully with the new bridge access review sheet in `Ursus.app`
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

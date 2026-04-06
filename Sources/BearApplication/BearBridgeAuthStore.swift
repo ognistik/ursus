@@ -83,6 +83,75 @@ public struct BearBridgeAuthStoreSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+public struct BearBridgePendingAuthorizationRequestSummary: Codable, Hashable, Sendable, Identifiable {
+    public let id: String
+    public let clientID: String
+    public let clientDisplayName: String?
+    public let grantID: String?
+    public let requestedScope: String
+    public let resource: String?
+    public let redirectURI: String
+    public let state: String?
+    public let status: BearBridgeAuthRequestStatus
+    public let createdAt: Date
+    public let expiresAt: Date
+    public let resolvedAt: Date?
+
+    public var clientTitle: String {
+        clientDisplayName ?? clientID
+    }
+}
+
+public struct BearBridgeAuthGrantSummary: Codable, Hashable, Sendable, Identifiable {
+    public let id: String
+    public let clientID: String
+    public let clientDisplayName: String?
+    public let scope: String
+    public let resource: String?
+    public let createdAt: Date
+    public let updatedAt: Date
+
+    public var clientTitle: String {
+        clientDisplayName ?? clientID
+    }
+}
+
+public struct BearBridgeAuthReviewSnapshot: Codable, Hashable, Sendable {
+    public let storagePath: String
+    public let storageReady: Bool
+    public let pendingRequests: [BearBridgePendingAuthorizationRequestSummary]
+    public let activeGrants: [BearBridgeAuthGrantSummary]
+
+    public init(
+        storagePath: String,
+        storageReady: Bool,
+        pendingRequests: [BearBridgePendingAuthorizationRequestSummary],
+        activeGrants: [BearBridgeAuthGrantSummary]
+    ) {
+        self.storagePath = storagePath
+        self.storageReady = storageReady
+        self.pendingRequests = pendingRequests
+        self.activeGrants = activeGrants
+    }
+
+    public var hasStoredAuthState: Bool {
+        !pendingRequests.isEmpty || !activeGrants.isEmpty
+    }
+
+    public var compactSummary: String {
+        "\(activeGrants.count) grants, \(pendingRequests.count) pending requests"
+    }
+
+    static func empty(storagePath: String, storageReady: Bool = false) -> BearBridgeAuthReviewSnapshot {
+        BearBridgeAuthReviewSnapshot(
+            storagePath: storagePath,
+            storageReady: storageReady,
+            pendingRequests: [],
+            activeGrants: []
+        )
+    }
+}
+
 public struct BearBridgeAuthClientDraft: Hashable, Sendable {
     public let displayName: String?
     public let redirectURIs: [String]
@@ -398,6 +467,15 @@ public actor BearBridgeAuthStore {
         )
     }
 
+    public func reviewSnapshot(prepareIfMissing: Bool = false) throws -> BearBridgeAuthReviewSnapshot {
+        try Self.loadReviewSnapshot(
+            databaseURL: databaseURL,
+            fileManager: fileManager,
+            now: now,
+            prepareIfMissing: prepareIfMissing
+        )
+    }
+
     public func registerClient(_ draft: BearBridgeAuthClientDraft) throws -> BearBridgeAuthClient {
         let dbQueue = try prepareDatabaseQueue()
         let createdAt = now()
@@ -508,6 +586,30 @@ public actor BearBridgeAuthStore {
             record.revokedAt = revokedAt
             record.updatedAt = revokedAt
             try record.update(db)
+            try db.execute(
+                sql: """
+                UPDATE authorization_codes
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAt.timeIntervalSince1970, id]
+            )
+            try db.execute(
+                sql: """
+                UPDATE refresh_tokens
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAt.timeIntervalSince1970, id]
+            )
+            try db.execute(
+                sql: """
+                UPDATE access_tokens
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAt.timeIntervalSince1970, id]
+            )
             return record.makeModel()
         }
     }
@@ -547,6 +649,16 @@ public actor BearBridgeAuthStore {
         return record?.makeModel()
     }
 
+    public func pendingAuthorizationRequestSummaries() throws -> [BearBridgePendingAuthorizationRequestSummary] {
+        let dbQueue = try prepareDatabaseQueue()
+        return try Self.pendingAuthorizationRequestSummaries(using: dbQueue, now: now())
+    }
+
+    public func activeGrantSummaries() throws -> [BearBridgeAuthGrantSummary] {
+        let dbQueue = try prepareDatabaseQueue()
+        return try Self.activeGrantSummaries(using: dbQueue)
+    }
+
     public func updatePendingAuthorizationRequestStatus(
         id: String,
         status: BearBridgeAuthRequestStatus
@@ -564,6 +676,56 @@ public actor BearBridgeAuthStore {
             try record.update(db)
             return record.makeModel()
         }
+    }
+
+    public func approvePendingAuthorizationRequest(
+        id: String
+    ) throws -> BearBridgePendingAuthorizationRequest? {
+        guard let request = try pendingAuthorizationRequest(id: id) else {
+            return nil
+        }
+
+        if request.status == .pending, request.expiresAt < now() {
+            return try updatePendingAuthorizationRequestStatus(id: id, status: .expired)
+        }
+
+        guard request.status == .pending else {
+            return request
+        }
+
+        let resource = Self.metadataValue(named: "resource", in: request.metadataJSON)
+        _ = try ensureGrant(
+            BearBridgeAuthGrantDraft(
+                clientID: request.clientID,
+                scope: request.requestedScope,
+                resource: resource,
+                metadataJSON: Self.metadataJSONString(
+                    [
+                        "approved_by": "ursus-app",
+                        "resource": resource,
+                    ]
+                )
+            )
+        )
+        return try updatePendingAuthorizationRequestStatus(id: id, status: .approved)
+    }
+
+    public func denyPendingAuthorizationRequest(
+        id: String
+    ) throws -> BearBridgePendingAuthorizationRequest? {
+        guard let request = try pendingAuthorizationRequest(id: id) else {
+            return nil
+        }
+
+        if request.status == .pending, request.expiresAt < now() {
+            return try updatePendingAuthorizationRequestStatus(id: id, status: .expired)
+        }
+
+        guard request.status == .pending else {
+            return request
+        }
+
+        return try updatePendingAuthorizationRequestStatus(id: id, status: .denied)
     }
 
     public func issueAuthorizationCode(
@@ -765,6 +927,27 @@ public actor BearBridgeAuthStore {
         return snapshot
     }
 
+    nonisolated public static func loadReviewSnapshot(
+        databaseURL: URL = BearPaths.bridgeAuthDatabaseURL,
+        fileManager: FileManager = .default,
+        now: @escaping @Sendable () -> Date = { Date() },
+        prepareIfMissing: Bool = false
+    ) throws -> BearBridgeAuthReviewSnapshot {
+        guard prepareIfMissing || fileManager.fileExists(atPath: databaseURL.path) else {
+            return .empty(storagePath: databaseURL.path)
+        }
+
+        let dbQueue = try makeDatabaseQueue(
+            databaseURL: databaseURL,
+            fileManager: fileManager
+        )
+        return try reviewSnapshot(
+            using: dbQueue,
+            storagePath: databaseURL.path,
+            now: now()
+        )
+    }
+
     @discardableResult
     nonisolated public static func prepareStorage(
         databaseURL: URL = BearPaths.bridgeAuthDatabaseURL,
@@ -923,6 +1106,66 @@ private extension BearBridgeAuthStore {
         )
     }
 
+    static func reviewSnapshot(
+        using dbQueue: DatabaseQueue,
+        storagePath: String,
+        now: Date
+    ) throws -> BearBridgeAuthReviewSnapshot {
+        BearBridgeAuthReviewSnapshot(
+            storagePath: storagePath,
+            storageReady: true,
+            pendingRequests: try pendingAuthorizationRequestSummaries(using: dbQueue, now: now),
+            activeGrants: try activeGrantSummaries(using: dbQueue)
+        )
+    }
+
+    static func pendingAuthorizationRequestSummaries(
+        using dbQueue: DatabaseQueue,
+        now: Date
+    ) throws -> [BearBridgePendingAuthorizationRequestSummary] {
+        try dbQueue.read { db in
+            try BridgeAuthPendingRequestSummaryRow.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    pending_authorization_requests.*,
+                    clients.display_name AS client_display_name
+                FROM pending_authorization_requests
+                JOIN clients ON clients.client_id = pending_authorization_requests.client_id
+                WHERE pending_authorization_requests.status = ?
+                    AND pending_authorization_requests.resolved_at IS NULL
+                    AND pending_authorization_requests.expires_at >= ?
+                ORDER BY pending_authorization_requests.created_at ASC
+                """,
+                arguments: [
+                    BearBridgeAuthRequestStatus.pending.rawValue,
+                    now.timeIntervalSince1970,
+                ]
+            )
+            .map(\.model)
+        }
+    }
+
+    static func activeGrantSummaries(
+        using dbQueue: DatabaseQueue
+    ) throws -> [BearBridgeAuthGrantSummary] {
+        try dbQueue.read { db in
+            try BridgeAuthGrantSummaryRow.fetchAll(
+                db,
+                sql: """
+                SELECT
+                    grants.*,
+                    clients.display_name AS client_display_name
+                FROM grants
+                JOIN clients ON clients.client_id = grants.client_id
+                WHERE grants.revoked_at IS NULL
+                ORDER BY grants.updated_at DESC, grants.created_at DESC
+                """
+            )
+            .map(\.model)
+        }
+    }
+
     static func makeDatabaseQueue(
         databaseURL: URL,
         fileManager: FileManager
@@ -1069,6 +1312,33 @@ private extension BearBridgeAuthStore {
         return normalized
     }
 
+    static func metadataValue(named name: String, in metadataJSON: String) -> String? {
+        guard let data = metadataJSON.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return nil
+        }
+
+        return normalizedOptionalString(object[name] as? String)
+    }
+
+    static func metadataJSONString(_ dictionary: [String: String?]) -> String {
+        let filtered = dictionary.reduce(into: [String: String]()) { partialResult, entry in
+            if let value = normalizedOptionalString(entry.value) {
+                partialResult[entry.key] = value
+            }
+        }
+
+        guard JSONSerialization.isValidJSONObject(filtered),
+              let data = try? JSONSerialization.data(withJSONObject: filtered, options: [.sortedKeys]),
+              let string = String(data: data, encoding: .utf8)
+        else {
+            return "{}"
+        }
+
+        return string
+    }
+
     static func encodeRedirectURIs(_ redirectURIs: [String]) throws -> String {
         let normalized = redirectURIs
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -1138,6 +1408,85 @@ private struct BridgeAuthCountSnapshot {
     let activeRefreshTokenCount: Int
     let activeAccessTokenCount: Int
     let revocationCount: Int
+}
+
+private struct BridgeAuthPendingRequestSummaryRow: Decodable, FetchableRecord, Hashable, Sendable {
+    let requestID: String
+    let clientID: String
+    let clientDisplayName: String?
+    let grantID: String?
+    let requestedScope: String
+    let redirectURI: String
+    let state: String?
+    let status: BearBridgeAuthRequestStatus
+    let metadataJSON: String
+    let createdAt: Date
+    let expiresAt: Date
+    let resolvedAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
+        case clientID = "client_id"
+        case clientDisplayName = "client_display_name"
+        case grantID = "grant_id"
+        case requestedScope = "requested_scope"
+        case redirectURI = "redirect_uri"
+        case state
+        case status
+        case metadataJSON = "metadata_json"
+        case createdAt = "created_at"
+        case expiresAt = "expires_at"
+        case resolvedAt = "resolved_at"
+    }
+
+    var model: BearBridgePendingAuthorizationRequestSummary {
+        BearBridgePendingAuthorizationRequestSummary(
+            id: requestID,
+            clientID: clientID,
+            clientDisplayName: clientDisplayName,
+            grantID: grantID,
+            requestedScope: requestedScope,
+            resource: BearBridgeAuthStore.metadataValue(named: "resource", in: metadataJSON),
+            redirectURI: redirectURI,
+            state: state,
+            status: status,
+            createdAt: createdAt,
+            expiresAt: expiresAt,
+            resolvedAt: resolvedAt
+        )
+    }
+}
+
+private struct BridgeAuthGrantSummaryRow: Decodable, FetchableRecord, Hashable, Sendable {
+    let grantID: String
+    let clientID: String
+    let clientDisplayName: String?
+    let scope: String
+    let resource: String?
+    let createdAt: Date
+    let updatedAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case grantID = "grant_id"
+        case clientID = "client_id"
+        case clientDisplayName = "client_display_name"
+        case scope
+        case resource
+        case createdAt = "created_at"
+        case updatedAt = "updated_at"
+    }
+
+    var model: BearBridgeAuthGrantSummary {
+        BearBridgeAuthGrantSummary(
+            id: grantID,
+            clientID: clientID,
+            clientDisplayName: clientDisplayName,
+            scope: scope,
+            resource: resource,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 private struct BridgeAuthClientRecord: Codable, FetchableRecord, PersistableRecord, Hashable, Sendable {
