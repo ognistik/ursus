@@ -41,6 +41,27 @@ func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
 }
 
 @Test
+func usageTextGroupsCommandsOptionsAndExamples() {
+    let usage = BearCLICommand.usageText
+
+    #expect(usage.contains("Ursus is a local CLI and MCP server for Bear note workflows."))
+    #expect(usage.contains("Commands:"))
+    #expect(usage.contains("`--new-note` options:"))
+    #expect(usage.contains("Examples:"))
+    #expect(usage.contains("Create a tagged note and open it in Bear."))
+}
+
+@Test
+func bridgeUsageTextExplainsBridgeCommandsAndExamples() {
+    let usage = BearCLICommand.bridgeUsageText
+
+    #expect(usage.contains("Manage the optional localhost HTTP MCP bridge."))
+    #expect(usage.contains("ursus bridge <command>"))
+    #expect(usage.contains("Examples:"))
+    #expect(usage.contains("Confirm that the installed bridge is loaded and responding."))
+}
+
+@Test
 func parseNewNoteExplicitFlagsCollectsOverridesAndAliases() throws {
     let command = try BearCLICommand.parse(
         arguments: [

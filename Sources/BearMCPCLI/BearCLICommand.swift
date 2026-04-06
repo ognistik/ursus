@@ -69,49 +69,98 @@ enum BearCLICommand {
 
     static var usageText: String {
         """
-        Usage:
-          ursus
-          ursus mcp
-          ursus bridge serve
-          ursus bridge status
-          ursus bridge print-url
-          ursus doctor
-          ursus paths
-          ursus --new-note
-          ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]
-          ursus --backup-note [note-id-or-title ...]
-          ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]
-          ursus --apply-template [note-id-or-title ...]
+        Ursus is a local CLI and MCP server for Bear note workflows.
 
-        Notes:
-          No command defaults to `mcp`.
-          `bridge serve` starts the optional localhost HTTP MCP bridge with the configured host and port.
-          `bridge status` prints saved bridge config plus LaunchAgent and health-check details.
-          `bridge print-url` prints the configured localhost MCP URL.
-          `--new-note` with no extra flags preserves the current interactive editing-note flow.
-          In explicit `--new-note` mode, omitted `--tags` follows the create-adds-inbox-tags default: it uses configured inbox tags when enabled and stays empty when disabled. Omitted open/window flags leave the note closed, and `--replace-tags` switches from append to replace.
-          `--title` also accepts `-t`, `--content` accepts `-c`, `--tags` accepts `-g`, `--replace-tags` accepts `-rt`, `--open-note` accepts `-on`, and `--new-window` accepts `-nw`.
-          `--tags` accepts a comma-separated list and may be passed more than once.
-          `--new-window` requires `--open-note`.
-          `--backup-note`, `--restore-note`, and `--apply-template` use the selected Bear note when no note ids or titles are passed.
-          Bare `--restore-note` restores the selected Bear note from its most recent backup snapshot.
-          Passed `--restore-note` arguments must be exact note-id/snapshot-id pairs.
-          Passed note arguments resolve as exact note id first, then exact case-insensitive title.
+        Usage:
+          ursus [command]
+
+        If you run `ursus` with no command, it starts the stdio MCP server.
+
+        Commands:
+          ursus
+              Start the stdio MCP server.
+          ursus mcp
+              Start the stdio MCP server explicitly.
+          ursus bridge serve
+              Start the optional localhost HTTP MCP bridge.
+          ursus bridge status
+              Show bridge configuration, LaunchAgent state, and health checks.
+          ursus bridge print-url
+              Print the bridge MCP endpoint URL.
+          ursus doctor
+              Check the local Ursus setup and print diagnostics.
+          ursus paths
+              Print important Ursus file paths.
+          ursus --new-note
+              Create a new Bear note using the selected note tags.
+          ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]
+              Create a new note with explicit options.
+          ursus --backup-note [note-id-or-title ...]
+              Save backup snapshots for one or more notes.
+          ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]
+              Restore notes from saved backups.
+          ursus --apply-template [note-id-or-title ...]
+              Apply the configured note template to one or more notes.
+
+        `--new-note` options:
+          --title, -t TEXT
+              Set the note title.
+          --content, -c TEXT
+              Set the note body content.
+          --tags, -g TAGS
+              Add tags as a comma-separated list. You can pass this more than once.
+          --replace-tags, -rt
+              Replace tags instead of appending them.
+          --open-note, -on
+              Open the new note in Bear after creating it.
+          --new-window, -nw
+              Open the new note in a new Bear window. Requires `--open-note`.
+
+        Note targeting:
+          For `--backup-note`, `--restore-note`, and `--apply-template`, no arguments means "use the currently selected Bear note".
+          Bare `--restore-note` restores the selected note from its most recent backup snapshot.
+          Passed note selectors resolve as exact note id first, then exact case-insensitive title.
+          Passed `--restore-note` arguments must be exact `NOTE_ID SNAPSHOT_ID` pairs.
+          In explicit `--new-note` mode, omitted `--tags` follows the create-adds-inbox-tags default.
+          In explicit `--new-note` mode, omitted open/window flags leave the note closed.
+
+        Examples:
+          ursus
+              Start the stdio MCP server for a desktop host such as Codex or Claude Desktop.
+          ursus bridge status
+              Check whether the optional localhost bridge is installed and healthy.
+          ursus --new-note --title "Daily Note" --tags work,journal --open-note
+              Create a tagged note and open it in Bear.
+          ursus --backup-note
+              Back up the currently selected Bear note.
+          ursus --apply-template "Project Notes"
+              Apply the current template to the note titled "Project Notes".
+
+        Tip:
           Quote titles with spaces, for example: ursus --apply-template "Project Notes"
         """
     }
 
     static var bridgeUsageText: String {
         """
-        Usage:
-          ursus bridge serve
-          ursus bridge status
-          ursus bridge print-url
+        Manage the optional localhost HTTP MCP bridge.
 
-        Notes:
-          `serve` starts the optional localhost HTTP MCP bridge using the configured host and port.
-          `status` reports saved bridge config plus LaunchAgent and health-check details.
-          `print-url` prints the configured MCP endpoint URL.
+        Usage:
+          ursus bridge <command>
+
+        Commands:
+          ursus bridge serve
+              Start the localhost HTTP MCP bridge using the saved host and port.
+          ursus bridge status
+              Show bridge configuration, LaunchAgent state, and health checks.
+          ursus bridge print-url
+              Print the saved MCP endpoint URL.
+
+        Examples:
+          ursus bridge serve
+              Run the bridge directly in the current terminal.
+          ursus bridge status
+              Confirm that the installed bridge is loaded and responding.
         """
     }
 
