@@ -519,7 +519,7 @@ private enum UrsusRecoveryAction {
         case .repairLauncher:
             return "Repair Launcher"
         case .repairBridge:
-            return "Repair Bridge"
+            return "Repair"
         }
     }
 }

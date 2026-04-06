@@ -80,7 +80,7 @@ struct UrsusToolsView: View {
                                     Text(tool.title)
                                         .font(.subheadline)
                                     Text(tool.summary)
-                                        .font(.callout)
+                                        .font(.footnote)
                                         .foregroundStyle(.secondary)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)

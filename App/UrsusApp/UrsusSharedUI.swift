@@ -231,15 +231,14 @@ struct UrsusScreenHeader: View {
 }
 
 struct UrsusRuntimeRestartGuidance: View {
-    static let message = "Changes save automatically, but take effect only after reloading. If the Remote MCP Bridge is running, restart it first, then relaunch your MCP client."
+    static let message = "Changes save automatically. Reload your MCP client to apply them. If the Remote MCP Bridge is running, restart it first."
 
     var body: some View {
-        UrsusGroupedBlock(padding: 10) {
-            Text(Self.message)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
+        Text(Self.message)
+            .font(.footnote)
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
