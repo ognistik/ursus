@@ -6,6 +6,7 @@ struct UrsusSetupView: View {
     @ObservedObject var model: UrsusAppModel
     @Binding var selectedSection: UrsusDashboardSection
     @State private var showsTokenInput = false
+    @State private var showsLauncherPathCopiedNotice = false
 
     var body: some View {
         UrsusScrollSurface {
@@ -16,10 +17,8 @@ struct UrsusSetupView: View {
                     defaultsPanel(settings)
                     Divider()
                     tokenPanel(settings)
-                    if !model.setupHostSetups.isEmpty {
-                        Divider()
-                        connectAppsPanel(settings)
-                    }
+                    Divider()
+                    connectAppsPanel(settings)
                     Divider()
                     bridgePanel(settings)
                 }
@@ -193,12 +192,31 @@ struct UrsusSetupView: View {
     }
 
     private func connectAppsPanel(_ settings: BearAppSettingsSnapshot) -> some View {
-        UrsusPanel(
+        let supportedSetups = model.setupHostSetups
+
+        return UrsusPanel(
             title: "Connect Apps",
             titleHelpText: "Copy a setup snippet for apps installed on this Mac."
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                if let title = launcherPrimaryActionTitle(for: settings) {
+                if supportedSetups.isEmpty {
+                    Text("For third-party AI apps that support local MCP servers, add Ursus as a stdio MCP server using the copied launcher path as the command and \"mcp\" as an argument. Use the Remote MCP Bridge below when an app supports a local MCP URL instead.")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Button("Copy Launcher Path") {
+                        model.copyLauncherPath()
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Text("Setup is available for supported apps found on this Mac.")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !supportedSetups.isEmpty, let title = launcherPrimaryActionTitle(for: settings) {
                     UrsusGroupedBlock {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("Install the launcher before copying setup.")
@@ -216,10 +234,12 @@ struct UrsusSetupView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(model.setupHostSetups, id: \.id) { setup in
-                        UrsusGroupedBlock {
-                            UrsusHostSetupRow(model: model, setup: setup)
+                if !supportedSetups.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(supportedSetups, id: \.id) { setup in
+                            UrsusGroupedBlock {
+                                UrsusHostSetupRow(model: model, setup: setup)
+                            }
                         }
                     }
                 }
