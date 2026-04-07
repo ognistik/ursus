@@ -34,7 +34,7 @@ struct UrsusToolsView: View {
                     UrsusStatusBadge(title: compactStatusTitle(for: settings.launcherStatus), status: settings.launcherStatus)
                     Text(settings.launcherStatusDetail)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusSecondaryTextColor)
                 }
 
                 if let actionTitle = launcherPrimaryActionTitle(for: settings) {
@@ -81,7 +81,7 @@ struct UrsusToolsView: View {
                                         .font(.subheadline)
                                     Text(tool.summary)
                                         .font(.footnote)
-                                        .foregroundStyle(.secondary)
+                                        .foregroundStyle(ursusSecondaryTextColor)
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 2)

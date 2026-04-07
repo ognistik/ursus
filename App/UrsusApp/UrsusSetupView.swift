@@ -62,7 +62,7 @@ struct UrsusSetupView: View {
 
             Text("Local MCP and utilities for Bear")
                 .font(.callout)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ursusTertiaryTextColor)
         }
     }
 
@@ -76,7 +76,7 @@ struct UrsusSetupView: View {
                     Image(systemName: "pencil")
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ursusInlineLabelColor)
                 .help("Edit")
             }
         ) {
@@ -116,7 +116,7 @@ struct UrsusSetupView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Optional. Required for selected-note flows.")
                     .font(.footnote)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ursusTertiaryTextColor)
 
                 if settings.selectedNoteTokenConfigured && !showsTokenInput {
                     UrsusGroupedBlock {
@@ -124,7 +124,7 @@ struct UrsusSetupView: View {
                             HStack(spacing: 10) {
                                 Text(displayedToken)
                                     .font(.system(.callout, design: .monospaced))
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(ursusSecondaryTextColor)
                                     .textSelection(.enabled)
 
                                 Spacer(minLength: 12)
@@ -136,7 +136,7 @@ struct UrsusSetupView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .controlSize(.small)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ursusInlineLabelColor)
                                 .help(model.revealsStoredToken ? "Hide Token" : "Reveal Token")
 
                                 Button {
@@ -146,14 +146,14 @@ struct UrsusSetupView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .controlSize(.small)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(ursusInlineLabelColor)
                                 .help("Copy Token")
                             }
                         } else {
                             HStack(spacing: 10) {
                                 Text("Saved token unavailable in the app.")
                                     .font(.footnote)
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(ursusTertiaryTextColor)
 
                                 Button("Try Again") {
                                     model.loadStoredSelectedNoteToken()
@@ -224,7 +224,7 @@ struct UrsusSetupView: View {
                 if supportedSetups.isEmpty {
                     Text("For third-party AI apps that support local MCP servers, add Ursus as a stdio MCP server using the copied launcher path as the command and \"mcp\" as an argument. Use the Remote MCP Bridge below when an app supports a local MCP URL instead.")
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusTertiaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Button("Copy Launcher Path") {
@@ -240,7 +240,7 @@ struct UrsusSetupView: View {
                 } else {
                     Text("Setup is available for supported apps found on this Mac.")
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusTertiaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -249,7 +249,7 @@ struct UrsusSetupView: View {
                         HStack(alignment: .firstTextBaseline, spacing: 10) {
                             Text("Install the launcher before copying setup.")
                                 .font(.footnote)
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(ursusTertiaryTextColor)
 
                             Spacer(minLength: 12)
 
@@ -317,14 +317,14 @@ struct UrsusSetupView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 14) {
                     Text("MCP URL")
                         .font(.callout.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusInlineLabelColor)
 
                     Spacer(minLength: 12)
 
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text(bridge.endpointURL)
                             .font(.system(.callout, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ursusSecondaryTextColor)
                             .multilineTextAlignment(.trailing)
                             .textSelection(.enabled)
 
@@ -334,7 +334,7 @@ struct UrsusSetupView: View {
                             Image(systemName: "doc.on.doc")
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusInlineLabelColor)
                         .help("Copy URL")
                     }
                 }
@@ -361,7 +361,7 @@ struct UrsusSetupView: View {
                     if bridge.installed, let bridgeAccessSummary = bridgeAccessSummary(for: bridge) {
                         Text(bridgeAccessSummary)
                             .font(.footnote)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(ursusTertiaryTextColor)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -369,19 +369,37 @@ struct UrsusSetupView: View {
 
             HStack(spacing: 10) {
                 if let recoveryAction = bridgeRecoveryAction(for: settings) {
-                    Button(recoveryAction.title) {
-                        performRecoveryAction(recoveryAction, settings: settings)
+                    if settings.bridge.installed {
+                        Button(recoveryAction.title) {
+                            performRecoveryAction(recoveryAction, settings: settings)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
+                    } else {
+                        Button(recoveryAction.title) {
+                            performRecoveryAction(recoveryAction, settings: settings)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                 } else if let title = bridgePrimaryActionTitle(for: bridge) {
-                    Button(title) {
-                        model.installBridge(
-                            repairing: bridge.status == .invalid || bridge.status == .failed
-                        )
+                    if bridge.installed {
+                        Button(title) {
+                            model.installBridge(
+                                repairing: bridge.status == .invalid || bridge.status == .failed
+                            )
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
+                    } else {
+                        Button(title) {
+                            model.installBridge(
+                                repairing: bridge.status == .invalid || bridge.status == .failed
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                 }
 
                 if bridge.installed {
@@ -405,11 +423,20 @@ struct UrsusSetupView: View {
                 }
 
                 if bridgeRememberedClientCount(for: bridge) > 0 {
-                    Button("Manage Access") {
-                        model.openBridgeAccessOverlay()
+                    if bridge.installed {
+                        Button("Manage Access") {
+                            model.openBridgeAccessOverlay()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(model.isBridgeOperationInProgress)
+                    } else {
+                        Button("Manage Access") {
+                            model.openBridgeAccessOverlay()
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(ursusInlineLabelColor)
+                        .disabled(model.isBridgeOperationInProgress)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(model.isBridgeOperationInProgress)
                 }
 
                 if bridge.installed {
@@ -428,7 +455,7 @@ struct UrsusSetupView: View {
 
                     Text(progressMessage)
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusTertiaryTextColor)
                 }
             }
 
@@ -471,18 +498,19 @@ struct UrsusSetupView: View {
             HStack(alignment: .center, spacing: 14) {
                 Text("Authorization")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusInlineLabelColor)
 
                 Spacer(minLength: 12)
 
                 if bridge.installed {
                     Text(bridge.authModeSummary)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusSecondaryTextColor)
                         .multilineTextAlignment(.trailing)
                 } else {
                     Toggle("", isOn: bridgeRequiresOAuthBinding)
                         .toggleStyle(.switch)
+                        .tint(ursusMutedControlTint)
                         .labelsHidden()
                         .disabled(model.isBridgeOperationInProgress)
                 }
@@ -491,7 +519,7 @@ struct UrsusSetupView: View {
             if !bridge.installed {
                 Text("Require OAuth for all bridge requests")
                     .font(.footnote)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ursusTertiaryTextColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -556,7 +584,7 @@ struct UrsusSetupView: View {
         if let bridgeStateText = bridgeStateText(for: settings) {
             Text(bridgeStateText)
                 .font(.footnote)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(ursusTertiaryTextColor)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -620,7 +648,7 @@ private struct UrsusHostSetupRow: View {
             if let detail = hostSetupDetail(for: setup) {
                 Text(detail)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
             }
 
             HStack(spacing: 10) {

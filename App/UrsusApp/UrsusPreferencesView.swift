@@ -55,7 +55,7 @@ struct UrsusPreferencesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Default insert position")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusInlineLabelColor)
 
                     Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
                         Text("Top").tag(BearConfiguration.InsertDefault.top)
@@ -68,7 +68,7 @@ struct UrsusPreferencesView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Tags merge mode")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusInlineLabelColor)
 
                     Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
                         Text("Append").tag(BearConfiguration.TagsMergeMode.append)
@@ -106,7 +106,7 @@ struct UrsusPreferencesView: View {
                 if model.templateManagementEnabledDraft {
                     Text("Required slots: `{{content}}` and `{{tags}}`.")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusTertiaryTextColor)
 
                     TextEditor(text: Binding(
                         get: { model.templateDraft },
@@ -140,7 +140,7 @@ struct UrsusPreferencesView: View {
                     if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
                         Text("Unsaved changes stay in the app until you save.")
                             .font(.caption)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(ursusTertiaryTextColor)
                     }
 
                     UrsusMessageStack(

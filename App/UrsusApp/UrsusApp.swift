@@ -7,10 +7,10 @@ let ursusMutedControlTint = Color(
         name: nil,
         dynamicProvider: { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(calibratedWhite: 0.72, alpha: 0.95)
+                return NSColor(calibratedWhite: 0.62, alpha: 0.96)
             }
 
-            return NSColor(calibratedWhite: 0.38, alpha: 0.95)
+            return NSColor(calibratedWhite: 0.32, alpha: 0.96)
         }
     )
 )
@@ -31,7 +31,6 @@ struct UrsusApp: App {
         Settings {
             UrsusWindowSurface {
                 UrsusSettingsView(model: model)
-                    .tint(ursusMutedControlTint)
                     .frame(minWidth: 560, minHeight: 520)
             }
         }
@@ -50,9 +49,10 @@ private struct UrsusWindowSurface<Content: View>: View {
 
     var body: some View {
         content
+            .tint(ursusMutedControlTint)
             .background(UrsusInitialFirstResponderResetView())
             .background(
-                Color(nsColor: .windowBackgroundColor)
+                ursusPageBackgroundColor
                     .ignoresSafeArea()
             )
     }

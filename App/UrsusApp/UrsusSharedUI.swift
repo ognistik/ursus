@@ -3,6 +3,118 @@ import BearApplication
 import BearCore
 import SwiftUI
 
+private func ursusDynamicColor(light: NSColor, dark: NSColor) -> Color {
+    Color(
+        nsColor: NSColor(
+            name: nil,
+            dynamicProvider: { appearance in
+                if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
+                    return dark
+                }
+
+                return light
+            }
+        )
+    )
+}
+
+let ursusPageBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.963, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.102, alpha: 1)
+)
+
+let ursusPanelSubtleBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.934, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.132, alpha: 1)
+)
+
+let ursusPanelProminentBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.916, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.154, alpha: 1)
+)
+
+let ursusGroupedBlockBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.974, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.172, alpha: 1)
+)
+
+let ursusNoticeBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.946, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.146, alpha: 1)
+)
+
+let ursusInputBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.989, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.192, alpha: 1)
+)
+
+let ursusSheetBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.952, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.122, alpha: 1)
+)
+
+let ursusSurfaceBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.74, alpha: 0.38),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.09)
+)
+
+let ursusSurfaceBorderStrongColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.68, alpha: 0.46),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.13)
+)
+
+let ursusSecondaryTextColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.28, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.82, alpha: 1)
+)
+
+let ursusTertiaryTextColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.41, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.69, alpha: 1)
+)
+
+let ursusInlineLabelColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.37, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.73, alpha: 1)
+)
+
+let ursusSecondaryControlFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.90, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.22, alpha: 1)
+)
+
+private struct UrsusRoundedSurfaceChrome: ViewModifier {
+    let background: Color
+    let border: Color
+    let cornerRadius: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(border, lineWidth: 1)
+            )
+    }
+}
+
+extension View {
+    func ursusRoundedSurface(
+        background: Color,
+        border: Color = ursusSurfaceBorderColor,
+        cornerRadius: CGFloat
+    ) -> some View {
+        modifier(
+            UrsusRoundedSurfaceChrome(
+                background: background,
+                border: border,
+                cornerRadius: cornerRadius
+            )
+        )
+    }
+}
+
 struct UrsusScrollSurface<Content: View>: View {
     @ViewBuilder let content: Content
     @Environment(\.colorScheme) private var colorScheme
@@ -17,6 +129,7 @@ struct UrsusScrollSurface<Content: View>: View {
             .padding(.vertical, 24)
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .background(ursusPageBackgroundColor)
         .background(
             UrsusScrollViewChrome(knobStyle: colorScheme == .dark ? .dark : .light)
         )
@@ -97,11 +210,10 @@ struct UrsusPanel<Content: View>: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 13)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(UrsusPanelBackground(style: .subtle))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                    .ursusRoundedSurface(
+                        background: ursusPanelSubtleBackgroundColor,
+                        border: ursusSurfaceBorderColor,
+                        cornerRadius: 12
                     )
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -112,11 +224,10 @@ struct UrsusPanel<Content: View>: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(UrsusPanelBackground(style: .subtle))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            .ursusRoundedSurface(
+                background: ursusPanelSubtleBackgroundColor,
+                border: ursusSurfaceBorderColor,
+                cornerRadius: 18
             )
         } else {
             VStack(alignment: .leading, spacing: 12) {
@@ -125,11 +236,10 @@ struct UrsusPanel<Content: View>: View {
             }
             .padding(24)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(UrsusPanelBackground(style: .prominent))
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            .ursusRoundedSurface(
+                background: ursusPanelProminentBackgroundColor,
+                border: ursusSurfaceBorderStrongColor,
+                cornerRadius: 22
             )
         }
     }
@@ -155,7 +265,7 @@ struct UrsusPanel<Content: View>: View {
                 if let subtitle {
                     Text(subtitle)
                         .font(.callout)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusSecondaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -175,14 +285,14 @@ struct UrsusPanelBackground: ShapeStyle {
         self.style = style
     }
 
-    func resolve(in environment: EnvironmentValues) -> some ShapeStyle {
+    func resolve(in _: EnvironmentValues) -> some ShapeStyle {
         switch style {
         case .plain:
             Color.clear
         case .subtle:
-            Color.secondary.opacity(environment.colorScheme == .dark ? 0.08 : 0.045)
+            ursusPanelSubtleBackgroundColor
         case .prominent:
-            Color.secondary.opacity(environment.colorScheme == .dark ? 0.13 : 0.07)
+            ursusPanelProminentBackgroundColor
         }
     }
 }
@@ -205,8 +315,11 @@ struct UrsusGroupedBlock<Content: View>: View {
         }
         .padding(padding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .ursusRoundedSurface(
+            background: ursusGroupedBlockBackgroundColor,
+            border: ursusSurfaceBorderColor,
+            cornerRadius: 10
+        )
     }
 }
 
@@ -223,7 +336,7 @@ struct UrsusScreenHeader: View {
             if let subtitle {
                 Text(subtitle)
                     .font(.callout)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ursusTertiaryTextColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -236,9 +349,16 @@ struct UrsusRuntimeRestartGuidance: View {
     var body: some View {
         Text(Self.message)
             .font(.footnote)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(ursusTertiaryTextColor)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .ursusRoundedSurface(
+                background: ursusNoticeBackgroundColor,
+                border: ursusSurfaceBorderColor,
+                cornerRadius: 12
+            )
     }
 }
 
@@ -253,13 +373,13 @@ struct UrsusInfoRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 14) {
                 Text(label)
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusInlineLabelColor)
 
                 Spacer(minLength: 12)
 
                 Text(value)
                     .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
                     .multilineTextAlignment(.trailing)
                     .textSelection(.enabled)
             }
@@ -267,11 +387,11 @@ struct UrsusInfoRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(label)
                     .font(.footnote)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ursusInlineLabelColor)
 
                 Text(value)
                     .font(monospaced ? .system(.callout, design: .monospaced) : .callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
                     .textSelection(.enabled)
             }
         }
@@ -294,11 +414,10 @@ private struct UrsusInputChrome: ViewModifier {
         content
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
-            .background(Color(nsColor: .textBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            .ursusRoundedSurface(
+                background: ursusInputBackgroundColor,
+                border: ursusSurfaceBorderStrongColor,
+                cornerRadius: cornerRadius
             )
     }
 }
@@ -334,7 +453,7 @@ struct UrsusNumericFieldRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(label)
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusInlineLabelColor)
 
                 if showsHelpButton, let helpText {
                     UrsusHelpButton(text: helpText)
@@ -346,11 +465,14 @@ struct UrsusNumericFieldRow: View {
             if readOnly {
                 Text("\(value.wrappedValue)")
                     .font(.system(.body, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(UrsusPanelBackground(style: .subtle))
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .ursusRoundedSurface(
+                        background: ursusGroupedBlockBackgroundColor,
+                        border: ursusSurfaceBorderColor,
+                        cornerRadius: 8
+                    )
                     .help(helpText ?? "")
             } else {
                 TextField(label, value: value, formatter: ursusIntegerFormatter)
@@ -567,7 +689,7 @@ struct UrsusHelpButton: View {
         } label: {
             Image(systemName: "questionmark.circle")
                 .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ursusInlineLabelColor)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
@@ -600,7 +722,7 @@ struct UrsusConfiguredMark: View {
     var body: some View {
         Image(systemName: "checkmark")
             .font(.footnote.weight(.bold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(ursusInlineLabelColor)
             .accessibilityHidden(true)
     }
 }
@@ -726,7 +848,7 @@ struct UrsusTagEditor: View {
             if tags.isEmpty {
                 Text("New notes stay untagged until you add one here.")
                     .font(.callout)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
                     ForEach(tags, id: \.self) { tag in
@@ -743,11 +865,10 @@ struct UrsusTagEditor: View {
                             .padding(.horizontal, 11)
                             .padding(.vertical, 7)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(UrsusPanelBackground(style: .subtle))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                            .ursusRoundedSurface(
+                                background: ursusGroupedBlockBackgroundColor,
+                                border: ursusSurfaceBorderColor,
+                                cornerRadius: 12
                             )
                         }
                         .buttonStyle(.plain)

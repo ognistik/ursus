@@ -19,14 +19,12 @@ struct UrsusDashboardView: View {
                 .tag(UrsusDashboardSection.setup)
 
             UrsusPreferencesView(model: model, showsStandaloneHeader: false)
-                .tint(ursusMutedControlTint)
                 .tabItem {
                     Label("Preferences", systemImage: "slider.horizontal.3")
                 }
                 .tag(UrsusDashboardSection.preferences)
 
             UrsusToolsView(model: model)
-                .tint(ursusMutedControlTint)
                 .tabItem {
                     Label("Tools", systemImage: "wrench.and.screwdriver")
                 }

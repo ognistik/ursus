@@ -24,13 +24,12 @@ struct UrsusBridgeAccessOverlay: View {
         }
         .padding(22)
         .frame(maxWidth: 560, minHeight: 260, maxHeight: 430, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+        .ursusRoundedSurface(
+            background: ursusSheetBackgroundColor,
+            border: ursusSurfaceBorderStrongColor,
+            cornerRadius: 22
         )
-        .shadow(color: Color.black.opacity(0.2), radius: 30, y: 16)
+        .shadow(color: Color.black.opacity(0.14), radius: 20, y: 10)
     }
 
     private var header: some View {
@@ -42,7 +41,7 @@ struct UrsusBridgeAccessOverlay: View {
 
                 Text("Review and revoke remembered client access for the Remote MCP Bridge.")
                     .font(.footnote)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(ursusTertiaryTextColor)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -59,9 +58,9 @@ struct UrsusBridgeAccessOverlay: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(ursusInlineLabelColor)
                         .frame(width: 28, height: 28)
-                        .background(Color.primary.opacity(0.06), in: Circle())
+                        .background(ursusSecondaryControlFillColor, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .keyboardShortcut(.cancelAction)
@@ -87,11 +86,10 @@ struct UrsusBridgeAccessOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .top)
-        .background(Color.primary.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        .ursusRoundedSurface(
+            background: ursusGroupedBlockBackgroundColor,
+            border: ursusSurfaceBorderColor,
+            cornerRadius: 14
         )
     }
 
@@ -102,16 +100,15 @@ struct UrsusBridgeAccessOverlay: View {
 
             Text("Approved bridge clients will appear here after OAuth consent is granted.")
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ursusSecondaryTextColor)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .topLeading)
         .padding(18)
-        .background(Color.primary.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        .ursusRoundedSurface(
+            background: ursusGroupedBlockBackgroundColor,
+            border: ursusSurfaceBorderColor,
+            cornerRadius: 14
         )
     }
 
@@ -124,14 +121,14 @@ struct UrsusBridgeAccessOverlay: View {
                 if let resource = grant.resource, !resource.isEmpty {
                     Text(resource)
                         .font(.footnote)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(ursusTertiaryTextColor)
                         .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Text("Approved \(grant.createdAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ursusSecondaryTextColor)
             }
 
             Spacer(minLength: 12)
@@ -143,6 +140,6 @@ struct UrsusBridgeAccessOverlay: View {
             .disabled(model.bridgeAuthActionInProgress)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        .padding(.vertical, 11)
     }
 }
