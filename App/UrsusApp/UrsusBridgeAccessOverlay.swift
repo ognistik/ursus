@@ -24,10 +24,11 @@ struct UrsusBridgeAccessOverlay: View {
         }
         .padding(22)
         .frame(maxWidth: 680, minHeight: 260, maxHeight: 430, alignment: .topLeading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.2), radius: 30, y: 16)
     }

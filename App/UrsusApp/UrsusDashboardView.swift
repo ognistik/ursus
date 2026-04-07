@@ -45,5 +45,5 @@ struct UrsusSettingsView: View {
 
 #Preview {
     UrsusDashboardView(model: UrsusAppModel())
-        .frame(height: 500)
+        .frame(width:720, height: 620)
 }

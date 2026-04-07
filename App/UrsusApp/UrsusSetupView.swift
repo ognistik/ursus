@@ -2,30 +2,11 @@ import BearApplication
 import BearCore
 import SwiftUI
 
-struct VisualEffectBlur: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .hudWindow
-    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-    var state: NSVisualEffectView.State = .active
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = state
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-        nsView.state = state
-    }
-}
-
 struct UrsusSetupView: View {
     @ObservedObject var model: UrsusAppModel
     @Binding var selectedSection: UrsusDashboardSection
     @State private var showsTokenInput = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -53,8 +34,9 @@ struct UrsusSetupView: View {
 
             if model.showsBridgeAccessOverlay {
                 ZStack {
-                    VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                    Color.black.opacity(0.10)
+                    (colorScheme == .dark
+                        ? Color.black.opacity(0.60)
+                        : Color.black.opacity(0.35))
                 }
                 .ignoresSafeArea()
                 .transition(.opacity)
