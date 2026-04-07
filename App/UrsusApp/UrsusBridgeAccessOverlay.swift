@@ -1,4 +1,3 @@
-import AppKit
 import BearApplication
 import SwiftUI
 
@@ -23,26 +22,25 @@ struct UrsusBridgeAccessOverlay: View {
                 grantList
             }
         }
-        .padding(24)
-        .frame(maxWidth: 760, maxHeight: 520, alignment: .topLeading)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .padding(22)
+        .frame(maxWidth: 680, minHeight: 260, maxHeight: 430, alignment: .topLeading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.1), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.12), radius: 24, y: 10)
+        .shadow(color: Color.black.opacity(0.2), radius: 30, y: 16)
     }
 
     private var header: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Bridge Access")
-                    .font(.system(size: 28, weight: .black))
-                    .tracking(-1.2)
+                    .font(.system(size: 24, weight: .black))
+                    .tracking(-0.9)
 
                 Text("Review and revoke remembered client access for the Remote MCP Bridge.")
-                    .font(.callout)
+                    .font(.footnote)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -55,28 +53,45 @@ struct UrsusBridgeAccessOverlay: View {
                         .controlSize(.small)
                 }
 
-                Button("Close") {
+                Button {
                     model.closeBridgeAccessOverlay()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.primary.opacity(0.06), in: Circle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
                 .keyboardShortcut(.cancelAction)
                 .disabled(model.bridgeAuthActionInProgress)
+                .help("Dismiss")
             }
         }
     }
 
     private var grantList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(model.bridgeAuthGrantSummaries.enumerated()), id: \.element.id) { index, grant in
-                    grantRow(grant)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.bridgeAuthGrantSummaries.enumerated()), id: \.element.id) { index, grant in
+                        grantRow(grant)
 
-                    if index < model.bridgeAuthGrantSummaries.count - 1 {
-                        Divider()
+                        if index < model.bridgeAuthGrantSummaries.count - 1 {
+                            Divider()
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .top)
+        .background(Color.primary.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
     }
 
     private var emptyState: some View {
@@ -89,7 +104,14 @@ struct UrsusBridgeAccessOverlay: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .topLeading)
+        .padding(18)
+        .background(Color.primary.opacity(0.035))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
     }
 
     private func grantRow(_ grant: BearBridgeAuthGrantSummary) -> some View {
@@ -119,6 +141,7 @@ struct UrsusBridgeAccessOverlay: View {
             .buttonStyle(.bordered)
             .disabled(model.bridgeAuthActionInProgress)
         }
+        .padding(.horizontal, 16)
         .padding(.vertical, 14)
     }
 }

@@ -143,6 +143,24 @@ public struct BearBridgeAuthGrantSummary: Codable, Hashable, Sendable, Identifia
     public let createdAt: Date
     public let updatedAt: Date
 
+    public init(
+        id: String,
+        clientID: String,
+        clientDisplayName: String?,
+        scope: String,
+        resource: String?,
+        createdAt: Date,
+        updatedAt: Date
+    ) {
+        self.id = id
+        self.clientID = clientID
+        self.clientDisplayName = clientDisplayName
+        self.scope = scope
+        self.resource = resource
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
     public var clientTitle: String {
         clientDisplayName ?? clientID
     }

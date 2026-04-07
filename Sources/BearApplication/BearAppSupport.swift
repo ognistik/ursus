@@ -72,6 +72,74 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let bridge: BearAppBridgeSnapshot
     public let toolToggles: [BearAppToolToggleSnapshot]
     public let hostAppSetups: [BearHostAppSetupSnapshot]
+
+    public init(
+        configDirectoryPath: String,
+        configFilePath: String,
+        templatePath: String,
+        backupsDirectoryPath: String,
+        backupsMetadataPath: String,
+        launcherPath: String,
+        launcherStatus: BearDoctorCheckStatus,
+        launcherStatusTitle: String,
+        launcherStatusDetail: String,
+        processLockPath: String,
+        fallbackProcessLockPath: String,
+        debugLogPath: String,
+        runtimeConfigurationGeneration: Int,
+        cliMaintenancePrompt: BearAppCLIMaintenancePrompt?,
+        databasePath: String,
+        inboxTags: [String],
+        defaultInsertPosition: String,
+        templateManagementEnabled: Bool,
+        createOpensNoteByDefault: Bool,
+        openUsesNewWindowByDefault: Bool,
+        createAddsInboxTagsByDefault: Bool,
+        tagsMergeMode: String,
+        defaultDiscoveryLimit: Int,
+        defaultSnippetLength: Int,
+        backupRetentionDays: Int,
+        disabledTools: [BearToolName],
+        selectedNoteTokenConfigured: Bool,
+        selectedNoteTokenStorageDescription: String,
+        selectedNoteTokenStatusDetail: String?,
+        bridge: BearAppBridgeSnapshot,
+        toolToggles: [BearAppToolToggleSnapshot],
+        hostAppSetups: [BearHostAppSetupSnapshot]
+    ) {
+        self.configDirectoryPath = configDirectoryPath
+        self.configFilePath = configFilePath
+        self.templatePath = templatePath
+        self.backupsDirectoryPath = backupsDirectoryPath
+        self.backupsMetadataPath = backupsMetadataPath
+        self.launcherPath = launcherPath
+        self.launcherStatus = launcherStatus
+        self.launcherStatusTitle = launcherStatusTitle
+        self.launcherStatusDetail = launcherStatusDetail
+        self.processLockPath = processLockPath
+        self.fallbackProcessLockPath = fallbackProcessLockPath
+        self.debugLogPath = debugLogPath
+        self.runtimeConfigurationGeneration = runtimeConfigurationGeneration
+        self.cliMaintenancePrompt = cliMaintenancePrompt
+        self.databasePath = databasePath
+        self.inboxTags = inboxTags
+        self.defaultInsertPosition = defaultInsertPosition
+        self.templateManagementEnabled = templateManagementEnabled
+        self.createOpensNoteByDefault = createOpensNoteByDefault
+        self.openUsesNewWindowByDefault = openUsesNewWindowByDefault
+        self.createAddsInboxTagsByDefault = createAddsInboxTagsByDefault
+        self.tagsMergeMode = tagsMergeMode
+        self.defaultDiscoveryLimit = defaultDiscoveryLimit
+        self.defaultSnippetLength = defaultSnippetLength
+        self.backupRetentionDays = backupRetentionDays
+        self.disabledTools = disabledTools
+        self.selectedNoteTokenConfigured = selectedNoteTokenConfigured
+        self.selectedNoteTokenStorageDescription = selectedNoteTokenStorageDescription
+        self.selectedNoteTokenStatusDetail = selectedNoteTokenStatusDetail
+        self.bridge = bridge
+        self.toolToggles = toolToggles
+        self.hostAppSetups = hostAppSetups
+    }
 }
 
 public enum BearAppCLIMaintenanceAction: String, Codable, Hashable, Sendable, Identifiable {
@@ -255,6 +323,18 @@ public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
     public let diagnostics: [BearDoctorCheck]
     public let settings: BearAppSettingsSnapshot?
     public let settingsError: String?
+
+    public init(
+        generatedAt: Date,
+        diagnostics: [BearDoctorCheck],
+        settings: BearAppSettingsSnapshot?,
+        settingsError: String?
+    ) {
+        self.generatedAt = generatedAt
+        self.diagnostics = diagnostics
+        self.settings = settings
+        self.settingsError = settingsError
+    }
 }
 
 public enum BearAppSupport {

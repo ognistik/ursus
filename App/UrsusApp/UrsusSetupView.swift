@@ -2,6 +2,26 @@ import BearApplication
 import BearCore
 import SwiftUI
 
+struct VisualEffectBlur: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .hudWindow
+    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
+    var state: NSVisualEffectView.State = .active
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = state
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = state
+    }
+}
+
 struct UrsusSetupView: View {
     @ObservedObject var model: UrsusAppModel
     @Binding var selectedSection: UrsusDashboardSection
@@ -32,16 +52,20 @@ struct UrsusSetupView: View {
             .allowsHitTesting(!model.showsBridgeAccessOverlay)
 
             if model.showsBridgeAccessOverlay {
-                Color.black.opacity(0.08)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                    .onTapGesture {
-                        model.closeBridgeAccessOverlay()
-                    }
+                ZStack {
+                    VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                    Color.black.opacity(0.10)
+                }
+                .ignoresSafeArea()
+                .transition(.opacity)
+                .onTapGesture {
+                    model.closeBridgeAccessOverlay()
+                }
 
                 UrsusBridgeAccessOverlay(model: model)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 28)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -350,21 +374,14 @@ struct UrsusSetupView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    if bridge.installed {
-                        UrsusInfoRow(
-                            label: "Authorization",
-                            value: bridge.authModeSummary,
-                            compact: true
-                        )
-                    } else {
-                        Toggle("Require OAuth for all bridge requests", isOn: bridgeRequiresOAuthBinding)
-                            .disabled(model.isBridgeOperationInProgress)
-                    }
+                    bridgeAuthorizationRow(for: bridge)
 
-                    Text(bridgeAccessSummary(for: bridge))
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if let bridgeAccessSummary = bridgeAccessSummary(for: bridge) {
+                        Text(bridgeAccessSummary)
+                            .font(.footnote)
+                            .foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
 
@@ -405,7 +422,7 @@ struct UrsusSetupView: View {
                     }
                 }
 
-                if bridge.requiresOAuth || model.bridgeAuthHasVisibleState || bridge.auth.hasStoredAuthState {
+                if bridgeRememberedClientCount(for: bridge) > 0 {
                     Button("Manage Access") {
                         model.openBridgeAccessOverlay()
                     }
@@ -466,22 +483,54 @@ struct UrsusSetupView: View {
         )
     }
 
-    private func bridgeAccessSummary(for bridge: BearAppBridgeSnapshot) -> String {
-        let rememberedClientCount: Int
+    @ViewBuilder
+    private func bridgeAuthorizationRow(for bridge: BearAppBridgeSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 14) {
+                Text("Authorization")
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(.secondary)
 
-        if let review = model.bridgeAuthReview {
-            rememberedClientCount = review.activeGrants.count
-        } else {
-            rememberedClientCount = bridge.auth.activeGrantCount
+                Spacer(minLength: 12)
+
+                if bridge.installed {
+                    Text(bridge.authModeSummary)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                } else {
+                    Toggle("", isOn: bridgeRequiresOAuthBinding)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .disabled(model.isBridgeOperationInProgress)
+                }
+            }
+
+            if !bridge.installed {
+                Text("Require OAuth for all bridge requests")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func bridgeRememberedClientCount(for bridge: BearAppBridgeSnapshot) -> Int {
+        if model.bridgeAuthReview != nil {
+            return model.bridgeRememberedClientCount
         }
 
-        switch rememberedClientCount {
+        return bridge.auth.activeGrantCount
+    }
+
+    private func bridgeAccessSummary(for bridge: BearAppBridgeSnapshot) -> String? {
+        switch bridgeRememberedClientCount(for: bridge) {
         case 0:
-            return "No remembered clients."
+            return nil
         case 1:
-            return "1 remembered client."
+            return "1 remembered client"
         default:
-            return "\(rememberedClientCount) remembered clients."
+            return "\(bridgeRememberedClientCount(for: bridge)) remembered clients"
         }
     }
 

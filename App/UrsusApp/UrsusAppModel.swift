@@ -87,12 +87,24 @@ final class UrsusAppModel: ObservableObject {
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
     private let bridgeAuthStore = BearBridgeAuthStore()
+    private let isPreviewMode: Bool
 
     init() {
+        isPreviewMode = false
         persistCurrentAppBundleLocation()
         refreshAppState()
         reconcilePublicLauncherAutomatically()
     }
+
+#if DEBUG
+    init(previewState: UrsusBridgeUIPreviewState) {
+        isPreviewMode = true
+        dashboard = previewState.dashboard
+        bridgeAuthReview = previewState.bridgeAuthReview
+        showsBridgeAccessOverlay = previewState.showsBridgeAccessOverlay
+        applyDraft(from: previewState.dashboard.settings)
+    }
+#endif
 
     deinit {
         bridgeAuthStatusMessageClearTask?.cancel()
@@ -119,6 +131,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func saveSelectedNoteToken() {
+        guard !isPreviewMode else {
+            tokenStatusMessage = "Preview only. Token changes are not saved."
+            tokenStatusError = nil
+            return
+        }
+
         do {
             try BearAppSupport.saveSelectedNoteToken(tokenDraft)
             tokenDraft = ""
@@ -135,6 +153,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func removeSelectedNoteToken() {
+        guard !isPreviewMode else {
+            tokenStatusMessage = "Preview only. Token changes are not saved."
+            tokenStatusError = nil
+            return
+        }
+
         do {
             try BearAppSupport.removeSelectedNoteToken()
             tokenDraft = ""
@@ -161,6 +185,12 @@ final class UrsusAppModel: ObservableObject {
         guard !configurationValidation.hasErrors else {
             configurationStatusMessage = nil
             configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
+            return
+        }
+
+        guard !isPreviewMode else {
+            configurationStatusMessage = "Preview only. Changes are not saved."
+            configurationStatusError = nil
             return
         }
 
@@ -197,6 +227,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func saveTemplate() {
+        guard !isPreviewMode else {
+            templateStatusMessage = "Preview only. Template changes are not saved."
+            templateStatusError = nil
+            return
+        }
+
         let validation = validateCurrentTemplateDraft()
         templateValidation = validation
 
@@ -268,6 +304,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     private func saveConfigurationAutomatically() {
+        guard !isPreviewMode else {
+            configurationStatusMessage = "Preview only. Changes are not saved."
+            configurationStatusError = nil
+            return
+        }
+
         let draft = currentConfigurationDraft()
         let validation = BearAppSupport.validateConfigurationDraft(draft)
         configurationValidation = validation
@@ -292,6 +334,10 @@ final class UrsusAppModel: ObservableObject {
     }
 
     private func flushConfigurationDraftForBridgeOperation() throws {
+        guard !isPreviewMode else {
+            throw BearError.configuration("Bridge operations are unavailable in previews.")
+        }
+
         configurationAutosaveTask?.cancel()
 
         let draft = currentConfigurationDraft()
@@ -313,6 +359,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func installPublicLauncher() {
+        guard !isPreviewMode else {
+            cliStatusMessage = "Preview only. Launcher changes are unavailable."
+            cliStatusError = nil
+            return
+        }
+
         do {
             let receipt = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
             cliStatusMessageClearTask?.cancel()
@@ -334,6 +386,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func installBridge(repairing: Bool = false) {
+        guard !isPreviewMode else {
+            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
+            bridgeStatusError = nil
+            return
+        }
+
         let appBundleURL = Bundle.main.bundleURL
         runBridgeOperation(repairing ? .repair : .install) {
             let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
@@ -344,6 +402,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func restartBridge() {
+        guard !isPreviewMode else {
+            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
+            bridgeStatusError = nil
+            return
+        }
+
         let appBundleURL = Bundle.main.bundleURL
         runBridgeOperation(.restart) {
             let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
@@ -352,6 +416,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func removeBridge() {
+        guard !isPreviewMode else {
+            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
+            bridgeStatusError = nil
+            return
+        }
+
         runBridgeOperation(.remove) {
             let receipt = try BearAppSupport.removeBridgeLaunchAgent()
             return receipt.status == .removed
@@ -361,6 +431,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func pauseBridge() {
+        guard !isPreviewMode else {
+            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
+            bridgeStatusError = nil
+            return
+        }
+
         runBridgeOperation(.pause) {
             let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
             return receipt.status == .paused
@@ -370,6 +446,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func resumeBridge() {
+        guard !isPreviewMode else {
+            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
+            bridgeStatusError = nil
+            return
+        }
+
         let endpointURL = bridgeEndpointURL
         runBridgeOperation(.resume) {
             let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
@@ -391,6 +473,12 @@ final class UrsusAppModel: ObservableObject {
     }
 
     func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
+        guard !isPreviewMode else {
+            bridgeAuthStatusMessage = "Preview only. Access changes are not saved."
+            bridgeAuthStatusError = nil
+            return
+        }
+
         runBridgeAuthAction {
             guard let revokedGrant = try await self.bridgeAuthStore.revokeGrant(id: grant.id) else {
                 throw BearError.configuration("The selected remembered grant is no longer available.")
@@ -596,20 +684,12 @@ final class UrsusAppModel: ObservableObject {
         bridgeAuthReview?.activeGrants ?? []
     }
 
-    var bridgeAuthHasVisibleState: Bool {
-        bridgeAuthReview?.hasStoredAuthState == true
+    var bridgeRememberedClientCount: Int {
+        bridgeAuthReview?.activeGrants.count ?? dashboard.settings?.bridge.auth.activeGrantCount ?? 0
     }
 
-    var bridgeAuthSummary: String? {
-        guard let bridgeAuthReview else {
-            return nil
-        }
-
-        guard bridgeAuthReview.storageReady || bridgeAuthReview.hasStoredAuthState else {
-            return nil
-        }
-
-        return bridgeAuthReview.compactSummary
+    var bridgeAuthHasVisibleState: Bool {
+        bridgeAuthReview?.hasStoredAuthState == true
     }
 
     var setupHostSetups: [BearHostAppSetupSnapshot] {
