@@ -745,12 +745,12 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. `content` must be a non-empty string. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
+                description: "Create one or more Bear notes. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
                         "type": .string("string"),
-                        "description": .string("Required non-empty editable note body. Do not repeat `title` inside `content` or prepend a heading that duplicates it."),
+                        "description": .string("Required non-empty note body. Do not repeat `title` inside `content` or prepend a heading that duplicates it."),
                     ]),
                     "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
                     "use_only_request_tags": .object([
