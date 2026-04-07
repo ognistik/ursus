@@ -11,10 +11,35 @@ public enum BearBridgeAuthTokenKind: String, Codable, Hashable, Sendable {
 
 public enum BearBridgeAuthRequestStatus: String, Codable, Hashable, Sendable {
     case pending
-    case approved
     case denied
     case completed
     case expired
+}
+
+public enum BearBridgePendingAuthorizationDecision: String, Codable, Hashable, Sendable {
+    case approve
+    case deny
+}
+
+public enum BearBridgePendingAuthorizationDecisionOutcome: String, Codable, Hashable, Sendable {
+    case approved
+    case denied
+    case expired
+    case alreadyResolved
+    case invalidDecisionToken
+    case unknownRequest
+}
+
+public struct BearBridgeIssuedPendingAuthorizationRequest: Hashable, Sendable {
+    public let request: BearBridgePendingAuthorizationRequest
+    public let decisionToken: String
+}
+
+public struct BearBridgePendingAuthorizationDecisionResult: Hashable, Sendable {
+    public let outcome: BearBridgePendingAuthorizationDecisionOutcome
+    public let request: BearBridgePendingAuthorizationRequest?
+    public let grant: BearBridgeAuthGrant?
+    public let authorizationCode: String?
 }
 
 public struct BearBridgeAuthStoreSnapshot: Codable, Hashable, Sendable {
@@ -65,7 +90,14 @@ public struct BearBridgeAuthStoreSnapshot: Codable, Hashable, Sendable {
             return "Auth storage not initialized yet."
         }
 
-        return "\(activeGrantCount) grants, \(pendingAuthorizationRequestCount) pending requests"
+        switch activeGrantCount {
+        case 0:
+            return "No remembered grants yet."
+        case 1:
+            return "1 remembered grant"
+        default:
+            return "\(activeGrantCount) remembered grants"
+        }
     }
 
     static func empty(storagePath: String, storageReady: Bool = false) -> BearBridgeAuthStoreSnapshot {
@@ -139,7 +171,14 @@ public struct BearBridgeAuthReviewSnapshot: Codable, Hashable, Sendable {
     }
 
     public var compactSummary: String {
-        "\(activeGrants.count) grants, \(pendingRequests.count) pending requests"
+        switch activeGrants.count {
+        case 0:
+            return "No remembered grants yet."
+        case 1:
+            return "1 remembered grant"
+        default:
+            return "\(activeGrants.count) remembered grants"
+        }
     }
 
     static func empty(storagePath: String, storageReady: Bool = false) -> BearBridgeAuthReviewSnapshot {
@@ -616,8 +655,9 @@ public actor BearBridgeAuthStore {
 
     public func createPendingAuthorizationRequest(
         _ draft: BearBridgePendingAuthorizationRequestDraft
-    ) throws -> BearBridgePendingAuthorizationRequest {
+    ) throws -> BearBridgeIssuedPendingAuthorizationRequest {
         let dbQueue = try prepareDatabaseQueue()
+        let decisionToken = Self.makeDecisionToken()
         let record = BridgeAuthPendingRequestRecord(
             requestID: identifierGenerator(),
             clientID: draft.clientID,
@@ -631,14 +671,20 @@ public actor BearBridgeAuthStore {
             metadataJSON: try Self.normalizedMetadataJSON(draft.metadataJSON),
             createdAt: now(),
             expiresAt: draft.expiresAt,
-            resolvedAt: nil
+            resolvedAt: nil,
+            decisionTokenHash: Self.hash(decisionToken),
+            decisionTokenExpiresAt: draft.expiresAt,
+            decisionTokenConsumedAt: nil
         )
 
         try dbQueue.write { db in
             try record.insert(db)
         }
 
-        return record.makeModel()
+        return BearBridgeIssuedPendingAuthorizationRequest(
+            request: record.makeModel(),
+            decisionToken: decisionToken
+        )
     }
 
     public func pendingAuthorizationRequest(id: String) throws -> BearBridgePendingAuthorizationRequest? {
@@ -678,54 +724,121 @@ public actor BearBridgeAuthStore {
         }
     }
 
-    public func approvePendingAuthorizationRequest(
-        id: String
-    ) throws -> BearBridgePendingAuthorizationRequest? {
-        guard let request = try pendingAuthorizationRequest(id: id) else {
-            return nil
-        }
+    public func resolvePendingAuthorizationDecision(
+        id: String,
+        decision: BearBridgePendingAuthorizationDecision,
+        decisionToken: String,
+        authorizationCodeLifetime: TimeInterval
+    ) throws -> BearBridgePendingAuthorizationDecisionResult {
+        let dbQueue = try prepareDatabaseQueue()
+        let resolvedAt = now()
+        let suppliedDecisionTokenHash = Self.hash(decisionToken)
+        let issuedAuthorizationCode = decision == .approve ? secretGenerator(.authorizationCode) : nil
 
-        if request.status == .pending, request.expiresAt < now() {
-            return try updatePendingAuthorizationRequestStatus(id: id, status: .expired)
-        }
-
-        guard request.status == .pending else {
-            return request
-        }
-
-        let resource = Self.metadataValue(named: "resource", in: request.metadataJSON)
-        _ = try ensureGrant(
-            BearBridgeAuthGrantDraft(
-                clientID: request.clientID,
-                scope: request.requestedScope,
-                resource: resource,
-                metadataJSON: Self.metadataJSONString(
-                    [
-                        "approved_by": "ursus-app",
-                        "resource": resource,
-                    ]
+        return try dbQueue.write { db in
+            guard var record = try BridgeAuthPendingRequestRecord.fetchOne(db, key: id) else {
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .unknownRequest,
+                    request: nil,
+                    grant: nil,
+                    authorizationCode: nil
                 )
-            )
-        )
-        return try updatePendingAuthorizationRequestStatus(id: id, status: .approved)
-    }
+            }
 
-    public func denyPendingAuthorizationRequest(
-        id: String
-    ) throws -> BearBridgePendingAuthorizationRequest? {
-        guard let request = try pendingAuthorizationRequest(id: id) else {
-            return nil
+            if record.status == .pending,
+               (record.expiresAt < resolvedAt || record.decisionTokenExpiresAt < resolvedAt)
+            {
+                record.status = .expired
+                record.resolvedAt = resolvedAt
+                try record.update(db)
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .expired,
+                    request: record.makeModel(),
+                    grant: nil,
+                    authorizationCode: nil
+                )
+            }
+
+            guard record.status == .pending else {
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .alreadyResolved,
+                    request: record.makeModel(),
+                    grant: nil,
+                    authorizationCode: nil
+                )
+            }
+
+            guard record.decisionTokenConsumedAt == nil,
+                  let storedDecisionTokenHash = record.decisionTokenHash,
+                  storedDecisionTokenHash == suppliedDecisionTokenHash
+            else {
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .invalidDecisionToken,
+                    request: record.makeModel(),
+                    grant: nil,
+                    authorizationCode: nil
+                )
+            }
+
+            switch decision {
+            case .approve:
+                let resource = Self.metadataValue(named: "resource", in: record.metadataJSON)
+                let grantRecord = try Self.ensureGrantRecord(
+                    db,
+                    draft: BearBridgeAuthGrantDraft(
+                        clientID: record.clientID,
+                        scope: record.requestedScope,
+                        resource: resource,
+                        metadataJSON: Self.metadataJSONString(["resource": resource])
+                    ),
+                    createdAt: resolvedAt,
+                    identifierGenerator: identifierGenerator
+                )
+                let authorizationCode = issuedAuthorizationCode ?? secretGenerator(.authorizationCode)
+                let authorizationCodeRecord = BridgeAuthAuthorizationCodeRecord(
+                    codeID: identifierGenerator(),
+                    clientID: record.clientID,
+                    grantID: grantRecord.grantID,
+                    pendingRequestID: record.requestID,
+                    codeHash: Self.hash(authorizationCode),
+                    scope: record.requestedScope,
+                    redirectURI: record.redirectURI,
+                    codeChallenge: record.codeChallenge,
+                    codeChallengeMethod: record.codeChallengeMethod,
+                    createdAt: resolvedAt,
+                    expiresAt: resolvedAt.addingTimeInterval(authorizationCodeLifetime),
+                    redeemedAt: nil,
+                    revokedAt: nil
+                )
+                try authorizationCodeRecord.insert(db)
+
+                record.grantID = grantRecord.grantID
+                record.status = .completed
+                record.resolvedAt = resolvedAt
+                record.decisionTokenConsumedAt = resolvedAt
+                try record.update(db)
+
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .approved,
+                    request: record.makeModel(),
+                    grant: grantRecord.makeModel(),
+                    authorizationCode: authorizationCode
+                )
+
+            case .deny:
+                record.status = .denied
+                record.resolvedAt = resolvedAt
+                record.decisionTokenConsumedAt = resolvedAt
+                try record.update(db)
+
+                return BearBridgePendingAuthorizationDecisionResult(
+                    outcome: .denied,
+                    request: record.makeModel(),
+                    grant: nil,
+                    authorizationCode: nil
+                )
+            }
         }
-
-        if request.status == .pending, request.expiresAt < now() {
-            return try updatePendingAuthorizationRequestStatus(id: id, status: .expired)
-        }
-
-        guard request.status == .pending else {
-            return request
-        }
-
-        return try updatePendingAuthorizationRequestStatus(id: id, status: .denied)
     }
 
     public func issueAuthorizationCode(
@@ -1327,6 +1440,38 @@ private extension BearBridgeAuthStore {
             }
             try db.create(index: "revocations_token_hash_idx", on: "revocations", columns: ["token_kind", "token_hash"])
         }
+        migrator.registerMigration("bridgeBrowserFirstOAuthDecisionTokens") { db in
+            try db.alter(table: "pending_authorization_requests") { table in
+                table.add(column: "decision_token_hash", .text)
+                table.add(column: "decision_token_expires_at", .double)
+                table.add(column: "decision_token_consumed_at", .double)
+            }
+            try db.create(
+                index: "pending_authorization_requests_decision_token_idx",
+                on: "pending_authorization_requests",
+                columns: ["decision_token_hash"]
+            )
+            try db.execute(
+                sql: """
+                UPDATE pending_authorization_requests
+                SET decision_token_expires_at = expires_at
+                WHERE decision_token_expires_at IS NULL
+                """
+            )
+            try db.execute(
+                sql: """
+                UPDATE pending_authorization_requests
+                SET status = ?, resolved_at = COALESCE(resolved_at, ?)
+                WHERE status IN (?, ?)
+                """,
+                arguments: [
+                    BearBridgeAuthRequestStatus.expired.rawValue,
+                    Date().timeIntervalSince1970,
+                    "pending",
+                    "approved",
+                ]
+            )
+        }
         try migrator.migrate(dbQueue)
         return dbQueue
     }
@@ -1424,6 +1569,68 @@ private extension BearBridgeAuthStore {
         let first = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         let second = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
         return "\(prefix)_\(first)\(second)"
+    }
+
+    static func makeDecisionToken() -> String {
+        let first = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let second = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        return "udt_\(first)\(second)"
+    }
+
+    static func activeGrantRecord(
+        _ db: Database,
+        clientID: String,
+        scope: String,
+        resource: String?
+    ) throws -> BridgeAuthGrantRecord? {
+        let normalizedScope = try normalizedRequiredString(scope, label: "Grant scope")
+        let normalizedResource = normalizedOptionalString(resource)
+        return try BridgeAuthGrantRecord.fetchOne(
+            db,
+            sql: """
+            SELECT *
+            FROM grants
+            WHERE client_id = ?
+                AND scope = ?
+                AND revoked_at IS NULL
+                AND (
+                    (resource IS NULL AND ? IS NULL)
+                    OR resource = ?
+                )
+            ORDER BY created_at ASC
+            LIMIT 1
+            """,
+            arguments: [clientID, normalizedScope, normalizedResource, normalizedResource]
+        )
+    }
+
+    static func ensureGrantRecord(
+        _ db: Database,
+        draft: BearBridgeAuthGrantDraft,
+        createdAt: Date,
+        identifierGenerator: IdentifierGenerator
+    ) throws -> BridgeAuthGrantRecord {
+        if let existing = try activeGrantRecord(
+            db,
+            clientID: draft.clientID,
+            scope: draft.scope,
+            resource: draft.resource
+        ) {
+            return existing
+        }
+
+        let record = BridgeAuthGrantRecord(
+            grantID: identifierGenerator(),
+            clientID: draft.clientID,
+            scope: try normalizedRequiredString(draft.scope, label: "Grant scope"),
+            resource: normalizedOptionalString(draft.resource),
+            metadataJSON: try normalizedMetadataJSON(draft.metadataJSON),
+            createdAt: createdAt,
+            updatedAt: createdAt,
+            revokedAt: nil
+        )
+        try record.insert(db)
+        return record
     }
 
     static func hash(_ rawValue: String) -> String {
@@ -1601,7 +1808,7 @@ private struct BridgeAuthPendingRequestRecord: Codable, FetchableRecord, Persist
 
     let requestID: String
     let clientID: String
-    let grantID: String?
+    var grantID: String?
     let requestedScope: String
     let redirectURI: String
     let state: String?
@@ -1612,6 +1819,9 @@ private struct BridgeAuthPendingRequestRecord: Codable, FetchableRecord, Persist
     let createdAt: Date
     let expiresAt: Date
     var resolvedAt: Date?
+    let decisionTokenHash: String?
+    let decisionTokenExpiresAt: Date
+    var decisionTokenConsumedAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case requestID = "request_id"
@@ -1627,6 +1837,9 @@ private struct BridgeAuthPendingRequestRecord: Codable, FetchableRecord, Persist
         case createdAt = "created_at"
         case expiresAt = "expires_at"
         case resolvedAt = "resolved_at"
+        case decisionTokenHash = "decision_token_hash"
+        case decisionTokenExpiresAt = "decision_token_expires_at"
+        case decisionTokenConsumedAt = "decision_token_consumed_at"
     }
 
     func makeModel() -> BearBridgePendingAuthorizationRequest {

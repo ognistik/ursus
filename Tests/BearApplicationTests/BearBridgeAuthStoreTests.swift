@@ -175,12 +175,12 @@ func bridgeAuthStoreReviewSnapshotAndGrantRevocation() async throws {
     #expect(revokedReviewSnapshot.pendingRequests.count == 1)
     #expect(revokedReviewSnapshot.activeGrants.isEmpty)
 
-    let loadedPendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequest.id)
+    let loadedPendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequest.request.id)
     #expect(loadedPendingRequest?.status == .pending)
 }
 
 @Test
-func bridgeAuthStoreApproveAndDenyPendingRequests() async throws {
+func bridgeAuthStoreResolvesBrowserFirstPendingRequests() async throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let databaseURL = tempRoot
@@ -222,16 +222,89 @@ func bridgeAuthStoreApproveAndDenyPendingRequests() async throws {
         )
     )
 
-    let approvedRequest = try await store.approvePendingAuthorizationRequest(id: approvableRequest.id)
-    let deniedRequest = try await store.denyPendingAuthorizationRequest(id: deniableRequest.id)
+    let approvedRequest = try await store.resolvePendingAuthorizationDecision(
+        id: approvableRequest.request.id,
+        decision: .approve,
+        decisionToken: approvableRequest.decisionToken,
+        authorizationCodeLifetime: 300
+    )
+    let deniedRequest = try await store.resolvePendingAuthorizationDecision(
+        id: deniableRequest.request.id,
+        decision: .deny,
+        decisionToken: deniableRequest.decisionToken,
+        authorizationCodeLifetime: 300
+    )
 
-    #expect(approvedRequest?.status == .approved)
-    #expect(deniedRequest?.status == .denied)
+    #expect(approvedRequest.outcome == .approved)
+    #expect(approvedRequest.request?.status == .completed)
+    #expect(approvedRequest.authorizationCode?.isEmpty == false)
+    #expect(deniedRequest.outcome == .denied)
+    #expect(deniedRequest.request?.status == .denied)
     #expect(try await store.activeGrant(clientID: client.id, scope: "mcp", resource: "https://bridge.example/mcp") != nil)
 
     let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
     #expect(reviewSnapshot.pendingRequests.isEmpty)
     #expect(reviewSnapshot.activeGrants.count == 1)
+}
+
+@Test
+func bridgeAuthStoreRejectsInvalidOrReusedDecisionTokens() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Decision Client",
+            redirectURIs: ["https://example.com/callback"]
+        )
+    )
+    let request = try await store.createPendingAuthorizationRequest(
+        BearBridgePendingAuthorizationRequestDraft(
+            clientID: client.id,
+            requestedScope: "mcp",
+            redirectURI: "https://example.com/callback",
+            expiresAt: fixedNow.addingTimeInterval(300),
+            metadataJSON: #"{"resource":"https://bridge.example/mcp"}"#
+        )
+    )
+
+    let invalidDecision = try await store.resolvePendingAuthorizationDecision(
+        id: request.request.id,
+        decision: .approve,
+        decisionToken: "udt_invalid",
+        authorizationCodeLifetime: 300
+    )
+    #expect(invalidDecision.outcome == .invalidDecisionToken)
+    #expect(try await store.activeGrant(clientID: client.id, scope: "mcp", resource: "https://bridge.example/mcp") == nil)
+
+    let firstApproval = try await store.resolvePendingAuthorizationDecision(
+        id: request.request.id,
+        decision: .approve,
+        decisionToken: request.decisionToken,
+        authorizationCodeLifetime: 300
+    )
+    let secondApproval = try await store.resolvePendingAuthorizationDecision(
+        id: request.request.id,
+        decision: .approve,
+        decisionToken: request.decisionToken,
+        authorizationCodeLifetime: 300
+    )
+
+    #expect(firstApproval.outcome == .approved)
+    #expect(secondApproval.outcome == .alreadyResolved)
+    #expect(secondApproval.request?.status == .completed)
 }
 
 @Test
@@ -379,5 +452,5 @@ func bridgeSnapshotAuthCounts() async throws {
     #expect(snapshot.auth.registeredClientCount == 1)
     #expect(snapshot.auth.activeGrantCount == 1)
     #expect(snapshot.auth.pendingAuthorizationRequestCount == 1)
-    #expect(snapshot.authStateSummary.contains("1 grants, 1 pending requests"))
+    #expect(snapshot.authStateSummary == "OAuth ready. 1 remembered grant.")
 }

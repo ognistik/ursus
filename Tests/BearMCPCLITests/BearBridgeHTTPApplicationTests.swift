@@ -34,7 +34,8 @@ func bridgeRouterClassifiesMCPAndOAuthPaths() {
     #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-protected-resource", mcpEndpoint: "/mcp") == .oauthProtectedResourceMetadata)
     #expect(BearBridgeHTTPApplication.route(for: "/.well-known/oauth-authorization-server?resource=http://127.0.0.1:6190/mcp", mcpEndpoint: "/mcp") == .oauthAuthorizationServerMetadata)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/authorize", mcpEndpoint: "/mcp") == .oauthAuthorize)
-    #expect(BearBridgeHTTPApplication.route(for: "/oauth/request-status?request_id=abc", mcpEndpoint: "/mcp") == .oauthRequestStatus)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/decision", mcpEndpoint: "/mcp") == .oauthDecision)
+    #expect(BearBridgeHTTPApplication.route(for: "/oauth/request-status?request_id=abc", mcpEndpoint: "/mcp") == .notFound)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/token", mcpEndpoint: "/mcp") == .oauthToken)
     #expect(BearBridgeHTTPApplication.route(for: "/oauth/register", mcpEndpoint: "/mcp") == .oauthRegister)
     #expect(BearBridgeHTTPApplication.route(for: "/unknown", mcpEndpoint: "/mcp") == .notFound)
@@ -833,28 +834,35 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
 
     #expect(authorizationResponse.statusCode == 200)
     let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
-    #expect(authorizationHTML.contains("Approval needed in Ursus.app"))
+    #expect(authorizationHTML.contains("Approve access to your local Ursus bridge"))
+    let pendingRequestID = try #require(hiddenInputValue(named: "request_id", in: authorizationHTML))
+    let decisionToken = try #require(hiddenInputValue(named: "decision_token", in: authorizationHTML))
 
     let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
-    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
-    let pendingRequestID = try #require(reviewSnapshot.pendingRequests.first?.id)
     let pendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
     #expect(pendingRequest?.clientID == clientID)
     #expect(pendingRequest?.requestedScope == "mcp")
     #expect(pendingRequest?.status == .pending)
 
-    _ = try await store.approvePendingAuthorizationRequest(id: pendingRequestID)
-
-    let statusResponse = try await sendHTTPRequest(
+    let decisionResponse = try await sendHTTPRequest(
         port: port,
-        path: "/oauth/request-status?request_id=\(pendingRequestID)"
+        path: "/oauth/decision",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/x-www-form-urlencoded",
+        ],
+        body: Data(
+            "request_id=\(urlEncodeFormValue(pendingRequestID))&decision=approve&decision_token=\(urlEncodeFormValue(decisionToken))".utf8
+        ),
+        followRedirects: false
     )
 
-    #expect(statusResponse.statusCode == 200)
-    let statusJSONObject = try JSONSerialization.jsonObject(with: statusResponse.data)
-    let statusObject = try #require(statusJSONObject as? [String: Any])
-    #expect(statusObject["status"] as? String == "approved")
-    let location = try #require(statusObject["redirect_url"] as? String)
+    #expect(decisionResponse.statusCode == 200)
+    let decisionHTML = String(decoding: decisionResponse.data, as: UTF8.self)
+    #expect(decisionHTML.contains("Authorization Approved"))
+    #expect(!decisionHTML.contains("Open Client Again"))
+    #expect(!decisionHTML.contains("Close This Window"))
+    let location = try #require(hiddenInputValue(named: "callback_url", in: decisionHTML))
     let redirectURL = try #require(URL(string: location))
     let redirectComponents = try #require(URLComponents(url: redirectURL, resolvingAgainstBaseURL: false))
     let code = try #require(redirectComponents.queryItems?.first(where: { $0.name == "code" })?.value)
@@ -949,7 +957,6 @@ func bridgeAllowsAuthenticatedMCPRequestsAndRepeatedInitializeWhenOAuthEnabled()
 
     let oauthFlow = try await performBridgeOAuthAuthorizationCodeFlow(
         port: port,
-        authDatabaseURL: authDatabaseURL,
         clientName: "Authenticated MCP Test Client"
     )
 
@@ -1060,24 +1067,38 @@ func bridgeAuthorizationStatusReturnsDeniedRedirectAfterLocalDenial() async thro
     )
 
     #expect(authorizationResponse.statusCode == 200)
+    let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
+    let pendingRequestID = try #require(hiddenInputValue(named: "request_id", in: authorizationHTML))
+    let decisionToken = try #require(hiddenInputValue(named: "decision_token", in: authorizationHTML))
 
     let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
-    let pendingReviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
-    let pendingRequestID = try #require(pendingReviewSnapshot.pendingRequests.first?.id)
-    _ = try await store.denyPendingAuthorizationRequest(id: pendingRequestID)
+    let pendingRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
+    #expect(pendingRequest?.status == .pending)
 
-    let statusResponse = try await sendHTTPRequest(
+    let decisionResponse = try await sendHTTPRequest(
         port: port,
-        path: "/oauth/request-status?request_id=\(pendingRequestID)"
+        path: "/oauth/decision",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/x-www-form-urlencoded",
+        ],
+        body: Data(
+            "request_id=\(urlEncodeFormValue(pendingRequestID))&decision=deny&decision_token=\(urlEncodeFormValue(decisionToken))".utf8
+        ),
+        followRedirects: false
     )
 
-    #expect(statusResponse.statusCode == 200)
-    let statusJSONObject = try JSONSerialization.jsonObject(with: statusResponse.data)
-    let statusObject = try #require(statusJSONObject as? [String: Any])
-    #expect(statusObject["status"] as? String == "denied")
-    let location = try #require(statusObject["redirect_url"] as? String)
+    #expect(decisionResponse.statusCode == 200)
+    let decisionHTML = String(decoding: decisionResponse.data, as: UTF8.self)
+    #expect(decisionHTML.contains("Authorization Denied"))
+    #expect(!decisionHTML.contains("Open Client Again"))
+    #expect(!decisionHTML.contains("Close This Window"))
+    let location = try #require(hiddenInputValue(named: "callback_url", in: decisionHTML))
     #expect(location.contains("error=access_denied"))
     #expect(location.contains("state=denied-state"))
+
+    let deniedRequest = try await store.pendingAuthorizationRequest(id: pendingRequestID)
+    #expect(deniedRequest?.status == .denied)
 
     await application.stop()
     try await startTask.value
@@ -1132,7 +1153,7 @@ func bridgeRememberedGrantSkipsLocalPromptOnRepeatAuthorization() async throws {
             clientID: client.id,
             scope: "mcp",
             resource: "http://127.0.0.1:\(port)/mcp",
-            metadataJSON: #"{"approved_by":"test"}"#
+            metadataJSON: "{\"resource\":\"http://127.0.0.1:\(port)/mcp\"}"
         )
     )
 
@@ -1672,9 +1693,31 @@ private func makeToolsListRequestBody(requestID: String) throws -> Data {
     )
 }
 
+private func hiddenInputValue(named name: String, in html: String) -> String? {
+    let pattern = #"name="\#(NSRegularExpression.escapedPattern(for: name))"\s+value="([^"]+)""#
+    guard let expression = try? NSRegularExpression(pattern: pattern) else {
+        return nil
+    }
+    let range = NSRange(html.startIndex..<html.endIndex, in: html)
+    guard let match = expression.firstMatch(in: html, range: range),
+          let valueRange = Range(match.range(at: 1), in: html)
+    else {
+        return nil
+    }
+    return String(html[valueRange])
+        .replacingOccurrences(of: "&amp;", with: "&")
+        .replacingOccurrences(of: "&quot;", with: "\"")
+        .replacingOccurrences(of: "&#39;", with: "'")
+}
+
+private func urlEncodeFormValue(_ value: String) -> String {
+    var allowed = CharacterSet.urlQueryAllowed
+    allowed.remove(charactersIn: "&+=?")
+    return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+}
+
 private func performBridgeOAuthAuthorizationCodeFlow(
     port: Int,
-    authDatabaseURL: URL,
     clientName: String
 ) async throws -> OAuthFlowResult {
     let registrationBody = try JSONSerialization.data(
@@ -1708,20 +1751,28 @@ private func performBridgeOAuthAuthorizationCodeFlow(
     )
 
     #expect(authorizationResponse.statusCode == 200)
+    let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
+    let pendingRequestID = try #require(hiddenInputValue(named: "request_id", in: authorizationHTML))
+    let decisionToken = try #require(hiddenInputValue(named: "decision_token", in: authorizationHTML))
 
-    let store = BearBridgeAuthStore(databaseURL: authDatabaseURL)
-    let reviewSnapshot = try await store.reviewSnapshot(prepareIfMissing: false)
-    let pendingRequestID = try #require(reviewSnapshot.pendingRequests.first?.id)
-    _ = try await store.approvePendingAuthorizationRequest(id: pendingRequestID)
-
-    let statusResponse = try await sendHTTPRequest(
+    let decisionResponse = try await sendHTTPRequest(
         port: port,
-        path: "/oauth/request-status?request_id=\(pendingRequestID)"
+        path: "/oauth/decision",
+        method: "POST",
+        headers: [
+            "Content-Type": "application/x-www-form-urlencoded",
+        ],
+        body: Data(
+            "request_id=\(urlEncodeFormValue(pendingRequestID))&decision=approve&decision_token=\(urlEncodeFormValue(decisionToken))".utf8
+        ),
+        followRedirects: false
     )
-    let statusObject = try #require(
-        try JSONSerialization.jsonObject(with: statusResponse.data) as? [String: Any]
-    )
-    let location = try #require(statusObject["redirect_url"] as? String)
+    #expect(decisionResponse.statusCode == 200)
+    let decisionHTML = String(decoding: decisionResponse.data, as: UTF8.self)
+    #expect(decisionHTML.contains("Authorization Approved"))
+    #expect(!decisionHTML.contains("Open Client Again"))
+    #expect(!decisionHTML.contains("Close This Window"))
+    let location = try #require(hiddenInputValue(named: "callback_url", in: decisionHTML))
     let redirectURL = try #require(URL(string: location))
     let redirectComponents = try #require(
         URLComponents(url: redirectURL, resolvingAgainstBaseURL: false)

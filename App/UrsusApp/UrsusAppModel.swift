@@ -79,7 +79,6 @@ final class UrsusAppModel: ObservableObject {
 
     private var configurationAutosaveTask: Task<Void, Never>?
     private var bridgeStatusMessageClearTask: Task<Void, Never>?
-    private var bridgeAuthRefreshTask: Task<Void, Never>?
     private var bridgeAuthStatusMessageClearTask: Task<Void, Never>?
     private var tokenStatusMessageClearTask: Task<Void, Never>?
     private var cliStatusMessageClearTask: Task<Void, Never>?
@@ -87,18 +86,15 @@ final class UrsusAppModel: ObservableObject {
     private var templateStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
-    private var lastPendingBridgeAuthRequestIDs = Set<String>()
     private let bridgeAuthStore = BearBridgeAuthStore()
 
     init() {
         persistCurrentAppBundleLocation()
         refreshAppState()
-        startBridgeAuthRefreshLoop()
         reconcilePublicLauncherAutomatically()
     }
 
     deinit {
-        bridgeAuthRefreshTask?.cancel()
         bridgeAuthStatusMessageClearTask?.cancel()
     }
 
@@ -390,40 +386,6 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
-    func approveBridgeAuthorizationRequest(_ request: BearBridgePendingAuthorizationRequestSummary) {
-        runBridgeAuthAction {
-            guard let resolvedRequest = try await self.bridgeAuthStore.approvePendingAuthorizationRequest(id: request.id) else {
-                throw BearError.configuration("The selected bridge authorization request is no longer available.")
-            }
-
-            switch resolvedRequest.status {
-            case .approved:
-                return "Approved \(request.clientTitle)."
-            case .expired:
-                throw BearError.configuration("That bridge authorization request already expired.")
-            case .pending, .denied, .completed:
-                return "Updated \(request.clientTitle)."
-            }
-        }
-    }
-
-    func denyBridgeAuthorizationRequest(_ request: BearBridgePendingAuthorizationRequestSummary) {
-        runBridgeAuthAction {
-            guard let resolvedRequest = try await self.bridgeAuthStore.denyPendingAuthorizationRequest(id: request.id) else {
-                throw BearError.configuration("The selected bridge authorization request is no longer available.")
-            }
-
-            switch resolvedRequest.status {
-            case .denied:
-                return "Denied \(request.clientTitle)."
-            case .expired:
-                throw BearError.configuration("That bridge authorization request already expired.")
-            case .pending, .approved, .completed:
-                return "Updated \(request.clientTitle)."
-            }
-        }
-    }
-
     func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
         runBridgeAuthAction {
             guard let revokedGrant = try await self.bridgeAuthStore.revokeGrant(id: grant.id) else {
@@ -626,20 +588,12 @@ final class UrsusAppModel: ObservableObject {
         activeBridgeOperation?.progressMessage
     }
 
-    var bridgeAuthPendingRequests: [BearBridgePendingAuthorizationRequestSummary] {
-        bridgeAuthReview?.pendingRequests ?? []
-    }
-
     var bridgeAuthGrantSummaries: [BearBridgeAuthGrantSummary] {
         bridgeAuthReview?.activeGrants ?? []
     }
 
     var bridgeAuthHasVisibleState: Bool {
         bridgeAuthReview?.hasStoredAuthState == true
-    }
-
-    var bridgeAuthPendingRequestCount: Int {
-        bridgeAuthReview?.pendingRequests.count ?? 0
     }
 
     var bridgeAuthSummary: String? {
@@ -894,16 +848,6 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
-    private func startBridgeAuthRefreshLoop() {
-        bridgeAuthRefreshTask?.cancel()
-        bridgeAuthRefreshTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.refreshBridgeAuthReviewNow()
-                try? await Task.sleep(for: .seconds(1))
-            }
-        }
-    }
-
     private func refreshBridgeAuthReviewNow() async {
         let shouldLoadReview = await MainActor.run {
             if let settings = dashboard.settings {
@@ -916,7 +860,6 @@ final class UrsusAppModel: ObservableObject {
         guard shouldLoadReview else {
             await MainActor.run {
                 bridgeAuthReview = nil
-                lastPendingBridgeAuthRequestIDs = []
             }
             return
         }
@@ -924,15 +867,6 @@ final class UrsusAppModel: ObservableObject {
         let snapshot = try? await bridgeAuthStore.reviewSnapshot(prepareIfMissing: false)
         await MainActor.run {
             bridgeAuthReview = snapshot
-
-            let pendingIDs = Set(snapshot?.pendingRequests.map(\.id) ?? [])
-            let hasNewPendingRequests = !pendingIDs.subtracting(lastPendingBridgeAuthRequestIDs).isEmpty
-            lastPendingBridgeAuthRequestIDs = pendingIDs
-
-            if hasNewPendingRequests {
-                showsBridgeAuthReview = true
-                NSApp.activate(ignoringOtherApps: true)
-            }
         }
     }
 
@@ -962,6 +896,7 @@ final class UrsusAppModel: ObservableObject {
 
             bridgeAuthActionInProgress = false
             await refreshBridgeAuthReviewNow()
+            refreshDashboardSnapshot()
 
             switch result {
             case .success(let message):

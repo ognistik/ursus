@@ -71,8 +71,8 @@ struct BearBridgeOAuthServer {
             return await dynamicClientRegistrationResponse(for: request)
         case .oauthAuthorize:
             return await authorizationResponse(for: request)
-        case .oauthRequestStatus:
-            return await authorizationStatusResponse(for: request)
+        case .oauthDecision:
+            return await authorizationDecisionResponse(for: request)
         case .oauthToken:
             return await tokenResponse(for: request)
         case .mcp, .notFound:
@@ -240,22 +240,6 @@ private extension BearBridgeOAuthServer {
             case expiresIn = "expires_in"
             case refreshToken = "refresh_token"
             case scope
-        }
-    }
-
-    struct AuthorizationStatusPayload: Encodable {
-        let requestID: String
-        let status: String
-        let detail: String?
-        let redirectURL: String?
-        let pollIntervalMS: Int?
-
-        enum CodingKeys: String, CodingKey {
-            case requestID = "request_id"
-            case status
-            case detail
-            case redirectURL = "redirect_url"
-            case pollIntervalMS = "poll_interval_ms"
         }
     }
 
@@ -509,17 +493,18 @@ private extension BearBridgeOAuthServer {
                     expiresAt: now().addingTimeInterval(configuration.pendingRequestLifetime),
                     metadataJSON: metadataJSONString(
                         [
-                            "approval_mode": "ursus-app",
                             "client_name": client.displayName,
                             "resource": context.resourceURL.absoluteString,
                         ]
                     )
                 )
             )
-            return authorizationPendingResponse(
-                requestID: pendingRequest.id,
+            return authorizationConsentResponse(
+                request: pendingRequest.request,
+                decisionToken: pendingRequest.decisionToken,
                 clientName: client.displayName ?? client.id,
-                requestedScope: requestedScope
+                requestedScope: requestedScope,
+                resource: context.resourceURL.absoluteString
             )
         } catch {
             return redirectErrorResponse(
@@ -531,142 +516,133 @@ private extension BearBridgeOAuthServer {
         }
     }
 
-    func authorizationStatusResponse(
+    func authorizationDecisionResponse(
         for request: HTTPRequest
     ) async -> BearBridgeHTTPApplication.BridgeHTTPResponse {
-        guard request.method.caseInsensitiveCompare("GET") == .orderedSame else {
-            return methodNotAllowedResponse(allowing: ["GET"])
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame else {
+            return methodNotAllowedResponse(allowing: ["POST"])
         }
 
-        let parameters = queryParameters(from: request)
+        let parameters = formParameters(from: request.body)
         guard let requestID = nonEmptyValue(parameters["request_id"]) else {
-            return oauthErrorResponse(
+            return decisionErrorResponse(
                 statusCode: 400,
-                error: "invalid_request",
-                description: "Authorization status checks require request_id."
+                title: "Missing Authorization Request",
+                message: "The browser approval form is missing its request identifier. Start the authorization again."
+            )
+        }
+        guard let decisionValue = nonEmptyValue(parameters["decision"]),
+              let decision = BearBridgePendingAuthorizationDecision(rawValue: decisionValue)
+        else {
+            return decisionErrorResponse(
+                statusCode: 400,
+                title: "Invalid Decision",
+                message: "This browser approval request must be approved or denied explicitly. Start the authorization again if needed."
+            )
+        }
+        guard let decisionToken = nonEmptyValue(parameters["decision_token"]) else {
+            return decisionErrorResponse(
+                statusCode: 400,
+                title: "Missing Decision Token",
+                message: "This browser approval form is missing its single-use decision token. Start the authorization again."
             )
         }
 
         do {
-            guard let pendingRequest = try await store.pendingAuthorizationRequest(id: requestID) else {
-                return oauthErrorResponse(
-                    statusCode: 404,
-                    error: "invalid_request",
-                    description: "Unknown authorization request."
-                )
-            }
+            let result = try await store.resolvePendingAuthorizationDecision(
+                id: requestID,
+                decision: decision,
+                decisionToken: decisionToken,
+                authorizationCodeLifetime: configuration.authorizationCodeLifetime
+            )
 
-            if pendingRequest.status == .pending, pendingRequest.expiresAt < now() {
-                let expiredRequest = try await store.updatePendingAuthorizationRequestStatus(
-                    id: requestID,
-                    status: .expired
-                )
-                return authorizationStatusPayloadResponse(
-                    for: expiredRequest ?? pendingRequest,
-                    status: "expired",
-                    detail: "The local approval request expired before it was reviewed.",
-                    redirectURL: authorizationErrorRedirectURL(
-                        for: pendingRequest,
-                        error: "access_denied",
-                        description: "The local approval request expired before it was reviewed."
-                    ),
-                    pollIntervalMS: nil
-                )
-            }
-
-            switch pendingRequest.status {
-            case .pending:
-                return authorizationStatusPayloadResponse(
-                    for: pendingRequest,
-                    status: "pending",
-                    detail: "Waiting for approval in Ursus.app.",
-                    redirectURL: nil,
-                    pollIntervalMS: 1_000
+            switch result.outcome {
+            case .approved:
+                guard let pendingRequest = result.request,
+                      let authorizationCode = result.authorizationCode
+                else {
+                    return decisionErrorResponse(
+                        statusCode: 500,
+                        title: "Approval Failed",
+                        message: "Ursus could not finish the browser approval flow. Start the authorization again."
+                    )
+                }
+                return decisionCompletionResponse(
+                    redirectURI: pendingRequest.redirectURI,
+                    title: "Authorization Approved",
+                    message: "Access was granted successfully. Ursus is returning to your client now.",
+                    additions: [
+                        URLQueryItem(name: "code", value: authorizationCode),
+                        URLQueryItem(name: "state", value: pendingRequest.state),
+                    ]
                 )
 
             case .denied:
-                return authorizationStatusPayloadResponse(
-                    for: pendingRequest,
-                    status: "denied",
-                    detail: "The local owner denied this authorization request.",
-                    redirectURL: authorizationErrorRedirectURL(
-                        for: pendingRequest,
-                        error: "access_denied",
-                        description: "The local owner denied this authorization request."
-                    ),
-                    pollIntervalMS: nil
+                guard let pendingRequest = result.request else {
+                    return decisionErrorResponse(
+                        statusCode: 500,
+                        title: "Denial Failed",
+                        message: "Ursus could not finish the browser denial flow. Start the authorization again."
+                    )
+                }
+                return decisionCompletionResponse(
+                    redirectURI: pendingRequest.redirectURI,
+                    title: "Authorization Denied",
+                    message: "Access was denied. Ursus is returning to your client now.",
+                    additions: [
+                        URLQueryItem(name: "error", value: "access_denied"),
+                        URLQueryItem(
+                            name: "error_description",
+                            value: "The local owner denied this authorization request."
+                        ),
+                        URLQueryItem(name: "state", value: pendingRequest.state),
+                    ]
                 )
 
             case .expired:
-                return authorizationStatusPayloadResponse(
-                    for: pendingRequest,
-                    status: "expired",
-                    detail: "The local approval request expired before it was reviewed.",
-                    redirectURL: authorizationErrorRedirectURL(
-                        for: pendingRequest,
-                        error: "access_denied",
-                        description: "The local approval request expired before it was reviewed."
-                    ),
-                    pollIntervalMS: nil
+                return decisionErrorResponse(
+                    statusCode: 410,
+                    title: "Authorization Expired",
+                    message: "This browser approval request expired before it was completed. Start the authorization again from your client."
                 )
 
-            case .approved:
-                let resource = metadataValue(named: "resource", in: pendingRequest.metadataJSON)
-                guard let grant = try await store.activeGrant(
-                    clientID: pendingRequest.clientID,
-                    scope: pendingRequest.requestedScope,
-                    resource: resource
-                ) else {
-                    return authorizationStatusPayloadResponse(
-                        for: pendingRequest,
-                        status: "denied",
-                        detail: "This approval is no longer active. Start the authorization again.",
-                        redirectURL: authorizationErrorRedirectURL(
-                            for: pendingRequest,
-                            error: "access_denied",
-                            description: "This approval is no longer active. Start the authorization again."
-                        ),
-                        pollIntervalMS: nil
-                    )
+            case .alreadyResolved:
+                let message: String
+                switch result.request?.status {
+                case .denied:
+                    message = "This browser approval request was already denied."
+                case .completed:
+                    message = "This browser approval request was already completed."
+                case .expired:
+                    message = "This browser approval request already expired."
+                case .pending, .none:
+                    message = "This browser approval request is no longer available."
                 }
-
-                let issuedCode = try await store.issueAuthorizationCode(
-                    BearBridgeAuthorizationCodeDraft(
-                        clientID: pendingRequest.clientID,
-                        grantID: grant.id,
-                        pendingRequestID: pendingRequest.id,
-                        scope: pendingRequest.requestedScope,
-                        redirectURI: pendingRequest.redirectURI,
-                        codeChallenge: pendingRequest.codeChallenge,
-                        codeChallengeMethod: pendingRequest.codeChallengeMethod,
-                        expiresAt: now().addingTimeInterval(configuration.authorizationCodeLifetime)
-                    )
-                )
-                return authorizationStatusPayloadResponse(
-                    for: pendingRequest,
-                    status: "approved",
-                    detail: "Approval received. Returning to the OAuth client.",
-                    redirectURL: authorizationSuccessRedirectURL(
-                        for: pendingRequest,
-                        code: issuedCode.code
-                    ),
-                    pollIntervalMS: nil
+                return decisionErrorResponse(
+                    statusCode: 409,
+                    title: "Authorization Already Resolved",
+                    message: message
                 )
 
-            case .completed:
-                return authorizationStatusPayloadResponse(
-                    for: pendingRequest,
-                    status: "completed",
-                    detail: "Authorization was already completed for this request.",
-                    redirectURL: nil,
-                    pollIntervalMS: nil
+            case .invalidDecisionToken:
+                return decisionErrorResponse(
+                    statusCode: 400,
+                    title: "Invalid Decision Token",
+                    message: "This browser approval link is invalid or has already been used. Start the authorization again."
+                )
+
+            case .unknownRequest:
+                return decisionErrorResponse(
+                    statusCode: 404,
+                    title: "Authorization Request Not Found",
+                    message: "Ursus could not find this browser approval request. Start the authorization again."
                 )
             }
         } catch {
-            return oauthErrorResponse(
+            return decisionErrorResponse(
                 statusCode: 500,
-                error: "server_error",
-                description: "Failed to resolve the local authorization request."
+                title: "Authorization Failed",
+                message: "Ursus could not process this browser approval request. Start the authorization again."
             )
         }
     }
@@ -826,12 +802,6 @@ private extension BearBridgeOAuthServer {
                     metadataJSON: metadataJSONString(["resource": resource])
                 )
             )
-            if let pendingRequestID = authorizationCode.pendingRequestID {
-                _ = try await store.updatePendingAuthorizationRequestStatus(
-                    id: pendingRequestID,
-                    status: .completed
-                )
-            }
             return tokenSuccessResponse(
                 accessToken: accessToken.token,
                 refreshToken: refreshToken.token,
@@ -1000,21 +970,31 @@ private extension BearBridgeOAuthServer {
         )
     }
 
-    func authorizationPendingResponse(
-        requestID: String,
+    func authorizationConsentResponse(
+        request: BearBridgePendingAuthorizationRequest,
+        decisionToken: String,
         clientName: String,
-        requestedScope: String
+        requestedScope: String,
+        resource: String
     ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
         let escapedClientName = htmlEscaped(clientName)
         let escapedScope = htmlEscaped(requestedScope)
-        let statusURL = "/oauth/request-status?request_id=\(percentEncodedQueryValue(requestID))"
+        let escapedResource = htmlEscaped(resource)
+        let escapedRequestID = htmlEscaped(request.id)
+        let escapedDecisionToken = htmlEscaped(decisionToken)
+        let expiryDescription = htmlEscaped(
+            request.expiresAt.formatted(
+                date: .abbreviated,
+                time: .shortened
+            )
+        )
         let html = """
         <!doctype html>
         <html lang="en">
         <head>
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Approval Needed</title>
+          <title>Approve Access To Your Local Ursus Bridge</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
             main { max-width: 560px; margin: 64px auto; padding: 24px; }
@@ -1023,127 +1003,131 @@ private extension BearBridgeOAuthServer {
             p { margin: 0 0 12px; line-height: 1.5; }
             .meta { margin-top: 16px; padding: 14px; border-radius: 12px; background: #f3f1eb; }
             .label { font-weight: 600; }
-            #status { margin-top: 16px; color: #57534e; }
+            form { margin-top: 20px; }
+            .actions { display: flex; gap: 12px; margin-top: 20px; }
+            button { border-radius: 999px; border: 1px solid rgba(0,0,0,0.12); padding: 12px 18px; font: inherit; cursor: pointer; }
+            .approve { background: #1d1d1b; color: #ffffff; border-color: #1d1d1b; }
+            .deny { background: #ffffff; color: #7c2d12; }
           </style>
         </head>
         <body>
           <main>
             <div class="card">
-              <h1>Approval needed in Ursus.app</h1>
+              <h1>Approve access to your local Ursus bridge</h1>
               <p><span class="label">Client:</span> \(escapedClientName)</p>
               <p><span class="label">Requested scope:</span> \(escapedScope)</p>
-              <p>Open Ursus.app and approve or deny this bridge authorization request. This page will continue automatically once the local owner responds.</p>
-              <p id="status">Waiting for local approval...</p>
-              <div class="meta">If Ursus.app is already open, look for the bridge access review sheet.</div>
+              <p><span class="label">Protected resource:</span> \(escapedResource)</p>
+              <p><span class="label">Expires:</span> \(expiryDescription)</p>
+              <p>Approving will let this client exchange an authorization code for bearer tokens that can call your protected local Ursus HTTP bridge until you revoke access in Ursus.app.</p>
+              <form method="post" action="/oauth/decision">
+                <input type="hidden" name="request_id" value="\(escapedRequestID)">
+                <input type="hidden" name="decision_token" value="\(escapedDecisionToken)">
+                <div class="actions">
+                  <button class="approve" type="submit" name="decision" value="approve">Approve</button>
+                  <button class="deny" type="submit" name="decision" value="deny">Deny</button>
+                </div>
+              </form>
+              <div class="meta">Ursus.app remains the place to review bridge access and revoke remembered grants later.</div>
+            </div>
+          </main>
+        </body>
+        </html>
+        """
+
+        return htmlResponse(statusCode: 200, html: html)
+    }
+
+    func decisionErrorResponse(
+        statusCode: Int,
+        title: String,
+        message: String
+    ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
+        let html = """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>\(htmlEscaped(title))</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
+            main { max-width: 560px; margin: 64px auto; padding: 24px; }
+            .card { background: #ffffff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+            h1 { margin: 0 0 12px; font-size: 28px; }
+            p { margin: 0; line-height: 1.5; color: #44403c; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <div class="card">
+              <h1>\(htmlEscaped(title))</h1>
+              <p>\(htmlEscaped(message))</p>
+            </div>
+          </main>
+        </body>
+        </html>
+        """
+
+        return htmlResponse(statusCode: statusCode, html: html)
+    }
+
+    func decisionCompletionResponse(
+        redirectURI: String,
+        title: String,
+        message: String,
+        additions: [URLQueryItem]
+    ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
+        let callbackURL = redirectLocation(
+            redirectURI: redirectURI,
+            additions: additions
+        )
+        let escapedTitle = htmlEscaped(title)
+        let escapedMessage = htmlEscaped(message)
+        let escapedCallbackURL = htmlEscaped(callbackURL)
+        let callbackURLLiteral = javaScriptStringLiteral(callbackURL)
+        let html = """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>\(escapedTitle)</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
+            main { max-width: 560px; margin: 64px auto; padding: 24px; }
+            .card { background: #ffffff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+            h1 { margin: 0 0 12px; font-size: 28px; }
+            p { margin: 0; line-height: 1.5; color: #44403c; }
+          </style>
+        </head>
+        <body>
+          <main>
+            <div class="card">
+              <h1>\(escapedTitle)</h1>
+              <p>\(escapedMessage)</p>
+              <input type="hidden" name="callback_url" value="\(escapedCallbackURL)">
             </div>
           </main>
           <script>
-            const statusURL = \(jsonStringLiteral(statusURL));
-            const statusNode = document.getElementById("status");
+            const callbackURL = \(callbackURLLiteral);
 
-            async function poll() {
+            function openClient() {
               try {
-                const response = await fetch(statusURL, {
-                  cache: "no-store",
-                  headers: { "Accept": "application/json" }
-                });
-                const payload = await response.json();
-                if (payload.detail) {
-                  statusNode.textContent = payload.detail;
-                }
-                if (payload.redirect_url) {
-                  window.location.replace(payload.redirect_url);
-                  return;
-                }
-                const delay = payload.poll_interval_ms || 1000;
-                window.setTimeout(poll, delay);
-              } catch (error) {
-                statusNode.textContent = "Still waiting for local approval. Retrying...";
-                window.setTimeout(poll, 1500);
-              }
+                window.location.replace(callbackURL);
+              } catch (_) {}
             }
 
-            poll();
+            openClient();
+
+            window.setTimeout(() => {
+              window.close();
+            }, 500);
           </script>
         </body>
         </html>
         """
 
-        return .plain(
-            statusCode: 200,
-            headers: [
-                HTTPHeaderName.contentType: "text/html; charset=utf-8",
-                "Cache-Control": "no-store",
-                "Pragma": "no-cache",
-            ],
-            body: Data(html.utf8)
-        )
-    }
-
-    func authorizationStatusPayloadResponse(
-        for request: BearBridgePendingAuthorizationRequest,
-        status: String,
-        detail: String?,
-        redirectURL: String?,
-        pollIntervalMS: Int?
-    ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
-        jsonResponse(
-            AuthorizationStatusPayload(
-                requestID: request.id,
-                status: status,
-                detail: detail,
-                redirectURL: redirectURL,
-                pollIntervalMS: pollIntervalMS
-            ),
-            headers: [
-                "Cache-Control": "no-store",
-                "Pragma": "no-cache",
-            ]
-        )
-    }
-
-    func authorizationSuccessRedirectURL(
-        for request: BearBridgePendingAuthorizationRequest,
-        code: String
-    ) -> String {
-        redirectURL(
-            redirectURI: request.redirectURI,
-            additions: [
-                URLQueryItem(name: "code", value: code),
-                URLQueryItem(name: "state", value: request.state),
-            ]
-        )
-    }
-
-    func authorizationErrorRedirectURL(
-        for request: BearBridgePendingAuthorizationRequest,
-        error: String,
-        description: String
-    ) -> String {
-        redirectURL(
-            redirectURI: request.redirectURI,
-            additions: [
-                URLQueryItem(name: "error", value: error),
-                URLQueryItem(name: "error_description", value: description),
-                URLQueryItem(name: "state", value: request.state),
-            ]
-        )
-    }
-
-    func redirectURL(
-        redirectURI: String,
-        additions: [URLQueryItem]
-    ) -> String {
-        guard var components = URLComponents(string: redirectURI) else {
-            return redirectURI
-        }
-
-        var items = components.queryItems ?? []
-        items.append(contentsOf: additions.compactMap { item in
-            item.value == nil ? nil : item
-        })
-        components.queryItems = items
-        return components.url?.absoluteString ?? redirectURI
+        return htmlResponse(statusCode: 200, html: html)
     }
 
     func methodNotAllowedResponse(
@@ -1236,6 +1220,21 @@ private extension BearBridgeOAuthServer {
         var mergedHeaders = headers
         mergedHeaders[HTTPHeaderName.contentType] = "application/json"
         return .plain(statusCode: statusCode, headers: mergedHeaders, body: data)
+    }
+
+    func htmlResponse(
+        statusCode: Int,
+        html: String
+    ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
+        .plain(
+            statusCode: statusCode,
+            headers: [
+                HTTPHeaderName.contentType: "text/html; charset=utf-8",
+                "Cache-Control": "no-store",
+                "Pragma": "no-cache",
+            ],
+            body: Data(html.utf8)
+        )
     }
 
     func endpointContext(for request: HTTPRequest) -> EndpointContext {
@@ -1368,9 +1367,8 @@ private extension BearBridgeOAuthServer {
             .replacingOccurrences(of: "'", with: "&#39;")
     }
 
-    func jsonStringLiteral(_ value: String) -> String {
-        let object = [value]
-        guard let data = try? JSONSerialization.data(withJSONObject: object),
+    func javaScriptStringLiteral(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [value]),
               let json = String(data: data, encoding: .utf8),
               json.count >= 2
         else {
@@ -1380,8 +1378,20 @@ private extension BearBridgeOAuthServer {
         return String(json.dropFirst().dropLast())
     }
 
-    func percentEncodedQueryValue(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+    func redirectLocation(
+        redirectURI: String,
+        additions: [URLQueryItem]
+    ) -> String {
+        guard var components = URLComponents(string: redirectURI) else {
+            return redirectURI
+        }
+
+        var items = components.queryItems ?? []
+        items.append(contentsOf: additions.compactMap { item in
+            item.value == nil ? nil : item
+        })
+        components.queryItems = items
+        return components.url?.absoluteString ?? redirectURI
     }
 
     func url(byAppendingPath path: String, to baseURL: URL) -> URL {

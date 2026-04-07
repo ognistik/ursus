@@ -56,7 +56,7 @@ actor BearBridgeHTTPApplication {
         case oauthProtectedResourceMetadata
         case oauthAuthorizationServerMetadata
         case oauthAuthorize
-        case oauthRequestStatus
+        case oauthDecision
         case oauthToken
         case oauthRegister
         case notFound
@@ -186,7 +186,7 @@ actor BearBridgeHTTPApplication {
         case .oauthProtectedResourceMetadata,
              .oauthAuthorizationServerMetadata,
              .oauthAuthorize,
-             .oauthRequestStatus,
+             .oauthDecision,
              .oauthToken,
              .oauthRegister:
             guard configuration.authMode.requiresOAuth else {
@@ -531,8 +531,8 @@ extension BearBridgeHTTPApplication {
             return .oauthAuthorize
         }
 
-        if normalizedPath.hasPrefix("/oauth/request-status") {
-            return .oauthRequestStatus
+        if normalizedPath.hasPrefix("/oauth/decision") {
+            return .oauthDecision
         }
 
         if normalizedPath.hasPrefix("/oauth/token") {

@@ -16,16 +16,10 @@ struct UrsusBridgeAuthReviewSheet: View {
                     error: model.bridgeAuthStatusError
                 )
 
-                if model.bridgeAuthPendingRequests.isEmpty && model.bridgeAuthGrantSummaries.isEmpty {
+                if model.bridgeAuthGrantSummaries.isEmpty {
                     emptyState
                 } else {
-                    if !model.bridgeAuthPendingRequests.isEmpty {
-                        pendingSection
-                    }
-
-                    if !model.bridgeAuthGrantSummaries.isEmpty {
-                        grantsSection
-                    }
+                    grantsSection
                 }
             }
         }
@@ -35,11 +29,11 @@ struct UrsusBridgeAuthReviewSheet: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Bridge Access Review")
+                Text("Bridge Access")
                     .font(.system(size: 28, weight: .black))
                     .tracking(-1.4)
 
-                Text("Approve or deny pending OAuth requests from remote bridge clients, and revoke remembered grants when you want a client to ask again.")
+                Text("Manage remembered access for clients that connect to the protected HTTP bridge.")
                     .font(.callout)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -68,64 +62,10 @@ struct UrsusBridgeAuthReviewSheet: View {
         }
     }
 
-    private var pendingSection: some View {
-        UrsusPanel(
-            title: "Pending Requests",
-            subtitle: "These requests are waiting for a local decision before the OAuth client can continue.",
-            surface: .subtle
-        ) {
-            VStack(alignment: .leading, spacing: 12) {
-                ForEach(model.bridgeAuthPendingRequests) { request in
-                    UrsusGroupedBlock {
-                        HStack(alignment: .firstTextBaseline, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(request.clientTitle)
-                                    .font(.callout.weight(.semibold))
-
-                                if let resource = request.resource {
-                                    Text(resource)
-                                        .font(.footnote)
-                                        .foregroundStyle(.tertiary)
-                                        .textSelection(.enabled)
-                                }
-                            }
-
-                            Spacer(minLength: 12)
-
-                            Text(request.status.rawValue.capitalized)
-                                .font(.footnote.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        VStack(alignment: .leading, spacing: 6) {
-                            authDetailRow(label: "Scope", value: request.requestedScope)
-                            authDetailRow(label: "Redirect", value: request.redirectURI)
-                            authDetailRow(label: "Expires", value: request.expiresAt.formatted(date: .abbreviated, time: .shortened))
-                        }
-
-                        HStack(spacing: 10) {
-                            Button("Approve") {
-                                model.approveBridgeAuthorizationRequest(request)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(model.bridgeAuthActionInProgress)
-
-                            Button("Deny", role: .destructive) {
-                                model.denyBridgeAuthorizationRequest(request)
-                            }
-                            .buttonStyle(.bordered)
-                            .disabled(model.bridgeAuthActionInProgress)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private var grantsSection: some View {
         UrsusPanel(
             title: "Remembered Grants",
-            subtitle: "Approved clients can authorize again without prompting until you revoke their remembered access.",
+            subtitle: "Approved clients can authorize again without another browser consent prompt until you revoke their remembered access.",
             surface: .subtle
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -166,11 +106,11 @@ struct UrsusBridgeAuthReviewSheet: View {
 
     private var emptyState: some View {
         UrsusPanel(
-            title: "No Bridge Access To Review",
-            subtitle: "New bridge OAuth requests will appear here when they need local approval.",
+            title: "No Remembered Bridge Access",
+            subtitle: "Browser consent happens during OAuth. Remembered grants will appear here after a client is approved.",
             surface: .subtle
         ) {
-            Text("There are no pending requests or remembered grants right now.")
+            Text("There are no remembered grants right now.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
