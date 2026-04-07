@@ -8,26 +8,44 @@ struct UrsusSetupView: View {
     @State private var showsTokenInput = false
 
     var body: some View {
-        UrsusScrollSurface {
-            if let settings = model.dashboard.settings {
-                VStack(alignment: .leading, spacing: 20) {
-                    heroPanel
-                    Divider()
-                    defaultsPanel(settings)
-                    Divider()
-                    tokenPanel(settings)
-                    Divider()
-                    connectAppsPanel(settings)
-                    Divider()
-                    bridgePanel(settings)
+        ZStack(alignment: .bottom) {
+            UrsusScrollSurface {
+                if let settings = model.dashboard.settings {
+                    VStack(alignment: .leading, spacing: 20) {
+                        heroPanel
+                        Divider()
+                        defaultsPanel(settings)
+                        Divider()
+                        tokenPanel(settings)
+                        Divider()
+                        connectAppsPanel(settings)
+                        Divider()
+                        bridgePanel(settings)
+                    }
+                } else {
+                    unavailablePanel(
+                        title: "Setup is unavailable",
+                        detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
+                    )
                 }
-            } else {
-                unavailablePanel(
-                    title: "Setup is unavailable",
-                    detail: model.dashboard.settingsError ?? "Ursus could not load its current settings."
-                )
+            }
+            .allowsHitTesting(!model.showsBridgeAccessOverlay)
+
+            if model.showsBridgeAccessOverlay {
+                Color.black.opacity(0.08)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .onTapGesture {
+                        model.closeBridgeAccessOverlay()
+                    }
+
+                UrsusBridgeAccessOverlay(model: model)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .animation(.easeInOut(duration: 0.18), value: model.showsBridgeAccessOverlay)
     }
 
     private var heroPanel: some View {
@@ -332,30 +350,21 @@ struct UrsusSetupView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 10) {
-                    Toggle("Require OAuth for all bridge requests", isOn: bridgeRequiresOAuthBinding)
-                        .disabled(model.isBridgeOperationInProgress)
+                    if bridge.installed {
+                        UrsusInfoRow(
+                            label: "Authorization",
+                            value: bridge.authModeSummary,
+                            compact: true
+                        )
+                    } else {
+                        Toggle("Require OAuth for all bridge requests", isOn: bridgeRequiresOAuthBinding)
+                            .disabled(model.isBridgeOperationInProgress)
+                    }
 
-                    Text(
-                        bridge.requiresOAuth
-                            ? "Protection: OAuth is required for the entire `/mcp` bridge surface."
-                            : "Protection: Bridge requests stay open, matching the current local behavior."
-                    )
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                    Text(model.bridgeAuthSummary ?? bridge.authStateSummary)
+                    Text(bridgeAccessSummary(for: bridge))
                         .font(.footnote)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if bridge.requiresOAuth || model.bridgeAuthHasVisibleState || bridge.auth.hasStoredAuthState {
-                        Button("Bridge Access") {
-                            model.openBridgeAuthReview()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isBridgeOperationInProgress)
-                    }
                 }
             }
 
@@ -394,7 +403,17 @@ struct UrsusSetupView: View {
                         .buttonStyle(.bordered)
                         .disabled(model.isBridgeOperationInProgress)
                     }
+                }
 
+                if bridge.requiresOAuth || model.bridgeAuthHasVisibleState || bridge.auth.hasStoredAuthState {
+                    Button("Manage Access") {
+                        model.openBridgeAccessOverlay()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isBridgeOperationInProgress)
+                }
+
+                if bridge.installed {
                     Button("Remove", role: .destructive) {
                         model.removeBridge()
                     }
@@ -445,6 +464,25 @@ struct UrsusSetupView: View {
                 model.configurationDraftDidChange()
             }
         )
+    }
+
+    private func bridgeAccessSummary(for bridge: BearAppBridgeSnapshot) -> String {
+        let rememberedClientCount: Int
+
+        if let review = model.bridgeAuthReview {
+            rememberedClientCount = review.activeGrants.count
+        } else {
+            rememberedClientCount = bridge.auth.activeGrantCount
+        }
+
+        switch rememberedClientCount {
+        case 0:
+            return "No remembered clients."
+        case 1:
+            return "1 remembered client."
+        default:
+            return "\(rememberedClientCount) remembered clients."
+        }
     }
 
     private func bridgeStateText(for settings: BearAppSettingsSnapshot) -> String? {

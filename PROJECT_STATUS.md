@@ -62,7 +62,7 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - Protected bridges now also serve a built-in bridge-local OAuth 2.1 authorization server, including protected-resource metadata, authorization-server metadata, dynamic client registration for public clients, an authorization endpoint that either reuses a remembered grant or renders a browser consent page with a single-use decision token, a `POST /oauth/decision` route that approves or denies in the popup itself, and a token endpoint for authorization-code and refresh-token exchange.
 - In bridge OAuth mode, `/mcp` now accepts only valid bridge-issued Bearer access tokens, validates them against the durable bridge-auth store plus the current protected-resource identity, keeps the OAuth discovery/registration/authorize/status/token routes public, canonicalizes public OAuth origin metadata so tunneled hosts do not leak the loopback bridge port into discovery or Bearer challenges, and serves browser-friendly CORS/preflight headers on bridge OAuth routes so ChatGPT-style web setup flows can reach discovery and registration.
 - Remote connector clients should use the full MCP endpoint URL, not the bare bridge origin. With the default bridge path that means `/mcp` remains part of both local and tunneled URLs.
-- The Setup bridge card now shows a compact auth-state summary for the protected bridge plus a `Bridge Access` action, and the app can surface a bridge access sheet focused on remembered-grant review and revocation without teaching stdio or Bear note logic about bridge OAuth.
+- The Setup bridge card now shows a compact auth-state summary for the protected bridge plus a `Manage Access` action, and the app surfaces bridge-access review as a same-window overlay in `Setup` so remembered-grant review and revocation stay contextual to the bridge section without teaching stdio or Bear note logic about bridge OAuth.
 - The Setup bridge card now derives a `Restart Required` state from persisted runtime config drift, selected-note token availability drift, and MCP bridge-surface drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
 
@@ -287,7 +287,7 @@ HTTP bridge OAuth Phase 4 verification that passed on 2026-04-06:
 - `swift run ursus bridge status`
 - bridge auth-store tests now cover review snapshots, browser-decision approval/denial, single-use decision-token enforcement, and revoke behavior for remembered grants
 - bridge runtime tests now cover browser consent pages, popup approval/denial redirects, remembered-grant repeat authorization, and request completion at decision time
-- the app target built successfully with the browser-first bridge access sheet in `Ursus.app`
+- the app target built successfully with the browser-first bridge access surface in `Ursus.app`
 
 HTTP bridge OAuth Phase 5 verification that passed on 2026-04-06:
 

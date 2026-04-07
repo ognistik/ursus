@@ -55,7 +55,7 @@ final class UrsusAppModel: ObservableObject {
     @Published private(set) var templateValidation = BearTemplateValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var activeBridgeOperation: UrsusBridgeOperation?
-    @Published var showsBridgeAuthReview = false
+    @Published var showsBridgeAccessOverlay = false
     @Published private(set) var bridgeAuthReview: BearBridgeAuthReviewSnapshot?
     @Published private(set) var bridgeAuthStatusMessage: String?
     @Published private(set) var bridgeAuthStatusError: String?
@@ -379,11 +379,15 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
-    func openBridgeAuthReview() {
-        showsBridgeAuthReview = true
+    func openBridgeAccessOverlay() {
+        showsBridgeAccessOverlay = true
         Task { [weak self] in
             await self?.refreshBridgeAuthReviewNow()
         }
+    }
+
+    func closeBridgeAccessOverlay() {
+        showsBridgeAccessOverlay = false
     }
 
     func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
@@ -851,10 +855,10 @@ final class UrsusAppModel: ObservableObject {
     private func refreshBridgeAuthReviewNow() async {
         let shouldLoadReview = await MainActor.run {
             if let settings = dashboard.settings {
-                return settings.bridge.requiresOAuth || settings.bridge.auth.hasStoredAuthState || showsBridgeAuthReview || bridgeAuthHasVisibleState
+                return settings.bridge.requiresOAuth || settings.bridge.auth.hasStoredAuthState || showsBridgeAccessOverlay || bridgeAuthHasVisibleState
             }
 
-            return showsBridgeAuthReview || bridgeAuthHasVisibleState
+            return showsBridgeAccessOverlay || bridgeAuthHasVisibleState
         }
 
         guard shouldLoadReview else {
