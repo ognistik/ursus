@@ -88,6 +88,61 @@ let ursusToggleTrackTint = ursusDynamicColor(
     dark: NSColor(calibratedWhite: 0.50, alpha: 0.94)
 )
 
+let ursusSecondaryButtonFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.92, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.275, alpha: 1)
+)
+
+let ursusSecondaryButtonPressedFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.875, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.315, alpha: 1)
+)
+
+let ursusSecondaryButtonDisabledFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.94, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.225, alpha: 1)
+)
+
+let ursusSecondaryButtonBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.68, alpha: 0.42),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.14)
+)
+
+let ursusSecondaryButtonDisabledBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.72, alpha: 0.26),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.07)
+)
+
+let ursusPrimaryButtonFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.34, alpha: 0.96),
+    dark: NSColor(calibratedWhite: 0.45, alpha: 0.96)
+)
+
+let ursusPrimaryButtonPressedFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.30, alpha: 0.96),
+    dark: NSColor(calibratedWhite: 0.49, alpha: 0.96)
+)
+
+let ursusPrimaryButtonDisabledFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.82, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.28, alpha: 1)
+)
+
+let ursusPrimaryButtonBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.28, alpha: 0.18),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.10)
+)
+
+let ursusPrimaryButtonDisabledBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.28, alpha: 0.10),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.05)
+)
+
+let ursusDisabledButtonTextColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.55, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.50, alpha: 1)
+)
+
 private struct UrsusRoundedSurfaceChrome: ViewModifier {
     let background: Color
     let border: Color
@@ -117,6 +172,89 @@ extension View {
                 cornerRadius: cornerRadius
             )
         )
+    }
+
+    func ursusButtonStyle(_ role: UrsusButtonRole = .secondary) -> some View {
+        buttonStyle(UrsusNeutralButtonStyle(role: role))
+    }
+}
+
+enum UrsusButtonRole {
+    case secondary
+    case primary
+    case destructive
+}
+
+private struct UrsusNeutralButtonStyle: ButtonStyle {
+    let role: UrsusButtonRole
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.callout.weight(.medium))
+            .foregroundStyle(foregroundColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(fillColor(isPressed: configuration.isPressed))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+            .opacity(configuration.isPressed && isEnabled ? 0.97 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+
+    private var foregroundColor: Color {
+        guard isEnabled else {
+            return ursusDisabledButtonTextColor
+        }
+
+        switch role {
+        case .secondary, .destructive:
+            return .primary
+        case .primary:
+            return ursusDynamicColor(
+                light: NSColor.white,
+                dark: NSColor(calibratedWhite: 0.97, alpha: 1)
+            )
+        }
+    }
+
+    private var borderColor: Color {
+        guard isEnabled else {
+            switch role {
+            case .primary:
+                return ursusPrimaryButtonDisabledBorderColor
+            case .secondary, .destructive:
+                return ursusSecondaryButtonDisabledBorderColor
+            }
+        }
+
+        switch role {
+        case .primary:
+            return ursusPrimaryButtonBorderColor
+        case .secondary, .destructive:
+            return ursusSecondaryButtonBorderColor
+        }
+    }
+
+    private func fillColor(isPressed: Bool) -> Color {
+        guard isEnabled else {
+            switch role {
+            case .primary:
+                return ursusPrimaryButtonDisabledFillColor
+            case .secondary, .destructive:
+                return ursusSecondaryButtonDisabledFillColor
+            }
+        }
+
+        switch role {
+        case .primary:
+            return isPressed ? ursusPrimaryButtonPressedFillColor : ursusPrimaryButtonFillColor
+        case .secondary, .destructive:
+            return isPressed ? ursusSecondaryButtonPressedFillColor : ursusSecondaryButtonFillColor
+        }
     }
 }
 
@@ -891,7 +1029,7 @@ struct UrsusTagEditor: View {
                 Button("Add Tag") {
                     addDraft()
                 }
-                .buttonStyle(.bordered)
+                .ursusButtonStyle()
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }

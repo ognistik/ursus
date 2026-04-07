@@ -127,13 +127,13 @@ struct UrsusPreferencesView: View {
                         Button("Save Template") {
                             model.saveTemplate()
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle(.primary)
                         .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
 
                         Button("Revert Changes") {
                             model.revertTemplateDraft()
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
                         .disabled(!model.templateHasUnsavedChanges)
                     }
 

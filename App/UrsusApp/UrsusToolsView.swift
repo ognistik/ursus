@@ -41,7 +41,7 @@ struct UrsusToolsView: View {
                     Button(actionTitle) {
                         model.installPublicLauncher()
                     }
-                    .buttonStyle(.bordered)
+                    .ursusButtonStyle()
                     .disabled(model.currentBundledCLIPath == nil)
                 }
 

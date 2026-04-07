@@ -136,7 +136,7 @@ struct UrsusBridgeAccessOverlay: View {
             Button("Revoke", role: .destructive) {
                 model.revokeBridgeGrant(grant)
             }
-            .buttonStyle(.bordered)
+            .ursusButtonStyle(.destructive)
             .disabled(model.bridgeAuthActionInProgress)
         }
         .padding(.horizontal, 16)

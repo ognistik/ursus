@@ -158,7 +158,7 @@ struct UrsusSetupView: View {
                                 Button("Try Again") {
                                     model.loadStoredSelectedNoteToken()
                                 }
-                                .buttonStyle(.borderless)
+                                .ursusButtonStyle()
                                 .controlSize(.small)
                             }
                         }
@@ -168,13 +168,13 @@ struct UrsusSetupView: View {
                         Button("Replace") {
                             showsTokenInput = true
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
 
                         Button("Remove", role: .destructive) {
                             model.removeSelectedNoteToken()
                             showsTokenInput = false
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle(.destructive)
                     }
                 } else {
                     UrsusGroupedBlock {
@@ -193,14 +193,14 @@ struct UrsusSetupView: View {
                             model.saveSelectedNoteToken()
                             showsTokenInput = false
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
 
                         if showsTokenInput {
                             Button("Cancel") {
                                 model.tokenDraft = ""
                                 showsTokenInput = false
                             }
-                            .buttonStyle(.bordered)
+                            .ursusButtonStyle()
                         }
                     }
                 }
@@ -230,7 +230,7 @@ struct UrsusSetupView: View {
                     Button("Copy Launcher Path") {
                         model.copyLauncherPath()
                     }
-                    .buttonStyle(.bordered)
+                    .ursusButtonStyle()
 
                     UrsusMessageStack(
                         success: model.cliStatusMessage,
@@ -256,7 +256,7 @@ struct UrsusSetupView: View {
                             Button(title) {
                                 model.installPublicLauncher()
                             }
-                            .buttonStyle(.bordered)
+                            .ursusButtonStyle()
                             .disabled(model.currentBundledCLIPath == nil)
                         }
                     }
@@ -373,13 +373,13 @@ struct UrsusSetupView: View {
                         Button(recoveryAction.title) {
                             performRecoveryAction(recoveryAction, settings: settings)
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     } else {
                         Button(recoveryAction.title) {
                             performRecoveryAction(recoveryAction, settings: settings)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .ursusButtonStyle(.primary)
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
                 } else if let title = bridgePrimaryActionTitle(for: bridge) {
@@ -389,7 +389,7 @@ struct UrsusSetupView: View {
                                 repairing: bridge.status == .invalid || bridge.status == .failed
                             )
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     } else {
                         Button(title) {
@@ -397,7 +397,7 @@ struct UrsusSetupView: View {
                                 repairing: bridge.status == .invalid || bridge.status == .failed
                             )
                         }
-                        .buttonStyle(.borderedProminent)
+                        .ursusButtonStyle(.primary)
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
                 }
@@ -411,39 +411,30 @@ struct UrsusSetupView: View {
                                 model.pauseBridge()
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
                         .disabled(model.isBridgeOperationInProgress)
                     } else {
                         Button("Resume") {
                             model.resumeBridge()
                         }
-                        .buttonStyle(.bordered)
+                        .ursusButtonStyle()
                         .disabled(model.isBridgeOperationInProgress)
                     }
                 }
 
                 if bridgeRememberedClientCount(for: bridge) > 0 {
-                    if bridge.installed {
-                        Button("Manage Access") {
-                            model.openBridgeAccessOverlay()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.isBridgeOperationInProgress)
-                    } else {
-                        Button("Manage Access") {
-                            model.openBridgeAccessOverlay()
-                        }
-                        .buttonStyle(.borderless)
-                        .foregroundStyle(ursusInlineLabelColor)
-                        .disabled(model.isBridgeOperationInProgress)
+                    Button("Manage Access") {
+                        model.openBridgeAccessOverlay()
                     }
+                    .ursusButtonStyle()
+                    .disabled(model.isBridgeOperationInProgress)
                 }
 
                 if bridge.installed {
                     Button("Remove", role: .destructive) {
                         model.removeBridge()
                     }
-                    .buttonStyle(.bordered)
+                    .ursusButtonStyle(.destructive)
                     .disabled(model.isBridgeOperationInProgress)
                 }
             }
@@ -656,14 +647,14 @@ private struct UrsusHostSetupRow: View {
                     Button("Copy Setup") {
                         model.copyHostSetupSnippet(setup)
                     }
-                    .buttonStyle(.bordered)
+                    .ursusButtonStyle()
                 }
 
                 if let configPath = setup.configPath {
                     Button("Reveal Config") {
                         model.reveal(path: configPath)
                     }
-                    .buttonStyle(.bordered)
+                    .ursusButtonStyle()
                 }
             }
         }
