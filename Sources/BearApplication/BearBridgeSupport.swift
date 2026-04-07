@@ -141,10 +141,13 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
     public var runtimeConfigurationRestartRequired: Bool {
         guard installed,
               loaded,
-              status == .ok || status == .configured,
-              let loadedRuntimeConfigurationFingerprint
+              status == .ok || status == .configured
         else {
             return false
+        }
+
+        guard let loadedRuntimeConfigurationFingerprint else {
+            return true
         }
 
         return loadedRuntimeConfigurationFingerprint != currentRuntimeConfigurationFingerprint
@@ -154,10 +157,13 @@ public struct BearAppBridgeSnapshot: Codable, Hashable, Sendable {
         guard installed,
               loaded,
               status == .ok || status == .configured,
-              let loadedBridgeSurfaceMarker,
               let currentBridgeSurfaceMarker
         else {
             return false
+        }
+
+        guard let loadedBridgeSurfaceMarker else {
+            return true
         }
 
         return loadedBridgeSurfaceMarker != currentBridgeSurfaceMarker

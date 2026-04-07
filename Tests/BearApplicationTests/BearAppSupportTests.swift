@@ -1122,6 +1122,80 @@ func bridgeSnapshotFallsBackToLiveProbeWhenRuntimeStateLacksTokenMarker() throws
 }
 
 @Test
+func bridgeSnapshotRequiresRestartWhenLoadedBridgeHasNoRuntimeState() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+    let bridgeRuntimeStateURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("Application Support", isDirectory: true)
+        .appendingPathComponent("Ursus", isDirectory: true)
+        .appendingPathComponent("Runtime", isDirectory: true)
+        .appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
+
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        databasePath: "/tmp/original.sqlite",
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30,
+        runtimeConfigurationGeneration: 4,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearBridgeLaunchAgent.expectedPlist(
+        launcherURL: launcherURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL
+    ).xmlData().write(to: launchAgentPlistURL, options: .atomic)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let snapshot = BearAppSupport.bridgeSnapshot(
+        configuration: configuration,
+        selectedNoteTokenConfigured: false,
+        currentBridgeSurfaceMarker: "stable-bridge-surface",
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        bridgeRuntimeStateURL: bridgeRuntimeStateURL,
+        launchctlRunner: { _ in
+            BearProcessExecutionResult(exitCode: 0, stdout: "service = {}", stderr: "")
+        },
+        endpointProbe: { _, _ in
+            BearBridgeEndpointProbeResult(reachable: true)
+        }
+    )
+
+    #expect(snapshot.status == .ok)
+    #expect(snapshot.runtimeConfigurationRestartRequired == true)
+    #expect(snapshot.surfaceRestartRequired == true)
+    #expect(snapshot.restartRequired == true)
+}
+
+@Test
 func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
