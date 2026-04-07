@@ -358,7 +358,7 @@ struct UrsusSetupView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     bridgeAuthorizationRow(for: bridge)
 
-                    if let bridgeAccessSummary = bridgeAccessSummary(for: bridge) {
+                    if bridge.installed, let bridgeAccessSummary = bridgeAccessSummary(for: bridge) {
                         Text(bridgeAccessSummary)
                             .font(.footnote)
                             .foregroundStyle(.tertiary)
