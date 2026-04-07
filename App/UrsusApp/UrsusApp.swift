@@ -7,7 +7,7 @@ let ursusMutedControlTint = Color(
         name: nil,
         dynamicProvider: { appearance in
             if appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua {
-                return NSColor(calibratedWhite: 0.62, alpha: 0.96)
+                return NSColor(calibratedWhite: 0.54, alpha: 0.95)
             }
 
             return NSColor(calibratedWhite: 0.32, alpha: 0.96)

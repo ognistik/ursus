@@ -510,7 +510,7 @@ struct UrsusSetupView: View {
                 } else {
                     Toggle("", isOn: bridgeRequiresOAuthBinding)
                         .toggleStyle(.switch)
-                        .tint(ursusMutedControlTint)
+                        .tint(ursusToggleTrackTint)
                         .labelsHidden()
                         .disabled(model.isBridgeOperationInProgress)
                 }

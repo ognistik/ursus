@@ -80,7 +80,12 @@ let ursusInlineLabelColor = ursusDynamicColor(
 
 let ursusSecondaryControlFillColor = ursusDynamicColor(
     light: NSColor(calibratedWhite: 0.90, alpha: 1),
-    dark: NSColor(calibratedWhite: 0.22, alpha: 1)
+    dark: NSColor(calibratedWhite: 0.185, alpha: 1)
+)
+
+let ursusToggleTrackTint = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.32, alpha: 0.96),
+    dark: NSColor(calibratedWhite: 0.50, alpha: 0.94)
 )
 
 private struct UrsusRoundedSurfaceChrome: ViewModifier {
