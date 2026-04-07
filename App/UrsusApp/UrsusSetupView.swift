@@ -35,8 +35,8 @@ struct UrsusSetupView: View {
             if model.showsBridgeAccessOverlay {
                 ZStack {
                     (colorScheme == .dark
-                        ? Color.black.opacity(0.60)
-                        : Color.black.opacity(0.35))
+                     ? Color.black.opacity(0.50)
+                     : Color.black.opacity(0.26))
                 }
                 .ignoresSafeArea()
                 .transition(.opacity)
@@ -46,8 +46,8 @@ struct UrsusSetupView: View {
 
                 UrsusBridgeAccessOverlay(model: model)
                     .padding(.horizontal, 32)
-                    .padding(.vertical, 28)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.vertical, 32)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

@@ -23,7 +23,7 @@ struct UrsusBridgeAccessOverlay: View {
             }
         }
         .padding(22)
-        .frame(maxWidth: 680, minHeight: 260, maxHeight: 430, alignment: .topLeading)
+        .frame(maxWidth: 560, minHeight: 260, maxHeight: 430, alignment: .topLeading)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
