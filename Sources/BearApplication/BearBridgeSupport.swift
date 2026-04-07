@@ -388,7 +388,8 @@ public extension BearAppSupport {
         let validatedBridge = try BearBridgeConfiguration(
             enabled: true,
             host: configuration.bridge.host,
-            port: selectedPort
+            port: selectedPort,
+            authMode: configuration.bridge.authMode
         ).validated()
         let updatedConfiguration = configuration.updatingBridge(validatedBridge)
 
@@ -482,7 +483,8 @@ public extension BearAppSupport {
             let disabledBridge = try BearBridgeConfiguration(
                 enabled: false,
                 host: configuration.bridge.host,
-                port: configuration.bridge.port
+                port: configuration.bridge.port,
+                authMode: configuration.bridge.authMode
             ).validated()
             try BearRuntimeBootstrap.saveConfiguration(
                 configuration.updatingBridge(disabledBridge),

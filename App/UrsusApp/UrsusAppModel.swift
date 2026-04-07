@@ -295,6 +295,27 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
+    private func flushConfigurationDraftForBridgeOperation() throws {
+        configurationAutosaveTask?.cancel()
+
+        let draft = currentConfigurationDraft()
+        let validation = BearAppSupport.validateConfigurationDraft(draft)
+        configurationValidation = validation
+
+        guard !validation.hasErrors else {
+            configurationStatusMessage = nil
+            configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
+            throw BearError.configuration("Fix the highlighted configuration errors before restarting or updating the bridge.")
+        }
+
+        try BearAppSupport.saveConfigurationDraft(draft)
+        refreshDashboardSnapshot()
+        configurationStatusMessage = validation.warnings.isEmpty
+            ? nil
+            : "Review the warnings below."
+        configurationStatusError = nil
+    }
+
     func installPublicLauncher() {
         do {
             let receipt = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
@@ -724,6 +745,14 @@ final class UrsusAppModel: ObservableObject {
         work: @escaping @Sendable () throws -> String
     ) {
         guard activeBridgeOperation == nil else {
+            return
+        }
+
+        do {
+            try flushConfigurationDraftForBridgeOperation()
+        } catch {
+            bridgeStatusMessage = nil
+            bridgeStatusError = localizedMessage(for: error)
             return
         }
 

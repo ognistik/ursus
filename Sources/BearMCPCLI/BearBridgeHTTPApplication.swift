@@ -170,7 +170,17 @@ actor BearBridgeHTTPApplication {
     }
 
     func handleHTTPRequest(_ request: HTTPRequest) async -> BridgeHTTPResponse {
-        switch Self.route(for: request.path, mcpEndpoint: configuration.endpoint) {
+        let route = Self.route(for: request.path, mcpEndpoint: configuration.endpoint)
+
+        if request.method.caseInsensitiveCompare("OPTIONS") == .orderedSame,
+           route != .notFound
+        {
+            return Self.preflightResponse(for: request, route: route)
+        }
+
+        var response: BridgeHTTPResponse
+
+        switch route {
         case .mcp:
             break
         case .oauthProtectedResourceMetadata,
@@ -182,7 +192,8 @@ actor BearBridgeHTTPApplication {
             guard configuration.authMode.requiresOAuth else {
                 return Self.notFoundResponse()
             }
-            return await oauthServer.handle(request: request)
+            response = await oauthServer.handle(request: request)
+            return Self.applyingCORSHeaders(to: response, for: request)
         case .notFound:
             return Self.notFoundResponse()
         }
@@ -190,7 +201,7 @@ actor BearBridgeHTTPApplication {
         if configuration.authMode.requiresOAuth {
             do {
                 guard try await oauthServer.hasAuthorizedMCPAccess(for: request) else {
-                    return .mcp(
+                    response = .mcp(
                         Self.oauthRequiredResponse(
                             for: request,
                             host: configuration.host,
@@ -198,18 +209,20 @@ actor BearBridgeHTTPApplication {
                             mcpEndpoint: configuration.endpoint
                         )
                     )
+                    return Self.applyingCORSHeaders(to: response, for: request)
                 }
             } catch {
                 logger.error(
                     "Failed to validate bridge OAuth bearer token",
                     metadata: ["error": "\(error)"]
                 )
-                return .mcp(
+                response = .mcp(
                     .error(
                         statusCode: 500,
                         .internalError("Failed to validate OAuth access token")
                     )
                 )
+                return Self.applyingCORSHeaders(to: response, for: request)
             }
         }
 
@@ -225,18 +238,22 @@ actor BearBridgeHTTPApplication {
                     clientRequestedVersion: initializeEnvelope.protocolVersion,
                     server: server
                 )
-                return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
+                return Self.applyingCORSHeaders(
+                    to: .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request)),
+                    for: request
+                )
             } catch {
                 logger.error(
                     "Failed to build compatibility initialize response",
                     metadata: ["error": "\(error)"]
                 )
-                return .mcp(
+                response = .mcp(
                     .error(
                         statusCode: 500,
                         .internalError("Failed to build initialize response")
                     )
                 )
+                return Self.applyingCORSHeaders(to: response, for: request)
             }
         }
 
@@ -259,12 +276,13 @@ actor BearBridgeHTTPApplication {
                     "Ursus bridge runtime failed during startup",
                     metadata: ["error": "\(error)"]
                 )
-                return .mcp(
+                response = .mcp(
                     .error(
                         statusCode: 503,
                         .internalError("Ursus bridge is still starting up")
                     )
                 )
+                return Self.applyingCORSHeaders(to: response, for: request)
             }
         }
 
@@ -278,32 +296,38 @@ actor BearBridgeHTTPApplication {
                     server: server
                 )
                 hasCompletedInitializationHandshake = true
-                return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
+                return Self.applyingCORSHeaders(
+                    to: .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request)),
+                    for: request
+                )
             } catch {
                 logger.error(
                     "Failed to build manual initialize response",
                     metadata: ["error": "\(error)"]
                 )
-                return .mcp(
+                response = .mcp(
                     .error(
                         statusCode: 500,
                         .internalError("Failed to build initialize response")
                     )
                 )
+                return Self.applyingCORSHeaders(to: response, for: request)
             }
         }
 
         guard let transport else {
-            return .mcp(
+            response = .mcp(
                 .error(
                     statusCode: 503,
                     .internalError("Ursus bridge transport is not ready yet")
                 )
             )
+            return Self.applyingCORSHeaders(to: response, for: request)
         }
 
-        let response = await transport.handleRequest(request)
-        return .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request))
+        let mcpResponse = await transport.handleRequest(request)
+        response = .mcp(Self.wrapStreamingHTTPResponseIfRequested(mcpResponse, for: request))
+        return Self.applyingCORSHeaders(to: response, for: request)
     }
 
     private func teardown() async {
@@ -327,6 +351,10 @@ actor BearBridgeHTTPApplication {
 }
 
 extension BearBridgeHTTPApplication {
+    static let corsAllowedMethods = "GET, POST, OPTIONS"
+    static let corsAllowedHeaders = "Authorization, Content-Type, Accept, MCP-Protocol-Version"
+    static let corsExposedHeaders = "WWW-Authenticate, MCP-Protocol-Version"
+
     static func bridgeValidationPipeline() -> StandardValidationPipeline {
         // Keep the bridge's stateless JSON request/response behavior, but avoid
         // localhost-only host/origin validation so forwarded tunnel requests can
@@ -591,6 +619,88 @@ extension BearBridgeHTTPApplication {
             metadataURL.appendPathComponent(String(component), isDirectory: false)
         }
         return metadataURL.absoluteString
+    }
+
+    static func preflightResponse(for request: HTTPRequest, route: Route) -> BridgeHTTPResponse {
+        var headers = corsHeaders(for: request)
+        headers[HTTPHeaderName.allow] = route == .mcp ? "POST, OPTIONS" : "GET, POST, OPTIONS"
+        return .plain(statusCode: 204, headers: headers, body: nil)
+    }
+
+    static func corsHeaders(for request: HTTPRequest) -> [String: String] {
+        guard let origin = request.header("Origin"),
+              !origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return [:]
+        }
+
+        let requestedHeaders = request.header("Access-Control-Request-Headers")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        var headers: [String: String] = [
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Methods": corsAllowedMethods,
+            "Access-Control-Allow-Headers": requestedHeaders?.isEmpty == false ? requestedHeaders! : corsAllowedHeaders,
+            "Access-Control-Expose-Headers": corsExposedHeaders,
+            "Vary": "Origin, Access-Control-Request-Headers",
+        ]
+        headers["Access-Control-Max-Age"] = "600"
+        return headers
+    }
+
+    static func applyingCORSHeaders(
+        to response: BridgeHTTPResponse,
+        for request: HTTPRequest
+    ) -> BridgeHTTPResponse {
+        let headers = corsHeaders(for: request)
+        guard !headers.isEmpty else {
+            return response
+        }
+
+        switch response {
+        case .plain(let statusCode, let existingHeaders, let body):
+            return .plain(
+                statusCode: statusCode,
+                headers: mergingHeaders(existingHeaders, with: headers),
+                body: body
+            )
+        case .mcp(let httpResponse):
+            return .mcp(applyingHeaders(headers, to: httpResponse))
+        }
+    }
+
+    static func applyingHeaders(
+        _ headers: [String: String],
+        to response: HTTPResponse
+    ) -> HTTPResponse {
+        switch response {
+        case .accepted(let existingHeaders):
+            return .accepted(headers: mergingHeaders(existingHeaders, with: headers))
+        case .ok(let existingHeaders):
+            return .ok(headers: mergingHeaders(existingHeaders, with: headers))
+        case .data(let body, let existingHeaders):
+            return .data(body, headers: mergingHeaders(existingHeaders, with: headers))
+        case .stream(let stream, let existingHeaders):
+            return .stream(stream, headers: mergingHeaders(existingHeaders, with: headers))
+        case .error(let statusCode, let error, let sessionID, let extraHeaders):
+            return .error(
+                statusCode: statusCode,
+                error,
+                sessionID: sessionID,
+                extraHeaders: mergingHeaders(extraHeaders, with: headers)
+            )
+        }
+    }
+
+    static func mergingHeaders(
+        _ existingHeaders: [String: String],
+        with newHeaders: [String: String]
+    ) -> [String: String] {
+        var mergedHeaders = existingHeaders
+        for (name, value) in newHeaders {
+            mergedHeaders[name] = value
+        }
+        return mergedHeaders
     }
 
     static func notFoundResponse() -> BridgeHTTPResponse {

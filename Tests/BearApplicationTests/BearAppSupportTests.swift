@@ -570,7 +570,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
         backupRetentionDays: 30,
-        bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: bridgePort)
+        bridge: BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: bridgePort, authMode: .oauth)
     )
     try BearJSON.makeEncoder().encode(initialConfiguration).write(to: configFileURL, options: .atomic)
     defer {
@@ -602,7 +602,7 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let writtenPlist = try BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL)
 
     #expect(receipt.status == .installed)
-    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: bridgePort))
+    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: bridgePort, authMode: .oauth))
     #expect(writtenPlist == BearBridgeLaunchAgent.expectedPlist(
         launcherURL: launcherURL,
         standardOutputURL: stdoutURL,
@@ -654,7 +654,7 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
         backupRetentionDays: 30,
-        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205, authMode: .oauth)
     )
     try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
     try BearBridgeLaunchAgent.expectedPlist(
@@ -749,7 +749,7 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
         defaultSnippetLength: 280,
         backupRetentionDays: 30,
         runtimeConfigurationGeneration: 4,
-        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205, authMode: .oauth)
     )
     try BearBridgeLaunchAgent.expectedPlist(
         launcherURL: launcherURL,
@@ -845,7 +845,7 @@ func bridgeSnapshotMarksRestartRequiredWhenSurfaceMarkerChanges() throws {
         defaultSnippetLength: 280,
         backupRetentionDays: 30,
         runtimeConfigurationGeneration: 4,
-        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205, authMode: .oauth)
     )
     try BearBridgeLaunchAgent.expectedPlist(
         launcherURL: launcherURL,
@@ -1232,7 +1232,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         defaultDiscoveryLimit: 20,
         defaultSnippetLength: 280,
         backupRetentionDays: 30,
-        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205, authMode: .oauth)
     )
     try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
     try BearBridgeLaunchAgent.expectedPlist(
@@ -1296,7 +1296,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         templateURL: templateURL
     )
 
-    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205))
+    #expect(savedConfiguration.bridge == BearBridgeConfiguration(enabled: false, host: "127.0.0.1", port: 6205, authMode: .oauth))
     #expect(recorder.commands == [
         ["print", "gui/\(getuid())/com.aft.ursus"],
         ["print", "gui/\(getuid())/com.aft.ursus"],

@@ -111,13 +111,27 @@ extension BearBridgeOAuthServer {
             : "\(fallbackHost):\(fallbackPort)"
         let candidate = URL(string: "http://\(authority)")
         let host = candidate?.host ?? fallbackHost
-        let port = candidate?.port ?? fallbackPort
         let scheme = isLoopbackHost(host) ? "http" : "https"
+        let defaultPort = defaultPort(for: scheme)
+        let port: Int
+        if let explicitPort = candidate?.port {
+            if !isLoopbackHost(host),
+               isLoopbackHost(fallbackHost),
+               explicitPort == fallbackPort
+            {
+                port = defaultPort
+            } else {
+                port = explicitPort
+            }
+        } else if isLoopbackHost(host) {
+            port = fallbackPort
+        } else {
+            port = defaultPort
+        }
         var components = URLComponents()
         components.scheme = scheme
         components.host = host
-        if !(scheme == "http" && port == 80),
-           !(scheme == "https" && port == 443)
+        if port != defaultPort
         {
             components.port = port
         }
@@ -133,6 +147,10 @@ extension BearBridgeOAuthServer {
             || normalized == "127.0.0.1"
             || normalized == "::1"
             || BearBridgeConfiguration.isSupportedHost(normalized)
+    }
+
+    static func defaultPort(for scheme: String) -> Int {
+        scheme.caseInsensitiveCompare("http") == .orderedSame ? 80 : 443
     }
 }
 

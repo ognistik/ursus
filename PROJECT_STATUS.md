@@ -60,7 +60,8 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - The `Remote MCP Bridge` now also carries one bridge-scoped auth toggle: open by default, or `Require OAuth for all bridge requests` for the entire `/mcp` surface. This applies only to the optional HTTP bridge; stdio remains untouched.
 - When bridge OAuth is enabled, Ursus now keeps durable bridge-auth state in a small local SQLite store under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`, covering registered clients, remembered grants, pending authorization requests, authorization codes, refresh/access tokens, and revocations.
 - Protected bridges now also serve a built-in bridge-local OAuth 2.1 authorization server, including protected-resource metadata, authorization-server metadata, dynamic client registration for public clients, an authorization endpoint that either reuses a remembered grant or creates a pending local-owner approval request, a small `/oauth/request-status` polling route for the browser handoff, and a token endpoint for authorization-code and refresh-token exchange.
-- In bridge OAuth mode, `/mcp` now accepts only valid bridge-issued Bearer access tokens, validates them against the durable bridge-auth store plus the current protected-resource identity, and keeps the OAuth discovery/registration/authorize/status/token routes public.
+- In bridge OAuth mode, `/mcp` now accepts only valid bridge-issued Bearer access tokens, validates them against the durable bridge-auth store plus the current protected-resource identity, keeps the OAuth discovery/registration/authorize/status/token routes public, canonicalizes public OAuth origin metadata so tunneled hosts do not leak the loopback bridge port into discovery or Bearer challenges, and serves browser-friendly CORS/preflight headers on bridge OAuth routes so ChatGPT-style web setup flows can reach discovery and registration.
+- Remote connector clients should use the full MCP endpoint URL, not the bare bridge origin. With the default bridge path that means `/mcp` remains part of both local and tunneled URLs.
 - The Setup bridge card now shows a compact auth-state summary for the protected bridge plus a `Review Access` action, and the app can surface a bridge access review sheet with pending approve/deny controls and remembered-grant revoke controls without teaching stdio or Bear note logic about bridge OAuth.
 - The Setup bridge card now derives a `Restart Required` state from persisted runtime config drift, selected-note token availability drift, and MCP bridge-surface drift versus the markers last loaded by the serving bridge process, without adding transient restart toasts or extra inline warnings elsewhere.
 - The macOS Settings window now mirrors the `Preferences` surface instead of exposing a separate configuration-only hierarchy.
@@ -179,7 +180,7 @@ Helper-only release/testing duplication should not come back unless the embedded
 
 The repo now also keeps one small automated identity gate in tests so current-truth docs and user-facing copy do not drift back toward prerelease names.
 
-The old implementation handoff document `docs/URSUS_IMPLEMENTATION_PLAN.md` has been removed now that the Phase 6 cleanup pass is complete.
+The old implementation handoff documents `docs/URSUS_IMPLEMENTATION_PLAN.md` and `docs/HTTP_BRIDGE_OAUTH_PLAN.md` have been removed now that the shipped bridge behavior is captured in the stable docs.
 
 ## Next Implementation Queue
 
@@ -295,7 +296,8 @@ HTTP bridge OAuth Phase 5 verification that passed on 2026-04-06:
 - `swift test`
 - `CONFIGURATION=Debug Support/scripts/build-ursus-app.sh`
 - bridge auth-store tests now cover durable access-token validation against resource and scope constraints
-- bridge runtime tests now cover authenticated `initialize`, authenticated `tools/list`, repeated authorized `initialize`, and invalid-bearer `401` failures on protected `/mcp`
+- bridge runtime tests now cover authenticated `initialize`, authenticated `tools/list`, repeated authorized `initialize`, invalid-bearer `401` failures on protected `/mcp`, canonical public-origin metadata/challenge URLs for tunneled hosts, and browser CORS/preflight handling for OAuth setup flows
+- bridge install/remove support now preserves the configured bridge auth mode instead of resetting OAuth back to open during restart-style bridge operations
 - the app target still builds successfully with the protected-bridge bearer validation changes
 
 Add command-specific verification as appropriate for whichever slice is being worked on.

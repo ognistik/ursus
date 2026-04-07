@@ -41,6 +41,232 @@ func bridgeRouterClassifiesMCPAndOAuthPaths() {
 }
 
 @Test
+func oauthOriginUsesCanonicalPublicHTTPSPortForTunnelHostHeaders() {
+    let publicOrigin = BearBridgeOAuthServer.originURL(
+        hostHeader: "mcp.afadingthought.com",
+        fallbackHost: "127.0.0.1",
+        fallbackPort: 6190
+    )
+    #expect(publicOrigin.absoluteString == "https://mcp.afadingthought.com")
+
+    let leakedPortOrigin = BearBridgeOAuthServer.originURL(
+        hostHeader: "mcp.afadingthought.com:6190",
+        fallbackHost: "127.0.0.1",
+        fallbackPort: 6190
+    )
+    #expect(leakedPortOrigin.absoluteString == "https://mcp.afadingthought.com")
+
+    let explicitPublicPortOrigin = BearBridgeOAuthServer.originURL(
+        hostHeader: "mcp.afadingthought.com:8443",
+        fallbackHost: "127.0.0.1",
+        fallbackPort: 6190
+    )
+    #expect(explicitPublicPortOrigin.absoluteString == "https://mcp.afadingthought.com:8443")
+}
+
+@Test
+func oauthMetadataUsesCanonicalPublicOriginForTunnelHostHeaders() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let oauthServer = BearBridgeOAuthServer(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: 6190,
+            mcpEndpoint: "/mcp",
+            authDatabaseURL: authDatabaseURL
+        )
+    )
+
+    let protectedResourceResponse = await oauthServer.handle(
+        request: HTTPRequest(
+            method: "GET",
+            headers: ["Host": "mcp.afadingthought.com"],
+            path: "/.well-known/oauth-protected-resource/mcp"
+        )
+    )
+    let protectedResourceBody: Data
+    switch protectedResourceResponse {
+    case .plain(_, _, let body):
+        protectedResourceBody = try #require(body)
+    case .mcp:
+        Issue.record("Expected a plain protected-resource metadata response.")
+        throw CancellationError()
+    }
+
+    let protectedResourceObject = try #require(
+        try JSONSerialization.jsonObject(with: protectedResourceBody) as? [String: Any]
+    )
+    #expect(protectedResourceObject["resource"] as? String == "https://mcp.afadingthought.com/mcp")
+    #expect(
+        protectedResourceObject["authorization_servers"] as? [String]
+            == ["https://mcp.afadingthought.com"]
+    )
+
+    let authorizationServerResponse = await oauthServer.handle(
+        request: HTTPRequest(
+            method: "GET",
+            headers: ["Host": "mcp.afadingthought.com"],
+            path: "/.well-known/oauth-authorization-server?resource=https://mcp.afadingthought.com/mcp"
+        )
+    )
+    let authorizationServerBody: Data
+    switch authorizationServerResponse {
+    case .plain(let statusCode, _, let body):
+        #expect(statusCode == 200)
+        authorizationServerBody = try #require(body)
+    case .mcp:
+        Issue.record("Expected a plain authorization-server metadata response.")
+        throw CancellationError()
+    }
+
+    let authorizationServerObject = try #require(
+        try JSONSerialization.jsonObject(with: authorizationServerBody) as? [String: Any]
+    )
+    #expect(authorizationServerObject["issuer"] as? String == "https://mcp.afadingthought.com")
+    #expect(
+        authorizationServerObject["registration_endpoint"] as? String
+            == "https://mcp.afadingthought.com/oauth/register"
+    )
+
+    let challengeResponse = BearBridgeHTTPApplication.oauthRequiredResponse(
+        for: HTTPRequest(
+            method: "POST",
+            headers: ["Host": "mcp.afadingthought.com"],
+            path: "/mcp"
+        ),
+        host: "127.0.0.1",
+        port: 6190,
+        mcpEndpoint: "/mcp"
+    )
+    let challenge = challengeResponse.headers[HTTPHeaderName.wwwAuthenticate]
+    #expect(
+        challenge?.contains(
+            #"resource_metadata="https://mcp.afadingthought.com/.well-known/oauth-protected-resource/mcp""#
+        ) == true
+    )
+}
+
+@Test
+func bridgeSupportsBrowserCORSPreflightForOAuthRegistration() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/oauth/register",
+        method: "OPTIONS",
+        headers: [
+            "Origin": "https://chatgpt.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        ]
+    )
+
+    #expect(response.statusCode == 204)
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Access-Control-Allow-Origin") == "https://chatgpt.com")
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Access-Control-Allow-Headers") == "content-type")
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Access-Control-Allow-Methods")?.contains("POST") == true)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
+func bridgeExposesOAuthChallengeHeadersToBrowserClients() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port,
+            authMode: .oauth,
+            authDatabaseURL: authDatabaseURL
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let response = try await sendHTTPRequest(
+        port: port,
+        path: "/mcp",
+        method: "POST",
+        headers: [
+            "Origin": "https://chatgpt.com",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        ],
+        body: try makeInitializeRequestBody(requestID: "oauth-browser-required")
+    )
+
+    #expect(response.statusCode == 401)
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Access-Control-Allow-Origin") == "https://chatgpt.com")
+    #expect(response.httpResponse.value(forHTTPHeaderField: "Access-Control-Expose-Headers")?.contains("WWW-Authenticate") == true)
+    #expect(response.httpResponse.value(forHTTPHeaderField: HTTPHeaderName.wwwAuthenticate)?.contains("resource_metadata=") == true)
+
+    await application.stop()
+    try await startTask.value
+}
+
+@Test
 func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async throws {
     let server = Server(
         name: "ursus",

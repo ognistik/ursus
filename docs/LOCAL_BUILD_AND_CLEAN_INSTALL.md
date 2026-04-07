@@ -111,6 +111,13 @@ Current utility commands:
 - `ursus bridge status`
 - `ursus bridge print-url`
 
+## Bridge URL Notes
+
+- The HTTP bridge serves MCP at the configured endpoint path, which defaults to `/mcp`.
+- Local probes can use `http://127.0.0.1:6190/mcp` unless the saved port was changed.
+- When exposing the bridge through a personal tunnel, the remote connector URL should still include the MCP path, for example `https://your-domain.example/mcp`.
+- The bare bridge origin such as `https://your-domain.example/` is not itself the MCP endpoint.
+
 Current selector behavior:
 
 - `--new-note` with no extra flags preserves the current interactive editing-note flow
