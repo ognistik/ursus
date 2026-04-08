@@ -119,7 +119,7 @@ struct UrsusPreferencesView: View {
                         Button("Save Template") {
                             model.saveTemplate()
                         }
-                        .ursusButtonStyle(.primary)
+                        .ursusButtonStyle(.softPrimary)
                         .disabled(model.templateValidation.hasErrors || !model.templateHasUnsavedChanges)
 
                         Button("Revert Changes") {
