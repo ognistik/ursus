@@ -26,6 +26,20 @@ actor BearBridgeHTTPApplication {
         let protocolVersion: String
     }
 
+    struct RequestLogContext: Sendable {
+        let requestID: String
+        let method: String
+        let path: String
+        let route: Route
+        let authorization: String
+        let bodyBytes: Int
+        let contentType: String
+        let accept: String
+        let rpcMethod: String?
+        let origin: String?
+        let userAgent: String?
+    }
+
     struct Configuration: Sendable {
         var host: String
         var port: Int
@@ -171,11 +185,29 @@ actor BearBridgeHTTPApplication {
 
     func handleHTTPRequest(_ request: HTTPRequest) async -> BridgeHTTPResponse {
         let route = Self.route(for: request.path, mcpEndpoint: configuration.endpoint)
+        let requestLogContext = Self.makeRequestLogContext(for: request, route: route)
+        let startedAt = Date()
+        Self.logRequestStart(requestLogContext)
+
+        func finish(
+            _ response: BridgeHTTPResponse,
+            note: String? = nil
+        ) -> BridgeHTTPResponse {
+            Self.logRequestCompletion(
+                requestLogContext,
+                response: response,
+                startedAt: startedAt,
+                logger: logger,
+                note: note,
+                mcpEndpoint: configuration.endpoint
+            )
+            return response
+        }
 
         if request.method.caseInsensitiveCompare("OPTIONS") == .orderedSame,
            route != .notFound
         {
-            return Self.preflightResponse(for: request, route: route)
+            return finish(Self.preflightResponse(for: request, route: route), note: "cors-preflight")
         }
 
         var response: BridgeHTTPResponse
@@ -190,12 +222,12 @@ actor BearBridgeHTTPApplication {
              .oauthToken,
              .oauthRegister:
             guard configuration.authMode.requiresOAuth else {
-                return Self.notFoundResponse()
+                return finish(Self.notFoundResponse(), note: "oauth-route-disabled")
             }
             response = await oauthServer.handle(request: request)
-            return Self.applyingCORSHeaders(to: response, for: request)
+            return finish(Self.applyingCORSHeaders(to: response, for: request))
         case .notFound:
-            return Self.notFoundResponse()
+            return finish(Self.notFoundResponse(), note: "route-not-found")
         }
 
         if configuration.authMode.requiresOAuth {
@@ -209,7 +241,10 @@ actor BearBridgeHTTPApplication {
                             mcpEndpoint: configuration.endpoint
                         )
                     )
-                    return Self.applyingCORSHeaders(to: response, for: request)
+                    return finish(
+                        Self.applyingCORSHeaders(to: response, for: request),
+                        note: "oauth-required"
+                    )
                 }
             } catch {
                 logger.error(
@@ -222,7 +257,10 @@ actor BearBridgeHTTPApplication {
                         .internalError("Failed to validate OAuth access token")
                     )
                 )
-                return Self.applyingCORSHeaders(to: response, for: request)
+                return finish(
+                    Self.applyingCORSHeaders(to: response, for: request),
+                    note: "oauth-validation-failed"
+                )
             }
         }
 
@@ -238,9 +276,13 @@ actor BearBridgeHTTPApplication {
                     clientRequestedVersion: initializeEnvelope.protocolVersion,
                     server: server
                 )
-                return Self.applyingCORSHeaders(
+                return finish(
+                    Self.applyingCORSHeaders(
                     to: .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request)),
                     for: request
+                )
+                    ,
+                    note: "compatibility-initialize"
                 )
             } catch {
                 logger.error(
@@ -253,7 +295,10 @@ actor BearBridgeHTTPApplication {
                         .internalError("Failed to build initialize response")
                     )
                 )
-                return Self.applyingCORSHeaders(to: response, for: request)
+                return finish(
+                    Self.applyingCORSHeaders(to: response, for: request),
+                    note: "compatibility-initialize-failed"
+                )
             }
         }
 
@@ -282,7 +327,10 @@ actor BearBridgeHTTPApplication {
                         .internalError("Ursus bridge is still starting up")
                     )
                 )
-                return Self.applyingCORSHeaders(to: response, for: request)
+                return finish(
+                    Self.applyingCORSHeaders(to: response, for: request),
+                    note: "runtime-startup-failed"
+                )
             }
         }
 
@@ -296,9 +344,13 @@ actor BearBridgeHTTPApplication {
                     server: server
                 )
                 hasCompletedInitializationHandshake = true
-                return Self.applyingCORSHeaders(
+                return finish(
+                    Self.applyingCORSHeaders(
                     to: .mcp(Self.wrapStreamingHTTPResponseIfRequested(response, for: request)),
                     for: request
+                )
+                    ,
+                    note: "initialize"
                 )
             } catch {
                 logger.error(
@@ -311,7 +363,10 @@ actor BearBridgeHTTPApplication {
                         .internalError("Failed to build initialize response")
                     )
                 )
-                return Self.applyingCORSHeaders(to: response, for: request)
+                return finish(
+                    Self.applyingCORSHeaders(to: response, for: request),
+                    note: "initialize-failed"
+                )
             }
         }
 
@@ -322,12 +377,15 @@ actor BearBridgeHTTPApplication {
                     .internalError("Ursus bridge transport is not ready yet")
                 )
             )
-            return Self.applyingCORSHeaders(to: response, for: request)
+            return finish(
+                Self.applyingCORSHeaders(to: response, for: request),
+                note: "transport-not-ready"
+            )
         }
 
         let mcpResponse = await transport.handleRequest(request)
         response = .mcp(Self.wrapStreamingHTTPResponseIfRequested(mcpResponse, for: request))
-        return Self.applyingCORSHeaders(to: response, for: request)
+        return finish(Self.applyingCORSHeaders(to: response, for: request))
     }
 
     private func teardown() async {
@@ -354,6 +412,222 @@ extension BearBridgeHTTPApplication {
     static let corsAllowedMethods = "GET, POST, OPTIONS"
     static let corsAllowedHeaders = "Authorization, Content-Type, Accept, MCP-Protocol-Version"
     static let corsExposedHeaders = "WWW-Authenticate, MCP-Protocol-Version"
+
+    static func makeRequestLogContext(
+        for request: HTTPRequest,
+        route: Route
+    ) -> RequestLogContext {
+        let method = request.method.uppercased()
+        let path = normalizedPath(from: request.path) ?? "/"
+        let bodyBytes = request.body?.count ?? 0
+        let contentType = request.header(HTTPHeaderName.contentType) ?? "-"
+        let accept = request.header(HTTPHeaderName.accept) ?? "-"
+        let origin = normalizedOptionalLogValue(request.header("Origin"))
+        let userAgent = normalizedOptionalLogValue(request.header("User-Agent"))
+
+        return RequestLogContext(
+            requestID: UUID().uuidString,
+            method: method,
+            path: path,
+            route: route,
+            authorization: authorizationLogDescription(
+                for: request.header(HTTPHeaderName.authorization)
+            ),
+            bodyBytes: bodyBytes,
+            contentType: contentType,
+            accept: accept,
+            rpcMethod: jsonRPCMethod(from: request),
+            origin: origin,
+            userAgent: userAgent
+        )
+    }
+
+    static func logRequestStart(_ context: RequestLogContext) {
+        BearDebugLog.append(
+            "bridge.http.request id=\(context.requestID) method=\(context.method) path=\(context.path) route=\(routeLogDescription(context.route)) auth=\(context.authorization) bodyBytes=\(context.bodyBytes) contentType=\(sanitizeLogValue(context.contentType)) accept=\(sanitizeLogValue(context.accept)) rpcMethod=\(sanitizeLogValue(context.rpcMethod ?? "-")) origin=\(sanitizeLogValue(context.origin ?? "-")) userAgent=\(sanitizeLogValue(context.userAgent ?? "-"))"
+        )
+    }
+
+    static func logRequestCompletion(
+        _ context: RequestLogContext,
+        response: BridgeHTTPResponse,
+        startedAt: Date,
+        logger: Logger,
+        note: String?,
+        mcpEndpoint: String
+    ) {
+        let durationMS = Int(Date().timeIntervalSince(startedAt) * 1000)
+        let finalNote = note ?? defaultResponseNote(for: context, response: response, mcpEndpoint: mcpEndpoint)
+
+        BearDebugLog.append(
+            "bridge.http.response id=\(context.requestID) method=\(context.method) path=\(context.path) route=\(routeLogDescription(context.route)) status=\(response.statusCode) durationMs=\(durationMS) note=\(sanitizeLogValue(finalNote ?? "-"))"
+        )
+
+        guard let warningMetadata = warningMetadataIfNeeded(
+            for: context,
+            response: response,
+            note: finalNote,
+            mcpEndpoint: mcpEndpoint
+        ) else {
+            return
+        }
+
+        logger.warning(
+            "\(warningMetadata.message)",
+            metadata: warningMetadata.metadata
+        )
+    }
+
+    static func warningMetadataIfNeeded(
+        for context: RequestLogContext,
+        response: BridgeHTTPResponse,
+        note: String?,
+        mcpEndpoint: String
+    ) -> (message: String, metadata: Logger.Metadata)? {
+        if isLikelyBaseURLMiss(context, mcpEndpoint: mcpEndpoint) {
+            return (
+                message: "Bridge received a request for the base URL instead of the MCP endpoint",
+                metadata: [
+                    "method": "\(context.method)",
+                    "path": "\(context.path)",
+                    "status": "\(response.statusCode)",
+                    "expectedEndpoint": "\(mcpEndpoint)",
+                    "hint": "Client may be targeting the bridge origin instead of the full MCP URL.",
+                ]
+            )
+        }
+
+        guard response.statusCode >= 500 else {
+            return nil
+        }
+
+        return (
+            message: "Bridge request completed with an HTTP error status",
+            metadata: [
+                "method": "\(context.method)",
+                "path": "\(context.path)",
+                "route": "\(routeLogDescription(context.route))",
+                "status": "\(response.statusCode)",
+                "note": "\(note ?? "-")",
+            ]
+        )
+    }
+
+    static func defaultResponseNote(
+        for context: RequestLogContext,
+        response: BridgeHTTPResponse,
+        mcpEndpoint: String
+    ) -> String? {
+        if isLikelyBaseURLMiss(context, mcpEndpoint: mcpEndpoint) {
+            return "base-url-miss"
+        }
+
+        if response.statusCode == 401, context.route == .mcp {
+            return "oauth-challenge"
+        }
+
+        if response.statusCode == 404 {
+            return "not-found"
+        }
+
+        if context.route == .mcp, let rpcMethod = context.rpcMethod {
+            return "rpc-\(rpcMethod)"
+        }
+
+        return nil
+    }
+
+    static func isLikelyBaseURLMiss(
+        _ context: RequestLogContext,
+        mcpEndpoint: String
+    ) -> Bool {
+        guard context.route == .notFound, context.path == "/" else {
+            return false
+        }
+
+        return mcpEndpoint != "/"
+    }
+
+    static func jsonRPCMethod(from request: HTTPRequest) -> String? {
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
+              let body = request.body,
+              !body.isEmpty,
+              let jsonObject = try? JSONSerialization.jsonObject(with: body)
+        else {
+            return nil
+        }
+
+        if let dictionary = jsonObject as? [String: Any] {
+            return dictionary["method"] as? String
+        }
+
+        if let array = jsonObject as? [[String: Any]] {
+            return array.compactMap { $0["method"] as? String }.first
+        }
+
+        return nil
+    }
+
+    static func authorizationLogDescription(for authorizationHeader: String?) -> String {
+        guard let authorizationHeader else {
+            return "none"
+        }
+
+        let trimmedHeader = authorizationHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHeader.isEmpty else {
+            return "none"
+        }
+
+        let scheme = trimmedHeader
+            .split(whereSeparator: \.isWhitespace)
+            .first?
+            .lowercased()
+
+        switch scheme {
+        case "bearer":
+            return "bearer"
+        case let scheme?:
+            return scheme
+        default:
+            return "present"
+        }
+    }
+
+    static func sanitizeLogValue(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+    }
+
+    static func routeLogDescription(_ route: Route) -> String {
+        switch route {
+        case .mcp:
+            "mcp"
+        case .oauthProtectedResourceMetadata:
+            "oauth-protected-resource-metadata"
+        case .oauthAuthorizationServerMetadata:
+            "oauth-authorization-server-metadata"
+        case .oauthAuthorize:
+            "oauth-authorize"
+        case .oauthDecision:
+            "oauth-decision"
+        case .oauthToken:
+            "oauth-token"
+        case .oauthRegister:
+            "oauth-register"
+        case .notFound:
+            "not-found"
+        }
+    }
+
+    static func normalizedOptionalLogValue(_ value: String?) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedValue.isEmpty ? nil : trimmedValue
+    }
 
     static func bridgeValidationPipeline() -> StandardValidationPipeline {
         // Keep the bridge's stateless JSON request/response behavior, but avoid

@@ -42,6 +42,50 @@ func bridgeRouterClassifiesMCPAndOAuthPaths() {
 }
 
 @Test
+func bridgeDetectsBaseURLMissesForRootPathRequests() {
+    let request = HTTPRequest(
+        method: "GET",
+        headers: ["Accept": "text/event-stream"],
+        path: "/"
+    )
+    let context = BearBridgeHTTPApplication.makeRequestLogContext(
+        for: request,
+        route: .notFound
+    )
+
+    #expect(BearBridgeHTTPApplication.isLikelyBaseURLMiss(context, mcpEndpoint: "/mcp") == true)
+    #expect(
+        BearBridgeHTTPApplication.defaultResponseNote(
+            for: context,
+            response: .plain(statusCode: 404),
+            mcpEndpoint: "/mcp"
+        ) == "base-url-miss"
+    )
+}
+
+@Test
+func bridgeDoesNotTreatOtherNotFoundPathsAsBaseURLMisses() {
+    let request = HTTPRequest(
+        method: "GET",
+        headers: [:],
+        path: "/oauth/request-status"
+    )
+    let context = BearBridgeHTTPApplication.makeRequestLogContext(
+        for: request,
+        route: .notFound
+    )
+
+    #expect(BearBridgeHTTPApplication.isLikelyBaseURLMiss(context, mcpEndpoint: "/mcp") == false)
+    #expect(
+        BearBridgeHTTPApplication.defaultResponseNote(
+            for: context,
+            response: .plain(statusCode: 404),
+            mcpEndpoint: "/mcp"
+        ) == "not-found"
+    )
+}
+
+@Test
 func oauthOriginUsesCanonicalPublicHTTPSPortForTunnelHostHeaders() {
     let publicOrigin = BearBridgeOAuthServer.originURL(
         hostHeader: "mcp.afadingthought.com",
