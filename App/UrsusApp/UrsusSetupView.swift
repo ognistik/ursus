@@ -411,7 +411,7 @@ struct UrsusSetupView: View {
                                 model.pauseBridge()
                             }
                         }
-                        .ursusButtonStyle()
+                        .ursusButtonStyle(bridge.restartRequired ? .softPrimary : .secondary)
                         .disabled(model.isBridgeOperationInProgress)
                     } else {
                         Button("Resume") {
