@@ -83,6 +83,21 @@ let ursusSecondaryControlFillColor = ursusDynamicColor(
     dark: NSColor(calibratedWhite: 0.185, alpha: 1)
 )
 
+let ursusSegmentedControlBackgroundColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.955, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.162, alpha: 1)
+)
+
+let ursusSegmentedControlBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.68, alpha: 0.30),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.08)
+)
+
+let ursusSegmentedControlSelectedFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.995, alpha: 0.98),
+    dark: NSColor(calibratedWhite: 0.255, alpha: 0.98)
+)
+
 let ursusToggleTrackTint = ursusDynamicColor(
     light: NSColor(calibratedWhite: 0.32, alpha: 0.96),
     dark: NSColor(calibratedWhite: 0.50, alpha: 0.94)
@@ -631,6 +646,99 @@ struct UrsusNumericFieldRow: View {
                     .disabled(disabled)
                     .help(helpText ?? "")
             }
+        }
+    }
+}
+
+struct UrsusSegmentedOption<SelectionValue: Hashable>: Identifiable {
+    let title: String
+    let value: SelectionValue
+
+    var id: SelectionValue { value }
+}
+
+struct UrsusMiniSegmentedControl<SelectionValue: Hashable>: View {
+    let selection: Binding<SelectionValue>
+    let options: [UrsusSegmentedOption<SelectionValue>]
+
+    var body: some View {
+        UrsusMiniSegmentedControlRepresentable(selection: selection, options: options)
+            .frame(height: 22)
+            .padding(1)
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(ursusSegmentedControlBackgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .stroke(ursusSegmentedControlBorderColor, lineWidth: 1)
+            )
+            .fixedSize(horizontal: true, vertical: false)
+    }
+}
+
+private struct UrsusMiniSegmentedControlRepresentable<SelectionValue: Hashable>: NSViewRepresentable {
+    let selection: Binding<SelectionValue>
+    let options: [UrsusSegmentedOption<SelectionValue>]
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(selection: selection, options: options)
+    }
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl()
+        control.segmentCount = options.count
+        control.segmentStyle = .separated
+        control.trackingMode = .selectOne
+        control.controlSize = .small
+        control.font = NSFont.systemFont(ofSize: 11.5, weight: .medium)
+        control.focusRingType = .none
+        control.selectedSegmentBezelColor = NSColor(ursusSegmentedControlSelectedFillColor)
+        control.setContentHuggingPriority(.required, for: .horizontal)
+        control.setContentCompressionResistancePriority(.required, for: .horizontal)
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.selectionChanged(_:))
+
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.selection = selection
+        context.coordinator.options = options
+        control.segmentCount = options.count
+        control.selectedSegmentBezelColor = NSColor(ursusSegmentedControlSelectedFillColor)
+
+        for (index, option) in options.enumerated() {
+            control.setWidth(0, forSegment: index)
+            control.setLabel(option.title, forSegment: index)
+            control.setShowsMenuIndicator(false, forSegment: index)
+            control.setEnabled(true, forSegment: index)
+        }
+
+        control.selectedSegment = options.firstIndex { $0.value == selection.wrappedValue } ?? -1
+        (control.cell as? NSSegmentedCell)?.trackingMode = .selectOne
+    }
+
+    final class Coordinator: NSObject {
+        var selection: Binding<SelectionValue>
+        var options: [UrsusSegmentedOption<SelectionValue>]
+
+        init(selection: Binding<SelectionValue>, options: [UrsusSegmentedOption<SelectionValue>]) {
+            self.selection = selection
+            self.options = options
+        }
+
+        @objc func selectionChanged(_ sender: NSSegmentedControl) {
+            guard sender.selectedSegment >= 0 else {
+                return
+            }
+
+            let index = sender.selectedSegment
+            guard options.indices.contains(index) else {
+                return
+            }
+
+            selection.wrappedValue = options[index].value
         }
     }
 }

@@ -52,31 +52,23 @@ struct UrsusPreferencesView: View {
                 Divider()
                 Toggle("Create adds inbox tags by default", isOn: autosavingBinding(\.createAddsInboxTagsByDefaultDraft))
                 Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Default insert position")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ursusInlineLabelColor)
-
-                    Picker("Default insert position", selection: autosavingBinding(\.defaultInsertPositionDraft)) {
-                        Text("Top").tag(BearConfiguration.InsertDefault.top)
-                        Text("Bottom").tag(BearConfiguration.InsertDefault.bottom)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                }
+                segmentedPreferenceField(
+                    label: "Default insert position",
+                    selection: autosavingBinding(\.defaultInsertPositionDraft),
+                    options: [
+                        UrsusSegmentedOption(title: "Top", value: .top),
+                        UrsusSegmentedOption(title: "Bottom", value: .bottom)
+                    ]
+                )
                 Divider()
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Tags merge mode")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(ursusInlineLabelColor)
-
-                    Picker("Tags merge mode", selection: autosavingBinding(\.tagsMergeModeDraft)) {
-                        Text("Append").tag(BearConfiguration.TagsMergeMode.append)
-                        Text("Replace").tag(BearConfiguration.TagsMergeMode.replace)
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                }
+                segmentedPreferenceField(
+                    label: "Tags merge mode",
+                    selection: autosavingBinding(\.tagsMergeModeDraft),
+                    options: [
+                        UrsusSegmentedOption(title: "Append", value: .append),
+                        UrsusSegmentedOption(title: "Replace", value: .replace)
+                    ]
+                )
             }
         }
     }
@@ -198,6 +190,20 @@ struct UrsusPreferencesView: View {
                 model.configurationDraftDidChange()
             }
         )
+    }
+
+    private func segmentedPreferenceField<Value: Hashable>(
+        label: String,
+        selection: Binding<Value>,
+        options: [UrsusSegmentedOption<Value>]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ursusInlineLabelColor)
+
+            UrsusMiniSegmentedControl(selection: selection, options: options)
+        }
     }
     
     private func limitedTemplateText(_ text: String, maxLines: Int) -> String {
