@@ -69,7 +69,7 @@ let ursusSecondaryTextColor = ursusDynamicColor(
 )
 
 let ursusTertiaryTextColor = ursusDynamicColor(
-    light: NSColor(calibratedWhite: 0.41, alpha: 1),
+    light: NSColor(calibratedWhite: 0.36, alpha: 1),
     dark: NSColor(calibratedWhite: 0.69, alpha: 1)
 )
 
@@ -153,6 +153,56 @@ let ursusPrimaryButtonDisabledBorderColor = ursusDynamicColor(
     dark: NSColor(calibratedWhite: 1.0, alpha: 0.05)
 )
 
+let ursusSoftPrimaryButtonFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.83, alpha: 0.98),
+    dark: NSColor(calibratedWhite: 0.45, alpha: 0.96)
+)
+
+let ursusSoftPrimaryButtonPressedFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.79, alpha: 0.98),
+    dark: NSColor(calibratedWhite: 0.49, alpha: 0.96)
+)
+
+let ursusSoftPrimaryButtonDisabledFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.91, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.28, alpha: 1)
+)
+
+let ursusSoftPrimaryButtonBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.56, alpha: 0.42),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.10)
+)
+
+let ursusSoftPrimaryButtonDisabledBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.54, alpha: 0.16),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.05)
+)
+
+let ursusQuietButtonFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.952, alpha: 0.94),
+    dark: NSColor(calibratedWhite: 0.275, alpha: 1)
+)
+
+let ursusQuietButtonPressedFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.925, alpha: 0.96),
+    dark: NSColor(calibratedWhite: 0.315, alpha: 1)
+)
+
+let ursusQuietButtonDisabledFillColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.965, alpha: 1),
+    dark: NSColor(calibratedWhite: 0.225, alpha: 1)
+)
+
+let ursusQuietButtonBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.70, alpha: 0.22),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.14)
+)
+
+let ursusQuietButtonDisabledBorderColor = ursusDynamicColor(
+    light: NSColor(calibratedWhite: 0.72, alpha: 0.14),
+    dark: NSColor(calibratedWhite: 1.0, alpha: 0.07)
+)
+
 let ursusDisabledButtonTextColor = ursusDynamicColor(
     light: NSColor(calibratedWhite: 0.55, alpha: 1),
     dark: NSColor(calibratedWhite: 0.50, alpha: 1)
@@ -197,6 +247,8 @@ extension View {
 enum UrsusButtonRole {
     case secondary
     case primary
+    case softPrimary
+    case quiet
     case destructive
 }
 
@@ -233,6 +285,16 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
                 light: NSColor.white,
                 dark: NSColor(calibratedWhite: 0.97, alpha: 1)
             )
+        case .softPrimary:
+            return ursusDynamicColor(
+                light: NSColor(calibratedWhite: 0.13, alpha: 1),
+                dark: NSColor(calibratedWhite: 0.97, alpha: 1)
+            )
+        case .quiet:
+            return ursusDynamicColor(
+                light: NSColor(calibratedWhite: 0.26, alpha: 1),
+                dark: NSColor(calibratedWhite: 0.97, alpha: 1)
+            )
         }
     }
 
@@ -241,6 +303,10 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
             switch role {
             case .primary:
                 return ursusPrimaryButtonDisabledBorderColor
+            case .softPrimary:
+                return ursusSoftPrimaryButtonDisabledBorderColor
+            case .quiet:
+                return ursusQuietButtonDisabledBorderColor
             case .secondary, .destructive:
                 return ursusSecondaryButtonDisabledBorderColor
             }
@@ -249,6 +315,10 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
         switch role {
         case .primary:
             return ursusPrimaryButtonBorderColor
+        case .softPrimary:
+            return ursusSoftPrimaryButtonBorderColor
+        case .quiet:
+            return ursusQuietButtonBorderColor
         case .secondary, .destructive:
             return ursusSecondaryButtonBorderColor
         }
@@ -259,6 +329,10 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
             switch role {
             case .primary:
                 return ursusPrimaryButtonDisabledFillColor
+            case .softPrimary:
+                return ursusSoftPrimaryButtonDisabledFillColor
+            case .quiet:
+                return ursusQuietButtonDisabledFillColor
             case .secondary, .destructive:
                 return ursusSecondaryButtonDisabledFillColor
             }
@@ -267,6 +341,10 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
         switch role {
         case .primary:
             return isPressed ? ursusPrimaryButtonPressedFillColor : ursusPrimaryButtonFillColor
+        case .softPrimary:
+            return isPressed ? ursusSoftPrimaryButtonPressedFillColor : ursusSoftPrimaryButtonFillColor
+        case .quiet:
+            return isPressed ? ursusQuietButtonPressedFillColor : ursusQuietButtonFillColor
         case .secondary, .destructive:
             return isPressed ? ursusSecondaryButtonPressedFillColor : ursusSecondaryButtonFillColor
         }

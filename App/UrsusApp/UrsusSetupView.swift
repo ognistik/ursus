@@ -397,7 +397,7 @@ struct UrsusSetupView: View {
                                 repairing: bridge.status == .invalid || bridge.status == .failed
                             )
                         }
-                        .ursusButtonStyle(.primary)
+                        .ursusButtonStyle(.softPrimary)
                         .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                     }
                 }
@@ -426,7 +426,7 @@ struct UrsusSetupView: View {
                     Button("Manage Access") {
                         model.openBridgeAccessOverlay()
                     }
-                    .ursusButtonStyle()
+                    .ursusButtonStyle(.secondary)
                     .disabled(model.isBridgeOperationInProgress)
                 }
 
