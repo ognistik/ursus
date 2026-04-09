@@ -503,7 +503,6 @@ private extension BearBridgeOAuthServer {
                 request: pendingRequest.request,
                 decisionToken: pendingRequest.decisionToken,
                 clientName: client.displayName ?? client.id,
-                requestedScope: requestedScope,
                 resource: context.resourceURL.absoluteString
             )
         } catch {
@@ -974,67 +973,41 @@ private extension BearBridgeOAuthServer {
         request: BearBridgePendingAuthorizationRequest,
         decisionToken: String,
         clientName: String,
-        requestedScope: String,
         resource: String
     ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
-        let escapedClientName = htmlEscaped(clientName)
-        let escapedScope = htmlEscaped(requestedScope)
-        let escapedResource = htmlEscaped(resource)
         let escapedRequestID = htmlEscaped(request.id)
         let escapedDecisionToken = htmlEscaped(decisionToken)
-        let expiryDescription = htmlEscaped(
+        let expiryDescription =
             request.expiresAt.formatted(
                 date: .abbreviated,
                 time: .shortened
             )
-        )
-        let html = """
-        <!doctype html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Approve Access To Your Local Ursus Bridge</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
-            main { max-width: 560px; margin: 64px auto; padding: 24px; }
-            .card { background: #ffffff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-            h1 { margin: 0 0 12px; font-size: 28px; }
-            p { margin: 0 0 12px; line-height: 1.5; }
-            .meta { margin-top: 16px; padding: 14px; border-radius: 12px; background: #f3f1eb; }
-            .label { font-weight: 600; }
-            form { margin-top: 20px; }
-            .actions { display: flex; gap: 12px; margin-top: 20px; }
-            button { border-radius: 999px; border: 1px solid rgba(0,0,0,0.12); padding: 12px 18px; font: inherit; cursor: pointer; }
-            .approve { background: #1d1d1b; color: #ffffff; border-color: #1d1d1b; }
-            .deny { background: #ffffff; color: #7c2d12; }
-          </style>
-        </head>
-        <body>
-          <main>
-            <div class="card">
-              <h1>Approve access to your local Ursus bridge</h1>
-              <p><span class="label">Client:</span> \(escapedClientName)</p>
-              <p><span class="label">Requested scope:</span> \(escapedScope)</p>
-              <p><span class="label">Protected resource:</span> \(escapedResource)</p>
-              <p><span class="label">Expires:</span> \(expiryDescription)</p>
-              <p>Approving will let this client exchange an authorization code for bearer tokens that can call your protected local Ursus HTTP bridge until you revoke access in Ursus.app.</p>
-              <form method="post" action="/oauth/decision">
-                <input type="hidden" name="request_id" value="\(escapedRequestID)">
-                <input type="hidden" name="decision_token" value="\(escapedDecisionToken)">
-                <div class="actions">
-                  <button class="approve" type="submit" name="decision" value="approve">Approve</button>
-                  <button class="deny" type="submit" name="decision" value="deny">Deny</button>
-                </div>
-              </form>
-              <div class="meta">Ursus.app remains the place to review bridge access and revoke remembered grants later.</div>
+        let body = """
+        <section class="card">
+          \(oauthPageHeaderHTML(title: "Approve access to Ursus"))
+          <div class="meta-list">
+            \(oauthMetadataRowHTML(label: "App", value: clientName))
+            \(oauthMetadataRowHTML(label: "Bridge", value: resource))
+            \(oauthMetadataRowHTML(label: "Expires", value: expiryDescription))
+          </div>
+          <p class="message">Approving lets this app connect to your protected Ursus bridge until you revoke access.</p>
+          <form method="post" action="/oauth/decision">
+            <input type="hidden" name="request_id" value="\(escapedRequestID)">
+            <input type="hidden" name="decision_token" value="\(escapedDecisionToken)">
+            <div class="actions">
+              <button class="button approve" type="submit" name="decision" value="approve">Approve</button>
+              <button class="button deny" type="submit" name="decision" value="deny">Deny</button>
             </div>
-          </main>
-        </body>
-        </html>
+          </form>
+          <p class="footer-note">Manage or revoke bridge access later in Ursus.</p>
+        </section>
         """
 
-        return htmlResponse(statusCode: 200, html: html)
+        return oauthPageResponse(
+            statusCode: 200,
+            title: "Approve access to Ursus",
+            body: body
+        )
     }
 
     func decisionErrorResponse(
@@ -1042,33 +1015,18 @@ private extension BearBridgeOAuthServer {
         title: String,
         message: String
     ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
-        let html = """
-        <!doctype html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>\(htmlEscaped(title))</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
-            main { max-width: 560px; margin: 64px auto; padding: 24px; }
-            .card { background: #ffffff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-            h1 { margin: 0 0 12px; font-size: 28px; }
-            p { margin: 0; line-height: 1.5; color: #44403c; }
-          </style>
-        </head>
-        <body>
-          <main>
-            <div class="card">
-              <h1>\(htmlEscaped(title))</h1>
-              <p>\(htmlEscaped(message))</p>
-            </div>
-          </main>
-        </body>
-        </html>
+        let body = """
+        <section class="card">
+          \(oauthPageHeaderHTML(title: title))
+          <p class="message">\(htmlEscaped(message))</p>
+        </section>
         """
 
-        return htmlResponse(statusCode: statusCode, html: html)
+        return oauthPageResponse(
+            statusCode: statusCode,
+            title: title,
+            body: body
+        )
     }
 
     func decisionCompletionResponse(
@@ -1081,53 +1039,38 @@ private extension BearBridgeOAuthServer {
             redirectURI: redirectURI,
             additions: additions
         )
-        let escapedTitle = htmlEscaped(title)
-        let escapedMessage = htmlEscaped(message)
         let escapedCallbackURL = htmlEscaped(callbackURL)
         let callbackURLLiteral = javaScriptStringLiteral(callbackURL)
-        let html = """
-        <!doctype html>
-        <html lang="en">
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>\(escapedTitle)</title>
-          <style>
-            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background: #f6f5f2; color: #1d1d1b; }
-            main { max-width: 560px; margin: 64px auto; padding: 24px; }
-            .card { background: #ffffff; border: 1px solid rgba(0,0,0,0.08); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-            h1 { margin: 0 0 12px; font-size: 28px; }
-            p { margin: 0; line-height: 1.5; color: #44403c; }
-          </style>
-        </head>
-        <body>
-          <main>
-            <div class="card">
-              <h1>\(escapedTitle)</h1>
-              <p>\(escapedMessage)</p>
-              <input type="hidden" name="callback_url" value="\(escapedCallbackURL)">
-            </div>
-          </main>
-          <script>
-            const callbackURL = \(callbackURLLiteral);
+        let body = """
+        <section class="card">
+          \(oauthPageHeaderHTML(title: title))
+          <p class="message">\(htmlEscaped(message))</p>
+          <p class="footer-note">You can close this window if nothing else happens.</p>
+          <input type="hidden" name="callback_url" value="\(escapedCallbackURL)">
+        </section>
+        """
+        let script = """
+        const callbackURL = \(callbackURLLiteral);
 
-            function openClient() {
-              try {
-                window.location.replace(callbackURL);
-              } catch (_) {}
-            }
+        function openClient() {
+          try {
+            window.location.replace(callbackURL);
+          } catch (_) {}
+        }
 
-            openClient();
+        openClient();
 
-            window.setTimeout(() => {
-              window.close();
-            }, 500);
-          </script>
-        </body>
-        </html>
+        window.setTimeout(() => {
+          window.close();
+        }, 500);
         """
 
-        return htmlResponse(statusCode: 200, html: html)
+        return oauthPageResponse(
+            statusCode: 200,
+            title: title,
+            body: body,
+            script: script
+        )
     }
 
     func methodNotAllowedResponse(
@@ -1235,6 +1178,316 @@ private extension BearBridgeOAuthServer {
             ],
             body: Data(html.utf8)
         )
+    }
+
+    func oauthPageResponse(
+        statusCode: Int,
+        title: String,
+        body: String,
+        script: String? = nil
+    ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
+        let scriptBlock: String
+        if let script, !script.isEmpty {
+            scriptBlock = """
+              <script>
+              \(script)
+              </script>
+            """
+        } else {
+            scriptBlock = ""
+        }
+
+        let html = """
+        <!doctype html>
+        <html lang="en">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>\(htmlEscaped(title))</title>
+          <style>
+            \(oauthPageStyleBlock())
+          </style>
+        </head>
+        <body>
+          <main class="page-shell">
+            \(body)
+          </main>
+        \(scriptBlock)
+        </body>
+        </html>
+        """
+
+        return htmlResponse(statusCode: statusCode, html: html)
+    }
+
+    func oauthPageHeaderHTML(title: String) -> String {
+        """
+        <header class="header">
+          <div class="logo-badge" aria-hidden="true">
+            \(ursusLogoHTML())
+          </div>
+          <div class="header-copy">
+            <p class="eyebrow">Ursus bridge</p>
+            <h1>\(htmlEscaped(title))</h1>
+          </div>
+        </header>
+        """
+    }
+
+    func oauthMetadataRowHTML(label: String, value: String) -> String {
+        """
+        <div class="meta-row">
+          <div class="meta-label">\(htmlEscaped(label))</div>
+          <div class="meta-value">\(htmlEscaped(value))</div>
+        </div>
+        """
+    }
+
+    func oauthPageStyleBlock() -> String {
+        """
+        :root {
+          color-scheme: light dark;
+          --page-background: #f3f0ea;
+          --page-glow: rgba(255, 255, 255, 0.6);
+          --card-background: rgba(255, 252, 247, 0.88);
+          --card-border: rgba(32, 34, 31, 0.09);
+          --card-shadow: 0 20px 48px rgba(27, 30, 26, 0.08);
+          --text-primary: #1f221d;
+          --text-secondary: #5a6055;
+          --text-muted: #72786e;
+          --meta-background: rgba(244, 240, 233, 0.92);
+          --meta-border: rgba(32, 34, 31, 0.08);
+          --logo-background: rgba(255, 255, 255, 0.82);
+          --logo-border: rgba(32, 34, 31, 0.08);
+          --logo-foreground: #252923;
+          --approve-background: #1f221d;
+          --approve-border: #1f221d;
+          --approve-text: #fcfbf8;
+          --deny-background: rgba(255, 255, 255, 0.72);
+          --deny-border: rgba(32, 34, 31, 0.12);
+          --deny-text: #3f453b;
+        }
+
+        @media (prefers-color-scheme: dark) {
+          :root {
+            --page-background: #161816;
+            --page-glow: rgba(104, 116, 104, 0.16);
+            --card-background: rgba(28, 31, 28, 0.88);
+            --card-border: rgba(233, 238, 228, 0.09);
+            --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+            --text-primary: #f1f3ec;
+            --text-secondary: #c8cec2;
+            --text-muted: #99a092;
+            --meta-background: rgba(35, 38, 34, 0.92);
+            --meta-border: rgba(233, 238, 228, 0.08);
+            --logo-background: rgba(38, 42, 38, 0.94);
+            --logo-border: rgba(233, 238, 228, 0.08);
+            --logo-foreground: #f1f3ec;
+            --approve-background: #f1f3ec;
+            --approve-border: #f1f3ec;
+            --approve-text: #1d201b;
+            --deny-background: rgba(34, 37, 34, 0.94);
+            --deny-border: rgba(233, 238, 228, 0.12);
+            --deny-text: #d7ddd0;
+          }
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body { min-height: 100%; }
+
+        body {
+          margin: 0;
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+          background:
+            radial-gradient(circle at top, var(--page-glow), transparent 42%),
+            var(--page-background);
+          color: var(--text-primary);
+        }
+
+        .page-shell {
+          min-height: 100vh;
+          display: grid;
+          place-items: center;
+          padding: 28px 18px;
+        }
+
+        .card {
+          width: min(100%, 520px);
+          padding: 28px;
+          border-radius: 24px;
+          border: 1px solid var(--card-border);
+          background: var(--card-background);
+          box-shadow: var(--card-shadow);
+        }
+
+        .header {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 20px;
+        }
+
+        .logo-badge {
+          width: 46px;
+          height: 46px;
+          flex: 0 0 46px;
+          display: grid;
+          place-items: center;
+          border-radius: 15px;
+          border: 1px solid var(--logo-border);
+          background: var(--logo-background);
+          color: var(--logo-foreground);
+        }
+
+        .logo-badge svg {
+          width: 24px;
+          height: auto;
+          display: block;
+        }
+
+        .header-copy {
+          min-width: 0;
+        }
+
+        .eyebrow {
+          margin: 0 0 4px;
+          font-size: 12px;
+          line-height: 1.2;
+          color: var(--text-muted);
+          letter-spacing: 0.02em;
+        }
+
+        h1 {
+          margin: 0;
+          font-size: 29px;
+          line-height: 1.08;
+          letter-spacing: -0.03em;
+        }
+
+        .meta-list {
+          display: grid;
+          gap: 10px;
+          margin-bottom: 18px;
+        }
+
+        .meta-row {
+          display: grid;
+          grid-template-columns: 72px minmax(0, 1fr);
+          gap: 14px;
+          align-items: start;
+          padding: 11px 13px;
+          border-radius: 14px;
+          border: 1px solid var(--meta-border);
+          background: var(--meta-background);
+        }
+
+        .meta-label {
+          font-size: 12px;
+          line-height: 1.35;
+          font-weight: 600;
+          color: var(--text-muted);
+        }
+
+        .meta-value {
+          min-width: 0;
+          font-size: 14px;
+          line-height: 1.45;
+          color: var(--text-primary);
+          word-break: break-word;
+        }
+
+        .message {
+          margin: 0;
+          font-size: 15px;
+          line-height: 1.55;
+          color: var(--text-secondary);
+        }
+
+        form {
+          margin-top: 22px;
+        }
+
+        .actions {
+          display: flex;
+          gap: 12px;
+          flex-wrap: wrap;
+        }
+
+        .button {
+          appearance: none;
+          min-height: 44px;
+          padding: 0 18px;
+          border-radius: 999px;
+          border: 1px solid transparent;
+          font: inherit;
+          font-size: 15px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
+        }
+
+        .button:hover {
+          transform: translateY(-1px);
+        }
+
+        .approve {
+          background: var(--approve-background);
+          border-color: var(--approve-border);
+          color: var(--approve-text);
+          box-shadow: 0 10px 24px rgba(16, 18, 15, 0.14);
+        }
+
+        .deny {
+          background: var(--deny-background);
+          border-color: var(--deny-border);
+          color: var(--deny-text);
+        }
+
+        .footer-note {
+          margin: 18px 0 0;
+          font-size: 13px;
+          line-height: 1.5;
+          color: var(--text-muted);
+        }
+
+        input[type="hidden"] {
+          display: none;
+        }
+
+        @media (max-width: 540px) {
+          .card {
+            padding: 24px;
+            border-radius: 22px;
+          }
+
+          .meta-row {
+            grid-template-columns: 1fr;
+            gap: 6px;
+          }
+
+          h1 {
+            font-size: 26px;
+          }
+
+          .button {
+            width: 100%;
+            justify-content: center;
+          }
+        }
+        """
+    }
+
+    func ursusLogoHTML() -> String {
+        // Keep the bridge OAuth UI self-contained by inlining the existing Ursus mark.
+        """
+        <svg viewBox="0 0 462.56 413.17" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+          <path d="M254.01 122.12s-79.38 44.49-115.95 66.62l-85.94 15.39c-1.1-1.5 69.48-122.36 71.54-122.91l130.35 40.9Z"/>
+          <path d="M114.41 73.99l66.85-45.58c31.58 2.32 63.23 3.51 94.82 5.37-7.04 2.24-110.37 28.08-163.44 42.78l-48.31 44.74-19.2-85.4c7.62-6.58 15.59-12.93 23.61-19 3.6-2.72 14.57-10.78 23.37-16.9 20.7 8.02 47.26 18.93 65.67 27.09l-43.38 46.9Z"/>
+          <path d="M247.26 349.81L58.42 208.87l77.32-11.44 111.52 152.38Z"/>
+          <path d="M410.56 131.56l-8.72-32.29-30.25-24.21 6.65-27.86-38.38-20.37c-12.57 3.57-192.28 51.84-192.28 51.84l112.53 37.22 50.95 34.56-49.93-20.4-115.95 63.85.72 2.02c22.74 33.31 140.44 195.13 140.44 195.13S104.87 247.35 43.57 208.72l19.54-82.96C33.23 181.52-.41 237.83 0 239.87l304.41 173.3-40.76-89.49c-.83.3 146.2-58.92 146.2-58.92l49.35-56.22 3.35-42.21c-17.21-11.8-36.22-20.95-52-34.75Z"/>
+        </svg>
+        """
     }
 
     func endpointContext(for request: HTTPRequest) -> EndpointContext {

@@ -878,7 +878,12 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
 
     #expect(authorizationResponse.statusCode == 200)
     let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
-    #expect(authorizationHTML.contains("Approve access to your local Ursus bridge"))
+    #expect(authorizationHTML.contains("<title>Approve access to Ursus</title>"))
+    #expect(authorizationHTML.contains("Approve access to Ursus"))
+    #expect(!authorizationHTML.contains("Requested scope"))
+    #expect(authorizationHTML.contains("Approving lets this app connect to your protected Ursus bridge until you revoke access."))
+    #expect(authorizationHTML.contains("Manage or revoke bridge access later in Ursus."))
+    #expect(authorizationHTML.contains("@media (prefers-color-scheme: dark)"))
     let pendingRequestID = try #require(hiddenInputValue(named: "request_id", in: authorizationHTML))
     let decisionToken = try #require(hiddenInputValue(named: "decision_token", in: authorizationHTML))
 
@@ -904,6 +909,10 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
     #expect(decisionResponse.statusCode == 200)
     let decisionHTML = String(decoding: decisionResponse.data, as: UTF8.self)
     #expect(decisionHTML.contains("Authorization Approved"))
+    #expect(decisionHTML.contains("You can close this window if nothing else happens."))
+    #expect(decisionHTML.contains("@media (prefers-color-scheme: dark)"))
+    #expect(decisionHTML.contains("window.location.replace(callbackURL);"))
+    #expect(decisionHTML.contains("window.close();"))
     #expect(!decisionHTML.contains("Open Client Again"))
     #expect(!decisionHTML.contains("Close This Window"))
     let location = try #require(hiddenInputValue(named: "callback_url", in: decisionHTML))
@@ -1135,6 +1144,10 @@ func bridgeAuthorizationStatusReturnsDeniedRedirectAfterLocalDenial() async thro
     #expect(decisionResponse.statusCode == 200)
     let decisionHTML = String(decoding: decisionResponse.data, as: UTF8.self)
     #expect(decisionHTML.contains("Authorization Denied"))
+    #expect(decisionHTML.contains("You can close this window if nothing else happens."))
+    #expect(decisionHTML.contains("@media (prefers-color-scheme: dark)"))
+    #expect(decisionHTML.contains("window.location.replace(callbackURL);"))
+    #expect(decisionHTML.contains("window.close();"))
     #expect(!decisionHTML.contains("Open Client Again"))
     #expect(!decisionHTML.contains("Close This Window"))
     let location = try #require(hiddenInputValue(named: "callback_url", in: decisionHTML))
@@ -1146,6 +1159,54 @@ func bridgeAuthorizationStatusReturnsDeniedRedirectAfterLocalDenial() async thro
 
     await application.stop()
     try await startTask.value
+}
+
+@Test
+func oauthDecisionErrorPageUsesSharedStyledShell() async throws {
+    let fileManager = FileManager.default
+    let temporaryRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let authDatabaseURL = temporaryRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    defer {
+        try? fileManager.removeItem(at: temporaryRoot)
+    }
+
+    let oauthServer = BearBridgeOAuthServer(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: 6190,
+            mcpEndpoint: "/mcp",
+            authDatabaseURL: authDatabaseURL
+        )
+    )
+
+    let response = await oauthServer.handle(
+        request: HTTPRequest(
+            method: "POST",
+            headers: ["Content-Type": "application/x-www-form-urlencoded"],
+            body: Data("decision=approve".utf8),
+            path: "/oauth/decision"
+        )
+    )
+
+    let statusCode: Int
+    let body: Data
+    switch response {
+    case .plain(let plainStatusCode, _, let responseBody):
+        statusCode = plainStatusCode
+        body = try #require(responseBody)
+    case .mcp:
+        Issue.record("Expected a plain HTML error response.")
+        throw CancellationError()
+    }
+
+    #expect(statusCode == 400)
+    let html = String(decoding: body, as: UTF8.self)
+    #expect(html.contains("Missing Authorization Request"))
+    #expect(html.contains("Start the authorization again."))
+    #expect(html.contains("@media (prefers-color-scheme: dark)"))
+    #expect(html.contains("Ursus bridge"))
 }
 
 @Test
