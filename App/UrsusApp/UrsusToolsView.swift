@@ -45,11 +45,7 @@ struct UrsusToolsView: View {
                     .disabled(model.currentBundledCLIPath == nil)
                 }
 
-                UrsusMessageStack(
-                    success: model.cliStatusMessage,
-                    warning: nil,
-                    error: model.cliStatusError
-                )
+                UrsusMessageStack(error: model.cliStatusError)
             }
         }
     }
@@ -95,11 +91,7 @@ struct UrsusToolsView: View {
                 }
             }
 
-            UrsusMessageStack(
-                success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
-                warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
-                error: model.configurationStatusError
-            )
+            UrsusMessageStack(error: model.configurationStatusError)
         }
     }
 }

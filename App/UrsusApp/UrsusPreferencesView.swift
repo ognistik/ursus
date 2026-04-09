@@ -24,11 +24,7 @@ struct UrsusPreferencesView: View {
                     Divider()
                     limitsPanel
 
-                    UrsusMessageStack(
-                        success: model.configurationValidation.warnings.isEmpty ? model.configurationStatusMessage : nil,
-                        warning: model.configurationValidation.warnings.isEmpty ? nil : model.configurationStatusMessage,
-                        error: model.configurationStatusError
-                    )
+                    UrsusMessageStack(error: model.configurationStatusError)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -129,17 +125,13 @@ struct UrsusPreferencesView: View {
                         .disabled(!model.templateHasUnsavedChanges)
                     }
 
-                    if model.templateHasUnsavedChanges && model.templateStatusMessage == nil && model.templateStatusError == nil {
+                    if model.templateHasUnsavedChanges && model.templateStatusError == nil {
                         Text("Unsaved changes stay in the app until you save.")
                             .font(.caption)
                             .foregroundStyle(ursusTertiaryTextColor)
                     }
 
-                    UrsusMessageStack(
-                        success: model.templateValidation.warnings.isEmpty ? model.templateStatusMessage : nil,
-                        warning: model.templateValidation.warnings.isEmpty ? nil : model.templateStatusMessage,
-                        error: model.templateStatusError
-                    )
+                    UrsusMessageStack(error: model.templateStatusError)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -1104,6 +1104,16 @@ struct UrsusMessageStack: View {
     let warning: String?
     let error: String?
 
+    init(
+        success: String? = nil,
+        warning: String? = nil,
+        error: String? = nil
+    ) {
+        self.success = success
+        self.warning = warning
+        self.error = error
+    }
+
     private var hasContent: Bool {
         success != nil || warning != nil || error != nil
     }

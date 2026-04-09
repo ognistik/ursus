@@ -11,23 +11,6 @@ enum UrsusBridgeOperation: Equatable {
     case pause
     case resume
     case remove
-
-    var progressMessage: String {
-        switch self {
-        case .install:
-            return "Installing the bridge and waiting for the MCP endpoint to become ready..."
-        case .repair:
-            return "Repairing the bridge and waiting for the MCP endpoint to become ready..."
-        case .restart:
-            return "Restarting the bridge and waiting for the MCP endpoint to become ready..."
-        case .pause:
-            return "Pausing the bridge..."
-        case .resume:
-            return "Resuming the bridge and waiting for the MCP endpoint to become ready..."
-        case .remove:
-            return "Removing the bridge..."
-        }
-    }
 }
 
 @MainActor
@@ -38,26 +21,19 @@ final class UrsusAppModel: ObservableObject {
     )
     @Published var tokenDraft = ""
     @Published var revealsStoredToken = false
-    @Published private(set) var tokenStatusMessage: String?
     @Published private(set) var tokenStatusError: String?
-    @Published private(set) var cliStatusMessage: String?
     @Published private(set) var cliStatusError: String?
-    @Published private(set) var bridgeStatusMessage: String?
     @Published private(set) var bridgeStatusError: String?
-    @Published private(set) var hostSetupStatusMessage: String?
     @Published private(set) var hostSetupStatusError: String?
-    @Published private(set) var configurationStatusMessage: String?
     @Published private(set) var configurationStatusError: String?
     @Published private(set) var configurationValidation = BearAppConfigurationValidationReport()
     @Published var templateDraft = ""
-    @Published private(set) var templateStatusMessage: String?
     @Published private(set) var templateStatusError: String?
     @Published private(set) var templateValidation = BearTemplateValidationReport()
     @Published private(set) var storedSelectedNoteToken: String?
     @Published private(set) var activeBridgeOperation: UrsusBridgeOperation?
     @Published var showsBridgeAccessOverlay = false
     @Published private(set) var bridgeAuthReview: BearBridgeAuthReviewSnapshot?
-    @Published private(set) var bridgeAuthStatusMessage: String?
     @Published private(set) var bridgeAuthStatusError: String?
     @Published private(set) var bridgeAuthActionInProgress = false
 
@@ -77,12 +53,6 @@ final class UrsusAppModel: ObservableObject {
     @Published private var disabledToolsDraft: Set<BearToolName> = []
 
     private var configurationAutosaveTask: Task<Void, Never>?
-    private var bridgeStatusMessageClearTask: Task<Void, Never>?
-    private var bridgeAuthStatusMessageClearTask: Task<Void, Never>?
-    private var tokenStatusMessageClearTask: Task<Void, Never>?
-    private var cliStatusMessageClearTask: Task<Void, Never>?
-    private var hostSetupStatusMessageClearTask: Task<Void, Never>?
-    private var templateStatusMessageClearTask: Task<Void, Never>?
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
     private let bridgeAuthStore = BearBridgeAuthStore()
@@ -104,10 +74,6 @@ final class UrsusAppModel: ObservableObject {
         applyDraft(from: previewState.dashboard.settings)
     }
 #endif
-
-    deinit {
-        bridgeAuthStatusMessageClearTask?.cancel()
-    }
 
     private func refreshAppState() {
         persistCurrentAppBundleLocation()
@@ -131,8 +97,6 @@ final class UrsusAppModel: ObservableObject {
 
     func saveSelectedNoteToken() {
         guard !isPreviewMode else {
-            tokenStatusMessage = "Preview only. Token changes are not saved."
-            tokenStatusError = nil
             return
         }
 
@@ -140,21 +104,15 @@ final class UrsusAppModel: ObservableObject {
             try BearAppSupport.saveSelectedNoteToken(tokenDraft)
             tokenDraft = ""
             hideStoredSelectedNoteToken()
-            tokenStatusMessageClearTask?.cancel()
-            tokenStatusMessage = "Token saved in macOS Keychain."
             tokenStatusError = nil
             refreshAppState()
-            scheduleTokenStatusMessageClear()
         } catch {
-            tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
         }
     }
 
     func removeSelectedNoteToken() {
         guard !isPreviewMode else {
-            tokenStatusMessage = "Preview only. Token changes are not saved."
-            tokenStatusError = nil
             return
         }
 
@@ -162,13 +120,9 @@ final class UrsusAppModel: ObservableObject {
             try BearAppSupport.removeSelectedNoteToken()
             tokenDraft = ""
             hideStoredSelectedNoteToken()
-            tokenStatusMessageClearTask?.cancel()
-            tokenStatusMessage = "Token removed from macOS Keychain."
             tokenStatusError = nil
             refreshAppState()
-            scheduleTokenStatusMessageClear()
         } catch {
-            tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
         }
     }
@@ -182,19 +136,16 @@ final class UrsusAppModel: ObservableObject {
         configurationValidation = validateCurrentConfigurationDraft()
 
         guard !configurationValidation.hasErrors else {
-            configurationStatusMessage = nil
             configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
             return
         }
 
         guard !isPreviewMode else {
-            configurationStatusMessage = "Preview only. Changes are not saved."
             configurationStatusError = nil
             return
         }
 
         configurationStatusError = nil
-        configurationStatusMessage = nil
         configurationAutosaveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(450))
             guard !Task.isCancelled else {
@@ -212,23 +163,11 @@ final class UrsusAppModel: ObservableObject {
 
     func templateDraftDidChange() {
         templateValidation = validateCurrentTemplateDraft()
-
-        if templateValidation.hasErrors {
-            templateStatusMessage = nil
-            templateStatusError = nil
-            return
-        }
-
         templateStatusError = nil
-        templateStatusMessage = templateValidation.warnings.isEmpty
-            ? nil
-            : "Review the template warnings before saving."
     }
 
     func saveTemplate() {
         guard !isPreviewMode else {
-            templateStatusMessage = "Preview only. Template changes are not saved."
-            templateStatusError = nil
             return
         }
 
@@ -236,7 +175,6 @@ final class UrsusAppModel: ObservableObject {
         templateValidation = validation
 
         guard !validation.hasErrors else {
-            templateStatusMessage = nil
             templateStatusError = nil
             return
         }
@@ -244,15 +182,9 @@ final class UrsusAppModel: ObservableObject {
         do {
             try BearAppSupport.saveTemplateDraft(templateDraft)
             refreshDashboardSnapshot()
-            templateStatusMessageClearTask?.cancel()
             loadTemplateDraft()
-            templateStatusMessage = validation.warnings.isEmpty
-                ? "Template saved."
-                : "Template saved. Review the warnings below."
             templateStatusError = nil
-            scheduleTemplateStatusMessageClear()
         } catch {
-            templateStatusMessage = nil
             templateStatusError = localizedMessage(for: error)
         }
     }
@@ -260,7 +192,6 @@ final class UrsusAppModel: ObservableObject {
     func revertTemplateDraft() {
         templateDraft = lastSavedTemplateDraft
         templateValidation = validateCurrentTemplateDraft()
-        templateStatusMessage = nil
         templateStatusError = nil
     }
 
@@ -279,18 +210,13 @@ final class UrsusAppModel: ObservableObject {
         )
 
         bridgePortDraft = selectedPort
-
-        if selectedPort != requestedPort {
-            bridgeStatusMessage = "Port \(requestedPort) is already in use. Switched to \(selectedPort) instead."
-            bridgeStatusError = nil
-        }
+        bridgeStatusError = nil
 
         configurationDraftDidChange()
     }
 
     private func saveConfigurationAutomatically() {
         guard !isPreviewMode else {
-            configurationStatusMessage = "Preview only. Changes are not saved."
             configurationStatusError = nil
             return
         }
@@ -300,7 +226,6 @@ final class UrsusAppModel: ObservableObject {
         configurationValidation = validation
 
         guard !validation.hasErrors else {
-            configurationStatusMessage = nil
             configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
             return
         }
@@ -308,12 +233,8 @@ final class UrsusAppModel: ObservableObject {
         do {
             try BearAppSupport.saveConfigurationDraft(draft)
             refreshDashboardSnapshot()
-            configurationStatusMessage = validation.warnings.isEmpty
-                ? nil
-                : "Review the warnings below."
             configurationStatusError = nil
         } catch {
-            configurationStatusMessage = nil
             configurationStatusError = localizedMessage(for: error)
         }
     }
@@ -330,35 +251,25 @@ final class UrsusAppModel: ObservableObject {
         configurationValidation = validation
 
         guard !validation.hasErrors else {
-            configurationStatusMessage = nil
             configurationStatusError = "Fix the highlighted configuration errors before Ursus can save."
             throw BearError.configuration("Fix the highlighted configuration errors before restarting or updating the bridge.")
         }
 
         try BearAppSupport.saveConfigurationDraft(draft)
         refreshDashboardSnapshot()
-        configurationStatusMessage = validation.warnings.isEmpty
-            ? nil
-            : "Review the warnings below."
         configurationStatusError = nil
     }
 
     func installPublicLauncher() {
         guard !isPreviewMode else {
-            cliStatusMessage = "Preview only. Launcher changes are unavailable."
-            cliStatusError = nil
             return
         }
 
         do {
-            let receipt = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
-            cliStatusMessageClearTask?.cancel()
-            cliStatusMessage = "Launcher installed at \(receipt.destinationPath). Local MCP hosts and Terminal should use that path."
+            _ = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
             cliStatusError = nil
             refreshAppState()
-            scheduleCLIStatusMessageClear()
         } catch {
-            cliStatusMessage = nil
             cliStatusError = localizedMessage(for: error)
         }
     }
@@ -372,77 +283,53 @@ final class UrsusAppModel: ObservableObject {
 
     func installBridge(repairing: Bool = false) {
         guard !isPreviewMode else {
-            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
-            bridgeStatusError = nil
             return
         }
 
         let appBundleURL = Bundle.main.bundleURL
         runBridgeOperation(repairing ? .repair : .install) {
-            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
-            return receipt.status == .installed
-                ? "Bridge installed and started at \(receipt.endpointURL)."
-                : "Bridge repaired and restarted at \(receipt.endpointURL)."
+            _ = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
         }
     }
 
     func restartBridge() {
         guard !isPreviewMode else {
-            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
-            bridgeStatusError = nil
             return
         }
 
         let appBundleURL = Bundle.main.bundleURL
         runBridgeOperation(.restart) {
-            let receipt = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
-            return "Bridge restarted at \(receipt.endpointURL)."
+            _ = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
         }
     }
 
     func removeBridge() {
         guard !isPreviewMode else {
-            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
-            bridgeStatusError = nil
             return
         }
 
         runBridgeOperation(.remove) {
-            let receipt = try BearAppSupport.removeBridgeLaunchAgent()
-            return receipt.status == .removed
-                ? "Bridge LaunchAgent removed."
-                : "Bridge LaunchAgent was already removed."
+            _ = try BearAppSupport.removeBridgeLaunchAgent()
         }
     }
 
     func pauseBridge() {
         guard !isPreviewMode else {
-            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
-            bridgeStatusError = nil
             return
         }
 
         runBridgeOperation(.pause) {
-            let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
-            return receipt.status == .paused
-                ? "Bridge paused without deleting its LaunchAgent."
-                : "Bridge was already paused."
+            _ = try BearAppSupport.pauseBridgeLaunchAgent()
         }
     }
 
     func resumeBridge() {
         guard !isPreviewMode else {
-            bridgeStatusMessage = "Preview only. Bridge changes are unavailable."
-            bridgeStatusError = nil
             return
         }
 
-        let endpointURL = bridgeEndpointURL
         runBridgeOperation(.resume) {
-            let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
-            return receipt.status == .resumed
-                ? "Bridge resumed at \(receipt.endpointURL ?? endpointURL)."
-                : "Bridge was already running."
+            _ = try BearAppSupport.resumeBridgeLaunchAgent()
         }
     }
 
@@ -459,8 +346,6 @@ final class UrsusAppModel: ObservableObject {
 
     func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
         guard !isPreviewMode else {
-            bridgeAuthStatusMessage = "Preview only. Access changes are not saved."
-            bridgeAuthStatusError = nil
             return
         }
 
@@ -472,8 +357,6 @@ final class UrsusAppModel: ObservableObject {
             guard !revokedGrant.isActive else {
                 throw BearError.configuration("Failed to revoke the selected remembered grant.")
             }
-
-            return "Revoked access for \(grant.clientTitle)."
         }
     }
 
@@ -490,26 +373,19 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(path, forType: .string)
-        cliStatusMessageClearTask?.cancel()
-        cliStatusMessage = "Copied launcher path: \(path)"
         cliStatusError = nil
-        scheduleCLIStatusMessageClear()
     }
 
     func copyBridgeURL() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(bridgeEndpointURL, forType: .string)
-        bridgeStatusMessageClearTask?.cancel()
-        bridgeStatusMessage = "Copied bridge MCP URL: \(bridgeEndpointURL)"
         bridgeStatusError = nil
-        scheduleBridgeStatusMessageClear()
     }
 
     func copySelectedNoteToken() {
         do {
             guard let token = try BearAppSupport.loadResolvedSelectedNoteToken()?.value, !token.isEmpty else {
-                tokenStatusMessage = nil
                 tokenStatusError = "Saved token unavailable in the app."
                 return
             }
@@ -517,19 +393,14 @@ final class UrsusAppModel: ObservableObject {
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
             pasteboard.setString(token, forType: .string)
-            tokenStatusMessageClearTask?.cancel()
-            tokenStatusMessage = "Token copied."
             tokenStatusError = nil
-            scheduleTokenStatusMessageClear()
         } catch {
-            tokenStatusMessage = nil
             tokenStatusError = localizedMessage(for: error)
         }
     }
 
     func copyHostSetupSnippet(_ setup: BearHostAppSetupSnapshot) {
         guard let snippet = setup.snippet else {
-            hostSetupStatusMessage = nil
             hostSetupStatusError = "No local snippet is available for \(setup.appName)."
             return
         }
@@ -537,15 +408,11 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(snippet, forType: .string)
-        hostSetupStatusMessageClearTask?.cancel()
-        hostSetupStatusMessage = "Copied \(setup.appName) setup snippet."
         hostSetupStatusError = nil
-        scheduleHostSetupStatusMessageClear()
     }
 
     func copyHostConfigPath(_ setup: BearHostAppSetupSnapshot) {
         guard let configPath = setup.configPath else {
-            hostSetupStatusMessage = nil
             hostSetupStatusError = "No local config path is tracked for \(setup.appName)."
             return
         }
@@ -553,10 +420,7 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(configPath, forType: .string)
-        hostSetupStatusMessageClearTask?.cancel()
-        hostSetupStatusMessage = "Copied \(setup.appName) config path: \(configPath)"
         hostSetupStatusError = nil
-        scheduleHostSetupStatusMessageClear()
     }
 
     func updateInboxTagsDraft(from tags: [String]) {
@@ -661,10 +525,6 @@ final class UrsusAppModel: ObservableObject {
         activeBridgeOperation != nil
     }
 
-    var bridgeOperationProgressMessage: String? {
-        activeBridgeOperation?.progressMessage
-    }
-
     var bridgeAuthGrantSummaries: [BearBridgeAuthGrantSummary] {
         bridgeAuthReview?.activeGrants ?? []
     }
@@ -750,20 +610,18 @@ final class UrsusAppModel: ObservableObject {
             templateDraft = draft
             lastSavedTemplateDraft = draft
             templateValidation = BearAppSupport.validateTemplateDraft(draft)
-            templateStatusMessage = nil
             templateStatusError = nil
         } catch {
             templateDraft = ""
             lastSavedTemplateDraft = ""
             templateValidation = BearTemplateValidationReport()
-            templateStatusMessage = nil
             templateStatusError = localizedMessage(for: error)
         }
     }
 
     private func runBridgeOperation(
         _ operation: UrsusBridgeOperation,
-        work: @escaping @Sendable () throws -> String
+        work: @escaping @Sendable () throws -> Void
     ) {
         guard activeBridgeOperation == nil else {
             return
@@ -772,20 +630,18 @@ final class UrsusAppModel: ObservableObject {
         do {
             try flushConfigurationDraftForBridgeOperation()
         } catch {
-            bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
             return
         }
 
         activeBridgeOperation = operation
-        bridgeStatusMessageClearTask?.cancel()
-        bridgeStatusMessage = nil
         bridgeStatusError = nil
 
         Task.detached(priority: .userInitiated) { [weak self] in
-            let result: Result<String, Error>
+            let result: Result<Void, Error>
             do {
-                result = .success(try work())
+                try work()
+                result = .success(())
             } catch {
                 result = .failure(error)
             }
@@ -796,122 +652,15 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
-    private func completeBridgeOperation(with result: Result<String, Error>) {
-        let completedOperation = activeBridgeOperation
+    private func completeBridgeOperation(with result: Result<Void, Error>) {
         activeBridgeOperation = nil
         refreshAppState()
-        bridgeStatusMessageClearTask?.cancel()
 
         switch result {
-        case .success(let message):
-            bridgeStatusMessage = message
+        case .success:
             bridgeStatusError = nil
-            if completedOperation != nil {
-                scheduleBridgeStatusMessageClear()
-            }
         case .failure(let error):
-            bridgeStatusMessage = nil
             bridgeStatusError = localizedMessage(for: error)
-        }
-    }
-
-    private func scheduleBridgeStatusMessageClear() {
-        bridgeStatusMessageClearTask?.cancel()
-        let currentMessage = bridgeStatusMessage
-
-        bridgeStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.bridgeStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.bridgeStatusMessage = nil
-            }
-        }
-    }
-
-    private func scheduleTemplateStatusMessageClear() {
-        templateStatusMessageClearTask?.cancel()
-        let currentMessage = templateStatusMessage
-
-        templateStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.templateStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.templateStatusMessage = nil
-            }
-        }
-    }
-
-    private func scheduleCLIStatusMessageClear() {
-        cliStatusMessageClearTask?.cancel()
-        let currentMessage = cliStatusMessage
-
-        cliStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.cliStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.cliStatusMessage = nil
-            }
-        }
-    }
-
-    private func scheduleHostSetupStatusMessageClear() {
-        hostSetupStatusMessageClearTask?.cancel()
-        let currentMessage = hostSetupStatusMessage
-
-        hostSetupStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.hostSetupStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.hostSetupStatusMessage = nil
-            }
-        }
-    }
-
-    private func scheduleTokenStatusMessageClear() {
-        tokenStatusMessageClearTask?.cancel()
-        let currentMessage = tokenStatusMessage
-
-        tokenStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.tokenStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.tokenStatusMessage = nil
-            }
         }
     }
 
@@ -938,15 +687,13 @@ final class UrsusAppModel: ObservableObject {
     }
 
     private func runBridgeAuthAction(
-        work: @escaping @MainActor @Sendable () async throws -> String
+        work: @escaping @MainActor @Sendable () async throws -> Void
     ) {
         guard !bridgeAuthActionInProgress else {
             return
         }
 
         bridgeAuthActionInProgress = true
-        bridgeAuthStatusMessageClearTask?.cancel()
-        bridgeAuthStatusMessage = nil
         bridgeAuthStatusError = nil
 
         Task { [weak self] in
@@ -954,9 +701,10 @@ final class UrsusAppModel: ObservableObject {
                 return
             }
 
-            let result: Result<String, Error>
+            let result: Result<Void, Error>
             do {
-                result = .success(try await work())
+                try await work()
+                result = .success(())
             } catch {
                 result = .failure(error)
             }
@@ -966,33 +714,10 @@ final class UrsusAppModel: ObservableObject {
             refreshDashboardSnapshot()
 
             switch result {
-            case .success(let message):
-                bridgeAuthStatusMessage = message
+            case .success:
                 bridgeAuthStatusError = nil
-                scheduleBridgeAuthStatusMessageClear()
             case .failure(let error):
-                bridgeAuthStatusMessage = nil
                 bridgeAuthStatusError = localizedMessage(for: error)
-            }
-        }
-    }
-
-    private func scheduleBridgeAuthStatusMessageClear() {
-        bridgeAuthStatusMessageClearTask?.cancel()
-        let currentMessage = bridgeAuthStatusMessage
-
-        bridgeAuthStatusMessageClearTask = Task { [weak self, currentMessage] in
-            try? await Task.sleep(for: .seconds(4))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            await MainActor.run {
-                guard self?.bridgeAuthStatusMessage == currentMessage else {
-                    return
-                }
-
-                self?.bridgeAuthStatusMessage = nil
             }
         }
     }
@@ -1085,22 +810,8 @@ final class UrsusAppModel: ObservableObject {
             }
 
             refreshAppState()
-
-            let destinationPath = result.destinationPath ?? launcherPath
-            switch result.status {
-            case .installed:
-                cliStatusMessage = "Public launcher installed automatically at \(destinationPath)."
-            case .refreshed:
-                cliStatusMessage = "Public launcher repaired automatically at \(destinationPath)."
-            case .unchanged, .unavailable:
-                cliStatusMessage = nil
-            }
             cliStatusError = nil
-            if cliStatusMessage != nil {
-                scheduleCLIStatusMessageClear()
-            }
         } catch {
-            cliStatusMessage = nil
             cliStatusError = localizedMessage(for: error)
         }
     }

@@ -8,12 +8,8 @@ struct UrsusBridgeAccessOverlay: View {
         VStack(alignment: .leading, spacing: 16) {
             header
 
-            if model.bridgeAuthStatusMessage != nil || model.bridgeAuthStatusError != nil {
-                UrsusMessageStack(
-                    success: model.bridgeAuthStatusMessage,
-                    warning: nil,
-                    error: model.bridgeAuthStatusError
-                )
+            if model.bridgeAuthStatusError != nil {
+                UrsusMessageStack(error: model.bridgeAuthStatusError)
             }
 
             if model.bridgeAuthGrantSummaries.isEmpty {

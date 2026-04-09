@@ -216,11 +216,7 @@ struct UrsusSetupView: View {
                     }
                 }
 
-                UrsusMessageStack(
-                    success: model.tokenStatusMessage,
-                    warning: nil,
-                    error: model.tokenStatusError
-                )
+                UrsusMessageStack(error: model.tokenStatusError)
             }
         }
     }
@@ -243,11 +239,7 @@ struct UrsusSetupView: View {
                     }
                     .ursusButtonStyle()
 
-                    UrsusMessageStack(
-                        success: model.cliStatusMessage,
-                        warning: nil,
-                        error: model.cliStatusError
-                    )
+                    UrsusMessageStack(error: model.cliStatusError)
                 } else {
                     Text("Setup is available for supported apps found on this Mac.")
                         .font(.footnote)
@@ -283,11 +275,7 @@ struct UrsusSetupView: View {
                     }
                 }
 
-                UrsusMessageStack(
-                    success: model.hostSetupStatusMessage,
-                    warning: nil,
-                    error: model.hostSetupStatusError
-                )
+                UrsusMessageStack(error: model.hostSetupStatusError)
             }
         }
     }
@@ -450,22 +438,7 @@ struct UrsusSetupView: View {
                 }
             }
 
-            if let progressMessage = model.bridgeOperationProgressMessage {
-                HStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-
-                    Text(progressMessage)
-                        .font(.footnote)
-                        .foregroundStyle(ursusTertiaryTextColor)
-                }
-            }
-
-            UrsusMessageStack(
-                success: model.bridgeStatusMessage,
-                warning: nil,
-                error: model.bridgeStatusError
-            )
+            UrsusMessageStack(error: model.bridgeStatusError)
         }
     }
 
