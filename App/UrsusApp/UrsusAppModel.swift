@@ -360,6 +360,24 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
+    func revokeAllBridgeAccess() {
+        guard !isPreviewMode else {
+            return
+        }
+
+        let grantIDs = bridgeAuthGrantSummaries.map(\.id)
+        guard !grantIDs.isEmpty else {
+            return
+        }
+
+        runBridgeAuthAction {
+            _ = try await BearAppSupport.revokeRememberedBridgeGrants(
+                ids: grantIDs,
+                bridgeAuthStore: self.bridgeAuthStore
+            )
+        }
+    }
+
     func reveal(path: String) {
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }

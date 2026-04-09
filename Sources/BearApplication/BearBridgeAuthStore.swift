@@ -636,38 +636,16 @@ public actor BearBridgeAuthStore {
         let revokedAt = now()
 
         return try dbQueue.write { db in
-            guard var record = try BridgeAuthGrantRecord.fetchOne(db, key: id) else {
-                return nil
-            }
+            try revokeGrantRecords(ids: [id], revokedAt: revokedAt, in: db).first?.makeModel()
+        }
+    }
 
-            record.revokedAt = revokedAt
-            record.updatedAt = revokedAt
-            try record.update(db)
-            try db.execute(
-                sql: """
-                UPDATE authorization_codes
-                SET revoked_at = COALESCE(revoked_at, ?)
-                WHERE grant_id = ?
-                """,
-                arguments: [revokedAt.timeIntervalSince1970, id]
-            )
-            try db.execute(
-                sql: """
-                UPDATE refresh_tokens
-                SET revoked_at = COALESCE(revoked_at, ?)
-                WHERE grant_id = ?
-                """,
-                arguments: [revokedAt.timeIntervalSince1970, id]
-            )
-            try db.execute(
-                sql: """
-                UPDATE access_tokens
-                SET revoked_at = COALESCE(revoked_at, ?)
-                WHERE grant_id = ?
-                """,
-                arguments: [revokedAt.timeIntervalSince1970, id]
-            )
-            return record.makeModel()
+    public func revokeGrants(ids: [String]) throws -> [BearBridgeAuthGrant] {
+        let dbQueue = try prepareDatabaseQueue()
+        let revokedAt = now()
+
+        return try dbQueue.write { db in
+            try revokeGrantRecords(ids: ids, revokedAt: revokedAt, in: db).map { $0.makeModel() }
         }
     }
 
@@ -1127,6 +1105,68 @@ public actor BearBridgeAuthStore {
 }
 
 private extension BearBridgeAuthStore {
+    func revokeGrantRecords(
+        ids: [String],
+        revokedAt: Date,
+        in db: Database
+    ) throws -> [BridgeAuthGrantRecord] {
+        var seenIDs: Set<String> = []
+        let uniqueIDs: [String] = ids.compactMap { id in
+            guard let normalizedID = Self.normalizedOptionalString(id),
+                  seenIDs.insert(normalizedID).inserted
+            else {
+                return nil
+            }
+
+            return normalizedID
+        }
+
+        guard !uniqueIDs.isEmpty else {
+            return []
+        }
+
+        let revokedAtInterval = revokedAt.timeIntervalSince1970
+        var revokedRecords: [BridgeAuthGrantRecord] = []
+        revokedRecords.reserveCapacity(uniqueIDs.count)
+
+        for grantID in uniqueIDs {
+            guard var record = try BridgeAuthGrantRecord.fetchOne(db, key: grantID) else {
+                continue
+            }
+
+            record.revokedAt = revokedAt
+            record.updatedAt = revokedAt
+            try record.update(db)
+            try db.execute(
+                sql: """
+                UPDATE authorization_codes
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAtInterval, grantID]
+            )
+            try db.execute(
+                sql: """
+                UPDATE refresh_tokens
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAtInterval, grantID]
+            )
+            try db.execute(
+                sql: """
+                UPDATE access_tokens
+                SET revoked_at = COALESCE(revoked_at, ?)
+                WHERE grant_id = ?
+                """,
+                arguments: [revokedAtInterval, grantID]
+            )
+            revokedRecords.append(record)
+        }
+
+        return revokedRecords
+    }
+
     func prepareDatabaseQueue() throws -> DatabaseQueue {
         if let databaseQueue {
             return databaseQueue

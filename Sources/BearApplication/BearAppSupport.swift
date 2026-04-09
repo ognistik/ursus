@@ -330,6 +330,14 @@ public struct BearAppDashboardSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+public struct BearBridgeAccessRevocationReceipt: Codable, Hashable, Sendable {
+    public let revokedGrantCount: Int
+
+    public init(revokedGrantCount: Int) {
+        self.revokedGrantCount = revokedGrantCount
+    }
+}
+
 public enum BearAppSupport {
     public static func loadDashboardSnapshot(
         fileManager: FileManager = .default,
@@ -503,6 +511,14 @@ public enum BearAppSupport {
         tokenStore: any BearTokenStore = BearKeychainTokenStore.selectedNoteDefault
     ) throws -> BearResolvedSelectedNoteToken? {
         try BearSelectedNoteTokenResolver.resolve(tokenStore: tokenStore)
+    }
+
+    public static func revokeRememberedBridgeGrants(
+        ids: [String],
+        bridgeAuthStore: BearBridgeAuthStore = BearBridgeAuthStore()
+    ) async throws -> BearBridgeAccessRevocationReceipt {
+        let revokedGrants = try await bridgeAuthStore.revokeGrants(ids: ids)
+        return BearBridgeAccessRevocationReceipt(revokedGrantCount: revokedGrants.count)
     }
 
     @discardableResult

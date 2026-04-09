@@ -180,6 +180,98 @@ func bridgeAuthStoreReviewSnapshotAndGrantRevocation() async throws {
 }
 
 @Test
+func bridgeAuthStoreBatchGrantRevocationRevokesAllRememberedClients() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let firstClient = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "First Client",
+            redirectURIs: ["https://first.example/callback"]
+        )
+    )
+    let secondClient = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Second Client",
+            redirectURIs: ["https://second.example/callback"]
+        )
+    )
+
+    let firstGrant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: firstClient.id,
+            scope: "mcp",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+    let secondGrant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: secondClient.id,
+            scope: "mcp",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+
+    let firstRefreshToken = try await store.issueRefreshToken(
+        BearBridgeRefreshTokenDraft(
+            clientID: firstClient.id,
+            grantID: firstGrant.id,
+            scope: firstGrant.scope,
+            expiresAt: fixedNow.addingTimeInterval(86_400)
+        )
+    )
+    let secondRefreshToken = try await store.issueRefreshToken(
+        BearBridgeRefreshTokenDraft(
+            clientID: secondClient.id,
+            grantID: secondGrant.id,
+            scope: secondGrant.scope,
+            expiresAt: fixedNow.addingTimeInterval(86_400)
+        )
+    )
+
+    let firstAccessToken = try await store.issueAccessToken(
+        BearBridgeAccessTokenDraft(
+            clientID: firstClient.id,
+            grantID: firstGrant.id,
+            refreshTokenID: firstRefreshToken.record.id,
+            scope: firstGrant.scope,
+            expiresAt: fixedNow.addingTimeInterval(3_600)
+        )
+    )
+    let secondAccessToken = try await store.issueAccessToken(
+        BearBridgeAccessTokenDraft(
+            clientID: secondClient.id,
+            grantID: secondGrant.id,
+            refreshTokenID: secondRefreshToken.record.id,
+            scope: secondGrant.scope,
+            expiresAt: fixedNow.addingTimeInterval(3_600)
+        )
+    )
+
+    let revokedGrants = try await store.revokeGrants(ids: [firstGrant.id, secondGrant.id])
+
+    #expect(revokedGrants.count == 2)
+    #expect(revokedGrants.allSatisfy { !$0.isActive })
+    #expect(try await store.reviewSnapshot(prepareIfMissing: false).activeGrants.isEmpty)
+    #expect(try await store.refreshToken(for: firstRefreshToken.token) == nil)
+    #expect(try await store.refreshToken(for: secondRefreshToken.token) == nil)
+    #expect(try await store.accessToken(for: firstAccessToken.token) == nil)
+    #expect(try await store.accessToken(for: secondAccessToken.token) == nil)
+}
+
+@Test
 func bridgeAuthStoreResolvesBrowserFirstPendingRequests() async throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)

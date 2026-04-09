@@ -2185,6 +2185,53 @@ func dashboardSnapshotReportsConfigurationLoadFailure() throws {
     #expect(!dashboard.diagnostics.contains(where: { $0.key == "selected-note-token" }))
 }
 
+@Test
+func revokeRememberedBridgeGrantsReturnsCompactReceipt() async throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let databaseURL = tempRoot
+        .appendingPathComponent("Auth", isDirectory: true)
+        .appendingPathComponent("bridge-auth.sqlite", isDirectory: false)
+    let fixedNow = Date(timeIntervalSince1970: 1_744_000_000)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let store = BearBridgeAuthStore(
+        databaseURL: databaseURL,
+        now: { fixedNow }
+    )
+
+    let client = try await store.registerClient(
+        BearBridgeAuthClientDraft(
+            displayName: "Bulk Revoke Client",
+            redirectURIs: ["https://example.com/callback"]
+        )
+    )
+    let firstGrant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: client.id,
+            scope: "mcp",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+    let secondGrant = try await store.createGrant(
+        BearBridgeAuthGrantDraft(
+            clientID: client.id,
+            scope: "mcp:write",
+            resource: "https://bridge.example/mcp"
+        )
+    )
+
+    let receipt = try await BearAppSupport.revokeRememberedBridgeGrants(
+        ids: [firstGrant.id, secondGrant.id],
+        bridgeAuthStore: store
+    )
+
+    #expect(receipt.revokedGrantCount == 2)
+    #expect(try await store.reviewSnapshot(prepareIfMissing: false).activeGrants.isEmpty)
+}
+
 private func parseAppHostPayload(_ data: Data) throws -> [String: String] {
     guard let object = try JSONSerialization.jsonObject(with: data) as? [String: String] else {
         Issue.record("Expected selected-note app host payload to be a JSON object of strings.")

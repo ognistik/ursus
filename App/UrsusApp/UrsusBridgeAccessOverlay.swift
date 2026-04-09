@@ -3,6 +3,7 @@ import SwiftUI
 
 struct UrsusBridgeAccessOverlay: View {
     @ObservedObject var model: UrsusAppModel
+    @State private var showsRevokeAllConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -26,6 +27,19 @@ struct UrsusBridgeAccessOverlay: View {
             cornerRadius: 22
         )
         .shadow(color: Color.black.opacity(0.14), radius: 20, y: 10)
+        .confirmationDialog(
+            "Revoke all access?",
+            isPresented: $showsRevokeAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Revoke All", role: .destructive) {
+                model.revokeAllBridgeAccess()
+            }
+
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All remembered bridge clients will need to authorize again.")
+        }
     }
 
     private var header: some View {
@@ -44,25 +58,37 @@ struct UrsusBridgeAccessOverlay: View {
 
             Spacer(minLength: 12)
 
-            HStack(spacing: 10) {
-                if model.bridgeAuthActionInProgress {
-                    ProgressView()
-                        .controlSize(.small)
+            VStack(alignment: .trailing, spacing: 10) {
+                HStack(spacing: 10) {
+                    if model.bridgeAuthActionInProgress {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
+                    Button {
+                        model.closeBridgeAccessOverlay()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(ursusInlineLabelColor)
+                            .frame(width: 28, height: 28)
+                            .background(ursusSecondaryControlFillColor, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    .disabled(model.bridgeAuthActionInProgress)
+                    .help("Dismiss")
                 }
 
-                Button {
-                    model.closeBridgeAccessOverlay()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(ursusInlineLabelColor)
-                        .frame(width: 28, height: 28)
-                        .background(ursusSecondaryControlFillColor, in: Circle())
+                if !model.bridgeAuthGrantSummaries.isEmpty {
+                    Button("Revoke All", role: .destructive) {
+                        showsRevokeAllConfirmation = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(.red)
+                    .disabled(model.bridgeAuthActionInProgress)
                 }
-                .buttonStyle(.plain)
-                .keyboardShortcut(.cancelAction)
-                .disabled(model.bridgeAuthActionInProgress)
-                .help("Dismiss")
             }
         }
     }
