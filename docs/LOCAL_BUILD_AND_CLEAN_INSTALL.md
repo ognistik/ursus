@@ -16,6 +16,12 @@ For a Release build:
 CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 ```
 
+For a totally clean Release build:
+```
+rm -rf .build/UrsusApp .build/release .build/debug
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+```
+
 Useful verification:
 
 ```sh
@@ -259,6 +265,51 @@ Before real Sparkle update checks will work, both of these Info.plist placeholde
 
 - `SUFeedURL`
 - `SUPublicEDKey`
+
+## Release Signing And Notarization
+
+`CONFIGURATION=Release Support/scripts/build-ursus-app.sh` gives you a local
+release build, but it does not produce a distribution-ready notarized artifact
+on its own.
+
+Current release packaging flow:
+
+```sh
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+
+DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \
+NOTARYTOOL_PROFILE="notarytool-profile" \
+Support/scripts/sign-and-notarize-release.sh
+```
+
+That script:
+
+- copies the built app into `.build/release-artifacts`
+- re-signs the staged `Ursus.app` with `Developer ID Application`
+- enables hardened runtime on the app-facing bundles it signs
+- creates a signed DMG with `create-dmg`
+- submits the DMG with `notarytool`
+- staples and validates the notarized DMG
+
+Useful variants:
+
+```sh
+# Create a Developer ID-signed DMG without submitting to Apple.
+Support/scripts/sign-and-notarize-release.sh --skip-notarize
+
+# Use a different app bundle or output directory.
+Support/scripts/sign-and-notarize-release.sh \
+  --app /path/to/Ursus.app \
+  --output-dir /tmp/ursus-release
+```
+
+Important notes:
+
+- `create-dmg` signing the DMG does not replace signing the app itself. The app
+  still needs a proper `Developer ID Application` signature before notarization.
+- The current script notarizes the DMG. If you later want a Sparkle ZIP release
+  asset, notarize that ZIP separately; a stapled DMG ticket does not staple the
+  `.app` copy inside it.
 
 ## Current Direct CLI Commands
 
