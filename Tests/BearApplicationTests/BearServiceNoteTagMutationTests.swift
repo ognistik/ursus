@@ -800,7 +800,6 @@ private func makeNoteTagConfiguration(
     defaultInsertPosition: BearConfiguration.InsertDefault = .bottom
 ) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: defaultInsertPosition,
         templateManagementEnabled: templateManagementEnabled,

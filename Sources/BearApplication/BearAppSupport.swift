@@ -54,7 +54,6 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
     public let debugLogPath: String
     public let runtimeConfigurationGeneration: Int
     public let cliMaintenancePrompt: BearAppCLIMaintenancePrompt?
-    public let databasePath: String
     public let inboxTags: [String]
     public let defaultInsertPosition: String
     public let templateManagementEnabled: Bool
@@ -88,7 +87,6 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
         debugLogPath: String,
         runtimeConfigurationGeneration: Int,
         cliMaintenancePrompt: BearAppCLIMaintenancePrompt?,
-        databasePath: String,
         inboxTags: [String],
         defaultInsertPosition: String,
         templateManagementEnabled: Bool,
@@ -121,7 +119,6 @@ public struct BearAppSettingsSnapshot: Codable, Hashable, Sendable {
         self.debugLogPath = debugLogPath
         self.runtimeConfigurationGeneration = runtimeConfigurationGeneration
         self.cliMaintenancePrompt = cliMaintenancePrompt
-        self.databasePath = databasePath
         self.inboxTags = inboxTags
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
@@ -208,7 +205,6 @@ public struct BearAppToolToggleSnapshot: Codable, Hashable, Sendable, Identifiab
 }
 
 public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
-    public let databasePath: String
     public let inboxTags: [String]
     public let bridgeHost: String
     public let bridgePort: Int
@@ -225,7 +221,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
     public let disabledTools: [BearToolName]
 
     public init(
-        databasePath: String,
         inboxTags: [String],
         bridgeHost: String,
         bridgePort: Int,
@@ -241,7 +236,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
         backupRetentionDays: Int,
         disabledTools: [BearToolName]
     ) {
-        self.databasePath = databasePath
         self.inboxTags = inboxTags
         self.bridgeHost = bridgeHost.trimmingCharacters(in: .whitespacesAndNewlines)
         self.bridgePort = bridgePort
@@ -260,7 +254,6 @@ public struct BearAppConfigurationDraft: Codable, Hashable, Sendable {
 }
 
 public enum BearAppConfigurationField: String, Codable, Hashable, Sendable {
-    case databasePath
     case inboxTags
     case bridgeHost
     case bridgePort
@@ -475,7 +468,6 @@ public enum BearAppSupport {
             debugLogPath: BearPaths.debugLogURL.path,
             runtimeConfigurationGeneration: configuration.runtimeConfigurationGeneration,
             cliMaintenancePrompt: cliMaintenancePrompt(launcherStatus: launcherStatus),
-            databasePath: configuration.databasePath,
             inboxTags: configuration.inboxTags,
             defaultInsertPosition: configuration.defaultInsertPosition.rawValue,
             templateManagementEnabled: configuration.templateManagementEnabled,
@@ -624,11 +616,6 @@ public enum BearAppSupport {
             configFileURL: configFileURL,
             templateURL: templateURL
         )
-        let normalizedDatabasePath = draft.databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalizedDatabasePath.isEmpty else {
-            throw BearError.invalidInput("Database path cannot be empty.")
-        }
-
         let defaultDiscoveryLimit = max(1, draft.defaultDiscoveryLimit)
         let defaultSnippetLength = max(1, draft.defaultSnippetLength)
         let normalizedInboxTags = normalizedInboxTags(draft.inboxTags)
@@ -640,7 +627,6 @@ public enum BearAppSupport {
         ).validated()
 
         let updatedConfiguration = BearConfiguration(
-            databasePath: normalizedDatabasePath,
             inboxTags: normalizedInboxTags,
             defaultInsertPosition: draft.defaultInsertPosition,
             templateManagementEnabled: draft.templateManagementEnabled,
@@ -711,39 +697,8 @@ public enum BearAppSupport {
         fileManager: FileManager = .default
     ) -> BearAppConfigurationValidationReport {
         var issues: [BearAppConfigurationIssue] = []
-        let normalizedDatabasePath = draft.databasePath.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedTags = normalizedInboxTags(draft.inboxTags)
         let normalizedBridgeHost = draft.bridgeHost.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if normalizedDatabasePath.isEmpty {
-            issues.append(
-                BearAppConfigurationIssue(
-                    field: .databasePath,
-                    severity: .error,
-                    message: "Database path cannot be empty."
-                )
-            )
-        } else {
-            if !normalizedDatabasePath.hasPrefix("/") {
-                issues.append(
-                    BearAppConfigurationIssue(
-                        field: .databasePath,
-                        severity: .warning,
-                        message: "Database path should usually be an absolute macOS path."
-                    )
-                )
-            }
-
-            if !fileManager.fileExists(atPath: normalizedDatabasePath) {
-                issues.append(
-                    BearAppConfigurationIssue(
-                        field: .databasePath,
-                        severity: .warning,
-                        message: "No file exists at this database path right now."
-                    )
-                )
-            }
-        }
 
         if normalizedTags.isEmpty {
             issues.append(

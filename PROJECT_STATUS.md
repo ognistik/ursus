@@ -95,6 +95,7 @@ Behavior already in place:
 - Passed note arguments resolve as exact note id first, then exact case-insensitive title.
 - `bridge serve` now provides the first optional loopback HTTP MCP runtime path, reusing the same internal Bear service stack as `ursus mcp`.
 - Bridge config now lives inside `~/Library/Application Support/Ursus/config.json` with default localhost settings and a stable saved port.
+- The Bear database location is now resolved directly from the canonical Bear group-container path at runtime and is no longer stored in `config.json`.
 - Bridge LaunchAgent management is now implemented natively in `BearApplication` and targets the stable public launcher path.
 - The bridge runtime now uses the SDK's stateless HTTP transport, so `initialize` and `tools/list` succeed as plain request/response calls without per-client session headers.
 - The stateless bridge now uses an Ursus-owned validation pipeline instead of the SDK's localhost-only default host/origin guard, which keeps the bridge loopback-bound while allowing personal tunnel forwarding to reach the same `/mcp` endpoint.
@@ -140,6 +141,7 @@ These paths describe the codebase as it exists after Phase 6:
 
 - Phases 1 through 6 are complete: shipped identities are cut over, runtime storage is unified under `~/Library/Application Support/Ursus`, launcher/locator wiring points at `ursus` and `Ursus.app`, repo-internal app containers and product-facing internal types now use Ursus-branded names, and the status/build/helper docs now match that product truth.
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
+- The Bear database path is no longer user-configurable; runtime reads now always resolve Bear's canonical local SQLite path from `BearPaths`.
 - The selected-note token is now managed in macOS Keychain through shared Ursus-owned code rather than `config.json`.
 - CLI and bridge behavior now live in a shared `BearCLIRuntime` target used by both the standalone `ursus` executable and `Ursus.app`'s hidden CLI mode, so launchd only has to execute the already-provisioned app binary inside the bundle.
 - The selected-note helper is signed without restricted entitlements because it does not read the shared token directly.

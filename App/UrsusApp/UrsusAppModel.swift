@@ -61,7 +61,6 @@ final class UrsusAppModel: ObservableObject {
     @Published private(set) var bridgeAuthStatusError: String?
     @Published private(set) var bridgeAuthActionInProgress = false
 
-    @Published var databasePathDraft = ""
     @Published var inboxTagsDraft = ""
     @Published var bridgeHostDraft = BearBridgeConfiguration.defaultHost
     @Published var bridgePortDraft = BearBridgeConfiguration.preferredPort
@@ -263,20 +262,6 @@ final class UrsusAppModel: ObservableObject {
         templateValidation = validateCurrentTemplateDraft()
         templateStatusMessage = nil
         templateStatusError = nil
-    }
-
-    func updateDatabasePathDraft(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        guard !trimmed.isEmpty else {
-            configurationStatusMessage = nil
-            configurationStatusError = "Database path cannot be empty."
-            configurationValidation = validateCurrentConfigurationDraft()
-            return
-        }
-
-        databasePathDraft = trimmed
-        configurationDraftDidChange()
     }
 
     func updateBridgePortDraft(_ value: Int) {
@@ -710,7 +695,6 @@ final class UrsusAppModel: ObservableObject {
 
     private func currentConfigurationDraft() -> BearAppConfigurationDraft {
         BearAppConfigurationDraft(
-            databasePath: databasePathDraft,
             inboxTags: parsedInboxTags,
             bridgeHost: bridgeHostDraft,
             bridgePort: bridgePortDraft,
@@ -742,7 +726,6 @@ final class UrsusAppModel: ObservableObject {
         }
 
         suppressConfigurationAutosave = true
-        databasePathDraft = settings.databasePath
         inboxTagsDraft = settings.inboxTags.joined(separator: ", ")
         bridgeHostDraft = settings.bridge.host
         bridgePortDraft = settings.bridge.port

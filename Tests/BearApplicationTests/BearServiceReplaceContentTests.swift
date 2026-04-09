@@ -196,7 +196,6 @@ func replaceContentTitleRejectsOldString() async throws {
 
 private func makeReplaceContentConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,

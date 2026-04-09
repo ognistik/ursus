@@ -20,7 +20,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         }
     }
 
-    public var databasePath: String
     public var inboxTags: [String]
     public var defaultInsertPosition: InsertDefault
     public var templateManagementEnabled: Bool
@@ -36,7 +35,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public var bridge: BearBridgeConfiguration
 
     public init(
-        databasePath: String,
         inboxTags: [String],
         defaultInsertPosition: InsertDefault,
         templateManagementEnabled: Bool,
@@ -51,7 +49,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
         runtimeConfigurationGeneration: Int = 0,
         bridge: BearBridgeConfiguration = .default
     ) {
-        self.databasePath = databasePath
         self.inboxTags = inboxTags
         self.defaultInsertPosition = defaultInsertPosition
         self.templateManagementEnabled = templateManagementEnabled
@@ -69,7 +66,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public static var `default`: BearConfiguration {
         BearConfiguration(
-            databasePath: BearPaths.defaultBearDatabaseURL.path,
             inboxTags: ["0-inbox"],
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
@@ -87,7 +83,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public func updatingDisabledTools(_ disabledTools: [BearToolName]) -> BearConfiguration {
         BearConfiguration(
-            databasePath: databasePath,
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
@@ -106,7 +101,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public func updatingBridge(_ bridge: BearBridgeConfiguration) -> BearConfiguration {
         BearConfiguration(
-            databasePath: databasePath,
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
@@ -125,7 +119,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public func updatingRuntimeConfigurationGeneration(_ generation: Int) -> BearConfiguration {
         BearConfiguration(
-            databasePath: databasePath,
             inboxTags: inboxTags,
             defaultInsertPosition: defaultInsertPosition,
             templateManagementEnabled: templateManagementEnabled,
@@ -143,8 +136,7 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     }
 
     public func runtimeConfigurationMatches(_ other: BearConfiguration) -> Bool {
-        databasePath == other.databasePath
-            && inboxTags == other.inboxTags
+        inboxTags == other.inboxTags
             && defaultInsertPosition == other.defaultInsertPosition
             && templateManagementEnabled == other.templateManagementEnabled
             && createOpensNoteByDefault == other.createOpensNoteByDefault
@@ -172,7 +164,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case databasePath
         case inboxTags
         case defaultInsertPosition
         case templateManagementEnabled
@@ -191,7 +182,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        databasePath = try container.decodeIfPresent(String.self, forKey: .databasePath) ?? BearPaths.defaultBearDatabaseURL.path
         inboxTags = try container.decodeIfPresent([String].self, forKey: .inboxTags) ?? ["0-inbox"]
         defaultInsertPosition = try container.decodeIfPresent(InsertDefault.self, forKey: .defaultInsertPosition) ?? .bottom
         templateManagementEnabled = try container.decodeIfPresent(Bool.self, forKey: .templateManagementEnabled) ?? true
@@ -209,7 +199,6 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(databasePath, forKey: .databasePath)
         try container.encode(inboxTags, forKey: .inboxTags)
         try container.encode(defaultInsertPosition, forKey: .defaultInsertPosition)
         try container.encode(templateManagementEnabled, forKey: .templateManagementEnabled)

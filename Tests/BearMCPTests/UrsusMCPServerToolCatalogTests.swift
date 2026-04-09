@@ -6,7 +6,6 @@ import Testing
 @Test
 func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox", "client work"],
         defaultInsertPosition: .top,
         templateManagementEnabled: true,
@@ -181,7 +180,6 @@ func batchedToolSchemasAdvertiseNonEmptyOperations() throws {
 @Test
 func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox", "deep work"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -224,7 +222,6 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
 @Test
 func toolCatalogCanAdvertiseSelectedNoteSupportWhenTokenComesFromKeychain() throws {
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -262,7 +259,6 @@ func toolCatalogOmitsDisabledToolsFromConfiguration() {
 @Test
 func bridgeSurfaceMarkerTracksServedCatalogChanges() {
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -295,7 +291,6 @@ func bridgeSurfaceMarkerTracksServedCatalogChanges() {
 @Test
 func toolCatalogOmitsBackupHintWhenBackupListingIsUnavailable() throws {
     let noRetention = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

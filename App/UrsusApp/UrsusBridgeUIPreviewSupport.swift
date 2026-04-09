@@ -152,7 +152,6 @@ enum UrsusBridgeUIPreviewFactory {
             debugLogPath: "/Users/preview/Library/Application Support/Ursus/Logs/debug.log",
             runtimeConfigurationGeneration: 1,
             cliMaintenancePrompt: nil,
-            databasePath: "/Users/preview/Library/Group Containers/9K33E3U3T4.net.shinyfrog.bear/Application Data/database.sqlite",
             inboxTags: ["0-inbox"],
             defaultInsertPosition: BearConfiguration.InsertDefault.bottom.rawValue,
             templateManagementEnabled: true,

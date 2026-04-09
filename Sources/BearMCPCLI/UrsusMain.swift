@@ -244,7 +244,7 @@ public enum UrsusCLIRuntime {
         let configuration = try BearRuntimeBootstrap.loadConfiguration()
         let tokenStore = BearKeychainTokenStore.selectedNoteDefault
         let databaseReader = try BearDatabaseReader(
-            databaseURL: URL(fileURLWithPath: configuration.databasePath)
+            databaseURL: BearPaths.defaultBearDatabaseURL
         )
         let writeTransport = BearXCallbackTransport(readStore: databaseReader)
         let backupStore = BearBackupFileStore(retentionDays: configuration.backupRetentionDays)

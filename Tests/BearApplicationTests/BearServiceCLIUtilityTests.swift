@@ -416,7 +416,6 @@ private func makeCLIUtilityConfiguration(
     tagsMergeMode: BearConfiguration.TagsMergeMode = .append
 ) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

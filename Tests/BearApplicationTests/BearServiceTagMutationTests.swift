@@ -113,7 +113,6 @@ func deleteTagsStillDeletesTagThatExistsOnlyInArchive() async throws {
 
 private func makeTagMutationConfiguration() -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

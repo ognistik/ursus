@@ -55,14 +55,25 @@ struct UrsusSetupView: View {
     }
 
     private var heroPanel: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Ursus")
-                .font(.system(size: 34, weight: .black))
-                .tracking(-2.0)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .center, spacing: 8) {
+                Image("UrsusLogo")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(.primary)
+                    .accessibilityHidden(true)
+
+                Text("Ursus")
+                    .font(.custom("Montserrat-Regular", size: 34))
+                    .tracking(0)
+            }
 
             Text("Local MCP and utilities for Bear")
                 .font(.callout)
                 .foregroundStyle(ursusTertiaryTextColor)
+                .padding(.leading, 1)
         }
     }
 

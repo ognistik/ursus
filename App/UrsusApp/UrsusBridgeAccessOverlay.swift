@@ -36,8 +36,9 @@ struct UrsusBridgeAccessOverlay: View {
         HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Bridge Access")
-                    .font(.system(size: 24, weight: .black))
-                    .tracking(-0.9)
+                    //.font(.system(size: 24, weight: .black))
+                    .font(.custom("Montserrat-Regular", size: 20))
+                    .tracking(0)
 
                 Text("Review and revoke remembered client access for the Remote MCP Bridge.")
                     .font(.footnote)

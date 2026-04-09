@@ -324,7 +324,6 @@ private func makeGetNotesConfiguration(
     inboxTags: [String]
 ) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: inboxTags,
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

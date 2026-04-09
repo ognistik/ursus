@@ -122,7 +122,6 @@ private func withBatchValidationClient<T: Sendable>(
     _ operation: @Sendable (Client) async throws -> T
 ) async throws -> T {
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,

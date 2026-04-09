@@ -30,7 +30,6 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -118,7 +117,6 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -208,7 +206,6 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -298,7 +295,6 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -385,7 +381,6 @@ func bearReplaceContentRejectsNoteAndSelectedTogether() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -469,7 +464,6 @@ func bearListBackupsRejectsMissingNoteTarget() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -546,7 +540,6 @@ func bearListBackupsForwardsDateFiltersToBackupListingQuery() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -630,7 +623,6 @@ func bearCreateBackupsAcceptsSelectedNoteTarget() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,
@@ -715,7 +707,6 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
         encrypted: false
     )
     let configuration = BearConfiguration(
-        databasePath: "/tmp/bear.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: false,

@@ -24,10 +24,9 @@ func bridgeConfigurationValidationRequiresLocalLoopbackHosts() throws {
 }
 
 @Test
-func configurationDecodesLegacyJSONWithoutBridgeBlock() throws {
+func configurationDecodesJSONWithoutBridgeBlock() throws {
     let json = """
     {
-      "databasePath": "/tmp/database.sqlite",
       "inboxTags": ["0-inbox"]
     }
     """

@@ -8,7 +8,6 @@ import Testing
 func createNotesMergesInboxTagsStripsDuplicateTitleAndRendersSingleTemplate() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "#Daily", "#deep work#"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -49,7 +48,6 @@ func createNotesMergesInboxTagsStripsDuplicateTitleAndRendersSingleTemplate() as
 func createNotesCanReplaceInboxTagsWithExplicitRequestTags() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -89,7 +87,6 @@ func createNotesCanReplaceInboxTagsWithExplicitRequestTags() async throws {
 func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -130,7 +127,6 @@ func createNotesCanUseOnlyRequestTagsPerRequest() async throws {
 func createNotesCanExplicitlyAppendInboxTagsPerRequest() async throws {
     let transport = RecordingWriteTransport()
     let configuration = BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox", "daily"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

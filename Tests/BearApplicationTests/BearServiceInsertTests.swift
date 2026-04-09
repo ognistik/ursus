@@ -198,7 +198,6 @@ func insertTextRejectsAmbiguousRelativeStringTargetBeforeWriting() async throws 
 
 private func makeInsertConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,

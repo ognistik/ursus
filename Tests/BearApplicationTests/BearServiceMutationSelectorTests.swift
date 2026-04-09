@@ -229,7 +229,6 @@ func serviceResolvesSelectedNoteIDThroughKeychainWhenExplicitlyEnabled() async t
 
 private func makeMutationSelectorConfiguration() -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

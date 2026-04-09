@@ -458,7 +458,6 @@ private func makeDiscoveryConfiguration(
     backupRetentionDays: Int = 30
 ) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: inboxTags,
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,

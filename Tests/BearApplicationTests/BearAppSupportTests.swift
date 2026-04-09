@@ -38,7 +38,6 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
     {
-      "databasePath" : "/tmp/bear.sqlite",
       "inboxTags" : [
         "0-inbox",
         "next"
@@ -68,7 +67,6 @@ func dashboardSnapshotIncludesSettingsWhenConfigurationLoads() throws {
 
     #expect(dashboard.settings != nil)
     #expect(dashboard.settingsError == nil)
-    #expect(dashboard.settings?.databasePath == "/tmp/bear.sqlite")
     #expect(dashboard.settings?.inboxTags == ["0-inbox", "next"])
     #expect(dashboard.settings?.createAddsInboxTagsByDefault == false)
     #expect(dashboard.settings?.runtimeConfigurationGeneration == 0)
@@ -559,7 +557,6 @@ func installBridgeLaunchAgentWritesExpectedPlistAndEnablesBridge() throws {
     let bridgePort = try availableLoopbackPort()
 
     let initialConfiguration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -643,7 +640,6 @@ func bridgeSnapshotReportsPausedWhenLaunchAgentIsInstalledButUnloaded() throws {
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -737,7 +733,6 @@ func bridgeSnapshotIncludesLoadedRuntimeGenerationWhenBridgeStateExists() throws
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -833,7 +828,6 @@ func bridgeSnapshotMarksRestartRequiredWhenSurfaceMarkerChanges() throws {
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -923,7 +917,6 @@ func bridgeSnapshotTracksSelectedNoteTokenAvailabilityForRestartDetection() thro
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1063,7 +1056,6 @@ func bridgeSnapshotFallsBackToLiveProbeWhenRuntimeStateLacksTokenMarker() throws
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1148,7 +1140,6 @@ func bridgeSnapshotRequiresRestartWhenLoadedBridgeHasNoRuntimeState() throws {
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1221,7 +1212,6 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1430,7 +1420,6 @@ func bridgeSnapshotReportsLoadedButUnreachableBridgeAsFailed() throws {
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1499,7 +1488,6 @@ func bridgeSnapshotReportsProtocolFailureAndSurfacesRecentLogHint() throws {
     try "initialize probe returned HTTP 404\n".write(to: stderrURL, atomically: true, encoding: .utf8)
 
     let configuration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1566,7 +1554,6 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
 
     try BearAppSupport.saveConfigurationDraft(
         BearAppConfigurationDraft(
-            databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox", "next", "0-inbox"],
             bridgeHost: "127.0.0.1",
             bridgePort: 6190,
@@ -1594,7 +1581,6 @@ func saveConfigurationDraftPersistsEditableSettingsAndDisabledTools() throws {
         templateURL: templateURL
     )
 
-    #expect(configuration.databasePath == "/tmp/updated.sqlite")
     #expect(configuration.inboxTags == ["0-inbox", "next"])
     #expect(configuration.defaultInsertPosition == .top)
     #expect(configuration.templateManagementEnabled == false)
@@ -1621,7 +1607,6 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
 
     let initialConfiguration = BearConfiguration(
-        databasePath: "/tmp/original.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: true,
@@ -1644,7 +1629,6 @@ func saveConfigurationDraftPreservesExistingBridgeConfiguration() throws {
 
     try BearAppSupport.saveConfigurationDraft(
         BearAppConfigurationDraft(
-            databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox", "next"],
             bridgeHost: "127.0.0.1",
             bridgePort: 6205,
@@ -1693,7 +1677,6 @@ func saveConfigurationDraftUpdatesBridgeHostAndPort() throws {
 
     try BearAppSupport.saveConfigurationDraft(
         BearAppConfigurationDraft(
-            databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox"],
             bridgeHost: "localhost",
             bridgePort: 6202,
@@ -1742,7 +1725,6 @@ func saveConfigurationDraftUpdatesBridgeAuthMode() throws {
 
     try BearAppSupport.saveConfigurationDraft(
         BearAppConfigurationDraft(
-            databasePath: "/tmp/updated.sqlite",
             inboxTags: ["0-inbox"],
             bridgeHost: "127.0.0.1",
             bridgePort: 6190,
@@ -1807,10 +1789,9 @@ func saveConfigurationDraftRejectsInvalidValues() throws {
     #expect(throws: BearError.self) {
         try BearAppSupport.saveConfigurationDraft(
             BearAppConfigurationDraft(
-                databasePath: "   ",
                 inboxTags: [],
-                bridgeHost: "127.0.0.1",
-                bridgePort: 6190,
+                bridgeHost: "",
+                bridgePort: 90,
                 defaultInsertPosition: .bottom,
                 templateManagementEnabled: true,
                 createOpensNoteByDefault: true,
@@ -1834,7 +1815,6 @@ func saveConfigurationDraftRejectsInvalidValues() throws {
 func validateConfigurationDraftReportsWarningsAndErrors() {
     let report = BearAppSupport.validateConfigurationDraft(
         BearAppConfigurationDraft(
-            databasePath: "relative/path.sqlite",
             inboxTags: [],
             bridgeHost: "localhost",
             bridgePort: 90,
@@ -1851,12 +1831,11 @@ func validateConfigurationDraftReportsWarningsAndErrors() {
         )
     )
 
-    #expect(report.issues(for: .databasePath).count == 2)
     #expect(report.issues(for: .inboxTags).count == 1)
     #expect(report.issues(for: .bridgePort).count == 1)
     #expect(report.issues(for: .backupRetentionDays).count == 1)
     #expect(report.hasErrors)
-    #expect(report.warnings.count == 3)
+    #expect(report.warnings.count == 1)
 }
 
 @Test

@@ -14,7 +14,6 @@ func loadAndSaveConfigurationFillMissingKeysAndPreserveExistingValues() throws {
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try """
     {
-      "databasePath" : "/tmp/custom.sqlite",
       "inboxTags" : [
         "inbox",
         "next"
@@ -42,9 +41,7 @@ func loadAndSaveConfigurationFillMissingKeysAndPreserveExistingValues() throws {
     let updatedOnDisk = try BearConfiguration.load(from: configFileURL)
     let updatedText = try String(contentsOf: configFileURL)
 
-    #expect(configuration.databasePath == "/tmp/custom.sqlite")
     #expect(configuration.inboxTags == ["inbox", "next"])
-    #expect(updatedOnDisk.databasePath == "/tmp/custom.sqlite")
     #expect(updatedOnDisk.inboxTags == ["inbox", "next"])
     #expect(updatedOnDisk.defaultDiscoveryLimit == BearConfiguration.default.defaultDiscoveryLimit)
     #expect(updatedOnDisk.defaultSnippetLength == BearConfiguration.default.defaultSnippetLength)
@@ -53,7 +50,7 @@ func loadAndSaveConfigurationFillMissingKeysAndPreserveExistingValues() throws {
     #expect(updatedText.contains("\"defaultDiscoveryLimit\""))
     #expect(updatedText.contains("\"backupRetentionDays\""))
     #expect(!updatedText.contains("\"token\""))
-    #expect(updatedText.contains("\"databasePath\" : \"/tmp/custom.sqlite\""))
+    #expect(!updatedText.contains("\"databasePath\""))
     #expect(!updatedText.contains("\\/"))
     #expect(fileManager.fileExists(atPath: templateURL.path))
 }

@@ -235,7 +235,6 @@ func addFilesRejectAmbiguousRelativeStringTargetBeforeWriting() async throws {
 
 private func makeAddFileConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
-        databasePath: "/tmp/database.sqlite",
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .bottom,
         templateManagementEnabled: templateManagementEnabled,

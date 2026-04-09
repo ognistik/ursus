@@ -745,17 +745,21 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only for tags the user explicitly requested. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
+                description: "Create one or more Bear notes. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
                         "type": .string("string"),
                         "description": .string("Required non-empty note body. Do not repeat `title` inside `content` or prepend a heading that duplicates it."),
                     ]),
-                    "tags": .object(["type": .string("array"), "items": .object(["type": .string("string")])]),
+                    "tags": .object([
+                        "type": .string("array"),
+                        "items": .object(["type": .string("string")]),
+                        "description": .string("Optional explicit request tags only. Include tags here only when the user directly specifies them."),
+                    ]),
                     "use_only_request_tags": .object([
                         "type": .string("boolean"),
-                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Do not treat inferred tags as request tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
                     "open_note": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.createOpensNoteByDefault))", overrideWhen: "the user explicitly states whether the created note should open")) `true` forces open and `false` forces closed."),
                     "new_window": optionalPresentationBoolean(description: omitUnlessDescription(defaultClause: "the default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")),
