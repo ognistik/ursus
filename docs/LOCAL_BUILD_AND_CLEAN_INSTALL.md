@@ -16,6 +16,19 @@ For a Release build:
 CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 ```
 
+For the current Developer ID release packaging flow:
+
+```sh
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+
+DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \
+DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile" \
+NOTARYTOOL_PROFILE="notarytool-profile" \
+Support/scripts/sign-and-notarize-release.sh
+```
+
+Release packaging needs a Developer ID provisioning profile for `com.aft.ursus` because the app uses a shared keychain access group for the Bear API token. Create or regenerate the profile with the same Developer ID Application certificate used by `DEVELOPER_ID_APPLICATION`.
+
 For a totally clean Release build:
 ```
 rm -rf .build/UrsusApp .build/release .build/debug
@@ -300,6 +313,7 @@ Current release packaging flow:
 CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 
 DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \
+DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile" \
 NOTARYTOOL_PROFILE="notarytool-profile" \
 Support/scripts/sign-and-notarize-release.sh
 ```
@@ -308,6 +322,8 @@ That script:
 
 - copies the built app into `.build/release-artifacts`
 - re-signs the staged `Ursus.app` with `Developer ID Application`
+- embeds the Developer ID provisioning profile required by the Bear token
+  keychain access group
 - enables hardened runtime on the app-facing bundles it signs
 - creates a signed DMG with `create-dmg`
 - submits the DMG with `notarytool`
@@ -329,6 +345,9 @@ Important notes:
 
 - `create-dmg` signing the DMG does not replace signing the app itself. The app
   still needs a proper `Developer ID Application` signature before notarization.
+- Keep the provisioning profile outside this open-source repo. A private local
+  path such as `~/Developer/Provisioning Profiles/Ursus_Developer_ID.provisionprofile`
+  is fine, then pass that path with `DEVELOPER_ID_PROVISIONING_PROFILE`.
 - The current script notarizes the DMG. If you later want a Sparkle ZIP release
   asset, notarize that ZIP separately; a stapled DMG ticket does not staple the
   `.app` copy inside it.

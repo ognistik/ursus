@@ -8,6 +8,7 @@ APP_PATH="$DEFAULT_APP_PATH"
 OUTPUT_DIR="$DEFAULT_OUTPUT_DIR"
 IDENTITY="${DEVELOPER_ID_APPLICATION:-}"
 NOTARY_PROFILE="${NOTARYTOOL_PROFILE:-}"
+PROVISIONING_PROFILE="${DEVELOPER_ID_PROVISIONING_PROFILE:-}"
 CREATE_DMG_BIN="${CREATE_DMG_BIN:-create-dmg}"
 SKIP_NOTARIZE=0
 
@@ -28,6 +29,8 @@ Options:
                               matching local Developer ID Application cert
   --notarytool-profile NAME   Keychain profile for xcrun notarytool
                               Default: \$NOTARYTOOL_PROFILE
+  --provisioning-profile PATH Developer ID provisioning profile to embed
+                              Default: \$DEVELOPER_ID_PROVISIONING_PROFILE
   --skip-notarize             Stop after creating the signed DMG
   -h, --help                  Show this help
 
@@ -61,10 +64,67 @@ plist_value() {
   /usr/libexec/PlistBuddy -c "Print :$key_path" "$plist_path"
 }
 
+plist_has_key() {
+  plist_path="$1"
+  key_path="$2"
+  /usr/libexec/PlistBuddy -c "Print :$key_path" "$plist_path" >/dev/null 2>&1
+}
+
 notary_result_value() {
   json_path="$1"
   key_path="$2"
   /usr/bin/plutil -extract "$key_path" raw -o - "$json_path"
+}
+
+extract_entitlements() {
+  signed_path="$1"
+  output_path="$2"
+
+  /usr/bin/codesign -d --entitlements :- "$signed_path" >"$output_path" 2>/dev/null || true
+  [ -s "$output_path" ] || return 1
+
+  /usr/bin/plutil -convert xml1 "$output_path" >/dev/null 2>&1 || return 1
+  return 0
+}
+
+profile_value() {
+  profile_plist="$1"
+  key_path="$2"
+  /usr/libexec/PlistBuddy -c "Print :$key_path" "$profile_plist"
+}
+
+profile_matches_bundle_identifier() {
+  profile_app_identifier="$1"
+  bundle_identifier="$2"
+
+  case "$profile_app_identifier" in
+    *.*)
+      profile_bundle_identifier="${profile_app_identifier#*.}"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  case "$profile_bundle_identifier" in
+    \*)
+      return 0
+      ;;
+    *\*)
+      profile_bundle_prefix="${profile_bundle_identifier%\*}"
+      case "$bundle_identifier" in
+        "$profile_bundle_prefix"*)
+          return 0
+          ;;
+        *)
+          return 1
+          ;;
+      esac
+      ;;
+    *)
+      [ "$profile_bundle_identifier" = "$bundle_identifier" ]
+      ;;
+  esac
 }
 
 sign_path() {
@@ -127,6 +187,11 @@ while [ "$#" -gt 0 ]; do
       NOTARY_PROFILE="$2"
       shift 2
       ;;
+    --provisioning-profile)
+      [ "$#" -ge 2 ] || fail "Missing value for $1"
+      PROVISIONING_PROFILE="$2"
+      shift 2
+      ;;
     --skip-notarize)
       SKIP_NOTARIZE=1
       shift
@@ -145,6 +210,7 @@ require_command /usr/bin/codesign
 require_command /usr/bin/ditto
 require_command /usr/bin/xcrun
 require_command /usr/bin/security
+require_command /usr/bin/openssl
 require_command /usr/libexec/PlistBuddy
 
 [ -d "$APP_PATH" ] || fail "App bundle not found: $APP_PATH"
@@ -164,19 +230,96 @@ fi
 APP_INFO_PLIST="$APP_PATH/Contents/Info.plist"
 APP_NAME="$(basename "$APP_PATH" .app)"
 APP_VERSION="$(plist_value "$APP_INFO_PLIST" CFBundleShortVersionString)"
-ENTITLEMENTS_PATH="$ROOT_DIR/Support/app/Ursus.entitlements"
+APP_BUNDLE_IDENTIFIER="$(plist_value "$APP_INFO_PLIST" CFBundleIdentifier)"
 STAGED_APP_PATH="$OUTPUT_DIR/$APP_NAME.app"
 DMG_PATH="$OUTPUT_DIR/$APP_NAME $APP_VERSION.dmg"
 NOTARY_RESULT_PATH="$OUTPUT_DIR/notary-submit-result.json"
+STAGED_PROFILE_PATH="$STAGED_APP_PATH/Contents/embedded.provisionprofile"
+
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ursus-sign.XXXXXX")"
+EXPANDED_ENTITLEMENTS_PATH="$TEMP_DIR/Ursus.release.entitlements"
+PROFILE_PLIST_PATH="$TEMP_DIR/provisioning-profile.plist"
+cleanup() {
+  rm -rf "$TEMP_DIR"
+}
+trap cleanup EXIT INT TERM
+
+if ! extract_entitlements "$APP_PATH" "$EXPANDED_ENTITLEMENTS_PATH"; then
+  fail "Failed to extract signing entitlements from $APP_PATH. Build the app with Xcode signing before running this release script."
+fi
+
+/usr/libexec/PlistBuddy -c "Delete :com.apple.security.get-task-allow" "$EXPANDED_ENTITLEMENTS_PATH" >/dev/null 2>&1 || true
+
+RESTRICTED_KEYCHAIN_GROUPS=0
+if plist_has_key "$EXPANDED_ENTITLEMENTS_PATH" "keychain-access-groups"; then
+  RESTRICTED_KEYCHAIN_GROUPS=1
+fi
+
+if [ -n "$PROVISIONING_PROFILE" ]; then
+  [ -f "$PROVISIONING_PROFILE" ] || fail "Provisioning profile not found: $PROVISIONING_PROFILE"
+  /usr/bin/security cms -D -i "$PROVISIONING_PROFILE" >"$PROFILE_PLIST_PATH" \
+    || fail "Failed to decode provisioning profile: $PROVISIONING_PROFILE"
+
+  ENTITLEMENTS_TEAM_IDENTIFIER="$(plist_value "$EXPANDED_ENTITLEMENTS_PATH" "com.apple.developer.team-identifier" 2>/dev/null || true)"
+  PROFILE_TEAM_IDENTIFIER="$(profile_value "$PROFILE_PLIST_PATH" "TeamIdentifier:0" 2>/dev/null || true)"
+  PROFILE_APP_IDENTIFIER="$(profile_value "$PROFILE_PLIST_PATH" "Entitlements:com.apple.application-identifier" 2>/dev/null || true)"
+  IDENTITY_SHA1S="$(/usr/bin/security find-certificate -a -c "$IDENTITY" -Z 2>/dev/null | sed -n 's/^SHA-1 hash: //p' | tr -d ':')"
+
+  [ -n "$PROFILE_TEAM_IDENTIFIER" ] || fail "Provisioning profile is missing TeamIdentifier: $PROVISIONING_PROFILE"
+  [ -n "$PROFILE_APP_IDENTIFIER" ] || fail "Provisioning profile is missing com.apple.application-identifier entitlement: $PROVISIONING_PROFILE"
+  [ -n "$IDENTITY_SHA1S" ] || fail "Could not find local signing certificate for identity: $IDENTITY"
+  if [ -n "$ENTITLEMENTS_TEAM_IDENTIFIER" ] && [ "$PROFILE_TEAM_IDENTIFIER" != "$ENTITLEMENTS_TEAM_IDENTIFIER" ]; then
+    fail "Provisioning profile team '$PROFILE_TEAM_IDENTIFIER' does not match app entitlements team '$ENTITLEMENTS_TEAM_IDENTIFIER'."
+  fi
+
+  profile_matches_bundle_identifier "$PROFILE_APP_IDENTIFIER" "$APP_BUNDLE_IDENTIFIER" \
+    || fail "Provisioning profile app identifier '$PROFILE_APP_IDENTIFIER' does not match bundle identifier '$APP_BUNDLE_IDENTIFIER'."
+
+  PROFILE_CERTIFICATE_MATCH=0
+  PROFILE_CERTIFICATE_SHA1S=""
+  PROFILE_CERTIFICATE_INDEX=0
+  while :; do
+    PROFILE_CERTIFICATE_PATH="$TEMP_DIR/profile-certificate-$PROFILE_CERTIFICATE_INDEX.der"
+    if ! /usr/libexec/PlistBuddy -c "Print :DeveloperCertificates:$PROFILE_CERTIFICATE_INDEX" "$PROFILE_PLIST_PATH" >"$PROFILE_CERTIFICATE_PATH" 2>/dev/null; then
+      break
+    fi
+
+    PROFILE_CERTIFICATE_SHA1="$(/usr/bin/openssl x509 -inform DER -in "$PROFILE_CERTIFICATE_PATH" -noout -fingerprint -sha1 2>/dev/null | sed 's/^.*Fingerprint=//; s/://g')"
+    if [ -n "$PROFILE_CERTIFICATE_SHA1" ]; then
+      PROFILE_CERTIFICATE_SHA1S="$PROFILE_CERTIFICATE_SHA1S $PROFILE_CERTIFICATE_SHA1"
+      for IDENTITY_SHA1 in $IDENTITY_SHA1S; do
+        if [ "$PROFILE_CERTIFICATE_SHA1" = "$IDENTITY_SHA1" ]; then
+          PROFILE_CERTIFICATE_MATCH=1
+        fi
+      done
+    fi
+
+    PROFILE_CERTIFICATE_INDEX=$((PROFILE_CERTIFICATE_INDEX + 1))
+  done
+
+  if [ "$PROFILE_CERTIFICATE_MATCH" -ne 1 ]; then
+    fail "Provisioning profile does not include the signing certificate '$IDENTITY'. Local certificate SHA-1: $IDENTITY_SHA1S. Profile certificate SHA-1(s):$PROFILE_CERTIFICATE_SHA1S. Regenerate the Developer ID provisioning profile with the same certificate used for signing."
+  fi
+elif [ "$RESTRICTED_KEYCHAIN_GROUPS" -eq 1 ]; then
+  fail "This app uses keychain-access-groups, so the Developer ID build also needs a matching provisioning profile. Pass --provisioning-profile or set DEVELOPER_ID_PROVISIONING_PROFILE."
+fi
 
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGED_APP_PATH"
 rm -f "$DMG_PATH"
 rm -f "$NOTARY_RESULT_PATH"
 /usr/bin/ditto "$APP_PATH" "$STAGED_APP_PATH"
+rm -f "$STAGED_PROFILE_PATH"
+
+if [ -n "$PROVISIONING_PROFILE" ]; then
+  /bin/cp "$PROVISIONING_PROFILE" "$STAGED_PROFILE_PATH"
+fi
 
 echo "Using signing identity: $IDENTITY"
 echo "Staging app at: $STAGED_APP_PATH"
+if [ -n "$PROVISIONING_PROFILE" ]; then
+  echo "Embedding provisioning profile: $PROVISIONING_PROFILE"
+fi
 
 find "$STAGED_APP_PATH/Contents" -type f \
   \( -perm +111 -o -name '*.dylib' \) \
@@ -205,7 +348,7 @@ find "$STAGED_APP_PATH/Contents" -depth -type d \
       esac
     done
 
-sign_path "$STAGED_APP_PATH" 1 "$ENTITLEMENTS_PATH"
+sign_path "$STAGED_APP_PATH" 1 "$EXPANDED_ENTITLEMENTS_PATH"
 
 echo "Verifying app signature"
 /usr/bin/codesign --verify --deep --strict --verbose=2 "$STAGED_APP_PATH"
