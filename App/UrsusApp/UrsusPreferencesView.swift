@@ -4,6 +4,7 @@ import SwiftUI
 
 struct UrsusPreferencesView: View {
     @ObservedObject var model: UrsusAppModel
+    @ObservedObject var updaterController: UrsusUpdaterController
     let showsStandaloneHeader: Bool
 
     var body: some View {
@@ -23,6 +24,8 @@ struct UrsusPreferencesView: View {
                     templatePanel(settings)
                     Divider()
                     limitsPanel
+                    Divider()
+                    appUpdatesPanel
 
                     UrsusMessageStack(error: model.configurationStatusError)
                 }
@@ -170,6 +173,40 @@ struct UrsusPreferencesView: View {
                         range: 0...365                    )
                     configurationValidationMessages(for: .backupRetentionDays)
                 }
+            }
+        }
+    }
+
+    private var appUpdatesPanel: some View {
+        UrsusPanel(
+            title: "App Updates",
+            titleHelpText: "Sparkle handles update checks for Ursus.app using the standard macOS updater flow."
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle(
+                    "Check for updates automatically",
+                    isOn: Binding(
+                        get: { updaterController.automaticallyChecksForUpdates },
+                        set: { updaterController.setAutomaticallyChecksForUpdates($0) }
+                    )
+                )
+                .disabled(!updaterController.isConfigured)
+
+                Text("Automatic download and install stays off by default.")
+                    .font(.caption)
+                    .foregroundStyle(ursusTertiaryTextColor)
+
+                if let configurationNote = updaterController.configurationNote {
+                    Text(configurationNote)
+                        .font(.caption)
+                        .foregroundStyle(ursusTertiaryTextColor)
+                }
+
+                Button("Check for Updates…") {
+                    updaterController.checkForUpdates()
+                }
+                .ursusButtonStyle()
+                .disabled(!updaterController.isConfigured || !updaterController.canCheckForUpdates)
             }
         }
     }

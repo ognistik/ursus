@@ -65,6 +65,10 @@ public enum BearPaths {
         applicationSupportDirectoryURL.appendingPathComponent("Runtime", isDirectory: true)
     }
 
+    public static var runtimeStateDatabaseURL: URL {
+        runtimeLockDirectoryURL.appendingPathComponent("runtime-state.sqlite", isDirectory: false)
+    }
+
     public static var bridgeRuntimeStateURL: URL {
         runtimeLockDirectoryURL.appendingPathComponent("bridge-runtime-state.json", isDirectory: false)
     }

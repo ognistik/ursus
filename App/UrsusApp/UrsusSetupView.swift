@@ -74,6 +74,22 @@ struct UrsusSetupView: View {
                 .font(.callout)
                 .foregroundStyle(ursusTertiaryTextColor)
                 .padding(.leading, 1)
+
+            if model.showsSupportAffordance {
+                HStack(spacing: 8) {
+                    Text("Free and open source.")
+                    Button("Support Ursus") {
+                        model.presentDonationPrompt()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(ursusInlineLabelColor)
+                }
+                .font(.footnote)
+                .foregroundStyle(ursusTertiaryTextColor)
+                .padding(.top, 4)
+                .padding(.leading, 1)
+            }
         }
     }
 

@@ -85,6 +85,7 @@ These are the current paths in code today:
 - app support root: `~/Library/Application Support/Ursus`
 - backups: `~/Library/Application Support/Ursus/Backups`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
+- runtime-state SQLite: `~/Library/Application Support/Ursus/Runtime/runtime-state.sqlite`
 - debug log: `~/Library/Application Support/Ursus/Logs/debug.log`
 - public launcher: `~/.local/bin/ursus`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
@@ -116,6 +117,61 @@ CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 mkdir -p "$HOME/Applications"
 ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
 open "$HOME/Applications/Ursus.app"
+```
+
+## Debug Donation Prompt Testing
+
+The donation prompt state is stored locally per machine in:
+
+```sh
+$HOME/Library/Application\ Support/Ursus/Runtime/runtime-state.sqlite
+```
+
+Debug builds now expose one Debug-only donation panel in the `Tools` tab:
+
+- `Trigger Eligibility` marks the donation prompt eligible immediately in the shared runtime-state SQLite store.
+- `Reset Donation State` clears the local donation counters and suppression state.
+
+Release builds do not show these controls.
+
+### Fast Debug Flow
+
+1. Build, install, and open a Debug app:
+
+```sh
+CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
+mkdir -p "$HOME/Applications"
+ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+open "$HOME/Applications/Ursus.app"
+```
+
+2. Reset donation state:
+
+```sh
+rm -f "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite"
+```
+
+3. Reopen `Ursus.app`, go to `Tools`, and click `Trigger Eligibility`.
+
+4. Switch to another app and then back to `Ursus`, or quit and relaunch `Ursus.app`.
+
+5. Verify that the `Support Ursus` prompt appears.
+
+### Manual Reset / Re-Test
+
+If you want to retest from zero without using the Debug reset button:
+
+```sh
+pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
+rm -f "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite"
+open "$HOME/Applications/Ursus.app"
+```
+
+If you want to inspect the current donation state directly:
+
+```sh
+sqlite3 "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite" \
+  'select total_successful_operation_count, next_prompt_operation_count, permanent_suppression_reason from donation_prompt_state;'
 ```
 
 ## Current Direct CLI Commands

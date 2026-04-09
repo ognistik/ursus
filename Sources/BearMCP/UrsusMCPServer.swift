@@ -15,15 +15,18 @@ public final class UrsusMCPServer: Sendable {
     private let service: BearService
     private let configuration: BearConfiguration
     private let selectedNoteTokenConfigured: Bool
+    private let runtimeStateStore: BearRuntimeStateStore?
 
     public init(
         service: BearService,
         configuration: BearConfiguration,
-        selectedNoteTokenConfigured: Bool? = nil
+        selectedNoteTokenConfigured: Bool? = nil,
+        runtimeStateStore: BearRuntimeStateStore? = BearRuntimeStateStore()
     ) {
         self.service = service
         self.configuration = configuration
         self.selectedNoteTokenConfigured = selectedNoteTokenConfigured ?? BearSelectedNoteTokenResolver.configured()
+        self.runtimeStateStore = runtimeStateStore
     }
 
     public func makeServer() async -> Server {
@@ -73,7 +76,8 @@ public final class UrsusMCPServer: Sendable {
         switch params.name {
         case "bear_find_notes":
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesOperation)
-            return try jsonResult(try service.findNotes(operations))
+            let result = try service.findNotes(operations)
+            return try await successfulToolResult(result, count: successfulOperationCount(result))
 
         case "bear_get_notes":
             let selectors = try await resolvedRequiredNoteSelectors(params.arguments)
@@ -84,27 +88,31 @@ public final class UrsusMCPServer: Sendable {
                 location: location,
                 includeAttachmentText: includeAttachmentText
             )
-            return try jsonResult(notes)
+            return try await successfulToolResult(notes, count: 1)
 
         case "bear_list_tags":
             let location = try MCPArgumentDecoder.location(params.arguments)
             let query = MCPArgumentDecoder.optionalString(params.arguments, "query")
             let underTag = MCPArgumentDecoder.optionalString(params.arguments, "under_tag")
-            return try jsonResult(try service.listTags(location: location, query: query, underTag: underTag))
+            let tags = try service.listTags(location: location, query: query, underTag: underTag)
+            return try await successfulToolResult(tags, count: 1)
 
         case "bear_find_notes_by_tag":
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByTagOperation)
-            return try jsonResult(try service.findNotesByTag(operations))
+            let result = try service.findNotesByTag(operations)
+            return try await successfulToolResult(result, count: successfulOperationCount(result))
 
         case "bear_find_notes_by_inbox_tags":
             let operations = try requiredObjectArray(params.arguments, "operations").map(decodeFindNotesByInboxTagsOperation)
-            return try jsonResult(try service.findNotesByInboxTags(operations))
+            let result = try service.findNotesByInboxTags(operations)
+            return try await successfulToolResult(result, count: successfulOperationCount(result))
 
         case "bear_create_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
             let resolvedNoteSelectors = try await resolvedRequiredBackupNoteSelectors(operationObjects)
             let requests = resolvedNoteSelectors.map(CreateBackupRequest.init(noteID:))
-            return try jsonResult(try await service.createBackups(requests))
+            let receipts = try await service.createBackups(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_list_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -118,7 +126,8 @@ public final class UrsusMCPServer: Sendable {
                     cursor: MCPArgumentDecoder.optionalString(object, "cursor")
                 )
             }
-            return try jsonResult(try await service.listBackups(operations))
+            let result = try await service.listBackups(operations)
+            return try await successfulToolResult(result, count: successfulOperationCount(result))
 
         case "bear_compare_backup":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -130,7 +139,8 @@ public final class UrsusMCPServer: Sendable {
                     snapshotID: try requiredString(object, "snapshot_id")
                 )
             }
-            return try jsonResult(try await service.compareBackups(operations))
+            let result = try await service.compareBackups(operations)
+            return try await successfulToolResult(result, count: successfulOperationCount(result))
 
         case "bear_delete_backups":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -142,11 +152,13 @@ public final class UrsusMCPServer: Sendable {
                     deleteAll: try MCPArgumentDecoder.optionalBool(object, "delete_all") ?? false
                 )
             }
-            return try jsonResult(try await service.deleteBackups(requests))
+            let receipts = try await service.deleteBackups(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_open_tag":
             let tag = try MCPArgumentDecoder.string(params.arguments, "tag")
-            return try jsonResult(try await service.openTag(tag))
+            let receipt = try await service.openTag(tag)
+            return try await successfulToolResult(receipt, count: successfulOperationCount(receipt))
 
         case "bear_rename_tags":
             let requests = try requiredObjectArray(params.arguments, "operations").map { object in
@@ -155,7 +167,8 @@ public final class UrsusMCPServer: Sendable {
                     newName: try requiredString(object, "new_name")
                 )
             }
-            return try jsonResult(try await service.renameTags(requests))
+            let receipts = try await service.renameTags(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_delete_tags":
             let requests = try requiredObjectArray(params.arguments, "operations").map { object in
@@ -163,7 +176,8 @@ public final class UrsusMCPServer: Sendable {
                     name: try requiredString(object, "name")
                 )
             }
-            return try jsonResult(try await service.deleteTags(requests))
+            let receipts = try await service.deleteTags(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_add_tags":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -174,7 +188,8 @@ public final class UrsusMCPServer: Sendable {
                     tags: try requiredStringArray(object, "tags")
                 )
             }
-            return try jsonResult(try await service.addTags(requests))
+            let receipts = try await service.addTags(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_remove_tags":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -185,7 +200,8 @@ public final class UrsusMCPServer: Sendable {
                     tags: try requiredStringArray(object, "tags")
                 )
             }
-            return try jsonResult(try await service.removeTags(requests))
+            let receipts = try await service.removeTags(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_apply_template":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -195,7 +211,8 @@ public final class UrsusMCPServer: Sendable {
                     noteID: resolvedNoteSelector
                 )
             }
-            return try jsonResult(try await service.applyTemplate(requests))
+            let receipts = try await service.applyTemplate(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_create_notes":
             let defaults = BearPresentationOptions(
@@ -213,7 +230,8 @@ public final class UrsusMCPServer: Sendable {
                     presentation: try MCPArgumentDecoder.createNotePresentation(object, defaults: defaults)
                 )
             }
-            return try jsonResult(try await service.createNotes(requests))
+            let receipts = try await service.createNotes(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_insert_text":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -226,7 +244,8 @@ public final class UrsusMCPServer: Sendable {
                     target: try MCPArgumentDecoder.relativeTextTarget(object)
                 )
             }
-            return try jsonResult(try await service.insertText(requests))
+            let receipts = try await service.insertText(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_replace_content":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -240,7 +259,8 @@ public final class UrsusMCPServer: Sendable {
                     newString: try requiredPresentString(object, "new_string")
                 )
             }
-            return try jsonResult(try await service.replaceContent(requests))
+            let receipts = try await service.replaceContent(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_add_files":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -253,7 +273,8 @@ public final class UrsusMCPServer: Sendable {
                     target: try MCPArgumentDecoder.relativeTextTarget(object)
                 )
             }
-            return try jsonResult(try await service.addFiles(requests))
+            let receipts = try await service.addFiles(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_open_notes":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -267,11 +288,13 @@ public final class UrsusMCPServer: Sendable {
                     )
                 )
             }
-            return try jsonResult(try await service.openNotes(requests))
+            let receipts = try await service.openNotes(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_archive_notes":
             let noteSelectors = try await resolvedRequiredNoteSelectors(params.arguments)
-            return try jsonResult(try await service.archiveNotes(noteSelectors))
+            let receipts = try await service.archiveNotes(noteSelectors)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_restore_notes":
             let operationObjects = try requiredObjectArray(params.arguments, "operations")
@@ -282,7 +305,8 @@ public final class UrsusMCPServer: Sendable {
                     snapshotID: MCPArgumentDecoder.optionalString(object, "snapshot_id")
                 )
             }
-            return try jsonResult(try await service.restoreBackups(requests))
+            let receipts = try await service.restoreBackups(requests)
+            return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         default:
             throw BearError.invalidInput("Unknown Bear tool '\(params.name)'.")
@@ -294,6 +318,120 @@ public final class UrsusMCPServer: Sendable {
         let data = try encoder.encode(value)
         let text = String(decoding: data, as: UTF8.self)
         return .init(content: [.text(text: text, annotations: nil, _meta: nil)], isError: false)
+    }
+
+    private func successfulToolResult<T: Encodable>(
+        _ value: T,
+        count: Int
+    ) async throws -> CallTool.Result {
+        let result = try jsonResult(value)
+        await recordSuccessfulOperationsIfNeeded(count)
+        return result
+    }
+
+    private func recordSuccessfulOperationsIfNeeded(_ count: Int) async {
+        guard count > 0, let runtimeStateStore else {
+            return
+        }
+
+        do {
+            _ = try await runtimeStateStore.recordSuccessfulMCPToolOperations(count)
+        } catch {
+            BearDebugLog.append("runtime-state.record-failed count=\(count) error=\(String(describing: error))")
+        }
+    }
+
+    private func successfulOperationCount(_ result: FindNotesBatchResult) -> Int {
+        result.results.reduce(into: 0) { count, entry in
+            if entry.error == nil {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ result: ListBackupsBatchResult) -> Int {
+        result.results.reduce(into: 0) { count, entry in
+            if entry.error == nil {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ result: CompareBackupBatchResult) -> Int {
+        result.results.reduce(into: 0) { count, entry in
+            if entry.error == nil {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipt: TagMutationReceipt) -> Int {
+        statusCountsAsSuccessfulOperation(receipt.status) ? 1 : 0
+    }
+
+    private func successfulOperationCount(_ receipts: [CreateBackupReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [DeleteBackupReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [MutationReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [RestoreBackupReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [TagMutationReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [NoteTagMutationReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func successfulOperationCount(_ receipts: [ApplyTemplateReceipt]) -> Int {
+        receipts.reduce(into: 0) { count, receipt in
+            if statusCountsAsSuccessfulOperation(receipt.status) {
+                count += 1
+            }
+        }
+    }
+
+    private func statusCountsAsSuccessfulOperation(_ status: String) -> Bool {
+        switch status {
+        case "not_found", "failed", "error", "invalid", "denied":
+            return false
+        default:
+            return true
+        }
     }
 
     private func requiredString(_ object: [String: Value], _ key: String) throws -> String {

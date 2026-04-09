@@ -36,6 +36,15 @@ final class UrsusAppModel: ObservableObject {
     @Published private(set) var bridgeAuthReview: BearBridgeAuthReviewSnapshot?
     @Published private(set) var bridgeAuthStatusError: String?
     @Published private(set) var bridgeAuthActionInProgress = false
+    @Published var showsDonationPrompt = false
+    @Published private(set) var donationPromptSnapshot = BearDonationPromptSnapshot(
+        totalSuccessfulOperationCount: 0,
+        nextPromptOperationCount: BearDonationPromptSnapshot.initialEligibilityThreshold,
+        permanentSuppressionReason: nil
+    )
+#if DEBUG
+    @Published private(set) var debugDonationStatusError: String?
+#endif
 
     @Published var inboxTagsDraft = ""
     @Published var bridgeHostDraft = BearBridgeConfiguration.defaultHost
@@ -56,13 +65,18 @@ final class UrsusAppModel: ObservableObject {
     private var suppressConfigurationAutosave = false
     private var lastSavedTemplateDraft = ""
     private let bridgeAuthStore = BearBridgeAuthStore()
+    private let runtimeStateStore = BearRuntimeStateStore()
     private let isPreviewMode: Bool
+    private var lastPresentedDonationPromptOperationCount: Int?
 
     init() {
         isPreviewMode = false
         persistCurrentAppBundleLocation()
         refreshAppState()
         reconcilePublicLauncherAutomatically()
+        Task { [weak self] in
+            await self?.refreshDonationPromptState(presentIfEligible: false)
+        }
     }
 
 #if DEBUG
@@ -441,6 +455,148 @@ final class UrsusAppModel: ObservableObject {
         hostSetupStatusError = nil
     }
 
+    func applicationDidBecomeActive() {
+        guard !isPreviewMode else {
+            return
+        }
+
+        Task { [weak self] in
+            await self?.refreshDonationPromptState(presentIfEligible: true)
+        }
+    }
+
+    func presentDonationPrompt() {
+        guard donationPromptSnapshot.shouldShowSupportAffordance else {
+            return
+        }
+
+        showsDonationPrompt = true
+    }
+
+    func handleDonationNotNow() {
+        showsDonationPrompt = false
+
+        guard !isPreviewMode else {
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                _ = try await runtimeStateStore.recordDonationPromptAction(.notNow)
+            } catch {
+                BearDebugLog.append("donation.not-now failed error=\(String(describing: error))")
+            }
+
+            await refreshDonationPromptState(presentIfEligible: false)
+        }
+    }
+
+    func handleDonationDontAskAgain() {
+        showsDonationPrompt = false
+
+        guard !isPreviewMode else {
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                _ = try await runtimeStateStore.recordDonationPromptAction(.dontAskAgain)
+            } catch {
+                BearDebugLog.append("donation.dont-ask-again failed error=\(String(describing: error))")
+            }
+
+            await refreshDonationPromptState(presentIfEligible: false)
+        }
+    }
+
+    func handleDonationAction() {
+        showsDonationPrompt = false
+
+        let supportURL = donationSupportURL
+
+        guard !isPreviewMode else {
+            if let supportURL {
+                NSWorkspace.shared.open(supportURL)
+            }
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                _ = try await runtimeStateStore.recordDonationPromptAction(.donated)
+            } catch {
+                BearDebugLog.append("donation.donated failed error=\(String(describing: error))")
+            }
+
+            if let supportURL {
+                await MainActor.run {
+                    NSWorkspace.shared.open(supportURL)
+                }
+            }
+
+            await refreshDonationPromptState(presentIfEligible: false)
+        }
+    }
+
+#if DEBUG
+    func debugMarkDonationPromptEligible() {
+        guard !isPreviewMode else {
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                _ = try await runtimeStateStore.debugMarkDonationPromptEligible()
+                debugDonationStatusError = nil
+            } catch {
+                debugDonationStatusError = localizedMessage(for: error)
+            }
+
+            await refreshDonationPromptState(presentIfEligible: false)
+        }
+    }
+
+    func debugResetDonationPromptState() {
+        guard !isPreviewMode else {
+            return
+        }
+
+        showsDonationPrompt = false
+        lastPresentedDonationPromptOperationCount = nil
+
+        Task { [weak self] in
+            guard let self else {
+                return
+            }
+
+            do {
+                _ = try await runtimeStateStore.debugResetDonationPromptState()
+                debugDonationStatusError = nil
+            } catch {
+                debugDonationStatusError = localizedMessage(for: error)
+            }
+
+            await refreshDonationPromptState(presentIfEligible: false)
+        }
+    }
+#endif
+
     func updateInboxTagsDraft(from tags: [String]) {
         let normalizedTags = normalizedTags(from: tags)
         inboxTagsDraft = normalizedTags.joined(separator: ", ")
@@ -561,6 +717,10 @@ final class UrsusAppModel: ObservableObject {
 
     var inboxTagValues: [String] {
         parsedInboxTags
+    }
+
+    var showsSupportAffordance: Bool {
+        donationPromptSnapshot.shouldShowSupportAffordance
     }
 
     private var parsedInboxTags: [String] {
@@ -832,5 +992,46 @@ final class UrsusAppModel: ObservableObject {
         } catch {
             cliStatusError = localizedMessage(for: error)
         }
+    }
+
+    private func refreshDonationPromptState(presentIfEligible: Bool) async {
+        guard !isPreviewMode else {
+            return
+        }
+
+        let snapshot: BearDonationPromptSnapshot
+        do {
+            snapshot = try await runtimeStateStore.loadDonationPromptSnapshot()
+        } catch {
+            BearDebugLog.append("donation.snapshot failed error=\(String(describing: error))")
+            return
+        }
+
+        donationPromptSnapshot = snapshot
+
+        guard presentIfEligible, snapshot.isPromptEligible else {
+            if !snapshot.isPromptEligible {
+                showsDonationPrompt = false
+            }
+            return
+        }
+
+        guard lastPresentedDonationPromptOperationCount != snapshot.totalSuccessfulOperationCount else {
+            return
+        }
+
+        lastPresentedDonationPromptOperationCount = snapshot.totalSuccessfulOperationCount
+        showsDonationPrompt = true
+    }
+
+    private var donationSupportURL: URL? {
+        guard
+            let rawValue = Bundle.main.object(forInfoDictionaryKey: "UrsusSupportURL") as? String,
+            let url = URL(string: rawValue.trimmingCharacters(in: .whitespacesAndNewlines))
+        else {
+            return nil
+        }
+
+        return url
     }
 }

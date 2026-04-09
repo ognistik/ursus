@@ -18,19 +18,31 @@ let ursusMutedControlTint = Color(
 struct UrsusApp: App {
     @NSApplicationDelegateAdaptor(UrsusAppDelegate.self) private var appDelegate
     @StateObject private var model = UrsusAppModel()
+    @StateObject private var updaterController = UrsusUpdaterController()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             UrsusWindowSurface {
-                UrsusDashboardView(model: model)
+                UrsusDashboardView(model: model, updaterController: updaterController)
                     .frame(width: 720, height: 620)
             }
         }
         .windowResizability(.contentSize)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                model.applicationDidBecomeActive()
+            }
+        }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                UrsusCheckForUpdatesCommand(updaterController: updaterController)
+            }
+        }
 
         Settings {
             UrsusWindowSurface {
-                UrsusSettingsView(model: model)
+                UrsusSettingsView(model: model, updaterController: updaterController)
                     .frame(minWidth: 560, minHeight: 520)
             }
         }

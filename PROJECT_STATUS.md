@@ -53,9 +53,12 @@ Phases 1 through 6 of the Ursus identity reset are complete:
 - The primary app surface now uses `Setup`, `Preferences`, and `Tools` tabs instead of the old dashboard-style `Overview` / `Hosts` / `Configuration` / `Token` split.
 - `Setup` is the default landing screen and keeps the main path compact: a clean Ursus header plus divider-led sections for defaults, Bear token, detected local host app setup, and the optional localhost bridge.
 - `Setup` status treatment is now calmer and action-led, using compact state badges plus a single inline bridge repair path instead of diagnostic-heavy status walls.
+- Once local MCP usage crosses the donation threshold, `Setup` now keeps one subtle `Support Ursus` affordance visible so the ask is not lost if the user ignores the next-activation prompt.
 - `Preferences` keeps durable note/template defaults compact, including inline template editing with validation and a refined chip-style inbox-tags editor.
+- `Preferences` now also hosts one app-only updates panel for Sparkle-backed automatic update checks plus a manual `Check for Updates…` action, without pushing updater state into Bear config.
 - `Preferences` and `Tools` now each open with one quiet auto-save/restart note instead of repeating restart warnings inside individual controls.
 - `Tools` now owns launcher repair, reveal-file/log actions, and tool availability controls in a quieter presentation so those details stay out of the beginner path.
+- Debug builds now also expose one Debug-only donation test panel in `Tools` so local prompt eligibility can be triggered or reset quickly without changing release behavior.
 - The optional `Remote MCP Bridge` remains visible and actionable from `Setup`, with install, remove, pause, resume/restart, copy-URL actions, and a saved port control that is only editable before bridge install.
 - The `Remote MCP Bridge` now also carries one bridge-scoped auth toggle: open by default, or `Require OAuth for all bridge requests` for the entire `/mcp` surface. This applies only to the optional HTTP bridge; stdio remains untouched.
 - When bridge OAuth is enabled, Ursus now keeps durable bridge-auth state in a small local SQLite store under `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`, covering registered clients, remembered grants, pending authorization requests, authorization codes, refresh/access tokens, and revocations.
@@ -130,6 +133,7 @@ These paths describe the codebase as it exists after Phase 6:
 - bridge auth DB: `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`
 - backup quarantine: `~/Library/Application Support/Ursus/Backups/_quarantine`
 - runtime lock: `~/Library/Application Support/Ursus/Runtime/.server.lock`
+- runtime state DB: `~/Library/Application Support/Ursus/Runtime/runtime-state.sqlite`
 - current app bundle state: `~/Library/Application Support/Ursus/Runtime/current-app-bundle.json`
 - bridge runtime state: `~/Library/Application Support/Ursus/Runtime/bridge-runtime-state.json`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
@@ -150,9 +154,12 @@ These paths describe the codebase as it exists after Phase 6:
 - Discovery page size and snippet length now come only from config defaults. MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides anymore, and cursor continuation keeps using the configured defaults.
 - Backup MCP discovery is now note-scoped and paginated with opaque cursors. `bear_create_backups` reuses the manual capture path, `bear_list_backups` supports optional inclusive `from` / `to` filters on the backup creation timestamp, `bear_compare_backup` returns compact metadata plus bounded diff hunks, and backup list results no longer include stored snippets or Bear revision numbers.
 - Backup snapshot payloads now live in canonical per-note folders under `Backups/<note-id>/<snapshot-id>.json`, while backup metadata now lives in the root-level `backups.sqlite` index instead of a flat `index.json`. The store keeps a lightweight backup-tree fingerprint in SQLite so normal access can skip the expensive recursive reconciliation pass, then rebuilds the metadata index from disk only when the tree changes. Malformed or ambiguous files are quarantined under `Backups/_quarantine`, expired snapshots are removed during reconciliation, and empty backup folders are cleaned up after moves and deletions. Backup identity and recency are driven by `snapshot_id` plus `captured_at`, not Bear's mutable note revision counter, and backup-list cursors are keyed to the normalized note-scoped date-filter query so filtered pages cannot be mixed.
+- Successful user-meaningful MCP tool operations are now counted in one shared local runtime SQLite store under `Runtime/runtime-state.sqlite`, not in `config.json` or app preferences. The counter excludes `initialize`, `tools/list`, `resources/list`, probes, and failed tool calls, counts successful operations inside MCP batches, and drives an app-only donation ask that remains local to one machine.
+- Debug builds add one isolated app-only donation test path that writes to the same runtime-state SQLite store, while release builds keep the production threshold-only behavior.
 - Mutation receipts should stay compact unless the user explicitly asks for content.
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - MCP presentation controls are now intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and the other note/tag mutation tools run as background mutations without exposed presentation overrides.
+- `Ursus.app` now owns the donation prompt presentation path and Sparkle update UI. Donation prompting happens only when the app opens or becomes active, while update checks remain app-only infrastructure with automatic checks enabled by default once a real Sparkle feed URL and public EdDSA key are configured.
 - Batch operations matter and should stay first-class.
 - Batched MCP tools now require `operations` to be a non-empty array of operation objects, and missing versus empty `operations` batches are surfaced as distinct validation errors.
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.

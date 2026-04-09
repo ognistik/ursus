@@ -8,6 +8,7 @@ enum UrsusDashboardSection: Hashable {
 
 struct UrsusDashboardView: View {
     @ObservedObject var model: UrsusAppModel
+    @ObservedObject var updaterController: UrsusUpdaterController
     @State private var selectedSection: UrsusDashboardSection = .setup
 
     var body: some View {
@@ -18,7 +19,11 @@ struct UrsusDashboardView: View {
                 }
                 .tag(UrsusDashboardSection.setup)
 
-            UrsusPreferencesView(model: model, showsStandaloneHeader: false)
+            UrsusPreferencesView(
+                model: model,
+                updaterController: updaterController,
+                showsStandaloneHeader: false
+            )
                 .tabItem {
                     Label("Preferences", systemImage: "slider.horizontal.3")
                 }
@@ -30,18 +35,39 @@ struct UrsusDashboardView: View {
                 }
                 .tag(UrsusDashboardSection.tools)
         }
+        .alert("Support Ursus", isPresented: $model.showsDonationPrompt) {
+            Button("Buy Me a Coffee") {
+                model.handleDonationAction()
+            }
+            Button("Not Now") {
+                model.handleDonationNotNow()
+            }
+            Button("Don’t Ask Again") {
+                model.handleDonationDontAskAgain()
+            }
+        } message: {
+            Text("Ursus is free and open source. If it has been useful to you, a small donation helps support continued development.")
+        }
     }
 }
 
 struct UrsusSettingsView: View {
     @ObservedObject var model: UrsusAppModel
+    @ObservedObject var updaterController: UrsusUpdaterController
 
     var body: some View {
-        UrsusPreferencesView(model: model, showsStandaloneHeader: true)
+        UrsusPreferencesView(
+            model: model,
+            updaterController: updaterController,
+            showsStandaloneHeader: true
+        )
     }
 }
 
 #Preview {
-    UrsusDashboardView(model: UrsusAppModel())
+    UrsusDashboardView(
+        model: UrsusAppModel(),
+        updaterController: UrsusUpdaterController()
+    )
         .frame(width:720, height: 620)
 }

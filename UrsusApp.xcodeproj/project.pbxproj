@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		BEA0000A2F00000100000001 /* BearApplication in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000A2F00000100000002 /* BearApplication */; };
 		BEA0000B2F00000100000013 /* BearCLIRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000B2F00000100000014 /* BearCLIRuntime */; };
+		BEA0000C2F00000100000015 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = BEA0000C2F00000100000016 /* Sparkle */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -30,6 +31,7 @@
 			files = (
 				BEA0000A2F00000100000001 /* BearApplication in Frameworks */,
 				BEA0000B2F00000100000013 /* BearCLIRuntime in Frameworks */,
+				BEA0000C2F00000100000015 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -74,6 +76,7 @@
 			packageProductDependencies = (
 				BEA0000A2F00000100000002 /* BearApplication */,
 				BEA0000B2F00000100000014 /* BearCLIRuntime */,
+				BEA0000C2F00000100000016 /* Sparkle */,
 			);
 			productName = Ursus;
 			productReference = BEA0000A2F00000100000003 /* Ursus.app */;
@@ -105,6 +108,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */,
+				BEA0000C2F00000100000017 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = BEA0000A2F00000100000007 /* Products */;
@@ -313,6 +317,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		BEA0000C2F00000100000017 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = exactVersion;
+				version = 2.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		BEA0000A2F00000100000002 /* BearApplication */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -323,6 +338,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BEA0000A2F0000010000000E /* XCLocalSwiftPackageReference "." */;
 			productName = BearCLIRuntime;
+		};
+		BEA0000C2F00000100000016 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BEA0000C2F00000100000017 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
