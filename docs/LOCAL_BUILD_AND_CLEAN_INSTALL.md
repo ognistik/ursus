@@ -2,6 +2,7 @@
 
 This document is the practical local build, install, and reset guide for the current app-centered setup.
 
+---
 ## Daily Development Loop
 
 For normal feature work and bug fixes, use a Debug app build:
@@ -26,6 +27,7 @@ swift run ursus doctor
 swift run ursus --help
 ```
 
+---
 ## Release Checklist
 
 Use this when you are ready to ship a public release.
@@ -99,6 +101,7 @@ This updates `docs/appcast.xml`.
 
 At minimum, this should include the version bump and the updated `docs/appcast.xml`. After GitHub Pages publishes the new appcast, Sparkle should see the update.
 
+---
 ## App Icon Workflow
 
 Apple's current supported path is to use an Icon Composer `.icon` file directly in Xcode as the app icon source. The intended workflow is:
@@ -130,26 +133,7 @@ Current app build outputs:
 
 The installed public launcher at `~/.local/bin/ursus` forwards into that app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates bridge and Terminal launches together.
 
-## Install The Built App
-
-Example Debug install:
-
-```sh
-mkdir -p "$HOME/Applications"
-ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
-open "$HOME/Applications/Ursus.app"
-```
-
-Example Release install:
-
-```sh
-mkdir -p "$HOME/Applications"
-ditto ".build/UrsusApp/Build/Products/Release/Ursus.app" "$HOME/Applications/Ursus.app"
-open "$HOME/Applications/Ursus.app"
-```
-
-Canonical install guidance now prefers `/Applications/Ursus.app`, but `~/Applications/Ursus.app` remains fully supported for local development and user-specific installs.
-
+---
 ## Current Runtime Paths
 
 These are the current paths in code today:
@@ -165,6 +149,7 @@ These are the current paths in code today:
 - public launcher: `~/.local/bin/ursus`
 - temp fallback locks: `TMPDIR/ursus/Runtime/...`
 
+---
 ## Clean Reset
 
 Use this when you want to test from a clean local starting point.
@@ -183,17 +168,7 @@ Note:
 - deleting the app bundle alone does not remove Ursus state
 - the selected-note token now lives in macOS Keychain under Ursus-managed storage, so a full reset should also clear that Keychain item if you want a completely clean local state
 
-## Reinstall After Reset
-
-One practical copy-paste flow:
-
-```sh
-CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
-mkdir -p "$HOME/Applications"
-ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
-open "$HOME/Applications/Ursus.app"
-```
-
+---
 ## Debug Donation Prompt Testing
 
 The donation prompt state is stored locally per machine in:
@@ -209,33 +184,6 @@ Debug builds now accept hidden donation-testing CLI flags. They are intentionall
 - `ursus --debug-donation-status`
 
 Release builds do not include these commands.
-
-### Fast Debug Flow
-
-1. Build, install, and open a Debug app:
-
-```sh
-CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
-mkdir -p "$HOME/Applications"
-ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
-open "$HOME/Applications/Ursus.app"
-```
-
-2. Reset donation state:
-
-```sh
-ursus --debug-donation-reset
-```
-
-3. Trigger donation eligibility immediately:
-
-```sh
-ursus --debug-donation-trigger
-```
-
-4. Switch to another app and then back to `Ursus`, or quit and relaunch `Ursus.app`.
-
-5. Verify that the `Support Ursus` prompt appears.
 
 ### Manual Reset / Re-Test
 
@@ -260,6 +208,7 @@ If you prefer the hidden CLI summary instead:
 ursus --debug-donation-status
 ```
 
+---
 ## Release Reference
 
 The checklist at the top is the normal release path. These are the key rules behind it:
@@ -281,6 +230,7 @@ SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
 
 `generate_keys` stores the private key in your login Keychain and prints the public key that must match `SUPublicEDKey` in `Support/app/Info.plist`.
 
+---
 ## Current Direct CLI Commands
 
 The public launcher installed by the app is:
@@ -297,6 +247,7 @@ Current utility commands:
 - `ursus bridge status`
 - `ursus bridge print-url`
 
+---
 ## Bridge URL Notes
 
 - The HTTP bridge serves MCP at the configured endpoint path, which defaults to `/mcp`.
@@ -315,6 +266,7 @@ Current selector behavior:
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces
 
+---
 ## Testing Bridge OAuth Flow
 - Register a temporary public client:
 
