@@ -81,6 +81,7 @@ struct UrsusBridgeAccessOverlay: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .ursusCustomScrollChrome()
         }
         .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .top)
         .ursusRoundedSurface(

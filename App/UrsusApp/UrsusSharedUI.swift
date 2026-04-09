@@ -353,7 +353,6 @@ private struct UrsusNeutralButtonStyle: ButtonStyle {
 
 struct UrsusScrollSurface<Content: View>: View {
     @ViewBuilder let content: Content
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ScrollView {
@@ -366,9 +365,23 @@ struct UrsusScrollSurface<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .background(ursusPageBackgroundColor)
-        .background(
+        .ursusCustomScrollChrome()
+    }
+}
+
+private struct UrsusCustomScrollChromeModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        content.background(
             UrsusScrollViewChrome(knobStyle: colorScheme == .dark ? .dark : .light)
         )
+    }
+}
+
+extension View {
+    func ursusCustomScrollChrome() -> some View {
+        modifier(UrsusCustomScrollChromeModifier())
     }
 }
 
