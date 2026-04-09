@@ -233,3 +233,33 @@ func embeddedAppArgumentsStripHiddenSentinel() {
 
     #expect(arguments == ["bridge", "status"])
 }
+
+#if DEBUG
+@Test
+func parseHiddenDebugDonationCommands() throws {
+    let trigger = try BearCLICommand.parse(arguments: ["--debug-donation-trigger"])
+    let reset = try BearCLICommand.parse(arguments: ["--debug-donation-reset"])
+    let status = try BearCLICommand.parse(arguments: ["--debug-donation-status"])
+
+    switch trigger {
+    case .debugDonation(.trigger):
+        break
+    default:
+        Issue.record("Expected '--debug-donation-trigger' to parse as the hidden debug donation trigger command.")
+    }
+
+    switch reset {
+    case .debugDonation(.reset):
+        break
+    default:
+        Issue.record("Expected '--debug-donation-reset' to parse as the hidden debug donation reset command.")
+    }
+
+    switch status {
+    case .debugDonation(.status):
+        break
+    default:
+        Issue.record("Expected '--debug-donation-status' to parse as the hidden debug donation status command.")
+    }
+}
+#endif

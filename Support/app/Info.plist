@@ -27,15 +27,15 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://example.com/ursus/appcast.xml</string>
+	<string>https://ognistik.github.io/ursus/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+	<string>fsUX38ZNRsPlSUrQ2CyqFLNaq+KDXakkTsctv/niaUc=</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>Montserrat-Regular.otf</string>
 		<string>Montserrat-Bold.otf</string>
 	</array>
 	<key>UrsusSupportURL</key>
-	<string>https://buymeacoffee.com/ursus</string>
+	<string>https://buymeacoffee.com/afadingthought/</string>
 </dict>
 </plist>

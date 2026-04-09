@@ -16,10 +16,6 @@ struct UrsusToolsView: View {
                         Divider()
                     }
                     toolAvailabilityPanel(settings)
-#if DEBUG
-                    Divider()
-                    debugDonationPanel
-#endif
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
@@ -98,52 +94,4 @@ struct UrsusToolsView: View {
             UrsusMessageStack(error: model.configurationStatusError)
         }
     }
-
-#if DEBUG
-    private var debugDonationPanel: some View {
-        UrsusPanel(title: "Debug Donation Prompt") {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Debug builds can mark the donation prompt eligible immediately or reset the local runtime state.")
-                    .font(.footnote)
-                    .foregroundStyle(ursusTertiaryTextColor)
-
-                UrsusInfoRow(
-                    label: "Successful operations",
-                    value: "\(model.donationPromptSnapshot.totalSuccessfulOperationCount)",
-                    compact: true
-                )
-                Divider()
-                UrsusInfoRow(
-                    label: "Next prompt at",
-                    value: "\(model.donationPromptSnapshot.nextPromptOperationCount)",
-                    compact: true
-                )
-                Divider()
-                UrsusInfoRow(
-                    label: "Suppression",
-                    value: model.donationPromptSnapshot.permanentSuppressionReason?.rawValue ?? "None",
-                    compact: true
-                )
-
-                HStack(spacing: 10) {
-                    Button("Trigger Eligibility") {
-                        model.debugMarkDonationPromptEligible()
-                    }
-                    .ursusButtonStyle()
-
-                    Button("Reset Donation State") {
-                        model.debugResetDonationPromptState()
-                    }
-                    .ursusButtonStyle()
-                }
-
-                Text("After triggering eligibility, switch away from Ursus and back, or relaunch the app, to verify the prompt presentation path.")
-                    .font(.footnote)
-                    .foregroundStyle(ursusTertiaryTextColor)
-
-                UrsusMessageStack(error: model.debugDonationStatusError)
-            }
-        }
-    }
-#endif
 }

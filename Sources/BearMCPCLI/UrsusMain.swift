@@ -56,6 +56,7 @@ public enum UrsusCLIRuntime {
                         BearPaths.publicCLIExecutableURL.path,
                         BearPaths.backupsMetadataURL.path,
                         BearPaths.bridgeAuthDatabaseURL.path,
+                        BearPaths.runtimeStateDatabaseURL.path,
                         BearPaths.processLockURL.path,
                         BearPaths.debugLogURL.path,
                         BearPaths.defaultBearDatabaseURL.path,
@@ -123,6 +124,22 @@ public enum UrsusCLIRuntime {
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
                 print(renderApplyTemplateReceipts(receipts))
+#if DEBUG
+            case .debugDonation(let subcommand):
+                let store = BearRuntimeStateStore()
+                let snapshot: BearDonationPromptSnapshot
+
+                switch subcommand {
+                case .trigger:
+                    snapshot = try await store.debugMarkDonationPromptEligible()
+                case .reset:
+                    snapshot = try await store.debugResetDonationPromptState()
+                case .status:
+                    snapshot = try await store.loadDonationPromptSnapshot()
+                }
+
+                print(renderDonationPromptSnapshot(snapshot))
+#endif
             case .mcp:
                 let processLock = try BearProcessLock.acquire()
                 try await runMCP(logger: logger, processLock: processLock)
@@ -412,6 +429,18 @@ public enum UrsusCLIRuntime {
             "LaunchAgent plist: \(bridge.plistPath)",
             "Stdout log: \(bridge.standardOutputLogPath)",
             "Stderr log: \(bridge.standardErrorLogPath)",
+        ].joined(separator: "\n")
+    }
+
+    static func renderDonationPromptSnapshot(_ snapshot: BearDonationPromptSnapshot) -> String {
+        let suppression = snapshot.permanentSuppressionReason?.rawValue ?? "none"
+        return [
+            "runtime_state_path=\(BearPaths.runtimeStateDatabaseURL.path)",
+            "successful_operation_count=\(snapshot.totalSuccessfulOperationCount)",
+            "next_prompt_operation_count=\(snapshot.nextPromptOperationCount)",
+            "permanent_suppression_reason=\(suppression)",
+            "prompt_eligible=\(snapshot.isPromptEligible ? "yes" : "no")",
+            "support_affordance=\(snapshot.shouldShowSupportAffordance ? "yes" : "no")",
         ].joined(separator: "\n")
     }
 

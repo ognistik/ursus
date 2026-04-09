@@ -42,9 +42,6 @@ final class UrsusAppModel: ObservableObject {
         nextPromptOperationCount: BearDonationPromptSnapshot.initialEligibilityThreshold,
         permanentSuppressionReason: nil
     )
-#if DEBUG
-    @Published private(set) var debugDonationStatusError: String?
-#endif
 
     @Published var inboxTagsDraft = ""
     @Published var bridgeHostDraft = BearBridgeConfiguration.defaultHost
@@ -549,53 +546,6 @@ final class UrsusAppModel: ObservableObject {
             await refreshDonationPromptState(presentIfEligible: false)
         }
     }
-
-#if DEBUG
-    func debugMarkDonationPromptEligible() {
-        guard !isPreviewMode else {
-            return
-        }
-
-        Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            do {
-                _ = try await runtimeStateStore.debugMarkDonationPromptEligible()
-                debugDonationStatusError = nil
-            } catch {
-                debugDonationStatusError = localizedMessage(for: error)
-            }
-
-            await refreshDonationPromptState(presentIfEligible: false)
-        }
-    }
-
-    func debugResetDonationPromptState() {
-        guard !isPreviewMode else {
-            return
-        }
-
-        showsDonationPrompt = false
-        lastPresentedDonationPromptOperationCount = nil
-
-        Task { [weak self] in
-            guard let self else {
-                return
-            }
-
-            do {
-                _ = try await runtimeStateStore.debugResetDonationPromptState()
-                debugDonationStatusError = nil
-            } catch {
-                debugDonationStatusError = localizedMessage(for: error)
-            }
-
-            await refreshDonationPromptState(presentIfEligible: false)
-        }
-    }
-#endif
 
     func updateInboxTagsDraft(from tags: [String]) {
         let normalizedTags = normalizedTags(from: tags)

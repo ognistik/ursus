@@ -127,12 +127,13 @@ The donation prompt state is stored locally per machine in:
 $HOME/Library/Application\ Support/Ursus/Runtime/runtime-state.sqlite
 ```
 
-Debug builds now expose one Debug-only donation panel in the `Tools` tab:
+Debug builds now accept hidden donation-testing CLI flags. They are intentionally not shown in normal CLI help:
 
-- `Trigger Eligibility` marks the donation prompt eligible immediately in the shared runtime-state SQLite store.
-- `Reset Donation State` clears the local donation counters and suppression state.
+- `ursus --debug-donation-trigger`
+- `ursus --debug-donation-reset`
+- `ursus --debug-donation-status`
 
-Release builds do not show these controls.
+Release builds do not include these commands.
 
 ### Fast Debug Flow
 
@@ -148,10 +149,14 @@ open "$HOME/Applications/Ursus.app"
 2. Reset donation state:
 
 ```sh
-rm -f "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite"
+ursus --debug-donation-reset
 ```
 
-3. Reopen `Ursus.app`, go to `Tools`, and click `Trigger Eligibility`.
+3. Trigger donation eligibility immediately:
+
+```sh
+ursus --debug-donation-trigger
+```
 
 4. Switch to another app and then back to `Ursus`, or quit and relaunch `Ursus.app`.
 
@@ -159,7 +164,7 @@ rm -f "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite"
 
 ### Manual Reset / Re-Test
 
-If you want to retest from zero without using the Debug reset button:
+If you want to retest from zero without using the hidden Debug command:
 
 ```sh
 pkill -f "/Ursus.app/Contents/MacOS/Ursus" 2>/dev/null || true
@@ -173,6 +178,87 @@ If you want to inspect the current donation state directly:
 sqlite3 "$HOME/Library/Application Support/Ursus/Runtime/runtime-state.sqlite" \
   'select total_successful_operation_count, next_prompt_operation_count, permanent_suppression_reason from donation_prompt_state;'
 ```
+
+If you prefer the hidden CLI summary instead:
+
+```sh
+ursus --debug-donation-status
+```
+
+## Sparkle Local Prep
+
+The Sparkle command-line tools resolved by this repo currently live at:
+
+```sh
+$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin
+```
+
+Generate an EdDSA keypair once on the Mac you will use for signing releases:
+
+```sh
+SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
+"$SPARKLE_BIN/generate_keys"
+```
+
+`generate_keys` stores the private key in your login Keychain and prints the public key you should copy into `SUPublicEDKey`.
+
+For a local appcast test:
+
+```sh
+SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
+UPDATES_DIR="$HOME/tmp/ursus-sparkle-updates"
+
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+mkdir -p "$UPDATES_DIR"
+ditto -c -k --keepParent \
+  ".build/UrsusApp/Build/Products/Release/Ursus.app" \
+  "$UPDATES_DIR/Ursus-0.2.0.zip"
+"$SPARKLE_BIN/generate_appcast" "$UPDATES_DIR"
+```
+
+If you also place a matching release-notes file beside the archive, Sparkle will pick it up automatically:
+
+- `Ursus-0.2.0.html`
+- `Ursus-0.2.0.md`
+
+To serve the generated appcast locally for development testing:
+
+```sh
+cd "$UPDATES_DIR"
+python3 -m http.server 8000
+```
+
+Then temporarily point `SUFeedURL` at:
+
+```sh
+http://127.0.0.1:8000/appcast.xml
+```
+
+For GitHub Pages, the likely project-pages feed URL for this repo is:
+
+```sh
+https://ognistik.github.io/ursus/appcast.xml
+```
+
+For GitHub Releases-hosted archives plus GitHub Pages-hosted appcast, generate the new appcast entry with a release-asset prefix for the current tag:
+
+```sh
+TAG="v0.2.0"
+SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
+UPDATES_DIR="$HOME/tmp/ursus-sparkle-updates"
+
+"$SPARKLE_BIN/generate_appcast" \
+  --download-url-prefix "https://github.com/ognistik/ursus/releases/download/$TAG/" \
+  --embed-release-notes \
+  "$UPDATES_DIR"
+```
+
+That keeps the generated `appcast.xml` on Pages while each new archive URL points at the matching GitHub Release asset for that tag.
+
+Before real Sparkle update checks will work, both of these Info.plist placeholders must be replaced:
+
+- `SUFeedURL`
+- `SUPublicEDKey`
 
 ## Current Direct CLI Commands
 

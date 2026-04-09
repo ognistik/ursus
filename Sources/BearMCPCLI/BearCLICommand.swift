@@ -23,6 +23,14 @@ enum BearCLICommand {
         case help
     }
 
+#if DEBUG
+    enum DebugDonationSubcommand: Hashable {
+        case trigger
+        case reset
+        case status
+    }
+#endif
+
     case mcp
     case bridge(BridgeSubcommand)
     case doctor
@@ -31,6 +39,9 @@ enum BearCLICommand {
     case backupNote([String])
     case restoreNote([RestoreNoteRequest])
     case applyTemplate([String])
+#if DEBUG
+    case debugDonation(DebugDonationSubcommand)
+#endif
     case help
 
     static func parse(arguments: [String]) throws -> BearCLICommand {
@@ -60,6 +71,17 @@ enum BearCLICommand {
             return .restoreNote(try parseRestoreNoteRequests(remainingArguments))
         case "--apply-template":
             return .applyTemplate(remainingArguments)
+#if DEBUG
+        case "--debug-donation-trigger":
+            try assertNoExtraArguments(remainingArguments, for: "--debug-donation-trigger")
+            return .debugDonation(.trigger)
+        case "--debug-donation-reset":
+            try assertNoExtraArguments(remainingArguments, for: "--debug-donation-reset")
+            return .debugDonation(.reset)
+        case "--debug-donation-status":
+            try assertNoExtraArguments(remainingArguments, for: "--debug-donation-status")
+            return .debugDonation(.status)
+#endif
         case "--help", "-h", "help":
             return .help
         default:
