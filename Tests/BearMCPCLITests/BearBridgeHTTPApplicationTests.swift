@@ -880,6 +880,11 @@ func bridgeAuthorizationCodeAndRefreshFlowWorksEndToEnd() async throws {
     let authorizationHTML = String(decoding: authorizationResponse.data, as: UTF8.self)
     #expect(authorizationHTML.contains("<title>Approve access to Ursus</title>"))
     #expect(authorizationHTML.contains("Approve access to Ursus"))
+    #expect(authorizationHTML.contains("App"))
+    #expect(authorizationHTML.contains("Bridge"))
+    #expect(authorizationHTML.contains("Expires"))
+    #expect(authorizationHTML.contains("OAuth Flow Test Client"))
+    #expect(authorizationHTML.contains("http://127.0.0.1:\(port)/mcp"))
     #expect(!authorizationHTML.contains("Requested scope"))
     #expect(authorizationHTML.contains("Approving lets this app connect to your protected Ursus bridge until you revoke access."))
     #expect(authorizationHTML.contains("Manage or revoke bridge access later in Ursus."))
@@ -1206,7 +1211,7 @@ func oauthDecisionErrorPageUsesSharedStyledShell() async throws {
     #expect(html.contains("Missing Authorization Request"))
     #expect(html.contains("Start the authorization again."))
     #expect(html.contains("@media (prefers-color-scheme: dark)"))
-    #expect(html.contains("Ursus bridge"))
+    #expect(!html.contains("Ursus bridge"))
 }
 
 @Test

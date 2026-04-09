@@ -983,7 +983,7 @@ private extension BearBridgeOAuthServer {
                 time: .shortened
             )
         let body = """
-        <section class="card">
+        <section class="card card--consent">
           \(oauthPageHeaderHTML(title: "Approve access to Ursus"))
           <div class="meta-list">
             \(oauthMetadataRowHTML(label: "App", value: clientName))
@@ -1016,8 +1016,8 @@ private extension BearBridgeOAuthServer {
         message: String
     ) -> BearBridgeHTTPApplication.BridgeHTTPResponse {
         let body = """
-        <section class="card">
-          \(oauthPageHeaderHTML(title: title))
+        <section class="card card--error">
+          \(oauthPageHeaderHTML(title: title, showsEyebrow: false, showsLogo: false))
           <p class="message">\(htmlEscaped(message))</p>
         </section>
         """
@@ -1220,14 +1220,33 @@ private extension BearBridgeOAuthServer {
         return htmlResponse(statusCode: statusCode, html: html)
     }
 
-    func oauthPageHeaderHTML(title: String) -> String {
-        """
+    func oauthPageHeaderHTML(
+        title: String,
+        showsEyebrow: Bool = true,
+        showsLogo: Bool = true
+    ) -> String {
+        let eyebrowHTML: String
+        if showsEyebrow {
+            eyebrowHTML = #"<p class="eyebrow">Ursus bridge</p>"#
+        } else {
+            eyebrowHTML = ""
+        }
+        let logoHTML: String
+        if showsLogo {
+            logoHTML = """
+            <div class="logo-mark" aria-hidden="true">
+              \(ursusLogoHTML())
+            </div>
+            """
+        } else {
+            logoHTML = ""
+        }
+
+        return """
         <header class="header">
-          <div class="logo-badge" aria-hidden="true">
-            \(ursusLogoHTML())
-          </div>
+          \(logoHTML)
           <div class="header-copy">
-            <p class="eyebrow">Ursus bridge</p>
+            \(eyebrowHTML)
             <h1>\(htmlEscaped(title))</h1>
           </div>
         </header>
@@ -1246,49 +1265,46 @@ private extension BearBridgeOAuthServer {
     func oauthPageStyleBlock() -> String {
         """
         :root {
-          color-scheme: light dark;
-          --page-background: #f3f0ea;
-          --page-glow: rgba(255, 255, 255, 0.6);
-          --card-background: rgba(255, 252, 247, 0.88);
+          color-scheme: light;
+          --page-background: #f6f6f5;
+          --page-glow: rgba(255, 255, 255, 0.72);
+          --card-background: rgba(255, 255, 255, 0.94);
+          --error-card-background: rgba(255, 255, 255, 0.96);
           --card-border: rgba(32, 34, 31, 0.09);
           --card-shadow: 0 20px 48px rgba(27, 30, 26, 0.08);
-          --text-primary: #1f221d;
-          --text-secondary: #5a6055;
-          --text-muted: #72786e;
-          --meta-background: rgba(244, 240, 233, 0.92);
-          --meta-border: rgba(32, 34, 31, 0.08);
-          --logo-background: rgba(255, 255, 255, 0.82);
-          --logo-border: rgba(32, 34, 31, 0.08);
-          --logo-foreground: #252923;
-          --approve-background: #1f221d;
-          --approve-border: #1f221d;
+          --text-primary: #222321;
+          --text-secondary: #61625f;
+          --text-muted: #7b7c78;
+          --rule-color: rgba(24, 24, 24, 0.09);
+          --logo-foreground: #242522;
+          --approve-background: #222321;
+          --approve-border: #222321;
           --approve-text: #fcfbf8;
-          --deny-background: rgba(255, 255, 255, 0.72);
-          --deny-border: rgba(32, 34, 31, 0.12);
-          --deny-text: #3f453b;
+          --deny-background: rgba(255, 255, 255, 0.82);
+          --deny-border: rgba(24, 24, 24, 0.12);
+          --deny-text: #454642;
         }
 
         @media (prefers-color-scheme: dark) {
           :root {
-            --page-background: #161816;
-            --page-glow: rgba(104, 116, 104, 0.16);
-            --card-background: rgba(28, 31, 28, 0.88);
-            --card-border: rgba(233, 238, 228, 0.09);
+            color-scheme: dark;
+            --page-background: #161717;
+            --page-glow: rgba(138, 138, 138, 0.12);
+            --card-background: rgba(29, 30, 29, 0.92);
+            --error-card-background: rgba(27, 28, 27, 0.95);
+            --card-border: rgba(238, 238, 235, 0.08);
             --card-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
-            --text-primary: #f1f3ec;
-            --text-secondary: #c8cec2;
-            --text-muted: #99a092;
-            --meta-background: rgba(35, 38, 34, 0.92);
-            --meta-border: rgba(233, 238, 228, 0.08);
-            --logo-background: rgba(38, 42, 38, 0.94);
-            --logo-border: rgba(233, 238, 228, 0.08);
-            --logo-foreground: #f1f3ec;
-            --approve-background: #f1f3ec;
-            --approve-border: #f1f3ec;
-            --approve-text: #1d201b;
-            --deny-background: rgba(34, 37, 34, 0.94);
-            --deny-border: rgba(233, 238, 228, 0.12);
-            --deny-text: #d7ddd0;
+            --text-primary: #f0f0ed;
+            --text-secondary: #c8c8c4;
+            --text-muted: #9a9a96;
+            --rule-color: rgba(238, 238, 235, 0.08);
+            --logo-foreground: #f0f0ed;
+            --approve-background: #f0f0ed;
+            --approve-border: #f0f0ed;
+            --approve-text: #1d1e1c;
+            --deny-background: rgba(40, 41, 40, 0.96);
+            --deny-border: rgba(238, 238, 235, 0.12);
+            --deny-text: #d7d7d3;
           }
         }
 
@@ -1321,27 +1337,34 @@ private extension BearBridgeOAuthServer {
           box-shadow: var(--card-shadow);
         }
 
+        .card--consent {
+          width: min(100%, 568px);
+          padding: 34px 34px 30px;
+        }
+
+        .card--error {
+          width: min(100%, 500px);
+          padding: 26px 26px 24px;
+          background: var(--error-card-background);
+          box-shadow: 0 16px 40px rgba(27, 30, 26, 0.07);
+        }
+
         .header {
           display: flex;
-          align-items: center;
-          gap: 14px;
-          margin-bottom: 20px;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 18px;
         }
 
-        .logo-badge {
-          width: 46px;
-          height: 46px;
-          flex: 0 0 46px;
-          display: grid;
-          place-items: center;
-          border-radius: 15px;
-          border: 1px solid var(--logo-border);
-          background: var(--logo-background);
+        .logo-mark {
+          width: 26px;
+          flex: 0 0 26px;
           color: var(--logo-foreground);
+          margin-top: 2px;
         }
 
-        .logo-badge svg {
-          width: 24px;
+        .logo-mark svg {
+          width: 100%;
           height: auto;
           display: block;
         }
@@ -1351,7 +1374,7 @@ private extension BearBridgeOAuthServer {
         }
 
         .eyebrow {
-          margin: 0 0 4px;
+          margin: 0 0 3px;
           font-size: 12px;
           line-height: 1.2;
           color: var(--text-muted);
@@ -1367,19 +1390,22 @@ private extension BearBridgeOAuthServer {
 
         .meta-list {
           display: grid;
-          gap: 10px;
-          margin-bottom: 18px;
+          gap: 0;
+          margin-bottom: 12px;
+          border-top: 1px solid var(--rule-color);
+          border-bottom: 1px solid var(--rule-color);
         }
 
         .meta-row {
           display: grid;
           grid-template-columns: 72px minmax(0, 1fr);
-          gap: 14px;
+          gap: 16px;
           align-items: start;
-          padding: 11px 13px;
-          border-radius: 14px;
-          border: 1px solid var(--meta-border);
-          background: var(--meta-background);
+          padding: 12px 0;
+        }
+
+        .meta-row + .meta-row {
+          border-top: 1px solid var(--rule-color);
         }
 
         .meta-label {
@@ -1405,12 +1431,12 @@ private extension BearBridgeOAuthServer {
         }
 
         form {
-          margin-top: 22px;
+          margin-top: 16px;
         }
 
         .actions {
           display: flex;
-          gap: 12px;
+          gap: 10px;
           flex-wrap: wrap;
         }
 
@@ -1445,7 +1471,7 @@ private extension BearBridgeOAuthServer {
         }
 
         .footer-note {
-          margin: 18px 0 0;
+          margin: 14px 0 0;
           font-size: 13px;
           line-height: 1.5;
           color: var(--text-muted);
@@ -1459,6 +1485,16 @@ private extension BearBridgeOAuthServer {
           .card {
             padding: 24px;
             border-radius: 22px;
+          }
+
+          .card--consent {
+            width: min(100%, 540px);
+            padding: 28px 24px 24px;
+          }
+
+          .card--error {
+            width: min(100%, 500px);
+            padding: 24px 22px 22px;
           }
 
           .meta-row {
