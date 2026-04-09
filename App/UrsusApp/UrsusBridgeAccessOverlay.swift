@@ -4,6 +4,7 @@ import SwiftUI
 struct UrsusBridgeAccessOverlay: View {
     @ObservedObject var model: UrsusAppModel
     @State private var showsRevokeAllConfirmation = false
+    @State private var isRevokeAllHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -17,6 +18,10 @@ struct UrsusBridgeAccessOverlay: View {
                 emptyState
             } else {
                 grantList
+            }
+
+            if model.bridgeAuthGrantSummaries.count >= 2 {
+                footerActionRow
             }
         }
         .padding(22)
@@ -58,37 +63,25 @@ struct UrsusBridgeAccessOverlay: View {
 
             Spacer(minLength: 12)
 
-            VStack(alignment: .trailing, spacing: 10) {
-                HStack(spacing: 10) {
-                    if model.bridgeAuthActionInProgress {
-                        ProgressView()
-                            .controlSize(.small)
-                    }
-
-                    Button {
-                        model.closeBridgeAccessOverlay()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(ursusInlineLabelColor)
-                            .frame(width: 28, height: 28)
-                            .background(ursusSecondaryControlFillColor, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(model.bridgeAuthActionInProgress)
-                    .help("Dismiss")
+            HStack(spacing: 10) {
+                if model.bridgeAuthActionInProgress {
+                    ProgressView()
+                        .controlSize(.small)
                 }
 
-                if !model.bridgeAuthGrantSummaries.isEmpty {
-                    Button("Revoke All", role: .destructive) {
-                        showsRevokeAllConfirmation = true
-                    }
-                    .buttonStyle(.plain)
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.red)
-                    .disabled(model.bridgeAuthActionInProgress)
+                Button {
+                    model.closeBridgeAccessOverlay()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(ursusInlineLabelColor)
+                        .frame(width: 28, height: 28)
+                        .background(ursusSecondaryControlFillColor, in: Circle())
                 }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .disabled(model.bridgeAuthActionInProgress)
+                .help("Dismiss")
             }
         }
     }
@@ -134,6 +127,25 @@ struct UrsusBridgeAccessOverlay: View {
             border: ursusSurfaceBorderColor,
             cornerRadius: 14
         )
+    }
+
+    private var footerActionRow: some View {
+        HStack {
+            Spacer(minLength: 0)
+
+            Button("Revoke All") {
+                showsRevokeAllConfirmation = true
+            }
+            .buttonStyle(.plain)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(isRevokeAllHovered ? ursusSecondaryTextColor : ursusTertiaryTextColor)
+            .opacity(model.bridgeAuthActionInProgress ? 0.55 : 1)
+            .disabled(model.bridgeAuthActionInProgress)
+            .onHover { isHovered in
+                isRevokeAllHovered = isHovered
+            }
+        }
+        .padding(.top, 4)
     }
 
     private func grantRow(_ grant: BearBridgeAuthGrantSummary) -> some View {
