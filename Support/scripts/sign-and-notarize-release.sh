@@ -35,7 +35,8 @@ Options:
   -h, --help                  Show this help
 
 Examples:
-  DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \\
+  DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \\
+  DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile" \\
   NOTARYTOOL_PROFILE="notarytool-profile" \\
   $(basename "$0")
 
@@ -211,6 +212,8 @@ require_command /usr/bin/ditto
 require_command /usr/bin/xcrun
 require_command /usr/bin/security
 require_command /usr/bin/openssl
+require_command /bin/cp
+require_command /bin/mv
 require_command /usr/libexec/PlistBuddy
 
 [ -d "$APP_PATH" ] || fail "App bundle not found: $APP_PATH"
@@ -233,6 +236,7 @@ APP_VERSION="$(plist_value "$APP_INFO_PLIST" CFBundleShortVersionString)"
 APP_BUNDLE_IDENTIFIER="$(plist_value "$APP_INFO_PLIST" CFBundleIdentifier)"
 STAGED_APP_PATH="$OUTPUT_DIR/$APP_NAME.app"
 DMG_PATH="$OUTPUT_DIR/$APP_NAME $APP_VERSION.dmg"
+RELEASE_ASSET_DMG_PATH="$OUTPUT_DIR/$APP_NAME.$APP_VERSION.dmg"
 NOTARY_RESULT_PATH="$OUTPUT_DIR/notary-submit-result.json"
 STAGED_PROFILE_PATH="$STAGED_APP_PATH/Contents/embedded.provisionprofile"
 
@@ -307,6 +311,7 @@ fi
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$STAGED_APP_PATH"
 rm -f "$DMG_PATH"
+rm -f "$RELEASE_ASSET_DMG_PATH"
 rm -f "$NOTARY_RESULT_PATH"
 /usr/bin/ditto "$APP_PATH" "$STAGED_APP_PATH"
 rm -f "$STAGED_PROFILE_PATH"
@@ -384,6 +389,12 @@ if [ "$SKIP_NOTARIZE" -eq 0 ]; then
   echo "Validating stapled DMG"
   /usr/bin/xcrun stapler validate -v "$DMG_PATH"
   /usr/sbin/spctl -a -t open --context context:primary-signature -vv "$DMG_PATH"
+fi
+
+if [ "$RELEASE_ASSET_DMG_PATH" != "$DMG_PATH" ]; then
+  echo "Renaming DMG for GitHub/Sparkle: $RELEASE_ASSET_DMG_PATH"
+  /bin/mv "$DMG_PATH" "$RELEASE_ASSET_DMG_PATH"
+  DMG_PATH="$RELEASE_ASSET_DMG_PATH"
 fi
 
 echo

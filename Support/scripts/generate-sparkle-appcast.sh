@@ -141,6 +141,10 @@ mkdir -p "$STAGING_DIR"
 rm -rf "$STAGING_DIR/work"
 mkdir -p "$STAGING_DIR/work"
 WORK_DIR="$STAGING_DIR/work"
+cleanup() {
+  rm -rf "$WORK_DIR"
+}
+trap cleanup EXIT INT TERM
 
 if [ -f "$OUTPUT_PATH" ]; then
   cp "$OUTPUT_PATH" "$WORK_DIR/appcast.xml"

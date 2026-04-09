@@ -2,46 +2,102 @@
 
 This document is the practical local build, install, and reset guide for the current app-centered setup.
 
-## Build
+## Daily Development Loop
 
-From the repo root:
+For normal feature work and bug fixes, use a Debug app build:
 
 ```sh
 CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
 ```
 
-For a Release build:
+If you want to install that Debug build locally:
 
 ```sh
-CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+mkdir -p "$HOME/Applications"
+ditto ".build/UrsusApp/Build/Products/Debug/Ursus.app" "$HOME/Applications/Ursus.app"
+open "$HOME/Applications/Ursus.app"
 ```
 
-For the current Developer ID release packaging flow:
-
-```sh
-CONFIGURATION=Release Support/scripts/build-ursus-app.sh
-
-DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \
-DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile" \
-NOTARYTOOL_PROFILE="notarytool-profile" \
-Support/scripts/sign-and-notarize-release.sh
-```
-
-Release packaging needs a Developer ID provisioning profile for `com.aft.ursus` because the app uses a shared keychain access group for the Bear API token. Create or regenerate the profile with the same Developer ID Application certificate used by `DEVELOPER_ID_APPLICATION`.
-
-For a totally clean Release build:
-```
-rm -rf .build/UrsusApp .build/release .build/debug
-CONFIGURATION=Release Support/scripts/build-ursus-app.sh
-```
-
-Useful verification:
+Useful local checks:
 
 ```sh
 swift test
 swift run ursus doctor
 swift run ursus --help
 ```
+
+## Release Checklist
+
+Use this when you are ready to ship a public release.
+
+1. Bump the app version and build number in Xcode.
+
+Set `MARKETING_VERSION` to the release version, for example `0.2.2`.
+Set `CURRENT_PROJECT_VERSION` to the next integer build number, for example `3`.
+
+If the MCP server behavior changed, also bump:
+
+```text
+Sources/BearMCP/UrsusMCPServer.swift
+```
+
+2. Build, Developer ID sign, notarize, and create the DMG.
+
+Keep your signing values in a local ignored `.release.env` file. That file should exist on your machine, but it should not be committed.
+
+Example `.release.env` shape:
+
+```sh
+export DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)"
+export DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile"
+export NOTARYTOOL_PROFILE="notarytool-profile"
+```
+
+Then copy-paste this exact release build block:
+
+```sh
+rm -rf .build/UrsusApp .build/release .build/debug
+CONFIGURATION=Release Support/scripts/build-ursus-app.sh
+
+. ./.release.env
+Support/scripts/sign-and-notarize-release.sh
+```
+
+The script outputs one final DMG filename in `.build/release-artifacts`:
+
+- `Ursus.0.2.2.dmg`: the GitHub/Sparkle upload file
+
+Upload that dotted DMG to the GitHub Release.
+
+3. Add release notes beside the dotted DMG.
+
+Use the same stem as the dotted DMG:
+
+```sh
+cat > ".build/release-artifacts/Ursus.0.2.2.md" <<'EOF'
+## Ursus 0.2.2
+
+- First change
+- Second change
+EOF
+```
+
+4. Generate the Sparkle appcast entry.
+
+Do not run Sparkle's raw `generate_appcast` over the whole `release-artifacts` folder. Use the helper script and point it at the exact dotted DMG you uploaded:
+
+```sh
+Support/scripts/generate-sparkle-appcast.sh \
+  --archive "$PWD/.build/release-artifacts/Ursus.0.2.2.dmg" \
+  --tag v0.2.2 \
+  --release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"
+```
+
+This updates `docs/appcast.xml`.
+
+5. Commit and push the release changes.
+
+At minimum, this should include the version bump and the updated `docs/appcast.xml`. After GitHub Pages publishes the new appcast, Sparkle should see the update.
 
 ## App Icon Workflow
 
@@ -204,153 +260,26 @@ If you prefer the hidden CLI summary instead:
 ursus --debug-donation-status
 ```
 
-## Sparkle Local Prep
+## Release Reference
 
-The Sparkle command-line tools resolved by this repo currently live at:
+The checklist at the top is the normal release path. These are the key rules behind it:
 
-```sh
-$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin
-```
+- `Support/scripts/sign-and-notarize-release.sh` creates the signed/notarized release artifacts under `.build/release-artifacts`.
+- The script embeds the Developer ID provisioning profile required by the Bear token keychain access group.
+- The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to upload to GitHub and pass to Sparkle appcast generation.
+- `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path, so the `.app` folder in `.build/release-artifacts` does not matter.
+- The appcast helper uses temporary staging under `.build/sparkle-appcast/work` while it runs, then cleans that staging folder before it exits.
+- Do not edit or re-upload the DMG after generating `docs/appcast.xml`; Sparkle validates the exact bytes from the appcast signature.
+- The published feed URL is `https://ognistik.github.io/ursus/appcast.xml`.
 
-Generate an EdDSA keypair once on the Mac you will use for signing releases:
+One-time Sparkle setup, only needed on a new release-signing Mac:
 
 ```sh
 SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
 "$SPARKLE_BIN/generate_keys"
 ```
 
-`generate_keys` stores the private key in your login Keychain and prints the public key you should copy into `SUPublicEDKey`.
-
-For a local appcast test:
-
-```sh
-SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
-UPDATES_DIR="$HOME/tmp/ursus-sparkle-updates"
-
-CONFIGURATION=Release Support/scripts/build-ursus-app.sh
-mkdir -p "$UPDATES_DIR"
-ditto -c -k --keepParent \
-  ".build/UrsusApp/Build/Products/Release/Ursus.app" \
-  "$UPDATES_DIR/Ursus-0.2.0.zip"
-"$SPARKLE_BIN/generate_appcast" "$UPDATES_DIR"
-```
-
-If you also place a matching release-notes file beside the archive, Sparkle will pick it up automatically:
-
-- `Ursus-0.2.0.html`
-- `Ursus-0.2.0.md`
-
-To serve the generated appcast locally for development testing:
-
-```sh
-cd "$UPDATES_DIR"
-python3 -m http.server 8000
-```
-
-Then temporarily point `SUFeedURL` at:
-
-```sh
-http://127.0.0.1:8000/appcast.xml
-```
-
-For GitHub Pages, the likely project-pages feed URL for this repo is:
-
-```sh
-https://ognistik.github.io/ursus/appcast.xml
-```
-
-For GitHub Releases-hosted archives plus GitHub Pages-hosted appcast, generate the new appcast entry with a release-asset prefix for the current tag:
-
-```sh
-TAG="v0.2.0"
-SPARKLE_BIN="$PWD/.build/UrsusApp/SourcePackages/artifacts/sparkle/Sparkle/bin"
-UPDATES_DIR="$HOME/tmp/ursus-sparkle-updates"
-
-"$SPARKLE_BIN/generate_appcast" \
-  --download-url-prefix "https://github.com/ognistik/ursus/releases/download/$TAG/" \
-  --embed-release-notes \
-  "$UPDATES_DIR"
-```
-
-That keeps the generated `appcast.xml` on Pages while each new archive URL points at the matching GitHub Release asset for that tag.
-
-Important:
-
-- `generate_appcast` uses the exact local archive basename when it builds the enclosure URL.
-- That means the local filename must exactly match the uploaded GitHub Release asset filename.
-- If your uploaded asset is `Ursus.0.2.1.dmg`, do not generate the appcast from a local file named `Ursus 0.2.1.dmg`.
-
-For repeatable releases, prefer the helper script:
-
-```sh
-Support/scripts/generate-sparkle-appcast.sh \
-  --archive "/absolute/path/to/Ursus.0.2.1.dmg" \
-  --tag v0.2.1 \
-  --release-notes "/absolute/path/to/Ursus.0.2.1.md"
-```
-
-The helper script:
-
-- preserves the exact archive basename you pass in
-- reuses the existing `docs/appcast.xml` feed if present
-- writes the updated feed back to `docs/appcast.xml`
-- uses the GitHub Releases download prefix for the provided tag by default
-
-Before real Sparkle update checks will work, both of these Info.plist placeholders must be replaced:
-
-- `SUFeedURL`
-- `SUPublicEDKey`
-
-## Release Signing And Notarization
-
-`CONFIGURATION=Release Support/scripts/build-ursus-app.sh` gives you a local
-release build, but it does not produce a distribution-ready notarized artifact
-on its own.
-
-Current release packaging flow:
-
-```sh
-CONFIGURATION=Release Support/scripts/build-ursus-app.sh
-
-DEVELOPER_ID_APPLICATION="Developer ID Application: Roberto Perales (T25AGZF6DS)" \
-DEVELOPER_ID_PROVISIONING_PROFILE="/path/to/Ursus_Developer_ID.provisionprofile" \
-NOTARYTOOL_PROFILE="notarytool-profile" \
-Support/scripts/sign-and-notarize-release.sh
-```
-
-That script:
-
-- copies the built app into `.build/release-artifacts`
-- re-signs the staged `Ursus.app` with `Developer ID Application`
-- embeds the Developer ID provisioning profile required by the Bear token
-  keychain access group
-- enables hardened runtime on the app-facing bundles it signs
-- creates a signed DMG with `create-dmg`
-- submits the DMG with `notarytool`
-- staples and validates the notarized DMG
-
-Useful variants:
-
-```sh
-# Create a Developer ID-signed DMG without submitting to Apple.
-Support/scripts/sign-and-notarize-release.sh --skip-notarize
-
-# Use a different app bundle or output directory.
-Support/scripts/sign-and-notarize-release.sh \
-  --app /path/to/Ursus.app \
-  --output-dir /tmp/ursus-release
-```
-
-Important notes:
-
-- `create-dmg` signing the DMG does not replace signing the app itself. The app
-  still needs a proper `Developer ID Application` signature before notarization.
-- Keep the provisioning profile outside this open-source repo. A private local
-  path such as `~/Developer/Provisioning Profiles/Ursus_Developer_ID.provisionprofile`
-  is fine, then pass that path with `DEVELOPER_ID_PROVISIONING_PROFILE`.
-- The current script notarizes the DMG. If you later want a Sparkle ZIP release
-  asset, notarize that ZIP separately; a stapled DMG ticket does not staple the
-  `.app` copy inside it.
+`generate_keys` stores the private key in your login Keychain and prints the public key that must match `SUPublicEDKey` in `Support/app/Info.plist`.
 
 ## Current Direct CLI Commands
 

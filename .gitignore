@@ -1,0 +1,21 @@
+.build/
+.swiftpm/
+DerivedData/
+
+.DS_Store
+
+# Editor and IDE local settings.
+.vscode/
+.idea/
+
+# Xcode user-specific state.
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Local release signing material.
+*.provisionprofile
+*.mobileprovision
+*.p12
+*release.env
+.release.env
