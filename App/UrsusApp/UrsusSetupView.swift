@@ -66,7 +66,7 @@ struct UrsusSetupView: View {
                     .accessibilityHidden(true)
 
                 Text("Ursus")
-                    .font(.custom("Montserrat-Regular", size: 34))
+                    .font(.custom("Montserrat-Bold", size: 34))
                     .tracking(0)
             }
 
@@ -367,58 +367,20 @@ struct UrsusSetupView: View {
             }
 
             HStack(spacing: 10) {
-                if let recoveryAction = bridgeRecoveryAction(for: settings) {
-                    if settings.bridge.installed {
-                        Button(recoveryAction.title) {
-                            performRecoveryAction(recoveryAction, settings: settings)
-                        }
-                        .ursusButtonStyle()
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
-                    } else {
-                        Button(recoveryAction.title) {
-                            performRecoveryAction(recoveryAction, settings: settings)
-                        }
-                        .ursusButtonStyle(.primary)
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
+                if let installAction = bridgeInstallAction(for: settings) {
+                    Button(installAction.title) {
+                        performBridgeInstallAction(installAction, settings: settings)
                     }
-                } else if let title = bridgePrimaryActionTitle(for: bridge) {
-                    if bridge.installed {
-                        Button(title) {
-                            model.installBridge(
-                                repairing: bridge.status == .invalid || bridge.status == .failed
-                            )
-                        }
-                        .ursusButtonStyle()
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
-                    } else {
-                        Button(title) {
-                            model.installBridge(
-                                repairing: bridge.status == .invalid || bridge.status == .failed
-                            )
-                        }
-                        .ursusButtonStyle(.softPrimary)
-                        .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
-                    }
+                    .ursusButtonStyle(bridgeInstallButtonRole(for: settings, action: installAction))
+                    .disabled(model.currentBundledCLIPath == nil || model.isBridgeOperationInProgress)
                 }
 
-                if bridge.installed {
-                    if bridge.loaded {
-                        Button(bridge.restartRequired ? "Restart" : "Pause") {
-                            if bridge.restartRequired {
-                                model.restartBridge()
-                            } else {
-                                model.pauseBridge()
-                            }
-                        }
-                        .ursusButtonStyle(bridge.restartRequired ? .softPrimary : .secondary)
-                        .disabled(model.isBridgeOperationInProgress)
-                    } else {
-                        Button("Resume") {
-                            model.resumeBridge()
-                        }
-                        .ursusButtonStyle()
-                        .disabled(model.isBridgeOperationInProgress)
+                if let lifecycleAction = bridgeLifecycleAction(for: settings) {
+                    Button(lifecycleAction.title) {
+                        performBridgeLifecycleAction(lifecycleAction)
                     }
+                    .ursusButtonStyle(lifecycleAction.buttonRole)
+                    .disabled(model.isBridgeOperationInProgress)
                 }
 
                 if bridgeRememberedClientCount(for: bridge) > 0 {
@@ -564,25 +526,6 @@ struct UrsusSetupView: View {
         }
     }
 
-    private func bridgeRecoveryAction(for settings: BearAppSettingsSnapshot) -> UrsusRecoveryAction? {
-        switch settings.bridge.status {
-        case .missing:
-            return nil
-        case .invalid, .failed:
-            if settings.launcherStatus == .missing {
-                return .installLauncher
-            }
-
-            if settings.launcherStatus == .invalid {
-                return .repairLauncher
-            }
-
-            return .repairBridge
-        case .ok, .configured, .notConfigured:
-            return nil
-        }
-    }
-
     private func performRecoveryAction(_ action: UrsusRecoveryAction, settings: BearAppSettingsSnapshot) {
         switch action {
         case .installLauncher, .repairLauncher:
@@ -592,6 +535,35 @@ struct UrsusSetupView: View {
         }
     }
 
+    private func performBridgeInstallAction(
+        _ action: UrsusBridgeInstallAction,
+        settings: BearAppSettingsSnapshot
+    ) {
+        switch action {
+        case .installBridge:
+            model.installBridge()
+        case .installLauncher, .repairLauncher, .repairBridge:
+            performRecoveryAction(action.recoveryAction, settings: settings)
+        }
+    }
+
+    private func performBridgeLifecycleAction(_ action: UrsusBridgeLifecycleAction) {
+        switch action {
+        case .pause:
+            model.pauseBridge()
+        case .restart:
+            model.restartBridge()
+        case .resume:
+            model.resumeBridge()
+        }
+    }
+
+}
+
+private enum UrsusRecoveryAction {
+    case installLauncher
+    case repairLauncher
+    case repairBridge
 }
 
 private struct UrsusHostSetupRow: View {
@@ -645,13 +617,46 @@ private struct UrsusHostSetupRow: View {
     }
 }
 
-private enum UrsusRecoveryAction {
+private func bridgeRecoveryAction(for settings: BearAppSettingsSnapshot) -> UrsusRecoveryAction? {
+    switch settings.bridge.status {
+    case .missing:
+        return nil
+    case .invalid, .failed:
+        if settings.launcherStatus == .missing {
+            return .installLauncher
+        }
+
+        if settings.launcherStatus == .invalid {
+            return .repairLauncher
+        }
+
+        return .repairBridge
+    case .ok, .configured, .notConfigured:
+        return nil
+    }
+}
+
+private enum UrsusBridgeInstallAction {
+    case installBridge
     case installLauncher
     case repairLauncher
     case repairBridge
 
+    init(recoveryAction: UrsusRecoveryAction) {
+        switch recoveryAction {
+        case .installLauncher:
+            self = .installLauncher
+        case .repairLauncher:
+            self = .repairLauncher
+        case .repairBridge:
+            self = .repairBridge
+        }
+    }
+
     var title: String {
         switch self {
+        case .installBridge:
+            return "Install Bridge"
         case .installLauncher:
             return "Install Launcher"
         case .repairLauncher:
@@ -660,17 +665,81 @@ private enum UrsusRecoveryAction {
             return "Repair"
         }
     }
+
+    var recoveryAction: UrsusRecoveryAction {
+        switch self {
+        case .installBridge:
+            preconditionFailure("Install bridge does not map to a recovery action.")
+        case .installLauncher:
+            return .installLauncher
+        case .repairLauncher:
+            return .repairLauncher
+        case .repairBridge:
+            return .repairBridge
+        }
+    }
 }
 
-private func bridgePrimaryActionTitle(for bridge: BearAppBridgeSnapshot) -> String? {
-    switch bridge.status {
-    case .missing:
-        return "Install Bridge"
-    case .invalid, .failed:
-        return "Repair Bridge"
-    case .ok, .configured, .notConfigured:
-        return bridge.installed ? nil : "Install Bridge"
+private enum UrsusBridgeLifecycleAction {
+    case pause
+    case restart
+    case resume
+
+    var title: String {
+        switch self {
+        case .pause:
+            return "Pause"
+        case .restart:
+            return "Restart"
+        case .resume:
+            return "Resume"
+        }
     }
+
+    var buttonRole: UrsusButtonRole {
+        switch self {
+        case .restart:
+            return .softPrimary
+        case .pause:
+            return .secondary
+        case .resume:
+            return .secondary
+        }
+    }
+}
+
+private func bridgeInstallAction(for settings: BearAppSettingsSnapshot) -> UrsusBridgeInstallAction? {
+    if let recoveryAction = bridgeRecoveryAction(for: settings) {
+        return UrsusBridgeInstallAction(recoveryAction: recoveryAction)
+    }
+
+    return settings.bridge.installed ? nil : .installBridge
+}
+
+private func bridgeInstallButtonRole(
+    for settings: BearAppSettingsSnapshot,
+    action: UrsusBridgeInstallAction
+) -> UrsusButtonRole {
+    switch action {
+    case .installBridge:
+        return .softPrimary
+    case .installLauncher, .repairLauncher, .repairBridge:
+        return settings.bridge.installed ? .secondary : .primary
+    }
+}
+
+private func bridgeLifecycleAction(for settings: BearAppSettingsSnapshot) -> UrsusBridgeLifecycleAction? {
+    let bridge = settings.bridge
+
+    guard bridge.installed, bridgeRecoveryAction(for: settings) == nil else {
+        return nil
+    }
+
+    if bridge.loaded {
+        return bridge.restartRequired ? .restart : .pause
+    }
+
+    return .resume
 }
 
 private func friendlyInsertPosition(_ rawValue: String) -> String {
