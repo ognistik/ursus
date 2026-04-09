@@ -261,6 +261,28 @@ UPDATES_DIR="$HOME/tmp/ursus-sparkle-updates"
 
 That keeps the generated `appcast.xml` on Pages while each new archive URL points at the matching GitHub Release asset for that tag.
 
+Important:
+
+- `generate_appcast` uses the exact local archive basename when it builds the enclosure URL.
+- That means the local filename must exactly match the uploaded GitHub Release asset filename.
+- If your uploaded asset is `Ursus.0.2.1.dmg`, do not generate the appcast from a local file named `Ursus 0.2.1.dmg`.
+
+For repeatable releases, prefer the helper script:
+
+```sh
+Support/scripts/generate-sparkle-appcast.sh \
+  --archive "/absolute/path/to/Ursus.0.2.1.dmg" \
+  --tag v0.2.1 \
+  --release-notes "/absolute/path/to/Ursus.0.2.1.md"
+```
+
+The helper script:
+
+- preserves the exact archive basename you pass in
+- reuses the existing `docs/appcast.xml` feed if present
+- writes the updated feed back to `docs/appcast.xml`
+- uses the GitHub Releases download prefix for the provided tag by default
+
 Before real Sparkle update checks will work, both of these Info.plist placeholders must be replaced:
 
 - `SUFeedURL`
