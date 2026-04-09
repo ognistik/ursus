@@ -159,6 +159,7 @@ These paths describe the codebase as it exists after Phase 6:
 - `bear_replace_content` computes the final full note body locally, then commits through Bear's full replacement path.
 - MCP presentation controls are now intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and the other note/tag mutation tools run as background mutations without exposed presentation overrides.
 - `Ursus.app` now owns the donation prompt presentation path and Sparkle update UI. Donation prompting happens only when the app opens or becomes active, while update checks remain app-only infrastructure with automatic checks enabled by default once a real Sparkle feed URL and public EdDSA key are configured.
+- App bundle versioning now has one release-facing source of truth in the Xcode project build settings: `MARKETING_VERSION` feeds `CFBundleShortVersionString`, `CURRENT_PROJECT_VERSION` feeds `CFBundleVersion`, and the standalone helper build script stamps the helper bundle with those same values so normal releases do not require separate plist edits.
 - Batch operations matter and should stay first-class.
 - Batched MCP tools now require `operations` to be a non-empty array of operation objects, and missing versus empty `operations` batches are surfaced as distinct validation errors.
 - No prerelease support-root or legacy-log migration path is preserved in startup anymore.

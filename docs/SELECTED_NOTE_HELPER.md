@@ -30,6 +30,8 @@ For release mode:
 CONFIGURATION=Release Support/scripts/build-ursus-helper-app.sh
 ```
 
+The helper bundle version now follows the app's Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` automatically, so normal releases only need one version bump in the app project settings.
+
 ## When To Care About It
 
 Touch the helper only when you are:
