@@ -24,6 +24,29 @@ swift run ursus doctor
 swift run ursus --help
 ```
 
+## App Icon Workflow
+
+Apple's current supported path is to use an Icon Composer `.icon` file directly in Xcode as the app icon source. The intended workflow is:
+
+- keep the Icon Composer source file outside `Assets.xcassets`
+- keep the `.icon` file in the app target's synced project folder
+- set the target's App Icon field to the filename without the `.icon` extension
+
+Current repo status:
+
+- `App/UrsusApp/AppIcon.icon` is the checked-in Icon Composer source of truth
+- the `Ursus` target's App Icon setting points at `AppIcon`
+
+### If You Edit The `.icon` File
+
+This repo now uses the native Icon Composer workflow. After saving changes in Icon Composer, just rebuild:
+
+```sh
+CONFIGURATION=Debug Support/scripts/build-ursus-app.sh
+```
+
+If you edit the file in Xcode's Project navigator and keep the filename as `AppIcon.icon`, saving the document and rebuilding should be enough. The build should regenerate the native app icon payload automatically.
+
 Current app build outputs:
 
 - Debug: `./.build/UrsusApp/Build/Products/Debug/Ursus.app`
