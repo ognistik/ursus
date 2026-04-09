@@ -1,0 +1,20 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Ursus</title>
+        <item>
+            <title>0.2.1</title>
+            <pubDate>Thu, 09 Apr 2026 14:21:46 -0600</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[## Ursus 0.2.1
+
+- Sparkle-based app updates
+- Donation prompt improvements
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.1/Ursus%200.2.1.dmg" length="11132710" type="application/octet-stream" sparkle:edSignature="GYFHGZtD/1Wl1UqEB+z8kzTKUtzmBWh6SwwdwhRcawWbvAAm2sRk6ZHJ1Ec8wrt0l43v9bahVpWMBPeruucsAA=="/>
+        </item>
+    </channel>
+</rss>
