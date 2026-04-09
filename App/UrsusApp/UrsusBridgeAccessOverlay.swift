@@ -7,7 +7,7 @@ struct UrsusBridgeAccessOverlay: View {
     @State private var isRevokeAllHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             header
 
             if model.bridgeAuthStatusError != nil {
@@ -18,10 +18,6 @@ struct UrsusBridgeAccessOverlay: View {
                 emptyState
             } else {
                 grantList
-            }
-
-            if model.bridgeAuthGrantSummaries.count >= 2 {
-                footerActionRow
             }
         }
         .padding(22)
@@ -101,8 +97,14 @@ struct UrsusBridgeAccessOverlay: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .ursusCustomScrollChrome()
+
+            if showsBulkRevokeAction {
+                Divider()
+
+                footerActionRow
+            }
         }
-        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 320, alignment: .top)
         .ursusRoundedSurface(
             background: ursusGroupedBlockBackgroundColor,
             border: ursusSurfaceBorderColor,
@@ -145,7 +147,13 @@ struct UrsusBridgeAccessOverlay: View {
                 isRevokeAllHovered = isHovered
             }
         }
-        .padding(.top, 4)
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+    }
+
+    private var showsBulkRevokeAction: Bool {
+        model.bridgeAuthGrantSummaries.count > 1
     }
 
     private func grantRow(_ grant: BearBridgeAuthGrantSummary) -> some View {
