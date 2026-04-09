@@ -151,3 +151,39 @@ Current selector behavior:
 - `--restore-note` requires exact `NOTE_ID SNAPSHOT_ID` pairs
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces
+
+## Testing Bridge OAuth Flow
+- Register a temporary public client:
+
+```
+curl -s http://127.0.0.1:6190/oauth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"redirect_uris":["https://example.com/callback"],"client_name":"OAuth UI Preview7","token_endpoint_auth_method":"none"}'
+
+```
+
+- Copy the returned client_id.
+- Generate a PKCE challenge:
+
+```
+VERIFIER='preview-verifier-abcdefghijklmnopqrstuvwxyz-0123456789'
+CHALLENGE=$(python3 - <<'PY'
+import base64, hashlib
+v = b"preview-verifier-abcdefghijklmnopqrstuvwxyz-0123456789"
+print(base64.urlsafe_b64encode(hashlib.sha256(v).digest()).rstrip(b"=").decode())
+PY
+)
+echo "$CHALLENGE"
+```
+
+- Open the consent page in your browser:
+
+```
+open "http://127.0.0.1:6190/oauth/authorize?response_type=code&client_id=PASTE_CLIENT_ID_HERE&redirect_uri=https://example.com/callback&state=preview-state&resource=http://127.0.0.1:6190/mcp&scope=mcp&code_challenge=$CHALLENGE&code_challenge_method=S256"
+```
+
+- To trigger the error page directly:
+```
+curl -s -X POST http://127.0.0.1:6190/oauth/decision > /tmp/ursus-oauth-error.html
+open /tmp/ursus-oauth-error.html
+```
