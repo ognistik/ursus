@@ -306,3 +306,18 @@ open "http://127.0.0.1:6190/oauth/authorize?response_type=code&client_id=PASTE_C
 curl -s -X POST http://127.0.0.1:6190/oauth/decision > /tmp/ursus-oauth-error.html
 open /tmp/ursus-oauth-error.html
 ```
+
+---
+## Testing Sparkle Update Checks
+
+The simplest test reset is to clear Sparkle’s stored `SULastCheckTime`.
+
+Use:
+```
+defaults delete com.aft.ursus SULastCheckTime
+```
+
+You can inspect it first:
+```
+defaults read com.aft.ursus SULastCheckTime
+```

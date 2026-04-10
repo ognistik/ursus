@@ -43,10 +43,8 @@ public enum UrsusCLIRuntime {
                 await updateChecker?.startScheduledUpdateChecks(context: "stdio MCP")
             case .bridge(.serve):
                 await updateChecker?.startScheduledUpdateChecks(context: "HTTP bridge")
-            case .checkForUpdates, .help, .bridge(.help):
-                break
             default:
-                await updateChecker?.runScheduledUpdateChecksIfDue(context: "CLI command")
+                break
             }
 
             switch command {

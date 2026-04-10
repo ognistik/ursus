@@ -40,7 +40,7 @@ This file is the concise handoff for contributors and future agent threads. It s
 - `Tools` owns launcher repair, reveal-file/log actions, and tool availability controls.
 - The macOS Settings window mirrors the `Preferences` surface.
 - Donation prompting is app-only. MCP runtime code only records local eligibility in `Runtime/runtime-state.sqlite`.
-- Sparkle update UI remains in the app, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge / CLI usage without opening the main window.
+- Sparkle update UI remains in the app, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge usage without opening the main window.
 
 ### CLI
 
@@ -61,7 +61,7 @@ Important behavior:
 
 - Running `ursus` with no command starts the stdio MCP server.
 - The public launcher at `~/.local/bin/ursus` forwards into `Ursus.app/Contents/MacOS/Ursus` with a hidden `--ursus-cli` flag.
-- Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its normal cadence. Short-lived CLI commands also enter Sparkle's scheduled cycle and wait only until Sparkle decides no check is due or finishes the due check. `ursus --check-updates` performs a user-initiated Sparkle check without opening the main Ursus window. The standalone SwiftPM `ursus` executable has no Sparkle provider.
+- Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its normal cadence. Ordinary short-lived CLI commands do not trigger scheduled Sparkle checks. `ursus --check-updates` performs a user-initiated Sparkle check without opening the main Ursus window. The standalone SwiftPM `ursus` executable has no Sparkle provider.
 - Bare `--new-note` preserves the interactive editing-note flow and can seed tags from the selected Bear note when a selected-note token is configured.
 - Explicit `--new-note` mode skips selected-note lookup, follows the create-adds-inbox-tags default when `--tags` is omitted, appends tags unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is passed.
 - `--new-window` is only valid with `--open-note`.

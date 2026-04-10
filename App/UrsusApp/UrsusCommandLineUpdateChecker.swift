@@ -5,11 +5,8 @@ import Sparkle
 @MainActor
 final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate {
     private var scheduledUpdaterController: SPUStandardUpdaterController?
-    private var shortLivedScheduledUpdaterController: SPUStandardUpdaterController?
     private var manualUpdaterController: SPUStandardUpdaterController?
-    private weak var shortLivedScheduledUpdater: SPUUpdater?
     private weak var manualUpdater: SPUUpdater?
-    private var shortLivedScheduledContinuation: CheckedContinuation<Void, Never>?
     private var manualContinuation: CheckedContinuation<UrsusUpdateCheckResult, Never>?
 
     func startScheduledUpdateChecks(context: String) {
@@ -28,29 +25,6 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
         )
         scheduledUpdaterController = updaterController
         updaterController.startUpdater()
-    }
-
-    func runScheduledUpdateChecksIfDue(context: String) async {
-        guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
-            return
-        }
-
-        guard shortLivedScheduledContinuation == nil else {
-            return
-        }
-
-        let updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: self,
-            userDriverDelegate: nil
-        )
-        shortLivedScheduledUpdaterController = updaterController
-        shortLivedScheduledUpdater = updaterController.updater
-
-        await withCheckedContinuation { continuation in
-            shortLivedScheduledContinuation = continuation
-            updaterController.startUpdater()
-        }
     }
 
     func checkForUpdatesFromCLI() async -> UrsusUpdateCheckResult {
@@ -91,32 +65,11 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
         }
     }
 
-    func updater(_ updater: SPUUpdater, willScheduleUpdateCheckAfterDelay delay: TimeInterval) {
-        guard updater === shortLivedScheduledUpdater else {
-            return
-        }
-
-        finishShortLivedScheduledCheck()
-    }
-
-    func updaterWillNotScheduleUpdateCheck(_ updater: SPUUpdater) {
-        guard updater === shortLivedScheduledUpdater else {
-            return
-        }
-
-        finishShortLivedScheduledCheck()
-    }
-
     func updater(
         _ updater: SPUUpdater,
         didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
         error: (any Error)?
     ) {
-        if updater === shortLivedScheduledUpdater {
-            finishShortLivedScheduledCheck()
-            return
-        }
-
         guard updater === manualUpdater else {
             return
         }
@@ -138,21 +91,6 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
         manualContinuation = nil
         manualUpdaterController = nil
         manualUpdater = nil
-    }
-
-    func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
-        guard updater === shortLivedScheduledUpdater else {
-            return
-        }
-
-        finishShortLivedScheduledCheck()
-    }
-
-    private func finishShortLivedScheduledCheck() {
-        shortLivedScheduledContinuation?.resume()
-        shortLivedScheduledContinuation = nil
-        shortLivedScheduledUpdaterController = nil
-        shortLivedScheduledUpdater = nil
     }
 }
 
