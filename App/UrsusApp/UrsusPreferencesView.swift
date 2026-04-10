@@ -180,26 +180,30 @@ struct UrsusPreferencesView: View {
     private var appUpdatesPanel: some View {
         UrsusPanel(title: "App Updates") {
             VStack(alignment: .leading, spacing: 12) {
-                Toggle(
-                    "Check for updates automatically",
-                    isOn: Binding(
-                        get: { updaterController.automaticallyChecksForUpdates },
-                        set: { updaterController.setAutomaticallyChecksForUpdates($0) }
+                HStack(alignment: .center, spacing: 12) {
+                    Toggle(
+                        "Check for updates automatically",
+                        isOn: Binding(
+                            get: { updaterController.automaticallyChecksForUpdates },
+                            set: { updaterController.setAutomaticallyChecksForUpdates($0) }
+                        )
                     )
-                )
-                .disabled(!updaterController.isConfigured)
+                    .disabled(!updaterController.isConfigured)
+
+                    Spacer()
+
+                    Button("Check for Updates…") {
+                        updaterController.checkForUpdates()
+                    }
+                    .ursusButtonStyle()
+                    .disabled(!updaterController.isConfigured || !updaterController.canCheckForUpdates)
+                }
 
                 if let configurationNote = updaterController.configurationNote {
                     Text(configurationNote)
                         .font(.caption)
                         .foregroundStyle(ursusTertiaryTextColor)
                 }
-
-                Button("Check for Updates…") {
-                    updaterController.checkForUpdates()
-                }
-                .ursusButtonStyle()
-                .disabled(!updaterController.isConfigured || !updaterController.canCheckForUpdates)
             }
         }
     }
