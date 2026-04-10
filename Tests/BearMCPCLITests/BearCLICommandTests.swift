@@ -89,6 +89,35 @@ func parseCheckForUpdatesCommand() throws {
 }
 
 @Test
+func parseAutoInstallUpdatesCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["--auto-install-updates", "true"])
+
+    switch command {
+    case .automaticUpdateInstalls(let option):
+        #expect(option.enabled == true)
+    default:
+        Issue.record("Expected '--auto-install-updates true' to parse as .automaticUpdateInstalls(true).")
+    }
+}
+
+func parseAutoInstallUpdatesRejectsInvalidValue() {
+    #expect {
+        try BearCLICommand.parse(arguments: ["--auto-install-updates", "maybe"])
+    } throws: { error in
+        guard let bearError = error as? BearError else {
+            return false
+        }
+
+        switch bearError {
+        case .invalidInput(let message):
+            return message.contains("--auto-install-updates") && message.contains("true") && message.contains("false")
+        default:
+            return false
+        }
+    }
+}
+
+@Test
 func parseOldCheckForUpdatesCommandIsNotAccepted() {
     do {
         _ = try BearCLICommand.parse(arguments: ["--check-for-updates"])
@@ -103,11 +132,14 @@ func usageTextGroupsCommandsOptionsAndExamples() {
     let usage = BearCLICommand.usageText
 
     #expect(usage.contains("Ursus is a local CLI and MCP server for Bear note workflows."))
-    #expect(usage.contains("Commands:"))
+    #expect(usage.contains("Core:"))
+    #expect(usage.contains("Bridge:"))
+    #expect(usage.contains("Updates:"))
     #expect(usage.contains("`--new-note` options:"))
     #expect(usage.contains("Examples:"))
     #expect(usage.contains("Create a tagged note and open it in Bear."))
     #expect(usage.contains("ursus --check-updates"))
+    #expect(usage.contains("ursus --auto-install-updates true|false"))
 }
 
 @Test

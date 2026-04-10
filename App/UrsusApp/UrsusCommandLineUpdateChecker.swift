@@ -41,6 +41,48 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking {
             successMessage: "Opened Ursus to check for updates."
         )
     }
+
+    func setAutomaticallyDownloadsUpdatesFromCLI(_ enabled: Bool) async -> UrsusUpdateCheckResult {
+        guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
+            return UrsusUpdateCheckResult(
+                message: "Sparkle updates are not configured for this Ursus build.",
+                exitCode: 1
+            )
+        }
+
+        let updaterController = SPUStandardUpdaterController(
+            startingUpdater: false,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+        updaterController.startUpdater()
+
+        let updater = updaterController.updater
+
+        for _ in 0..<20 where !updater.canCheckForUpdates {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        if enabled {
+            updater.automaticallyChecksForUpdates = true
+        }
+
+        guard !enabled || updater.allowsAutomaticUpdates else {
+            return UrsusUpdateCheckResult(
+                message: "Ursus could not enable automatic update installs because Sparkle does not currently allow that option.",
+                exitCode: 1
+            )
+        }
+
+        updater.automaticallyDownloadsUpdates = enabled
+
+        return UrsusUpdateCheckResult(
+            message: enabled
+                ? "Automatic update installs are now enabled. Ursus will also check for updates automatically."
+                : "Automatic update installs are now disabled.",
+            exitCode: 0
+        )
+    }
 }
 
 @MainActor

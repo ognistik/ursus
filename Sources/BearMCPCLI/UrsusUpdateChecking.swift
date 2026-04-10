@@ -12,4 +12,5 @@ public struct UrsusUpdateCheckResult: Sendable, Equatable {
 public protocol UrsusUpdateChecking: AnyObject, Sendable {
     func startScheduledUpdateChecks(context: String)
     func checkForUpdatesFromCLI() async -> UrsusUpdateCheckResult
+    func setAutomaticallyDownloadsUpdatesFromCLI(_ enabled: Bool) async -> UrsusUpdateCheckResult
 }

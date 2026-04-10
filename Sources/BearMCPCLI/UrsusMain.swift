@@ -153,6 +153,15 @@ public enum UrsusCLIRuntime {
                 let result = await updateChecker.checkForUpdatesFromCLI()
                 print(result.message)
                 return result.exitCode
+            case .automaticUpdateInstalls(let option):
+                guard let updateChecker else {
+                    print("Sparkle automatic install settings are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus --auto-install-updates \(option.enabled ? "true" : "false")` after opening Ursus.app once to install or repair the launcher.")
+                    return 1
+                }
+
+                let result = await updateChecker.setAutomaticallyDownloadsUpdatesFromCLI(option.enabled)
+                print(result.message)
+                return result.exitCode
 #if DEBUG
             case .debugDonation(let subcommand):
                 let store = BearRuntimeStateStore()

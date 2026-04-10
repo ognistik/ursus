@@ -84,7 +84,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 ## CLI And App Runtime
 
 - Running `ursus` with no command starts the stdio MCP server.
-- The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `--check-updates`, `doctor`, `paths`, and bridge utility commands.
+- The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `--check-updates`, `--auto-install-updates true|false`, `doctor`, `paths`, and bridge utility commands.
 - The app owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`.
 - The public launcher at `~/.local/bin/ursus` resolves to the app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates Terminal and bridge launches together.
 - Embedded CLI runs launched through the app bundle receive a Sparkle update-checking hook from the app target. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle for the long-running MCP surfaces using a background `SPUUpdater` user driver that does not register the bridge as the visible app. Sparkle's scheduled interval is fixed at 3 hours through the app bundle configuration so app, stdio MCP, and bridge surfaces share one cadence. When that background check finds an update, or when the user runs `ursus --check-updates`, Ursus hands off to a normal foreground app process in Sparkle-only mode so the standard Sparkle UI owns a real AppKit lifecycle without opening the dashboard. Ordinary short-lived CLI commands do not participate in Sparkle's scheduled checks.

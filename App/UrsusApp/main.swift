@@ -28,5 +28,9 @@ private func makeEmbeddedUpdateChecker(arguments: [String]) async -> UrsusComman
         return UrsusCommandLineUpdateChecker()
     }
 
+    if arguments.first == "--auto-install-updates" {
+        return UrsusCommandLineUpdateChecker()
+    }
+
     return nil
 }

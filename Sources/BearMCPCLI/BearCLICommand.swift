@@ -16,6 +16,10 @@ enum BearCLICommand {
         let snapshotID: String
     }
 
+    struct AutomaticUpdatesOption: Hashable {
+        let enabled: Bool
+    }
+
     enum BridgeSubcommand: Hashable {
         case serve
         case status
@@ -43,6 +47,7 @@ enum BearCLICommand {
     case restoreNote([RestoreNoteRequest])
     case applyTemplate([String])
     case checkForUpdates
+    case automaticUpdateInstalls(AutomaticUpdatesOption)
 #if DEBUG
     case debugDonation(DebugDonationSubcommand)
 #endif
@@ -78,6 +83,8 @@ enum BearCLICommand {
         case "--check-updates":
             try assertNoExtraArguments(remainingArguments, for: "--check-updates")
             return .checkForUpdates
+        case "--auto-install-updates":
+            return .automaticUpdateInstalls(try parseAutomaticUpdatesOption(remainingArguments, flag: command))
 #if DEBUG
         case "--debug-donation-trigger":
             try assertNoExtraArguments(remainingArguments, for: "--debug-donation-trigger")
@@ -105,11 +112,17 @@ enum BearCLICommand {
 
         If you run `ursus` with no command, it starts the stdio MCP server.
 
-        Commands:
+        Core:
           ursus
               Start the stdio MCP server.
           ursus mcp
               Start the stdio MCP server explicitly.
+          ursus doctor
+              Check the local Ursus setup and print diagnostics.
+          ursus paths
+              Print important Ursus file paths.
+
+        Bridge:
           ursus bridge serve
               Start the optional localhost HTTP MCP bridge.
           ursus bridge status
@@ -122,22 +135,26 @@ enum BearCLICommand {
               Start the installed bridge LaunchAgent again.
           ursus bridge remove
               Stop and uninstall the bridge LaunchAgent.
-          ursus doctor
-              Check the local Ursus setup and print diagnostics.
-          ursus paths
-              Print important Ursus file paths.
+
+        Notes:
           ursus --new-note
               Create a new Bear note using the selected note tags.
           ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]
               Create a new note with explicit options.
+
+        Backups And Templates:
           ursus --backup-note [note-id-or-title ...]
               Save backup snapshots for one or more notes.
           ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]
               Restore notes from saved backups.
           ursus --apply-template [note-id-or-title ...]
               Apply the configured note template to one or more notes.
+
+        Updates:
           ursus --check-updates
               Check for Ursus app updates through Sparkle without opening the main window.
+          ursus --auto-install-updates true|false
+              Enable or disable Sparkle automatic update installs. Setting `true` also enables automatic update checks.
 
         `--new-note` options:
           --title, -t TEXT
@@ -152,6 +169,12 @@ enum BearCLICommand {
               Open the new note in Bear after creating it.
           --new-window, -nw
               Open the new note in a new Bear window. Requires `--open-note`.
+
+        `--auto-install-updates` values:
+          true
+              Enable automatic update installs and automatic update checks.
+          false
+              Disable automatic update installs without changing automatic update checks.
 
         Note targeting:
           For `--backup-note`, `--restore-note`, and `--apply-template`, no arguments means "use the currently selected Bear note".
@@ -174,6 +197,8 @@ enum BearCLICommand {
               Apply the current template to the note titled "Project Notes".
           ursus --check-updates
               Check for a Sparkle app update from the command line.
+          ursus --auto-install-updates true
+              Turn on Sparkle automatic installs from the command line.
 
         Tip:
           Quote titles with spaces, for example: ursus --apply-template "Project Notes"
@@ -214,6 +239,25 @@ enum BearCLICommand {
     private static func assertNoExtraArguments(_ arguments: [String], for command: String) throws {
         guard arguments.isEmpty else {
             throw BearError.invalidInput("Command '\(command)' does not accept extra arguments.\n\n\(usageText)")
+        }
+    }
+
+    private static func parseAutomaticUpdatesOption(
+        _ arguments: [String],
+        flag: String
+    ) throws -> AutomaticUpdatesOption {
+        guard arguments.count == 1 else {
+            throw BearError.invalidInput("Command '\(flag)' requires exactly one value: `true` or `false`.\n\n\(usageText)")
+        }
+
+        let rawValue = arguments[0].trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch rawValue {
+        case "true":
+            return AutomaticUpdatesOption(enabled: true)
+        case "false":
+            return AutomaticUpdatesOption(enabled: false)
+        default:
+            throw BearError.invalidInput("Command '\(flag)' requires `true` or `false`, but received '\(arguments[0])'.\n\n\(usageText)")
         }
     }
 
