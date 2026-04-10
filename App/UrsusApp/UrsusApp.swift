@@ -22,7 +22,7 @@ struct UrsusApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Ursus") {
             UrsusWindowSurface {
                 UrsusDashboardView(model: model, updaterController: updaterController)
                     .frame(width: 720, height: 620)
