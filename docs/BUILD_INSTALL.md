@@ -1,4 +1,4 @@
-# Local Build And Clean Install
+# Build and Install
 
 This document is the practical local build, install, and reset guide for the current app-centered setup.
 

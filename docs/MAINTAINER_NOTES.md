@@ -155,7 +155,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 
 - `docs/MAINTAINER_NOTES.md`: current maintainer handoff and next queue
 - `docs/ARCHITECTURE.md`: current runtime and behavior shape
-- `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`: practical local build, release, reset, and bridge testing guide
+- `docs/BUILD_INSTALL.md`: practical local build, release, reset, and bridge testing guide
 - `docs/appcast.xml`: Sparkle appcast feed
 
 Historical implementation plans and the standalone selected-note helper note are intentionally gone. Helper behavior is now covered by the architecture and maintainer notes.
@@ -180,7 +180,7 @@ swift run ursus --help
 swift run ursus bridge status
 ```
 
-For release builds, follow `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`; it includes version bumping, Developer ID signing/notarization, DMG creation, release notes, and Sparkle appcast generation.
+For release builds, follow `docs/BUILD_INSTALL.md`; it includes version bumping, Developer ID signing/notarization, DMG creation, release notes, and Sparkle appcast generation.
 Release artifacts should be universal. Check the app executable and helper before uploading:
 
 ```sh
