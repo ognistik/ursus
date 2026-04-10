@@ -539,7 +539,7 @@ final class UrsusAppModel: ObservableObject {
 
             if let supportURL {
                 await MainActor.run {
-                    NSWorkspace.shared.open(supportURL)
+                    _ = NSWorkspace.shared.open(supportURL)
                 }
             }
 

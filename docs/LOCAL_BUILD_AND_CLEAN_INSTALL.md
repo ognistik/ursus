@@ -69,6 +69,19 @@ The script outputs one final DMG filename in `.build/release-artifacts`:
 
 - `Ursus.0.2.2.dmg`: the GitHub/Sparkle upload file
 
+Release builds are intended to support both Apple Silicon and Intel Macs on macOS 14 or later. The build and signing scripts fail if the app executable or embedded helper are missing either `arm64` or `x86_64`, but you can also inspect them directly:
+
+```sh
+lipo -archs ".build/UrsusApp/Build/Products/Release/Ursus.app/Contents/MacOS/Ursus"
+lipo -archs ".build/UrsusApp/Build/Products/Release/Ursus.app/Contents/Library/Helpers/Ursus Helper.app/Contents/MacOS/ursus-helper"
+```
+
+Both commands should print:
+
+```text
+x86_64 arm64
+```
+
 Upload that dotted DMG to the GitHub Release.
 
 3. Add release notes beside the dotted DMG.
@@ -96,6 +109,8 @@ Support/scripts/generate-sparkle-appcast.sh \
 ```
 
 This updates `docs/appcast.xml`.
+
+For a universal DMG, the new appcast item should keep `sparkle:minimumSystemVersion` at `14.0` and should not include `<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>` for the new release. Do not edit older appcast entries to widen hardware support unless the already-uploaded asset for that entry is replaced with a universal build.
 
 5. Commit and push the release changes.
 
@@ -214,6 +229,8 @@ ursus --debug-donation-status
 The checklist at the top is the normal release path. These are the key rules behind it:
 
 - `Support/scripts/sign-and-notarize-release.sh` creates the signed/notarized release artifacts under `.build/release-artifacts`.
+- `CONFIGURATION=Release Support/scripts/build-ursus-app.sh` builds the app through Xcode's generic macOS destination so the main app executable is universal.
+- `Support/scripts/build-ursus-helper-app.sh` builds separate `arm64` and `x86_64` helper slices for Release and merges them with `lipo` before embedding.
 - The script embeds the Developer ID provisioning profile required by the Bear token keychain access group.
 - The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to upload to GitHub and pass to Sparkle appcast generation.
 - `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path, so the `.app` folder in `.build/release-artifacts` does not matter.

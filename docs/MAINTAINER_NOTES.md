@@ -11,7 +11,8 @@ This file is the concise handoff for contributors and future agent threads. It s
 - Product shell: `Ursus.app`
 - App bundle identifier: `com.aft.ursus`
 - Helper bundle identifier: `com.aft.ursus-helper`
-- Platform: local macOS only
+- Platform: local macOS 14 or later
+- Release architecture: universal macOS app bundles with `arm64` and `x86_64` slices
 
 ## Product Invariants
 
@@ -171,3 +172,9 @@ swift run ursus bridge status
 ```
 
 For release builds, follow `docs/LOCAL_BUILD_AND_CLEAN_INSTALL.md`; it includes version bumping, Developer ID signing/notarization, DMG creation, release notes, and Sparkle appcast generation.
+Release artifacts should be universal. Check both executables before uploading:
+
+```sh
+lipo -archs ".build/release-artifacts/Ursus.app/Contents/MacOS/Ursus"
+lipo -archs ".build/release-artifacts/Ursus.app/Contents/Library/Helpers/Ursus Helper.app/Contents/MacOS/ursus-helper"
+```

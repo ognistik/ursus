@@ -166,6 +166,26 @@ sign_path() {
   fi
 }
 
+require_universal_binary() {
+  target_path="$1"
+  has_arm64=0
+  has_x86_64=0
+  architectures="$(/usr/bin/lipo -archs "$target_path" 2>/dev/null || true)"
+
+  case " $architectures " in
+    *" arm64 "*) has_arm64=1 ;;
+  esac
+  case " $architectures " in
+    *" x86_64 "*) has_x86_64=1 ;;
+  esac
+
+  if [ "$has_arm64" -eq 1 ] && [ "$has_x86_64" -eq 1 ]; then
+    return 0
+  fi
+
+  fail "Expected universal arm64+x86_64 binary at $target_path; found: ${architectures:-unknown}"
+}
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --app)
@@ -234,11 +254,13 @@ APP_INFO_PLIST="$APP_PATH/Contents/Info.plist"
 APP_NAME="$(basename "$APP_PATH" .app)"
 APP_VERSION="$(plist_value "$APP_INFO_PLIST" CFBundleShortVersionString)"
 APP_BUNDLE_IDENTIFIER="$(plist_value "$APP_INFO_PLIST" CFBundleIdentifier)"
+APP_EXECUTABLE_NAME="$(plist_value "$APP_INFO_PLIST" CFBundleExecutable)"
 STAGED_APP_PATH="$OUTPUT_DIR/$APP_NAME.app"
 DMG_PATH="$OUTPUT_DIR/$APP_NAME $APP_VERSION.dmg"
 RELEASE_ASSET_DMG_PATH="$OUTPUT_DIR/$APP_NAME.$APP_VERSION.dmg"
 NOTARY_RESULT_PATH="$OUTPUT_DIR/notary-submit-result.json"
 STAGED_PROFILE_PATH="$STAGED_APP_PATH/Contents/embedded.provisionprofile"
+STAGED_HELPER_EXECUTABLE_PATH="$STAGED_APP_PATH/Contents/Library/Helpers/Ursus Helper.app/Contents/MacOS/ursus-helper"
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ursus-sign.XXXXXX")"
 EXPANDED_ENTITLEMENTS_PATH="$TEMP_DIR/Ursus.release.entitlements"
@@ -315,6 +337,10 @@ rm -f "$RELEASE_ASSET_DMG_PATH"
 rm -f "$NOTARY_RESULT_PATH"
 /usr/bin/ditto "$APP_PATH" "$STAGED_APP_PATH"
 rm -f "$STAGED_PROFILE_PATH"
+
+require_universal_binary "$STAGED_APP_PATH/Contents/MacOS/$APP_EXECUTABLE_NAME"
+[ -f "$STAGED_HELPER_EXECUTABLE_PATH" ] || fail "Expected embedded helper executable not found: $STAGED_HELPER_EXECUTABLE_PATH"
+require_universal_binary "$STAGED_HELPER_EXECUTABLE_PATH"
 
 if [ -n "$PROVISIONING_PROFILE" ]; then
   /bin/cp "$PROVISIONING_PROFILE" "$STAGED_PROFILE_PATH"
