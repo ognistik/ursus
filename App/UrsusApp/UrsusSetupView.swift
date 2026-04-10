@@ -6,6 +6,7 @@ struct UrsusSetupView: View {
     @ObservedObject var model: UrsusAppModel
     @Binding var selectedSection: UrsusDashboardSection
     @State private var showsTokenInput = false
+    @State private var isSupportAffordanceHovered = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -70,26 +71,26 @@ struct UrsusSetupView: View {
                     .tracking(0)
             }
 
-            Text("Local MCP and utilities for Bear")
-                .font(.callout)
-                .foregroundStyle(ursusTertiaryTextColor)
-                .padding(.leading, 1)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("Local MCP and utilities for Bear")
 
-            if model.showsSupportAffordance {
-                HStack(spacing: 8) {
-                    Text("Free and open source.")
-                    Button("Support Ursus") {
+                if model.showsSupportAffordance {
+                    Text("·")
+
+                    Button {
                         model.presentDonationPrompt()
+                    } label: {
+                        Text("Support Ursus")
                     }
-                    .buttonStyle(.plain)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(ursusInlineLabelColor)
+                    .buttonStyle(UrsusSubtitleLinkButtonStyle(isHovered: isSupportAffordanceHovered))
+                    .onHover { isHovered in
+                        isSupportAffordanceHovered = isHovered
+                    }
                 }
-                .font(.footnote)
-                .foregroundStyle(ursusTertiaryTextColor)
-                .padding(.top, 4)
-                .padding(.leading, 1)
             }
+            .font(.subheadline)
+            .foregroundStyle(ursusTertiaryTextColor)
+            .padding(.leading, 1)
         }
     }
 
@@ -574,6 +575,16 @@ struct UrsusSetupView: View {
         }
     }
 
+}
+
+private struct UrsusSubtitleLinkButtonStyle: ButtonStyle {
+    let isHovered: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundStyle(isHovered ? ursusSecondaryTextColor : ursusTertiaryTextColor)
+            .opacity(configuration.isPressed ? 0.70 : 1)
+    }
 }
 
 private enum UrsusRecoveryAction {
