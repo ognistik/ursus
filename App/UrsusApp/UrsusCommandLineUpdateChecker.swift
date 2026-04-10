@@ -234,10 +234,7 @@ enum UrsusCommandLineUpdateRequest {
         let pendingMode = (defaults.string(forKey: pendingModeDefaultsKey))
             .flatMap(UrsusSparkleUpdateUIMode.init(rawValue:))
 
-        if requestTimestamp != nil {
-            defaults.removeObject(forKey: pendingDefaultsKey)
-            defaults.removeObject(forKey: pendingModeDefaultsKey)
-        }
+        clearPendingRequest()
 
         guard let requestTimestamp else {
             return launchedMode
@@ -252,6 +249,12 @@ enum UrsusCommandLineUpdateRequest {
         }
 
         return pendingMode ?? .manual
+    }
+
+    static func clearPendingRequest() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: pendingDefaultsKey)
+        defaults.removeObject(forKey: pendingModeDefaultsKey)
     }
 
     private static func launchArguments(for mode: UrsusSparkleUpdateUIMode) -> [String] {
@@ -283,6 +286,8 @@ enum UrsusSparkleUpdateUIRunner {
             fputs("Sparkle updates are not configured for this Ursus build.\n", stderr)
             return 1
         }
+
+        UrsusCommandLineUpdateRequest.clearPendingRequest()
 
         let app = NSApplication.shared
         let delegate = UrsusSparkleUpdateUIAppDelegate(mode: mode)
