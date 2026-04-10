@@ -132,16 +132,28 @@ sign_path() {
   target_path="$1"
   runtime_enabled="${2:-0}"
   entitlements_path="${3:-}"
+  effective_entitlements_path="$entitlements_path"
+  extracted_entitlements_path=""
 
   echo "Signing $(basename "$target_path")"
 
-  if [ "$runtime_enabled" -eq 1 ] && [ -n "$entitlements_path" ]; then
+  if [ -z "$effective_entitlements_path" ] && [ -n "${TEMP_DIR:-}" ]; then
+    extracted_entitlements_path="$(mktemp "${TEMP_DIR}/$(basename "$target_path").entitlements.XXXXXX.plist")"
+    if extract_entitlements "$target_path" "$extracted_entitlements_path"; then
+      effective_entitlements_path="$extracted_entitlements_path"
+    else
+      rm -f "$extracted_entitlements_path"
+      extracted_entitlements_path=""
+    fi
+  fi
+
+  if [ "$runtime_enabled" -eq 1 ] && [ -n "$effective_entitlements_path" ]; then
     /usr/bin/codesign \
       --force \
       --sign "$IDENTITY" \
       --timestamp \
       --options runtime \
-      --entitlements "$entitlements_path" \
+      --entitlements "$effective_entitlements_path" \
       "$target_path"
   elif [ "$runtime_enabled" -eq 1 ]; then
     /usr/bin/codesign \
@@ -150,12 +162,12 @@ sign_path() {
       --timestamp \
       --options runtime \
       "$target_path"
-  elif [ -n "$entitlements_path" ]; then
+  elif [ -n "$effective_entitlements_path" ]; then
     /usr/bin/codesign \
       --force \
       --sign "$IDENTITY" \
       --timestamp \
-      --entitlements "$entitlements_path" \
+      --entitlements "$effective_entitlements_path" \
       "$target_path"
   else
     /usr/bin/codesign \
@@ -163,6 +175,10 @@ sign_path() {
       --sign "$IDENTITY" \
       --timestamp \
       "$target_path"
+  fi
+
+  if [ -n "$extracted_entitlements_path" ]; then
+    rm -f "$extracted_entitlements_path"
   fi
 }
 

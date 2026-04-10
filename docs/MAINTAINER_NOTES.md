@@ -41,6 +41,7 @@ This file is the concise handoff for contributors and future agent threads. It s
 - The macOS Settings window mirrors the `Preferences` surface.
 - Donation prompting is app-only. MCP runtime code only records local eligibility in `Runtime/runtime-state.sqlite`.
 - Sparkle update UI remains in the app, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge usage without opening the main window.
+- Embedded bridge / stdio Sparkle scheduling must avoid `SPUStandardUpdaterController`; hidden CLI runs use a background `SPUUpdater` user driver so the bridge does not claim the visible app's LaunchServices identity.
 
 ### CLI
 

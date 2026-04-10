@@ -1,16 +1,18 @@
+import AppKit
 import BearCLIRuntime
 import Foundation
 import Sparkle
 
 @MainActor
-final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate {
-    private var scheduledUpdaterController: SPUStandardUpdaterController?
+final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate, @preconcurrency SPUStandardUserDriverDelegate {
+    private var scheduledUpdater: SPUUpdater?
+    private var scheduledUserDriver: UrsusBackgroundUpdateUserDriver?
     private var manualUpdaterController: SPUStandardUpdaterController?
     private weak var manualUpdater: SPUUpdater?
     private var manualContinuation: CheckedContinuation<UrsusUpdateCheckResult, Never>?
 
     func startScheduledUpdateChecks(context: String) {
-        guard scheduledUpdaterController == nil else {
+        guard scheduledUpdater == nil else {
             return
         }
 
@@ -18,13 +20,22 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
             return
         }
 
-        let updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
+        let userDriver = UrsusBackgroundUpdateUserDriver()
+        let updater = SPUUpdater(
+            hostBundle: .main,
+            applicationBundle: .main,
+            userDriver: userDriver,
+            delegate: nil
         )
-        scheduledUpdaterController = updaterController
-        updaterController.startUpdater()
+        do {
+            try updater.start()
+        } catch {
+            scheduledUserDriver = nil
+            scheduledUpdater = nil
+            return
+        }
+        scheduledUserDriver = userDriver
+        scheduledUpdater = updater
     }
 
     func checkForUpdatesFromCLI() async -> UrsusUpdateCheckResult {
@@ -45,7 +56,7 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
         let updaterController = SPUStandardUpdaterController(
             startingUpdater: false,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: self
         )
         manualUpdaterController = updaterController
         manualUpdater = updaterController.updater
@@ -58,6 +69,8 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
                 exitCode: 1
             )
         }
+
+        bringUpdateUIToFront()
 
         return await withCheckedContinuation { continuation in
             manualContinuation = continuation
@@ -92,6 +105,89 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
         manualUpdaterController = nil
         manualUpdater = nil
     }
+
+    nonisolated func standardUserDriverWillShowModalAlert() {
+        Task { @MainActor in
+            bringUpdateUIToFront()
+        }
+    }
+
+    nonisolated func standardUserDriverDidShowModalAlert() {
+        Task { @MainActor in
+            bringUpdateUIToFront()
+        }
+    }
+}
+
+@MainActor
+private final class UrsusBackgroundUpdateUserDriver: NSObject, SPUUserDriver {
+    private let permissionResponse = SUUpdatePermissionResponse(
+        automaticUpdateChecks: true,
+        sendSystemProfile: false
+    )
+
+    func show(
+        _ request: SPUUpdatePermissionRequest,
+        reply: @escaping (SUUpdatePermissionResponse) -> Void
+    ) {
+        reply(permissionResponse)
+    }
+
+    func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {}
+
+    func showUpdateFound(
+        with appcastItem: SUAppcastItem,
+        state: SPUUserUpdateState,
+        reply: @escaping (SPUUserUpdateChoice) -> Void
+    ) {
+        reply(.dismiss)
+    }
+
+    func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
+
+    func showUpdateReleaseNotesFailedToDownloadWithError(_ error: any Error) {}
+
+    func showUpdateNotFoundWithError(
+        _ error: any Error,
+        acknowledgement: @escaping () -> Void
+    ) {
+        acknowledgement()
+    }
+
+    func showUpdaterError(
+        _ error: any Error,
+        acknowledgement: @escaping () -> Void
+    ) {
+        acknowledgement()
+    }
+
+    func showDownloadInitiated(cancellation: @escaping () -> Void) {}
+
+    func showDownloadDidReceiveExpectedContentLength(_ expectedContentLength: UInt64) {}
+
+    func showDownloadDidReceiveData(ofLength length: UInt64) {}
+
+    func showDownloadDidStartExtractingUpdate() {}
+
+    func showExtractionReceivedProgress(_ progress: Double) {}
+
+    func showReadyToInstallAndRelaunch() async -> SPUUserUpdateChoice {
+        .dismiss
+    }
+
+    func showInstallingUpdate(
+        withApplicationTerminated applicationTerminated: Bool,
+        retryTerminatingApplication: @escaping () -> Void
+    ) {}
+
+    func showUpdateInstalledAndRelaunched(
+        _ relaunched: Bool,
+        acknowledgement: @escaping () -> Void
+    ) {
+        acknowledgement()
+    }
+
+    func dismissUpdateInstallation() {}
 }
 
 private struct UrsusSparkleConfiguration {
@@ -123,5 +219,22 @@ private struct UrsusSparkleConfiguration {
         }
 
         return trimmed
+    }
+}
+
+@MainActor
+private func bringUpdateUIToFront() {
+    if NSApp.activationPolicy() != .regular {
+        NSApp.setActivationPolicy(.regular)
+    }
+
+    if NSApp.isHidden {
+        NSApp.unhide(nil)
+    }
+
+    if #available(macOS 14, *) {
+        NSApp.activate()
+    } else {
+        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
     }
 }
