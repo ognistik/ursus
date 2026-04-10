@@ -1,6 +1,11 @@
 import BearCLIRuntime
 import Foundation
 
+if let updateUIMode = UrsusCommandLineUpdateRequest.updateUIMode(from: CommandLine.arguments) {
+    let exitCode = await UrsusSparkleUpdateUIRunner.run(mode: updateUIMode)
+    Foundation.exit(exitCode)
+}
+
 if let cliArguments = UrsusCLIRuntime.cliArgumentsForEmbeddedApp(from: CommandLine.arguments) {
     let updateChecker = await makeEmbeddedUpdateChecker(arguments: cliArguments)
     let exitCode = await UrsusCLIRuntime.run(arguments: cliArguments, updateChecker: updateChecker)

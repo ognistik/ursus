@@ -29,6 +29,11 @@ struct UrsusApp: App {
                     .task {
                         await handlePendingCommandLineUpdateCheck()
                     }
+                    .onReceive(NotificationCenter.default.publisher(for: UrsusCommandLineUpdateRequest.pendingRequestNotification)) { _ in
+                        Task {
+                            await handlePendingCommandLineUpdateCheck()
+                        }
+                    }
             }
         }
         .windowResizability(.contentSize)
@@ -56,11 +61,11 @@ struct UrsusApp: App {
 
     @MainActor
     private func handlePendingCommandLineUpdateCheck() async {
-        guard UrsusCommandLineUpdateRequest.consumePendingForegroundCheckRequest() else {
+        guard let updateMode = UrsusCommandLineUpdateRequest.consumePendingForegroundCheckRequest() else {
             return
         }
 
-        await updaterController.checkForUpdatesFromCommandLineRequest()
+        await updaterController.checkForUpdatesFromCommandLineRequest(mode: updateMode)
     }
 }
 
@@ -68,6 +73,11 @@ struct UrsusApp: App {
 final class UrsusAppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         true
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        NotificationCenter.default.post(name: UrsusCommandLineUpdateRequest.pendingRequestNotification, object: nil)
+        return true
     }
 }
 

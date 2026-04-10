@@ -36,7 +36,10 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking {
     }
 
     func checkForUpdatesFromCLI() async -> UrsusUpdateCheckResult {
-        await UrsusCommandLineUpdateRequest.openForegroundAppForManualCheck()
+        await UrsusCommandLineUpdateRequest.openSparkleUpdateUI(
+            mode: .manual,
+            successMessage: "Opened Ursus to check for updates."
+        )
     }
 }
 
@@ -61,7 +64,13 @@ private final class UrsusBackgroundUpdateUserDriver: NSObject, SPUUserDriver {
         state: SPUUserUpdateState,
         reply: @escaping (SPUUserUpdateChoice) -> Void
     ) {
-        reply(.dismiss)
+        Task { @MainActor in
+            _ = await UrsusCommandLineUpdateRequest.openSparkleUpdateUI(
+                mode: .updateAvailable,
+                successMessage: "Opened Ursus to show an available update."
+            )
+            reply(.dismiss)
+        }
     }
 
     func showUpdateReleaseNotes(with downloadData: SPUDownloadData) {}
@@ -144,13 +153,37 @@ private struct UrsusSparkleConfiguration {
 }
 
 @MainActor
-enum UrsusCommandLineUpdateRequest {
-    static let foregroundLaunchArgument = "--ursus-foreground-check-updates"
+enum UrsusSparkleUpdateUIMode: String {
+    case manual
+    case updateAvailable
+}
 
-    private static let pendingDefaultsKey = "UrsusPendingCommandLineUpdateCheckRequestedAt"
+@MainActor
+enum UrsusCommandLineUpdateRequest {
+    static let pendingRequestNotification = Notification.Name("UrsusSparkleUpdateUIRequest")
+    static let updateUILaunchArgument = "--ursus-sparkle-update-ui"
+    private static let updateAvailableLaunchArgument = "--ursus-sparkle-update-available"
+
+    private static let pendingDefaultsKey = "UrsusPendingSparkleUpdateUIRequestedAt"
+    private static let pendingModeDefaultsKey = "UrsusPendingSparkleUpdateUIMode"
     private static let pendingRequestMaxAge: TimeInterval = 300
 
-    static func openForegroundAppForManualCheck() async -> UrsusUpdateCheckResult {
+    static func updateUIMode(from processArguments: [String]) -> UrsusSparkleUpdateUIMode? {
+        guard processArguments.dropFirst().contains(updateUILaunchArgument) else {
+            return nil
+        }
+
+        if processArguments.dropFirst().contains(updateAvailableLaunchArgument) {
+            return .updateAvailable
+        }
+
+        return .manual
+    }
+
+    static func openSparkleUpdateUI(
+        mode: UrsusSparkleUpdateUIMode,
+        successMessage: String
+    ) async -> UrsusUpdateCheckResult {
         guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
             return UrsusUpdateCheckResult(
                 message: "Sparkle updates are not configured for this Ursus build.",
@@ -159,11 +192,12 @@ enum UrsusCommandLineUpdateRequest {
         }
 
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: pendingDefaultsKey)
+        UserDefaults.standard.set(mode.rawValue, forKey: pendingModeDefaultsKey)
         UserDefaults.standard.synchronize()
 
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        configuration.arguments = [foregroundLaunchArgument]
+        configuration.arguments = launchArguments(for: mode)
         configuration.createsNewApplicationInstance = shouldCreateNewApplicationInstance()
 
         return await withCheckedContinuation { continuation in
@@ -173,6 +207,7 @@ enum UrsusCommandLineUpdateRequest {
             ) { _, error in
                 if let error {
                     UserDefaults.standard.removeObject(forKey: pendingDefaultsKey)
+                    UserDefaults.standard.removeObject(forKey: pendingModeDefaultsKey)
                     continuation.resume(
                         returning: UrsusUpdateCheckResult(
                             message: "Ursus could not open its update UI: \(error.localizedDescription)",
@@ -184,7 +219,7 @@ enum UrsusCommandLineUpdateRequest {
 
                 continuation.resume(
                     returning: UrsusUpdateCheckResult(
-                        message: "Opened Ursus to check for updates.",
+                        message: successMessage,
                         exitCode: 0
                     )
                 )
@@ -192,20 +227,40 @@ enum UrsusCommandLineUpdateRequest {
         }
     }
 
-    static func consumePendingForegroundCheckRequest(now: Date = Date()) -> Bool {
+    static func consumePendingForegroundCheckRequest(now: Date = Date()) -> UrsusSparkleUpdateUIMode? {
         let defaults = UserDefaults.standard
-        let launchedForUpdateCheck = CommandLine.arguments.contains(foregroundLaunchArgument)
+        let launchedMode = updateUIMode(from: CommandLine.arguments)
         let requestTimestamp = defaults.object(forKey: pendingDefaultsKey) as? Double
+        let pendingMode = (defaults.string(forKey: pendingModeDefaultsKey))
+            .flatMap(UrsusSparkleUpdateUIMode.init(rawValue:))
 
         if requestTimestamp != nil {
             defaults.removeObject(forKey: pendingDefaultsKey)
+            defaults.removeObject(forKey: pendingModeDefaultsKey)
         }
 
         guard let requestTimestamp else {
-            return launchedForUpdateCheck
+            return launchedMode
         }
 
-        return launchedForUpdateCheck || now.timeIntervalSince1970 - requestTimestamp <= pendingRequestMaxAge
+        if let launchedMode {
+            return launchedMode
+        }
+
+        guard now.timeIntervalSince1970 - requestTimestamp <= pendingRequestMaxAge else {
+            return nil
+        }
+
+        return pendingMode ?? .manual
+    }
+
+    private static func launchArguments(for mode: UrsusSparkleUpdateUIMode) -> [String] {
+        switch mode {
+        case .manual:
+            return [updateUILaunchArgument]
+        case .updateAvailable:
+            return [updateUILaunchArgument, updateAvailableLaunchArgument]
+        }
     }
 
     private static func shouldCreateNewApplicationInstance() -> Bool {
@@ -218,5 +273,153 @@ enum UrsusCommandLineUpdateRequest {
                 runningApplication.processIdentifier != getpid()
                     && runningApplication.activationPolicy == .regular
             }
+    }
+}
+
+@MainActor
+enum UrsusSparkleUpdateUIRunner {
+    static func run(mode: UrsusSparkleUpdateUIMode) -> Int32 {
+        guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
+            fputs("Sparkle updates are not configured for this Ursus build.\n", stderr)
+            return 1
+        }
+
+        let app = NSApplication.shared
+        let delegate = UrsusSparkleUpdateUIAppDelegate(mode: mode)
+        app.delegate = delegate
+        app.setActivationPolicy(.regular)
+        app.unhide(nil)
+        activate(app)
+
+        app.run()
+        return delegate.exitCode
+    }
+
+    static func activate(_ app: NSApplication = .shared) {
+        if app.activationPolicy() != .regular {
+            app.setActivationPolicy(.regular)
+        }
+
+        app.unhide(nil)
+
+        if let keyWindow = app.keyWindow {
+            keyWindow.makeKeyAndOrderFront(nil)
+        } else if let visibleWindow = app.windows.first(where: { $0.isVisible }) {
+            visibleWindow.makeKeyAndOrderFront(nil)
+        }
+
+        if #available(macOS 14, *) {
+            app.activate()
+        } else {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        }
+    }
+}
+
+@MainActor
+private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
+    private let mode: UrsusSparkleUpdateUIMode
+    private var updaterController: SPUStandardUpdaterController?
+    private var didStartCheck = false
+    private var didRequestTermination = false
+
+    private(set) var exitCode: Int32 = 0
+
+    init(mode: UrsusSparkleUpdateUIMode) {
+        self.mode = mode
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let updaterController = SPUStandardUpdaterController(
+            startingUpdater: false,
+            updaterDelegate: self,
+            userDriverDelegate: self
+        )
+        self.updaterController = updaterController
+        updaterController.startUpdater()
+
+        Task { @MainActor in
+            await startUpdateCheckWhenReady()
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
+    func updater(
+        _ updater: SPUUpdater,
+        didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
+        error: (any Error)?
+    ) {
+        if error != nil {
+            exitCode = 1
+        }
+
+        scheduleTermination()
+    }
+
+    nonisolated func standardUserDriverWillShowModalAlert() {
+        Task { @MainActor in
+            UrsusSparkleUpdateUIRunner.activate()
+        }
+    }
+
+    nonisolated func standardUserDriverDidShowModalAlert() {
+        Task { @MainActor in
+            UrsusSparkleUpdateUIRunner.activate()
+        }
+    }
+
+    nonisolated func standardUserDriverWillHandleShowingUpdate(
+        _ handleShowingUpdate: Bool,
+        for update: SUAppcastItem,
+        state: SPUUserUpdateState
+    ) {
+        Task { @MainActor in
+            UrsusSparkleUpdateUIRunner.activate()
+        }
+    }
+
+    private func startUpdateCheckWhenReady() async {
+        guard !didStartCheck else {
+            return
+        }
+        didStartCheck = true
+
+        guard let updaterController else {
+            exitCode = 1
+            scheduleTermination()
+            return
+        }
+
+        for _ in 0..<30 where !updaterController.updater.canCheckForUpdates {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        guard updaterController.updater.canCheckForUpdates else {
+            exitCode = 1
+            scheduleTermination()
+            return
+        }
+
+        UrsusSparkleUpdateUIRunner.activate()
+
+        switch mode {
+        case .manual, .updateAvailable:
+            updaterController.checkForUpdates(nil)
+        }
+    }
+
+    private func scheduleTermination() {
+        guard !didRequestTermination else {
+            return
+        }
+        didRequestTermination = true
+
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            NSApplication.shared.terminate(nil)
+        }
     }
 }

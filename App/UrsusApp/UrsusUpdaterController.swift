@@ -49,7 +49,7 @@ final class UrsusUpdaterController: ObservableObject {
         updaterController.checkForUpdates(nil)
     }
 
-    func checkForUpdatesFromCommandLineRequest() async {
+    func checkForUpdatesFromCommandLineRequest(mode: UrsusSparkleUpdateUIMode) async {
         guard isConfigured else {
             return
         }
@@ -63,7 +63,10 @@ final class UrsusUpdaterController: ObservableObject {
         }
 
         bringAppToFront()
-        updaterController.checkForUpdates(nil)
+        switch mode {
+        case .manual, .updateAvailable:
+            updaterController.checkForUpdates(nil)
+        }
     }
 
     func setAutomaticallyChecksForUpdates(_ newValue: Bool) {
