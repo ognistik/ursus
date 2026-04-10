@@ -4,7 +4,7 @@ import Foundation
 import Sparkle
 
 @MainActor
-final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate, @preconcurrency SPUStandardUserDriverDelegate {
+final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
     private var scheduledUpdater: SPUUpdater?
     private var scheduledUserDriver: UrsusBackgroundUpdateUserDriver?
     private var manualUpdaterController: SPUStandardUpdaterController?
@@ -224,16 +224,18 @@ private struct UrsusSparkleConfiguration {
 
 @MainActor
 private func bringUpdateUIToFront() {
-    if NSApp.activationPolicy() != .regular {
-        NSApp.setActivationPolicy(.regular)
+    let app = NSApplication.shared
+
+    if app.activationPolicy() != .regular {
+        app.setActivationPolicy(.regular)
     }
 
-    if NSApp.isHidden {
-        NSApp.unhide(nil)
+    if app.isHidden {
+        app.unhide(nil)
     }
 
     if #available(macOS 14, *) {
-        NSApp.activate()
+        app.activate()
     } else {
         NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
     }
