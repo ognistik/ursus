@@ -20,6 +20,9 @@ enum BearCLICommand {
         case serve
         case status
         case printURL
+        case pause
+        case resume
+        case remove
         case help
     }
 
@@ -113,6 +116,12 @@ enum BearCLICommand {
               Show bridge configuration, LaunchAgent state, and health checks.
           ursus bridge print-url
               Print the bridge MCP endpoint URL.
+          ursus bridge pause
+              Stop the installed bridge LaunchAgent without removing it.
+          ursus bridge resume
+              Start the installed bridge LaunchAgent again.
+          ursus bridge remove
+              Stop and uninstall the bridge LaunchAgent.
           ursus doctor
               Check the local Ursus setup and print diagnostics.
           ursus paths
@@ -185,12 +194,20 @@ enum BearCLICommand {
               Show bridge configuration, LaunchAgent state, and health checks.
           ursus bridge print-url
               Print the saved MCP endpoint URL.
+          ursus bridge pause
+              Stop the installed bridge LaunchAgent without removing it.
+          ursus bridge resume
+              Start the installed bridge LaunchAgent again.
+          ursus bridge remove
+              Stop and uninstall the bridge LaunchAgent.
 
         Examples:
           ursus bridge serve
               Run the bridge directly in the current terminal.
           ursus bridge status
               Confirm that the installed bridge is loaded and responding.
+          ursus bridge pause
+              Recover from a stuck bridge process that keeps relaunching.
         """
     }
 
@@ -217,6 +234,15 @@ enum BearCLICommand {
         case "print-url":
             try assertNoExtraArguments(remainingArguments, for: "bridge print-url")
             return .bridge(.printURL)
+        case "pause":
+            try assertNoExtraArguments(remainingArguments, for: "bridge pause")
+            return .bridge(.pause)
+        case "resume":
+            try assertNoExtraArguments(remainingArguments, for: "bridge resume")
+            return .bridge(.resume)
+        case "remove":
+            try assertNoExtraArguments(remainingArguments, for: "bridge remove")
+            return .bridge(.remove)
         case "--help", "-h", "help":
             try assertNoExtraArguments(remainingArguments, for: "bridge help")
             return .bridge(.help)

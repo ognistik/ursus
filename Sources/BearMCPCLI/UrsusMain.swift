@@ -88,6 +88,15 @@ public enum UrsusCLIRuntime {
             case .bridge(.printURL):
                 let configuration = try BearRuntimeBootstrap.loadConfiguration()
                 print(try configuration.bridge.endpointURLString())
+            case .bridge(.pause):
+                let receipt = try BearAppSupport.pauseBridgeLaunchAgent()
+                print(renderBridgeActionReceipt(receipt, action: "pause"))
+            case .bridge(.resume):
+                let receipt = try BearAppSupport.resumeBridgeLaunchAgent()
+                print(renderBridgeActionReceipt(receipt, action: "resume"))
+            case .bridge(.remove):
+                let receipt = try BearAppSupport.removeBridgeLaunchAgent()
+                print(renderBridgeActionReceipt(receipt, action: "remove"))
             case .bridge(.serve):
                 try await runBridge(logger: logger)
             case .newNote(let options):
@@ -450,6 +459,21 @@ public enum UrsusCLIRuntime {
             "Stdout log: \(bridge.standardOutputLogPath)",
             "Stderr log: \(bridge.standardErrorLogPath)",
         ].joined(separator: "\n")
+    }
+
+    static func renderBridgeActionReceipt(
+        _ receipt: BearBridgeLaunchAgentActionReceipt,
+        action: String
+    ) -> String {
+        var lines = [
+            "Bridge action: \(action)",
+            "Result: \(receipt.status.rawValue)",
+            "LaunchAgent plist: \(receipt.plistPath)",
+        ]
+        if let endpointURL = receipt.endpointURL {
+            lines.append("URL: \(endpointURL)")
+        }
+        return lines.joined(separator: "\n")
     }
 
     static func renderDonationPromptSnapshot(_ snapshot: BearDonationPromptSnapshot) -> String {

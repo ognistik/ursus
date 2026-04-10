@@ -65,7 +65,6 @@ func cliLocatorInstallsPublicLauncherIntoStablePath() throws {
     #expect(fileManager.isExecutableFile(atPath: installedCLIURL.path))
     let launcherScript = try String(contentsOf: installedCLIURL, encoding: .utf8)
     #expect(launcherScript.contains(bundledCLIURL.path))
-    #expect(!launcherScript.contains("Contents/Resources/bin/ursus"))
     #expect(launcherScript.contains("exec \"$cli_path\" --ursus-cli \"$@\""))
 }
 

@@ -1290,11 +1290,13 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     #expect(recorder.commands == [
         ["print", "gui/\(getuid())/com.aft.ursus"],
         ["print", "gui/\(getuid())/com.aft.ursus"],
-        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["bootout", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
         ["print", "gui/\(getuid())/com.aft.ursus"],
-        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["bootout", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
     ])
 }
 
@@ -1388,7 +1390,7 @@ func installBridgeLaunchAgentTreatsBootoutIOErrorAsBenignWhenServiceIsAlreadyGon
     #expect(receipt.status == .installed)
     #expect(recorder.commands == [
         ["print", "gui/\(getuid())/com.aft.ursus"],
-        ["bootout", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["bootout", "gui/\(getuid())/com.aft.ursus"],
         ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
     ])

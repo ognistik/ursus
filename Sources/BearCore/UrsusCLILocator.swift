@@ -25,7 +25,7 @@ public enum UrsusCLILocator {
     }
 
     public static var bundledExecutableGuidance: String {
-        "Build or reinstall `\(UrsusAppLocator.appName)` so it contains `\(bundledRelativePath)`."
+        "Build or reinstall `\(UrsusAppLocator.appName)` so it contains the bundled executable at `\(bundledRelativePath)`."
     }
 
     public static func bundledExecutableURL(
@@ -71,13 +71,13 @@ public enum UrsusCLILocator {
         forAppBundleURL bundleURL: URL,
         fileManager: FileManager = .default
     ) throws -> String {
-        let bundledCLIURL = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
-        let candidatePaths = launcherCandidatePaths(
+        _ = try bundledExecutableURL(forAppBundleURL: bundleURL, fileManager: fileManager)
+        let bundledCandidatePaths = launcherCandidatePaths(
             primaryAppBundleURL: bundleURL,
-            primaryBundledCLIURL: bundledCLIURL
+            primaryRelativePath: bundledRelativePath
         )
 
-        let loopEntries = candidatePaths
+        let bundledLoopEntries = bundledCandidatePaths
             .map { "  \($0)" }
             .joined(separator: " \\\n")
         let installGuidance = "Open Ursus.app once from its current location to repair the launcher, or reinstall the app in /Applications/Ursus.app or ~/Applications/Ursus.app."
@@ -87,7 +87,7 @@ public enum UrsusCLILocator {
         set -eu
 
         for cli_path in \\
-        \(loopEntries)
+        \(bundledLoopEntries)
         do
           if [ -x "$cli_path" ]; then
             exec "$cli_path" --ursus-cli "$@"
@@ -166,19 +166,21 @@ public enum UrsusCLILocator {
 
     private static func launcherCandidatePaths(
         primaryAppBundleURL: URL,
-        primaryBundledCLIURL: URL
+        primaryRelativePath: String
     ) -> [String] {
-        var paths = [shellSingleQuoted(primaryBundledCLIURL.path)]
+        let primaryCLIURL = primaryAppBundleURL
+            .appendingPathComponent(primaryRelativePath, isDirectory: false)
+        var paths = [shellSingleQuoted(primaryCLIURL.path)]
         let fallbackBundleURLs = UrsusAppLocator.installedAppBundleCandidates()
 
         for bundleURL in fallbackBundleURLs where bundleURL.standardizedFileURL.path != primaryAppBundleURL.standardizedFileURL.path {
             let bundledCLIPath = bundleURL
-                .appendingPathComponent(bundledRelativePath, isDirectory: false)
+                .appendingPathComponent(primaryRelativePath, isDirectory: false)
                 .path
             paths.append(shellSingleQuoted(bundledCLIPath))
         }
 
-        let homeRelativePath = "Applications/\(UrsusAppLocator.appName)/\(bundledRelativePath)"
+        let homeRelativePath = "Applications/\(UrsusAppLocator.appName)/\(primaryRelativePath)"
         let homeCandidate = "\"$HOME/\(homeRelativePath)\""
         if !paths.contains(homeCandidate) {
             paths.append(homeCandidate)

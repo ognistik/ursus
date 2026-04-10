@@ -222,6 +222,22 @@ public struct BearBridgeLaunchAgentInstallReceipt: Codable, Hashable, Sendable {
     public let launcherPath: String
     public let standardOutputLogPath: String
     public let standardErrorLogPath: String
+
+    public init(
+        status: BearBridgeLaunchAgentInstallStatus,
+        plistPath: String,
+        endpointURL: String,
+        launcherPath: String,
+        standardOutputLogPath: String,
+        standardErrorLogPath: String
+    ) {
+        self.status = status
+        self.plistPath = plistPath
+        self.endpointURL = endpointURL
+        self.launcherPath = launcherPath
+        self.standardOutputLogPath = standardOutputLogPath
+        self.standardErrorLogPath = standardErrorLogPath
+    }
 }
 
 public enum BearBridgeLaunchAgentActionStatus: String, Codable, Hashable, Sendable {
@@ -235,6 +251,16 @@ public struct BearBridgeLaunchAgentActionReceipt: Codable, Hashable, Sendable {
     public let status: BearBridgeLaunchAgentActionStatus
     public let plistPath: String
     public let endpointURL: String?
+
+    public init(
+        status: BearBridgeLaunchAgentActionStatus,
+        plistPath: String,
+        endpointURL: String?
+    ) {
+        self.status = status
+        self.plistPath = plistPath
+        self.endpointURL = endpointURL
+    }
 }
 
 public struct BearBridgeEndpointProbeResult: Hashable, Sendable {
@@ -832,19 +858,33 @@ private extension BearAppSupport {
             return
         }
 
-        let result = try launchctlRunner(["bootout", launchdUserDomain(), launchAgentPlistURL.path])
-        if result.exitCode == 0 || launchctlResultLooksMissing(result) {
+        let serviceTarget = BearBridgeLaunchAgent.serviceTarget()
+        let serviceResult = try launchctlRunner(["bootout", serviceTarget])
+        if (serviceResult.exitCode == 0 || launchctlResultLooksMissing(serviceResult)),
+           (try? queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)) == false
+        {
             return
         }
 
-        if launchctlResultLooksBootoutIOError(result),
+        if launchctlResultLooksBootoutIOError(serviceResult),
+           (try? queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)) == false
+        {
+            return
+        }
+
+        let pathResult = try launchctlRunner(["bootout", launchdUserDomain(), launchAgentPlistURL.path])
+        if pathResult.exitCode == 0 || launchctlResultLooksMissing(pathResult) {
+            return
+        }
+
+        if launchctlResultLooksBootoutIOError(pathResult),
            (try? queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)) == false
         {
             return
         }
 
         throw BearError.configuration(
-            "Failed to stop the Ursus bridge LaunchAgent. \(launchctlMessage(from: result))"
+            "Failed to stop the Ursus bridge LaunchAgent. \(launchctlMessage(from: pathResult))"
         )
     }
 

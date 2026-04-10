@@ -29,6 +29,42 @@ func parseBridgeServeCommand() throws {
 }
 
 @Test
+func parseBridgePauseCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["bridge", "pause"])
+
+    switch command {
+    case .bridge(.pause):
+        break
+    default:
+        Issue.record("Expected 'bridge pause' to parse as the bridge pause subcommand.")
+    }
+}
+
+@Test
+func parseBridgeResumeCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["bridge", "resume"])
+
+    switch command {
+    case .bridge(.resume):
+        break
+    default:
+        Issue.record("Expected 'bridge resume' to parse as the bridge resume subcommand.")
+    }
+}
+
+@Test
+func parseBridgeRemoveCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["bridge", "remove"])
+
+    switch command {
+    case .bridge(.remove):
+        break
+    default:
+        Issue.record("Expected 'bridge remove' to parse as the bridge remove subcommand.")
+    }
+}
+
+@Test
 func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
     let command = try BearCLICommand.parse(arguments: ["bridge"])
 
@@ -87,6 +123,7 @@ func bridgeUsageTextExplainsBridgeCommandsAndExamples() {
 
     #expect(usage.contains("Manage the optional localhost HTTP MCP bridge."))
     #expect(usage.contains("ursus bridge <command>"))
+    #expect(usage.contains("ursus bridge pause"))
     #expect(usage.contains("Examples:"))
     #expect(usage.contains("Confirm that the installed bridge is loaded and responding."))
 }
@@ -253,6 +290,23 @@ func renderBridgeStatusIncludesLaunchAgentAndHealthDetails() {
     #expect(rendered.contains("LaunchAgent loaded: yes"))
     #expect(rendered.contains("Health: tcp-ok, initialize-failed"))
     #expect(rendered.contains("Stderr log: /tmp/bridge.stderr.log"))
+}
+
+@Test
+func renderBridgeActionReceiptIncludesStatusPlistAndOptionalURL() {
+    let rendered = UrsusCLIRuntime.renderBridgeActionReceipt(
+        BearBridgeLaunchAgentActionReceipt(
+            status: .paused,
+            plistPath: "/tmp/com.aft.ursus.plist",
+            endpointURL: "http://127.0.0.1:6190/mcp"
+        ),
+        action: "pause"
+    )
+
+    #expect(rendered.contains("Bridge action: pause"))
+    #expect(rendered.contains("Result: paused"))
+    #expect(rendered.contains("LaunchAgent plist: /tmp/com.aft.ursus.plist"))
+    #expect(rendered.contains("URL: http://127.0.0.1:6190/mcp"))
 }
 
 @Test

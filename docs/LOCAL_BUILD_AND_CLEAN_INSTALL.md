@@ -130,9 +130,17 @@ Current app build outputs:
 
 - Debug: `./.build/UrsusApp/Build/Products/Debug/Ursus.app`
 - Release: `./.build/UrsusApp/Build/Products/Release/Ursus.app`
-- App executable that also serves hidden CLI mode: `Contents/MacOS/Ursus`
+- App executable with the hidden embedded CLI mode: `Contents/MacOS/Ursus`
 
-The installed public launcher at `~/.local/bin/ursus` forwards into that app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates bridge and Terminal launches together.
+The installed public launcher at `~/.local/bin/ursus` invokes the app executable with the hidden `--ursus-cli` flag, so replacing `Ursus.app` still updates bridge and Terminal launches together.
+
+If the bridge process ever gets stuck relaunching, use one of these recovery commands:
+
+```sh
+~/.local/bin/ursus bridge pause
+~/.local/bin/ursus bridge resume
+~/.local/bin/ursus bridge remove
+```
 
 ---
 ## Current Runtime Paths
