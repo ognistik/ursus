@@ -3,6 +3,23 @@
     <channel>
         <title>Ursus</title>
         <item>
+            <title>0.2.2</title>
+            <pubDate>Fri, 10 Apr 2026 08:58:56 -0600</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## Changed
+### Minor Polish Fixes
+- Cleaned up UI in Setup & Preferences
+
+### Binary Compatibility
+- Extended support to Intel
+- Extended support down to MacOS 14
+
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.2/Ursus.0.2.2.dmg" length="19485810" type="application/octet-stream" sparkle:edSignature="6yzumuFzypXtHG25htsZeoQL/dFXNyKKBgPcuWxOeE58qoLHO7BJGCTMG2njwUC4R9fT0cKYfe3xr5CLPqRWDA=="/>
+        </item>
+        <item>
             <title>0.2.1</title>
             <pubDate>Thu, 09 Apr 2026 14:40:57 -0600</pubDate>
             <sparkle:version>2</sparkle:version>

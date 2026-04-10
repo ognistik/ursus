@@ -82,37 +82,23 @@ Both commands should print:
 x86_64 arm64
 ```
 
-Upload that dotted DMG to the GitHub Release.
+Upload that dotted DMG to the GitHub Release, and write the release notes in the GitHub Release body.
 
-3. Add release notes beside the dotted DMG.
-
-Use the same stem as the dotted DMG:
-
-```sh
-cat > ".build/release-artifacts/Ursus.0.2.2.md" <<'EOF'
-## Ursus 0.2.2
-
-- First change
-- Second change
-EOF
-```
-
-4. Generate the Sparkle appcast entry.
+3. Generate the Sparkle appcast entry.
 
 Do not run Sparkle's raw `generate_appcast` over the whole `release-artifacts` folder. Use the helper script and point it at the exact dotted DMG you uploaded:
 
 ```sh
 Support/scripts/generate-sparkle-appcast.sh \
   --archive "$PWD/.build/release-artifacts/Ursus.0.2.2.dmg" \
-  --tag v0.2.2 \
-  --release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"
+  --tag v0.2.2
 ```
 
-This updates `docs/appcast.xml`.
+This fetches the release notes from the GitHub Release body with `gh` and updates `docs/appcast.xml`. To override that body locally, pass `--release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"` or place a same-stem `.md`, `.html`, or `.txt` file beside the dotted DMG.
 
 For a universal DMG, the new appcast item should keep `sparkle:minimumSystemVersion` at `14.0` and should not include `<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>` for the new release. Do not edit older appcast entries to widen hardware support unless the already-uploaded asset for that entry is replaced with a universal build.
 
-5. Commit and push the release changes.
+4. Commit and push the release changes.
 
 At minimum, this should include the version bump and the updated `docs/appcast.xml`. After GitHub Pages publishes the new appcast, Sparkle should see the update.
 
@@ -234,6 +220,7 @@ The checklist at the top is the normal release path. These are the key rules beh
 - The script embeds the Developer ID provisioning profile required by the Bear token keychain access group.
 - The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to upload to GitHub and pass to Sparkle appcast generation.
 - `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path, so the `.app` folder in `.build/release-artifacts` does not matter.
+- The appcast helper prefers explicitly passed release notes, then same-stem local notes beside the archive, then the GitHub Release body for the passed tag.
 - The appcast helper uses temporary staging under `.build/sparkle-appcast/work` while it runs, then cleans that staging folder before it exits.
 - Do not edit or re-upload the DMG after generating `docs/appcast.xml`; Sparkle validates the exact bytes from the appcast signature.
 - The published feed URL is `https://ognistik.github.io/ursus/appcast.xml`.
