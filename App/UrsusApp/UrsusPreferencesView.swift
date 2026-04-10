@@ -178,10 +178,7 @@ struct UrsusPreferencesView: View {
     }
 
     private var appUpdatesPanel: some View {
-        UrsusPanel(
-            title: "App Updates",
-            titleHelpText: "Sparkle handles update checks for Ursus.app using the standard macOS updater flow."
-        ) {
+        UrsusPanel(title: "App Updates") {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle(
                     "Check for updates automatically",
@@ -191,10 +188,6 @@ struct UrsusPreferencesView: View {
                     )
                 )
                 .disabled(!updaterController.isConfigured)
-
-                Text("Automatic download and install stays off by default.")
-                    .font(.caption)
-                    .foregroundStyle(ursusTertiaryTextColor)
 
                 if let configurationNote = updaterController.configurationNote {
                     Text(configurationNote)
