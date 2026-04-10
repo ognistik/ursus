@@ -69,6 +69,8 @@ The script outputs one final DMG filename in `.build/release-artifacts`:
 
 - `Ursus.0.2.2.dmg`: the GitHub/Sparkle upload file
 
+The signing script now stages the `.app` in a temporary directory, creates the DMG from that temporary signed copy, and removes the default built `Release/Ursus.app` after a successful run. After the script finishes successfully, `.build/release-artifacts` should contain the DMG plus notarization metadata, not a leftover `.app` bundle.
+
 Release builds are intended to support both Apple Silicon and Intel Macs on macOS 14 or later. The build and signing scripts fail if the app executable or embedded helper are missing either `arm64` or `x86_64`, but you can also inspect them directly:
 
 ```sh
@@ -226,8 +228,9 @@ The checklist at the top is the normal release path. These are the key rules beh
 - `CONFIGURATION=Release Support/scripts/build-ursus-app.sh` builds the app through Xcode's generic macOS destination so the main app executable is universal.
 - `Support/scripts/build-ursus-helper-app.sh` builds separate `arm64` and `x86_64` helper slices for Release and merges them with `lipo` before embedding.
 - The script embeds the Developer ID provisioning profile required by the Bear token keychain access group.
+- The signing script stages the app in a temporary directory and removes the default built `Release/Ursus.app` after a successful DMG build, so the DMG is the only lasting release bundle artifact.
 - The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to upload to GitHub and pass to Sparkle appcast generation.
-- `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path, so the `.app` folder in `.build/release-artifacts` does not matter.
+- `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path and does not require a leftover `.app` beside the DMG.
 - The appcast helper prefers explicitly passed release notes, then same-stem local notes beside the archive, then the GitHub Release body for the passed tag.
 - The appcast helper uses temporary staging under `.build/sparkle-appcast/work` while it runs, then cleans that staging folder before it exits.
 - Do not edit or re-upload the DMG after generating `docs/appcast.xml`; Sparkle validates the exact bytes from the appcast signature.

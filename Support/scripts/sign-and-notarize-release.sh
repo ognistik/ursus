@@ -271,17 +271,25 @@ APP_NAME="$(basename "$APP_PATH" .app)"
 APP_VERSION="$(plist_value "$APP_INFO_PLIST" CFBundleShortVersionString)"
 APP_BUNDLE_IDENTIFIER="$(plist_value "$APP_INFO_PLIST" CFBundleIdentifier)"
 APP_EXECUTABLE_NAME="$(plist_value "$APP_INFO_PLIST" CFBundleExecutable)"
-STAGED_APP_PATH="$OUTPUT_DIR/$APP_NAME.app"
 DMG_PATH="$OUTPUT_DIR/$APP_NAME $APP_VERSION.dmg"
 RELEASE_ASSET_DMG_PATH="$OUTPUT_DIR/$APP_NAME.$APP_VERSION.dmg"
 NOTARY_RESULT_PATH="$OUTPUT_DIR/notary-submit-result.json"
-STAGED_PROFILE_PATH="$STAGED_APP_PATH/Contents/embedded.provisionprofile"
-STAGED_HELPER_EXECUTABLE_PATH="$STAGED_APP_PATH/Contents/Library/Helpers/Ursus Helper.app/Contents/MacOS/ursus-helper"
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ursus-sign.XXXXXX")"
 EXPANDED_ENTITLEMENTS_PATH="$TEMP_DIR/Ursus.release.entitlements"
 PROFILE_PLIST_PATH="$TEMP_DIR/provisioning-profile.plist"
+STAGED_APP_PATH="$TEMP_DIR/$APP_NAME.app"
+STAGED_PROFILE_PATH="$STAGED_APP_PATH/Contents/embedded.provisionprofile"
+STAGED_HELPER_EXECUTABLE_PATH="$STAGED_APP_PATH/Contents/Library/Helpers/Ursus Helper.app/Contents/MacOS/ursus-helper"
+REMOVE_SOURCE_APP_ON_SUCCESS=0
+RELEASE_SUCCEEDED=0
+if [ "$APP_PATH" = "$DEFAULT_APP_PATH" ]; then
+  REMOVE_SOURCE_APP_ON_SUCCESS=1
+fi
 cleanup() {
+  if [ "$RELEASE_SUCCEEDED" -eq 1 ] && [ "$REMOVE_SOURCE_APP_ON_SUCCESS" -eq 1 ]; then
+    rm -rf "$APP_PATH"
+  fi
   rm -rf "$TEMP_DIR"
 }
 trap cleanup EXIT INT TERM
@@ -347,7 +355,6 @@ elif [ "$RESTRICTED_KEYCHAIN_GROUPS" -eq 1 ]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
-rm -rf "$STAGED_APP_PATH"
 rm -f "$DMG_PATH"
 rm -f "$RELEASE_ASSET_DMG_PATH"
 rm -f "$NOTARY_RESULT_PATH"
@@ -439,10 +446,16 @@ if [ "$RELEASE_ASSET_DMG_PATH" != "$DMG_PATH" ]; then
   DMG_PATH="$RELEASE_ASSET_DMG_PATH"
 fi
 
+RELEASE_SUCCEEDED=1
+
 echo
 echo "Release artifacts:"
-echo "  App: $STAGED_APP_PATH"
 echo "  DMG: $DMG_PATH"
+if [ "$REMOVE_SOURCE_APP_ON_SUCCESS" -eq 1 ]; then
+  echo "  Source app kept: no"
+else
+  echo "  Source app kept: yes"
+fi
 if [ "$SKIP_NOTARIZE" -eq 0 ]; then
   echo "  Notary profile: $NOTARY_PROFILE"
 else
