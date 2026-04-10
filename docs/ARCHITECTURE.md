@@ -1,95 +1,122 @@
 # Ursus Architecture
 
-`Ursus` is a local macOS MCP runtime for Bear. The canonical server remains stdio, and the app can optionally install a loopback HTTP bridge for hosts that only speak MCP over HTTP.
+`Ursus` is a local macOS MCP runtime for Bear. The canonical server is stdio MCP; `Ursus.app` can optionally install a loopback HTTP bridge for hosts that only speak MCP over HTTP.
 
 ## Layers
 
-- `BearCore`: domain types, config paths, template rendering, bridge settings, and shared errors.
+- `BearCore`: domain types, config paths, template rendering, bridge settings, selected-note token storage, process/runtime paths, and shared errors.
 - `BearDB`: read-only access to Bear's SQLite database through GRDB.
-- `BearXCallback`: Bear mutation URL construction, Bear app launching, and shared selected-note callback-host logic.
-- `BearApplication`: orchestration, mutation planning, bootstrap files, and bridge LaunchAgent/status management.
-- `BearMCP`: MCP tool registration and argument decoding.
-- `BearCLIRuntime`: shared CLI and bridge runtime used by both the standalone `ursus` executable and the app binary when it is launched in hidden CLI mode.
-- `BearMCPCLI`: tiny executable wrapper that forwards terminal launches into `BearCLIRuntime`.
-- `Ursus.app`: native macOS shell target in `UrsusApp.xcodeproj` that links the shared package code for diagnostics/settings UI, inline `template.md` editing, optional bridge install/remove/pause/resume/copy actions, app-only donation prompting, Sparkle-based update checks, and hidden CLI-mode entry through the main app executable. Selected-note resolution runs through the embedded helper app instead of an app-host callback path.
+- `BearXCallback`: Bear mutation URL construction, Bear app launching, x-callback transport, and selected-note callback-host logic.
+- `BearApplication`: orchestration, mutation planning, bootstrap files, backups, runtime state, app support snapshots, and bridge LaunchAgent/status management.
+- `BearMCP`: MCP tool registration, argument decoding, tool catalog generation, and successful-operation counting.
+- `BearCLIRuntime`: shared CLI and bridge runtime, mapped to `Sources/BearMCPCLI`, used by both the standalone `ursus` executable and the app binary's hidden CLI mode.
+- `BearMCPCLI`: tiny executable wrapper at `Sources/BearMCPCLIExecutable` that imports `BearCLIRuntime`.
+- `BearSelectedNoteHelper`: background helper executable bundled as `Ursus Helper.app`.
+- `Ursus.app`: native macOS control center in `UrsusApp.xcodeproj`, with setup/preferences/tools UI, inline template editing, optional bridge controls, bridge access review, donation prompting, Sparkle update UI, and hidden CLI-mode entry through the main app executable.
 
-## Current v1 shape
+## Read And Write Model
 
 - Reads come directly from Bear's local SQLite database.
-- Normal reads use a short bounded retry on transient SQLite busy/locked errors so the server can ride through brief post-write database contention from Bear.
-- Mutations are submitted through Bear's official x-callback actions.
-- Discovery tools (`bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_inbox_tags`) return batched compact note summaries and reserve `bear_get_notes` for full structured note fetches when current content or attachment details are actually needed.
-- Discovery reads always exclude trashed notes and target either normal notes or archived notes explicitly through `location: notes|archive`.
-- `bear_list_tags` defaults `location` to `notes`, excludes trashed and permanently deleted notes, returns location-scoped `noteCount`, and supports optional `query` and hierarchical `under_tag` filtering before tags are returned to clients.
-- Tag tools are split by intent: `bear_list_tags` is discovery, `bear_find_notes_by_tag` is a shortcut read surface over the main find engine, `bear_open_tag` is UI navigation for one known tag name, `bear_rename_tags` and `bear_delete_tags` are app-wide tag mutations, `bear_add_tags` plus `bear_remove_tags` are note-scoped literal-tag mutations, and `bear_apply_template` is an explicit note-normalization mutation.
-- `bear_get_notes` defaults `location` to `notes`, never returns trashed notes, resolves each selector as exact note id first and then exact case-insensitive title within the chosen location, never mixes normal notes with archived notes in one call, and is not intended as a selector-resolution preflight for note-targeting mutations.
-- MCP tool descriptions are built from the loaded config at startup for user-overridable defaults, steer clients to omit `location` unless the user explicitly asks for archived notes, and point tag-specific flows back to `bear_list_tags` when a canonical tag name must be discovered first.
-- Discovery inputs are batched through `operations`, which must be a non-empty array of operation objects, and each operation returns either a summary page or an inline error without failing sibling operations.
-- Discovery page size and snippet length come from config and are owned by the server. MCP discovery inputs no longer accept per-call `limit` or `snippet_length` overrides, and cursor continuation keeps using the configured defaults.
-- Discovery pagination remains cursor-based per operation, with opaque cursors keyed by a digest of the normalized filter set and the full internal sort key.
-- When a discovery request includes `text`, the shared find engine applies deterministic ranking: exact full-query phrase matches first, then ordered-term matches, then unordered all-term matches, with modified date and note id as tie-breakers. Filter-only discovery remains recency-sorted.
-- Discovery summaries keep a template-aware body `snippet`, always include `hasAttachments`, may include `hasBackups` when backup tooling is active, and include `matchedFields` when a text filter is part of the request. Attachment OCR/search text never appears in discovery output, even when attachment text caused the match.
-- `bear_find_notes` accepts text, tag, inbox-tag, presence, and date filters. Presence filters cover attachments and tag presence.
-- Backups stay under Application Support for now, with canonical snapshot payloads stored as `Backups/<note-id>/<snapshot-id>.json`, a rebuildable SQLite metadata index at `~/Library/Application Support/Ursus/backups.sqlite`, and quarantined malformed or ambiguous files under `Backups/_quarantine`. `bear_create_backups` reuses the manual capture flow, `bear_list_backups` is a note-scoped paginated discovery surface keyed by `captured_at` plus `snapshot_id` and supports optional inclusive `from` / `to` filters on the backup creation timestamp, `bear_compare_backup` returns compact metadata plus bounded diff hunks, `bear_delete_backups` removes one snapshot or clears one note's backup history, and `bear_restore_notes` restores one of those snapshots.
-- Natural-language date phrases for discovery and note-scoped backup listing are resolved by the server in the local timezone and are intentionally limited to present/past-oriented phrases such as `today`, `this week`, `last week`, and `last 7 days`.
-- `from` and `to` are inclusive bounds, so filtering to one named period can use the same phrase on both sides when needed.
-- Backup-list cursors are tied to the normalized note-scoped date-filter query identity, so pages from different `from` / `to` ranges cannot be mixed.
-- Full note fetches expose a single canonical `content` field derived from normalized raw markdown, strip template wrapper noise when the current template matches, and return attachment metadata by default. Attachment OCR/search text is available only when `bear_get_notes` is called with `include_attachment_text: true`, remains separate from note `content` rather than duplicating `body` and `rawText`, and may include `hasBackups` when backup tooling is active. Bear's SQLite row revision field (`Z_OPT`) remains an internal read/write implementation detail rather than MCP-facing note metadata.
-- Note-targeting mutation tools accept selector-style note inputs at the MCP surface. Each selector resolves as exact note id first, then exact case-insensitive title across notes and archive, and ambiguous title matches require the note id. MCP descriptions explicitly steer clients away from calling `bear_get_notes` only to resolve those selectors.
-- When the shared Ursus Keychain store indicates selected-note token availability, note-selector tools also accept `selected: true` as an alternative to explicit selectors. The MCP layer resolves the selected Bear note through Bear's token-backed `open-note?selected=yes` flow plus an on-demand background helper app bundled inside `Ursus.app`. The helper launches only for the callback round trip, receives Bear's callback without foregrounding the visible dashboard app, writes the same response-file JSON payload the CLI already expects, and then exits. Managed-token injection is shared so the helper can prepare the Bear request URL without exposing token-bearing callback URLs in user-facing layers.
-- `bear_replace_content` computes the final full note markdown locally from protected edit intents, then writes with Bear's `replace_all` mode.
-- `bear_replace_content` is template-aware: title edits rebuild the note with the new title, body edits replace only editable content, and surgical string replacement is limited to editable content rather than full raw note markdown.
-- Before note-destructive mutations, the service captures one pre-mutation backup snapshot per logical note operation in a durable store under `~/Library/Application Support/Ursus/Backups`. Snapshot payloads are written into per-note folders, while a root-level SQLite index is refreshed from disk only when a lightweight backup-tree fingerprint shows that the filesystem changed, so manual file removals, imports, and canonical-path self-healing stay reflected in tool results without forcing a full recursive reconciliation pass on every access. Files that cannot be repaired deterministically are moved to `Backups/_quarantine`, expired snapshots are removed during reconciliation, and template-aware internal multi-step writes such as attachment anchor cleanup are treated as one logical operation so backup history does not record temporary transport states.
-- `bear_create_notes` builds the final note text locally from a single `template.md`, merges configured inbox tags with any explicit request tags, and sends tags inside the note text instead of Bear's `tags=` create parameter.
-- `bear_insert_text` now supports two placement modes. Without a relative target, it preserves templated note structure when possible: if template management is enabled and the current note matches the current `template.md`, the service inserts at the top or bottom of the extracted `{{content}}` region and then writes the full note back with `replace_all`; otherwise it falls back to Bear's direct prepend/append add-text path. With a relative target, the service always plans the insertion locally against editable content, resolves one heading-title or exact-string match, and writes the updated full note back through `replace_all`.
-- `bear_add_files` follows the same planning model. Without a relative target, templated notes still use a temporary backend-only header anchor inside the extracted `{{content}}` region while non-templated notes fall back to Bear's direct prepend/append add-file path. With a relative target, the service plans against editable content for both templated and non-templated notes: it inserts a temporary backend-only header anchor before or after the resolved heading-title or exact-string match, targets Bear's `add-file` call at that header using `prepend`, and then removes the temporary header with a final `replace_all` write so the attachment lands at the requested point in note content. Cleanup tolerates Bear rewriting the anchor line by appending the attachment inline, which avoids leaking the temporary `BEAR_MCP_ATTACHMENT_*` header into user-visible content.
-- Tag handling uses bare tag names internally. Rendering into note markdown applies Bear syntax: `#tag` for single-word tags and `#tag with spaces#` for tags that contain whitespace.
-- The read layer's DB tag list is the effective/discovery view and can include implicit parent tags for subtags. Template-aware reads and note-tag mutations therefore parse literal tag tokens from the stored note text instead of reusing the DB-expanded tag list as the write-back source of truth.
-- `bear_add_tags` and `bear_remove_tags` are note-scoped full-replacement mutations. For add-tags, a matched template `{{tags}}` slot wins over any raw tag-only cluster; if no template match exists, the server extends the first raw tag-only cluster when found, otherwise it either applies the current template with the new tags when template management is enabled or inserts one canonical tag line at the configured default position when template management is disabled. If template management is enabled and that fallback path needs a template but `template.md` is missing or lacks a valid `{{tags}}` slot, the mutation fails clearly so the template can be fixed. Remove-tags continues to strip literal tag tokens from the raw body with whitespace cleanup.
-- `bear_apply_template` always loads the current `template.md`, even when template management is disabled for other mutation flows. It starts from editable content, extracts any existing template-slot tags when the note already matches the template, migrates every tag-only cluster from content into the final `{{tags}}` slot, preserves inline prose hashtags, de-duplicates tags in first-seen order, cleans whitespace after cluster removal, and re-renders the note through `replace_all`. It fails clearly if `template.md` is missing or does not provide valid `{{content}}` and `{{tags}}` slots.
-- Create-note tag merging follows config `tagsMergeMode` by default. `bear_create_notes` may override that per operation with `use_only_request_tags`, where `true` means use only the supplied request tags instead of configured inbox tags, `false` explicitly appends configured inbox tags, and omission uses the configured default. The live default behavior and configured inbox tags are injected into the MCP create-tool description at startup. Omission is distinct from `false`: omission means use config, while an explicit boolean forces behavior for that request. If the user only asks to add tag X, clients should pass `tags` and omit `use_only_request_tags`. Clients should omit the override unless the user explicitly asks to change tag-merging behavior for that request.
-- The MCP surface now keeps mutation-time presentation narrowly scoped: `bear_create_notes` still exposes config-driven `open_note` and `new_window`, `bear_open_notes` still exposes `new_window`, and the other note/tag mutation tools expose no presentation overrides. Create-note descriptions still read live defaults from config at startup and inject those defaults into the tool and property descriptions. For note-opening flows, omitted `new_window` still falls back to config, explicit `false` remains distinct from omission, and user requests for a separate or floating Bear window map to `new_window`; the server does not emit Bear's `float` URL parameter.
-- Insert/add-file default position now comes from config when `position` is omitted, and the live default is injected into the corresponding MCP property descriptions at startup.
-- Bear's `add-file` transport is built from local file contents: the server reads the requested path, base64-encodes the payload for Bear's documented `file` parameter, and can optionally target a specific note header during backend-managed attachment placement.
-- Bear x-callback URLs use an action-aware activation policy: UI-navigation actions such as `bear_open_tag`, `bear_open_notes`, and mutation requests that resolve to `open_note=yes` foreground Bear, while background mutations explicitly send `open_note=no` plus `show_window=no` and keep Bear unfocused.
-- Debug traces log the outgoing x-callback action plus a query summary that keeps behavioral flags visible while redacting large `text` and `file` payload values. Token-backed selected-note resolution also redacts callback URL/query values so token-bearing URLs do not leak into logs.
-- `ursus mcp` still prefers a shared runtime lock for stale-process detection and predictable diagnostics, but it falls back to temp per-launch locks when Codex opens additional stdio MCP children.
-- The stdio runtime exits when the MCP connection finishes or the original parent PID disappears, which prevents orphaned Codex-spawned servers from lingering after restarts.
-- The optional HTTP bridge runs through `ursus bridge serve`, reuses the same internal Bear service stack as `ursus mcp`, binds to loopback, and exposes one MCP endpoint at the configured path, which defaults to `/mcp`, without adding a second bridge mode or a separate `/sse` endpoint. Plain JSON request/response clients still work, while clients that advertise `text/event-stream` receive one-shot SSE-formatted POST responses for MCP request calls.
-- Remote connector clients should use the full MCP endpoint URL, not just the bridge origin. With default settings that means `http://127.0.0.1:6190/mcp` locally, or `https://your-domain.example/mcp` when a personal tunnel forwards the bridge.
-- In bridge OAuth mode, the configured MCP endpoint remains the only protected MCP route. The same origin also serves the public OAuth discovery and lifecycle routes: `/.well-known/oauth-protected-resource/...`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/authorize`, `/oauth/decision`, and `/oauth/token`.
-- First-time bridge authorization is browser-first: `/oauth/authorize` renders the consent page when no remembered grant exists, the browser submits a single-use hashed decision token to `/oauth/decision`, approval creates or reuses the remembered grant and issues the authorization code in the same request, denial redirects with `access_denied`, and the old app-handoff polling route is intentionally gone.
-- `Ursus.app` remains the control center for bridge auth state and remembered-grant revocation, but it is no longer the mandatory approval surface for OAuth browser popups.
-- Public bridge OAuth origin metadata is derived from the incoming public host instead of being hardcoded to any one domain or local port. Loopback hosts keep using the local bridge port, while tunneled HTTPS hosts default to the standard public port unless an explicit public port is present.
-- Browser-based OAuth clients are supported at the bridge boundary: OAuth routes and protected `/mcp` challenges answer CORS preflight and expose the Bearer challenge headers needed for web connector setup flows.
-- The bridge writes a small runtime-state file once it is ready. That state records config drift inputs, selected-note token availability, and a hash of the actual served MCP surface (`serverInfo` plus the filtered `tools/list` catalog), so the app only asks for a restart when the running bridge is genuinely stale relative to the current MCP surface.
-- The app now owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`. The public launcher at `~/.local/bin/ursus` resolves to that app executable and injects a hidden `--ursus-cli` flag, so replacing the app bundle updates Terminal and bridge launches together without copying a second CLI binary into another location.
-- The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting the stable public launcher path `~/.local/bin/ursus bridge serve`, with stdout/stderr logs under `~/Library/Application Support/Ursus/Logs/`.
-- The app records the most recently opened `Ursus.app` bundle path in runtime state so launcher validation, CLI diagnostics, and selected-note helper lookup can continue to find a nonstandard app location after the app has been opened once.
-- Runtime log retention is intentionally strict: `debug.log`, `bridge.stdout.log`, and `bridge.stderr.log` each keep at most the active file plus one `.1` archive, oversized bridge logs are snapshotted then truncated in place so `launchd` can keep writing to the same file handle, and bridge removal deletes both active and archived bridge logs.
-- Bridge install/resume wait for the endpoint to pass MCP initialize and `tools/list` probes before reporting success, dashboard status distinguishes LaunchAgent state from endpoint health, and repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect or re-add the same URL cleanly.
-- Bridge diagnostics are layered: LaunchAgent status, TCP reachability, MCP `initialize` health, and a small recent stdout/stderr log hint for unhealthy bridges.
-- App-side bridge editing exposes only the saved port. The host stays localhost-oriented in the app, and advanced host overrides remain config-only. Port edits are saved through the shared config flow, auto-skip busy ports in the UI, and still fail clearly on install/resume if the chosen port is already in use.
-- Batch inputs are supported at the MCP layer through a required non-empty `operations` array. Missing `operations` and empty `operations: []` are rejected with distinct validation errors.
-- Successful user-meaningful MCP tool operations are counted centrally inside `UrsusMCPServer`, which lets stdio and the optional HTTP bridge share the same local donation-eligibility logic without inferring from raw transport traffic. Counting excludes `initialize`, `tools/list`, `resources/list`, health probes, OAuth setup routes, and failed tool calls, and batched MCP requests add one count per successful operation object.
-- Config and the create-note template live under `~/Library/Application Support/Ursus`, and the app edits that same `template.md` file directly with pre-save slot validation.
-- Durable backup snapshots live under `~/Library/Application Support/Ursus/Backups`, with quarantined backup files under the `Backups/_quarantine` subfolder, while process locks remain under the sibling `Runtime/` path.
-- The app-only donation prompt is deliberately decoupled from runtime work. MCP code only updates shared eligibility state in the runtime store, and `Ursus.app` presents the calm `Support Ursus` ask the next time the app opens or becomes active. After the initial threshold is crossed, `Setup` keeps one subtle support affordance visible until the user chooses `Don’t Ask Again` or the donation action.
-- Debug builds add hidden non-public CLI donation test commands that can mark the shared runtime-state store eligible immediately, reset it, or print its current state, while release builds keep the production threshold-only presentation flow.
-- Sparkle is app-only infrastructure. `Ursus.app` uses the standard `SPUStandardUpdaterController` flow, exposes a manual `Check for Updates…` action from the native app menu plus Preferences, defaults automatic update checks on, and keeps automatic download/install off by default. Bear runtime layers do not know about Sparkle.
-- Runtime artifacts are kept under one Ursus root: durable backups live under `~/Library/Application Support/Ursus/Backups`, the rebuildable backup index lives at `~/Library/Application Support/Ursus/backups.sqlite`, the preferred lock file lives under `~/Library/Application Support/Ursus/Runtime/.server.lock`, the shared runtime-state database for donation eligibility lives at `~/Library/Application Support/Ursus/Runtime/runtime-state.sqlite`, current app-bundle and bridge runtime state files live beside it under `~/Library/Application Support/Ursus/Runtime/`, temp-directory fallback locks remain under `TMPDIR/ursus/Runtime/...`, and debug traces live under `~/Library/Application Support/Ursus/Logs/debug.log`.
-- If MCP behavior changes in a way that `tools/list` will not reflect on its own, bump `UrsusMCPServer.bridgeSurfaceEpoch` so AI-assisted edits keep bridge restart detection aligned with the true served surface.
+- Normal reads use a short bounded retry on transient SQLite busy/locked errors.
+- Mutations are submitted through Bear's official x-callback actions. Ursus never writes directly to Bear's SQLite database.
+- Bear x-callback URLs use an action-aware activation policy: UI navigation and requested note opens foreground Bear, while background mutations send `open_note=no` plus `show_window=no`.
+- Debug traces log x-callback action/query summaries while redacting token-bearing callback URLs and large `text` / `file` payload values.
+
+## MCP Surface
+
+- Discovery tools return compact summaries: `bear_find_notes`, `bear_find_notes_by_tag`, and `bear_find_notes_by_inbox_tags`.
+- Full note content comes from `bear_get_notes`, which is not intended as a selector-resolution preflight for note-targeting mutations.
+- Reads exclude trashed notes and target normal notes by default; archive reads require explicit `location: archive`.
+- `bear_list_tags` is location-scoped, excludes trashed/permanently deleted notes, and supports `query` plus hierarchical `under_tag` filtering.
+- Discovery inputs use required non-empty `operations` arrays. Each operation can return either a summary page or an inline error without failing sibling operations.
+- Discovery page size and snippet length come from config; MCP discovery inputs do not accept per-call `limit` or `snippet_length`.
+- Pagination uses opaque cursors keyed by the normalized filter set and internal sort key.
+- Text discovery ranking is deterministic: exact phrase matches first, then ordered terms, unordered all-term matches, modified date, and note id.
+- Discovery summaries include template-aware snippets, `hasAttachments`, matched fields for text searches, and optional `hasBackups`. Attachment OCR/search text never appears in discovery output.
+- `bear_get_notes` returns a canonical `content` field, strips template wrapper noise when the current template matches, and returns attachment metadata by default. Attachment OCR/search text is opt-in through `include_attachment_text: true`.
+- The MCP server does not expose Bear resources, but answers empty `resources/list` and `resources/templates/list` requests for client compatibility.
+- Tool descriptions are built from loaded config at startup so user-overridable defaults are visible in the tool catalog.
+
+## Mutation Planning
+
+- Note-targeting mutations accept exact note ids or exact case-insensitive titles; ambiguous titles require a note id.
+- When selected-note token availability is present, note-targeting tools can also accept `selected: true`.
+- `bear_replace_content` computes final full note markdown locally and commits through Bear's `replace_all` mode. Title edits rebuild the note with the new title; body/string edits are limited to editable content.
+- Before note-destructive mutations, the service captures one durable pre-mutation backup snapshot per logical note operation.
+- `bear_create_notes` renders one `template.md`, merges configured inbox tags with explicit request tags according to config/request overrides, and writes tags into note text rather than Bear's `tags=` create parameter.
+- `bear_insert_text` and `bear_add_files` preserve templated note structure when possible. Relative placements are planned locally against editable content and committed through full replacement after any backend attachment anchoring is cleaned up.
+- Tag handling uses bare tag names internally and renders Bear markdown syntax only at the boundary.
+- Template-aware reads and note-tag mutations parse literal tag tokens from stored note text instead of using Bear's DB-expanded effective tag list as write-back source of truth.
+- `bear_add_tags` prefers a matched template `{{tags}}` slot, then raw tag-only clusters, then template/default-position fallback.
+- `bear_remove_tags` strips literal tag tokens from raw body text with whitespace cleanup.
+- `bear_apply_template` always loads the current `template.md`, migrates tag-only clusters into the `{{tags}}` slot, preserves inline prose hashtags, and fails clearly if the template is missing required `{{content}}` / `{{tags}}` slots.
+- Mutation-time presentation stays narrow: `bear_create_notes` exposes config-driven `open_note` / `new_window`, `bear_open_notes` exposes `new_window`, and other note/tag mutation tools do not expose presentation overrides.
+
+## Backups
+
+- Durable snapshots live under `~/Library/Application Support/Ursus/Backups/<note-id>/<snapshot-id>.json`.
+- Rebuildable metadata lives in `~/Library/Application Support/Ursus/backups.sqlite`.
+- Malformed or ambiguous files are quarantined under `Backups/_quarantine`.
+- The backup store keeps a lightweight tree fingerprint so normal access can skip expensive recursive reconciliation unless the filesystem changes.
+- `bear_create_backups` reuses the manual capture path.
+- `bear_list_backups` is note-scoped, paginated by `captured_at` plus `snapshot_id`, and supports inclusive `from` / `to` filters.
+- `bear_compare_backup` returns compact metadata plus bounded diff hunks.
+- `bear_delete_backups` removes one snapshot or clears one note's backup history.
+- `bear_restore_notes` restores a snapshot primarily for note-text rollback. Attachment-related rollback remains best-effort because Bear may perform attachment-side rewrites.
+
+## Selected-Note Helper
+
+- Selected-note resolution uses Bear's token-backed `open-note?selected=yes` flow plus an embedded helper app, not a foreground app-host callback path.
+- The helper bundle is `Ursus Helper.app`; the executable product is `ursus-helper`; the callback scheme is `ursushelper://`.
+- The helper is background-only and on-demand. It launches for the callback round trip, receives Bear's callback without foregrounding the visible app, writes the response-file JSON payload expected by the CLI runtime, then exits.
+- Managed-token injection is shared so the helper can prepare Bear request URLs without exposing token-bearing callback URLs in user-facing layers.
+- Helper lookup prefers the most recently opened `Ursus.app` path recorded in runtime state, then falls back to `/Applications/Ursus.app` and `~/Applications/Ursus.app`.
+- The helper is signed without restricted entitlements because it does not read the selected-note token directly.
+- Direct helper bundle builds are only needed for helper packaging or callback work:
+
+```sh
+Support/scripts/build-ursus-helper-app.sh
+CONFIGURATION=Release Support/scripts/build-ursus-helper-app.sh
+```
+
+The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`.
+
+## CLI And App Runtime
+
+- Running `ursus` with no command starts the stdio MCP server.
+- The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `doctor`, `paths`, and bridge utility commands.
+- The app owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`.
+- The public launcher at `~/.local/bin/ursus` resolves to the app executable and injects a hidden `--ursus-cli` flag, so replacing the app updates Terminal and bridge launches together.
+- `ursus mcp` prefers a shared Application Support runtime lock and falls back to temp per-launch locks when hosts open additional stdio MCP children.
+- The stdio runtime exits when the MCP connection finishes or the original parent PID disappears.
+- Config, template, backups, logs, bridge auth, process locks, and runtime state live under `~/Library/Application Support/Ursus`, with temp fallback locks under `TMPDIR/ursus/Runtime/...`.
 - Runtime bootstrap does not migrate prerelease support roots or legacy debug logs forward; clean reset is the intended fallback for old prerelease state.
-- The server does not currently expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so MCP clients that probe those endpoints during discovery do not treat the server as broken.
-- The terminal-facing CLI now supports four direct utility flows outside MCP host usage: `--new-note`, `--backup-note`, `--restore-note`, and `--apply-template`. Bare `--new-note` preserves the interactive editing-note flow, but it now gates selected-note tag seeding on configured Bear-token availability so a missing token falls back directly to inbox tags instead of launching the helper first. Explicit `--new-note` mode accepts compact create flags for title/content/tags, uses append semantics unless `--replace-tags` is passed, defaults to background creation unless `--open-note` is present, rejects `--new-window` unless `--open-note` is also present, and exposes short aliases for those subflags. `--backup-note [note-id-or-title ...]` shares the same exact-id-then-title selector rules plus selected-note fallback when no explicit targets are passed, and prints machine-friendly receipts that include both `note_id` and `snapshot_id`. `--restore-note` is intentionally stricter: it accepts one or more `NOTE_ID SNAPSHOT_ID` pairs, requires exact note ids rather than title selectors, restores each pair independently, and reports per-pair receipts. `--apply-template [note-id-or-title ...]` keeps the selector-based selected-note fallback behavior.
-- Phases 2 and 3 of the app-unification plan are now present in the repo: `Ursus.app` acts as the control-center shell for diagnostics/settings in normal use, while selected-note resolution stays isolated in the embedded helper without changing the CLI stdio contract.
 
-## Current limits
+## HTTP Bridge
 
-- Token-backed x-callback actions are now used for selected-note resolution through the embedded helper only; broader token-backed Bear actions remain unexposed.
-- The CLI remains the primary product. Selected-note targeting is intentionally modeled as an advanced optional workflow that relies on the embedded helper bundled inside `Ursus.app`. `/Applications/Ursus.app` remains the preferred install location, and `~/Applications/Ursus.app` remains fully supported for user-specific installs, but once the app has been opened Ursus also remembers that bundle path for later helper and launcher discovery.
-- The repo now includes shared callback-host logic in `BearXCallback`, plus a helper source target and local bundling script that package the `ursushelper://` callback path inside `Ursus.app` as an internal selected-note implementation detail.
+- The optional HTTP bridge runs through `ursus bridge serve`, reuses the same `BearService` stack as stdio MCP, binds to loopback, and exposes one MCP endpoint at the configured path, defaulting to `/mcp`.
+- Plain JSON request/response clients work; clients that advertise `text/event-stream` receive one-shot SSE-formatted POST responses for MCP request calls.
+- Remote connector clients should use the full MCP endpoint URL, for example `http://127.0.0.1:6190/mcp` locally or `https://your-domain.example/mcp` through a personal tunnel.
+- In OAuth mode, the configured MCP endpoint is the only protected MCP route. Public OAuth routes live on the same origin: `/.well-known/oauth-protected-resource/...`, `/.well-known/oauth-authorization-server`, `/oauth/register`, `/oauth/authorize`, `/oauth/decision`, and `/oauth/token`.
+- First-time bridge authorization is browser-first through `/oauth/authorize` and `/oauth/decision`; the old app-handoff polling route is gone.
+- Public bridge OAuth origin metadata is derived from the incoming public host so tunneled HTTPS hosts do not leak the loopback port.
+- OAuth routes and protected `/mcp` challenges answer CORS preflight and expose Bearer challenge headers for browser-based connector setup.
+- `Ursus.app` remains the control center for bridge auth state and remembered-grant revocation.
+- The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting `~/.local/bin/ursus bridge serve`.
+- Bridge install/resume waits for MCP `initialize` and `tools/list` probes. Repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect cleanly.
+- Bridge diagnostics combine LaunchAgent state, TCP reachability, MCP `initialize` health, and recent stdout/stderr log hints.
+- Bridge runtime state records config drift inputs, selected-note token availability, and a hash of the served MCP surface. If MCP behavior changes in a way that `tools/list` will not reflect, bump `UrsusMCPServer.bridgeSurfaceEpoch`.
+
+## App-Only Features
+
+- Donation prompting is decoupled from runtime work. MCP code updates local eligibility state; `Ursus.app` presents the support prompt on open/activation.
+- Successful user-meaningful MCP operations are counted centrally inside `UrsusMCPServer`; probes, OAuth setup routes, failed tool calls, and list/resource probes are excluded.
+- Debug builds include hidden donation test commands; release builds keep threshold-only behavior.
+- Sparkle is app-only infrastructure. Runtime layers do not know about Sparkle.
+- Runtime log retention keeps each log family to the active file plus one `.1` archive, and bridge removal deletes live plus archived bridge logs.
+
+## Current Limits
+
+- Token-backed x-callback actions are used for selected-note resolution through the embedded helper only; broader token-backed Bear actions remain unexposed.
 - Create receipts use best-effort note discovery by title and recent modification time.
-- Backup restore is designed primarily for note-text rollback. Attachment-related restore remains best-effort because replaying saved raw markdown cannot perfectly reverse every attachment-side mutation Bear may have performed.
-- Tag rename and delete use best-effort verification by polling tag lists across both normal and archived note locations after Bear accepts the x-callback.
-- Debug tracing uses a simple file under `~/Library/Application Support/Ursus/Logs` with size-based rotation that retains only the active log plus one archive.
+- Tag rename and delete use best-effort verification by polling tag lists across normal and archived note locations after Bear accepts the x-callback.

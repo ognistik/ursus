@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Read [PROJECT_STATUS.md](./PROJECT_STATUS.md) before making substantial changes.
+Read [docs/MAINTAINER_NOTES.md](./docs/MAINTAINER_NOTES.md) before making substantial changes.
 
 ## Project Identity
 
@@ -18,13 +18,13 @@ Read [PROJECT_STATUS.md](./PROJECT_STATUS.md) before making substantial changes.
 
 ## Important User Preferences
 
+- Batch operations are important. Prefer non-empty `operations: [...]` inputs for mutation tools that support batching.
 - The old Alter schema and AppleScript bridge are reference material only and must not be modified.
-- Batch operations are important. Prefer `operations: []` inputs for mutation tools.
-- `bear_replace_note_body` should compute the full note text locally, then commit through Bear's full replacement path.
+- `bear_replace_content` should compute the full note text locally, then commit through Bear's full replacement path.
 - That replacement flow may be used for title changes when the leading title markdown is changed.
 - Discovery tools should return compact note summaries, while `bear_get_notes` remains the full-note fetch. Inbox-note discovery is driven by configured inbox tags.
 - Mutation tools should return compact receipts, not full note bodies, unless the user explicitly asks for content.
-- Trash/restore are intentionally excluded for now.
+- Bear's own trash/restore flows are intentionally excluded from the MCP surface for now. Backup restore remains available through `bear_restore_notes`.
 
 ## Current Technical Direction
 
@@ -34,10 +34,10 @@ Read [PROJECT_STATUS.md](./PROJECT_STATUS.md) before making substantial changes.
 - The current write adapter launches Bear URLs and uses best-effort DB polling for mutation receipts.
 - The MCP server should run as a single instance; startup now takes a process lock to prevent stale concurrent servers.
 - Runtime artifacts live under `~/Library/Application Support/Ursus`.
-- Temporary debug tracing may be written under `~/Library/Application Support/Ursus/Logs/debug.log` while write behavior is being validated.
+- Debug tracing is written under `~/Library/Application Support/Ursus/Logs/debug.log` with size-based retention.
 
 ## Working Style
 
-- Preserve the current layered structure: `BearCore`, `BearDB`, `BearXCallback`, `BearApplication`, `BearMCP`, `BearMCPCLI`.
+- Preserve the current layered structure: `BearCore`, `BearDB`, `BearXCallback`, `BearApplication`, `BearMCP`, `BearCLIRuntime`, `BearMCPCLI`.
 - Prefer real implementation over stubs when local context is available.
 - Keep docs and status files updated when architecture or scope changes.
