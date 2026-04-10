@@ -2,6 +2,8 @@ import AppKit
 import BearApplication
 import SwiftUI
 
+private let ursusHelpURL = URL(string: "https://github.com/ognistik/ursus")!
+
 let ursusMutedControlTint = Color(
     nsColor: NSColor(
         name: nil,
@@ -22,7 +24,7 @@ struct UrsusApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        WindowGroup("Ursus") {
+        Window("Ursus", id: "dashboard") {
             UrsusWindowSurface {
                 UrsusDashboardView(model: model, updaterController: updaterController)
                     .frame(width: 720, height: 620)
@@ -46,15 +48,16 @@ struct UrsusApp: App {
             }
         }
         .commands {
+            CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .appSettings) {}
+            CommandGroup(replacing: .help) {
+                Button("Ursus Help…") {
+                    NSWorkspace.shared.open(ursusHelpURL)
+                }
+                .keyboardShortcut("?", modifiers: [.command, .shift])
+            }
             CommandGroup(after: .appInfo) {
                 UrsusCheckForUpdatesCommand(updaterController: updaterController)
-            }
-        }
-
-        Settings {
-            UrsusWindowSurface {
-                UrsusSettingsView(model: model, updaterController: updaterController)
-                    .frame(minWidth: 560, minHeight: 520)
             }
         }
     }

@@ -34,11 +34,11 @@ This file is the concise handoff for contributors and future agent threads. It s
 ### App
 
 - `Ursus.app` is the control center and product shell.
-- The app uses `Setup`, `Preferences`, and `Tools` tabs.
+- The app uses one main dashboard window with `Setup`, `Preferences`, and `Tools` tabs.
 - `Setup` handles the main path: defaults, Bear selected-note token, detected local host setup, and optional localhost bridge setup.
 - `Preferences` owns durable note/template defaults, inline `template.md` editing with validation, inbox-tag editing, and Sparkle update controls.
 - `Tools` owns launcher repair, reveal-file/log actions, and tool availability controls.
-- The macOS Settings window mirrors the `Preferences` surface.
+- Ursus does not expose a separate macOS Settings window or multi-window dashboard flow; `Cmd+,` and `File > New Window` stay disabled because those surfaces already live inside the main window tabs.
 - Donation prompting is app-only. MCP runtime code only records local eligibility in `Runtime/runtime-state.sqlite`.
 - Sparkle update UI remains in the app executable, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge usage without opening the dashboard.
 - Embedded bridge / stdio Sparkle scheduling must avoid `SPUStandardUpdaterController`; hidden CLI runs use a background `SPUUpdater` user driver so the bridge does not claim the visible app's LaunchServices identity. If that background check finds an update, it hands off to the same app executable in Sparkle-only foreground mode.

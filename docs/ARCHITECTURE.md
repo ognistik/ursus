@@ -12,7 +12,7 @@
 - `BearCLIRuntime`: shared CLI and bridge runtime, mapped to `Sources/BearMCPCLI`, used by both the standalone `ursus` executable and the app binary's hidden CLI mode.
 - `BearMCPCLI`: tiny executable wrapper at `Sources/BearMCPCLIExecutable` that imports `BearCLIRuntime`.
 - `BearSelectedNoteHelper`: background helper executable bundled as `Ursus Helper.app`.
-- `Ursus.app`: native macOS control center in `UrsusApp.xcodeproj`, with setup/preferences/tools UI, inline template editing, optional bridge controls, bridge access review, donation prompting, Sparkle update UI, and hidden CLI-mode entry through the main app executable.
+- `Ursus.app`: native macOS control center in `UrsusApp.xcodeproj`, with one main dashboard window containing setup/preferences/tools UI, inline template editing, optional bridge controls, bridge access review, donation prompting, Sparkle update UI, and hidden CLI-mode entry through the main app executable.
 
 ## Read And Write Model
 
@@ -116,6 +116,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 ## App-Only Features
 
 - Donation prompting is decoupled from runtime work. MCP code updates local eligibility state; `Ursus.app` presents the support prompt on open/activation.
+- The app shell is intentionally single-window. The dashboard tabs are the only supported app surface, so Ursus does not expose a separate macOS Settings scene and disables the standard `New Window` / `Preferences…` menu commands.
 - Successful user-meaningful MCP operations are counted centrally inside `UrsusMCPServer`; probes, OAuth setup routes, failed tool calls, and list/resource probes are excluded.
 - Debug builds include hidden donation test commands; release builds keep threshold-only behavior.
 - Sparkle is owned by the app target. Runtime layers expose only a small update-checking hook so stdio MCP / bridge launches can participate in Sparkle's scheduler without importing Sparkle directly.
