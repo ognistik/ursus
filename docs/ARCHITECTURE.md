@@ -84,9 +84,10 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 ## CLI And App Runtime
 
 - Running `ursus` with no command starts the stdio MCP server.
-- The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `doctor`, `paths`, and bridge utility commands.
+- The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `--check-updates`, `doctor`, `paths`, and bridge utility commands.
 - The app owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`.
 - The public launcher at `~/.local/bin/ursus` resolves to the app executable and injects a hidden `--ursus-cli` flag, so replacing the app updates Terminal and bridge launches together.
+- Embedded CLI runs launched through the app bundle receive a Sparkle update-checking hook from the app target. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle for the long-running MCP surfaces, short-lived CLI commands wait only until Sparkle decides whether a scheduled check is due, and `ursus --check-updates` performs a user-initiated Sparkle check without opening the main Ursus window.
 - `ursus mcp` prefers a shared Application Support runtime lock and falls back to temp per-launch locks when hosts open additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears.
 - Config, template, backups, logs, bridge auth, process locks, and runtime state live under `~/Library/Application Support/Ursus`, with temp fallback locks under `TMPDIR/ursus/Runtime/...`.
@@ -112,7 +113,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - Donation prompting is decoupled from runtime work. MCP code updates local eligibility state; `Ursus.app` presents the support prompt on open/activation.
 - Successful user-meaningful MCP operations are counted centrally inside `UrsusMCPServer`; probes, OAuth setup routes, failed tool calls, and list/resource probes are excluded.
 - Debug builds include hidden donation test commands; release builds keep threshold-only behavior.
-- Sparkle is app-only infrastructure. Runtime layers do not know about Sparkle.
+- Sparkle is owned by the app target. Runtime layers expose only a small update-checking hook so stdio MCP / bridge launches can participate in Sparkle's scheduler without importing Sparkle directly.
 - Runtime log retention keeps each log family to the active file plus one `.1` archive, and bridge removal deletes live plus archived bridge logs.
 
 ## Current Limits

@@ -29,12 +29,25 @@ public enum UrsusCLIRuntime {
         return Array(processArguments.dropFirst(2))
     }
 
-    public static func run(arguments: [String]) async -> Int32 {
+    public static func run(
+        arguments: [String],
+        updateChecker: (any UrsusUpdateChecking)? = nil
+    ) async -> Int32 {
         LoggingSystem.bootstrap(StreamLogHandler.standardError)
         let logger = Logger(label: "ursus")
 
         do {
             let command = try BearCLICommand.parse(arguments: arguments)
+            switch command {
+            case .mcp:
+                await updateChecker?.startScheduledUpdateChecks(context: "stdio MCP")
+            case .bridge(.serve):
+                await updateChecker?.startScheduledUpdateChecks(context: "HTTP bridge")
+            case .checkForUpdates, .help, .bridge(.help):
+                break
+            default:
+                await updateChecker?.runScheduledUpdateChecksIfDue(context: "CLI command")
+            }
 
             switch command {
             case .help:
@@ -124,6 +137,15 @@ public enum UrsusCLIRuntime {
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
                 print(renderApplyTemplateReceipts(receipts))
+            case .checkForUpdates:
+                guard let updateChecker else {
+                    print("Sparkle update checks are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus --check-updates` after opening Ursus.app once to install or repair the launcher.")
+                    return 1
+                }
+
+                let result = await updateChecker.checkForUpdatesFromCLI()
+                print(result.message)
+                return result.exitCode
 #if DEBUG
             case .debugDonation(let subcommand):
                 let store = BearRuntimeStateStore()

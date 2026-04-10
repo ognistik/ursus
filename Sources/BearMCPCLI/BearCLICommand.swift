@@ -39,6 +39,7 @@ enum BearCLICommand {
     case backupNote([String])
     case restoreNote([RestoreNoteRequest])
     case applyTemplate([String])
+    case checkForUpdates
 #if DEBUG
     case debugDonation(DebugDonationSubcommand)
 #endif
@@ -71,6 +72,9 @@ enum BearCLICommand {
             return .restoreNote(try parseRestoreNoteRequests(remainingArguments))
         case "--apply-template":
             return .applyTemplate(remainingArguments)
+        case "--check-updates":
+            try assertNoExtraArguments(remainingArguments, for: "--check-updates")
+            return .checkForUpdates
 #if DEBUG
         case "--debug-donation-trigger":
             try assertNoExtraArguments(remainingArguments, for: "--debug-donation-trigger")
@@ -123,6 +127,8 @@ enum BearCLICommand {
               Restore notes from saved backups.
           ursus --apply-template [note-id-or-title ...]
               Apply the configured note template to one or more notes.
+          ursus --check-updates
+              Check for Ursus app updates through Sparkle without opening the main window.
 
         `--new-note` options:
           --title, -t TEXT
@@ -157,6 +163,8 @@ enum BearCLICommand {
               Back up the currently selected Bear note.
           ursus --apply-template "Project Notes"
               Apply the current template to the note titled "Project Notes".
+          ursus --check-updates
+              Check for a Sparkle app update from the command line.
 
         Tip:
           Quote titles with spaces, for example: ursus --apply-template "Project Notes"

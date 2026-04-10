@@ -41,6 +41,28 @@ func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
 }
 
 @Test
+func parseCheckForUpdatesCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["--check-updates"])
+
+    switch command {
+    case .checkForUpdates:
+        break
+    default:
+        Issue.record("Expected '--check-updates' to parse as .checkForUpdates.")
+    }
+}
+
+@Test
+func parseOldCheckForUpdatesCommandIsNotAccepted() {
+    do {
+        _ = try BearCLICommand.parse(arguments: ["--check-for-updates"])
+        Issue.record("Expected '--check-for-updates' to be rejected.")
+    } catch {
+        #expect(String(describing: error).contains("--check-for-updates"))
+    }
+}
+
+@Test
 func usageTextGroupsCommandsOptionsAndExamples() {
     let usage = BearCLICommand.usageText
 
@@ -49,6 +71,14 @@ func usageTextGroupsCommandsOptionsAndExamples() {
     #expect(usage.contains("`--new-note` options:"))
     #expect(usage.contains("Examples:"))
     #expect(usage.contains("Create a tagged note and open it in Bear."))
+    #expect(usage.contains("ursus --check-updates"))
+}
+
+@Test
+func checkForUpdatesWithoutBundledAppProviderReturnsGuidance() async {
+    let exitCode = await UrsusCLIRuntime.run(arguments: ["--check-updates"])
+
+    #expect(exitCode == 1)
 }
 
 @Test
