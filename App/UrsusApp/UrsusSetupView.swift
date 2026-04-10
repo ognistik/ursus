@@ -582,7 +582,7 @@ private struct UrsusSubtitleLinkButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .foregroundStyle(isHovered ? ursusSecondaryTextColor : ursusTertiaryTextColor)
+            .foregroundStyle(isHovered ? ursusSecondaryTextColor : ursusTertiaryTextColor.opacity(0.52))
             .opacity(configuration.isPressed ? 0.70 : 1)
     }
 }
