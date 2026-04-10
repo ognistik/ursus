@@ -3,6 +3,23 @@
     <channel>
         <title>Ursus</title>
         <item>
+            <title>0.2.3</title>
+            <pubDate>Fri, 10 Apr 2026 16:13:20 -0600</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## Changed
+
+### CLI & Back-end updates
+- Added option to manage auto updates via sparkle
+- Cleaned up CLI `--help`
+- Fixed a LOT of issues and managed to get Sparkle updates without having to open the entire UI.
+- Fixed the window by giving it a title, not allowing duplicate windows, preventing a separate panel for settings.
+- Lots of bug fixes under the hood.
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.3/Ursus.0.2.3.dmg" length="19574273" type="application/octet-stream" sparkle:edSignature="GmyhP8xPjO3o695aHxtmFu2i6pP7sxhlEQ9TKqqqk6XaQtqAoUygbXWHT3hJpuY/tO91a2QjrjJ2T0mwPKDWAQ=="/>
+        </item>
+        <item>
             <title>0.2.2</title>
             <pubDate>Fri, 10 Apr 2026 08:58:56 -0600</pubDate>
             <sparkle:version>3</sparkle:version>
