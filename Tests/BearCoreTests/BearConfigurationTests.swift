@@ -18,6 +18,16 @@ func configurationIgnoresSelectedNoteTokenKey() throws {
 }
 
 @Test
+func configurationDefaultsMatchFirstRunSettings() {
+    let configuration = BearConfiguration.default
+
+    #expect(configuration.inboxTags == ["inbox"])
+    #expect(configuration.defaultDiscoveryLimit == 10)
+    #expect(configuration.defaultSnippetLength == 280)
+    #expect(configuration.backupRetentionDays == 30)
+}
+
+@Test
 func configurationIgnoresLegacyAPITokenKey() throws {
     let data = Data(
         """

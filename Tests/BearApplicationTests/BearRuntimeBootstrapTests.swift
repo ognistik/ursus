@@ -148,4 +148,13 @@ func prepareSupportFilesCreatesCanonicalSupportFiles() throws {
     #expect(fileManager.fileExists(atPath: configFileURL.path))
     #expect(fileManager.fileExists(atPath: templateURL.path))
     #expect(fileManager.fileExists(atPath: configDirectoryURL.path))
+
+    let configuration = try BearConfiguration.load(from: configFileURL)
+    let template = try String(contentsOf: templateURL, encoding: .utf8)
+
+    #expect(configuration.inboxTags == ["inbox"])
+    #expect(configuration.defaultDiscoveryLimit == 10)
+    #expect(configuration.defaultSnippetLength == 280)
+    #expect(configuration.backupRetentionDays == 30)
+    #expect(template == "---\n{{tags}}\n---\n{{content}}")
 }

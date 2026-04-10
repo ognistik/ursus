@@ -66,14 +66,14 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
 
     public static var `default`: BearConfiguration {
         BearConfiguration(
-            inboxTags: ["0-inbox"],
+            inboxTags: ["inbox"],
             defaultInsertPosition: .bottom,
             templateManagementEnabled: true,
             createOpensNoteByDefault: true,
             openUsesNewWindowByDefault: true,
             createAddsInboxTagsByDefault: true,
             tagsMergeMode: .append,
-            defaultDiscoveryLimit: 20,
+            defaultDiscoveryLimit: 10,
             defaultSnippetLength: 280,
             backupRetentionDays: 30,
             disabledTools: [],
@@ -182,14 +182,14 @@ public struct BearConfiguration: Codable, Hashable, Sendable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        inboxTags = try container.decodeIfPresent([String].self, forKey: .inboxTags) ?? ["0-inbox"]
+        inboxTags = try container.decodeIfPresent([String].self, forKey: .inboxTags) ?? ["inbox"]
         defaultInsertPosition = try container.decodeIfPresent(InsertDefault.self, forKey: .defaultInsertPosition) ?? .bottom
         templateManagementEnabled = try container.decodeIfPresent(Bool.self, forKey: .templateManagementEnabled) ?? true
         createOpensNoteByDefault = try container.decodeIfPresent(Bool.self, forKey: .createOpensNoteByDefault) ?? true
         openUsesNewWindowByDefault = try container.decodeIfPresent(Bool.self, forKey: .openUsesNewWindowByDefault) ?? true
         createAddsInboxTagsByDefault = try container.decodeIfPresent(Bool.self, forKey: .createAddsInboxTagsByDefault) ?? true
         tagsMergeMode = try container.decodeIfPresent(TagsMergeMode.self, forKey: .tagsMergeMode) ?? .append
-        defaultDiscoveryLimit = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 20)
+        defaultDiscoveryLimit = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultDiscoveryLimit) ?? 10)
         defaultSnippetLength = max(1, try container.decodeIfPresent(Int.self, forKey: .defaultSnippetLength) ?? 280)
         backupRetentionDays = max(0, try container.decodeIfPresent(Int.self, forKey: .backupRetentionDays) ?? 30)
         disabledTools = Self.normalizedDisabledTools(try container.decodeIfPresent([BearToolName].self, forKey: .disabledTools) ?? [])

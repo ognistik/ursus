@@ -96,8 +96,9 @@ public enum BearRuntimeBootstrap {
     }
 
     private static let defaultNoteTemplate = """
-    {{content}}
-
+    ---
     {{tags}}
+    ---
+    {{content}}
     """
 }
