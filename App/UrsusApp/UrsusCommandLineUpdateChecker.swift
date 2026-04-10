@@ -4,12 +4,9 @@ import Foundation
 import Sparkle
 
 @MainActor
-final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
+final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking {
     private var scheduledUpdater: SPUUpdater?
     private var scheduledUserDriver: UrsusBackgroundUpdateUserDriver?
-    private var manualUpdaterController: SPUStandardUpdaterController?
-    private weak var manualUpdater: SPUUpdater?
-    private var manualContinuation: CheckedContinuation<UrsusUpdateCheckResult, Never>?
 
     func startScheduledUpdateChecks(context: String) {
         guard scheduledUpdater == nil else {
@@ -39,83 +36,7 @@ final class UrsusCommandLineUpdateChecker: NSObject, UrsusUpdateChecking, SPUUpd
     }
 
     func checkForUpdatesFromCLI() async -> UrsusUpdateCheckResult {
-        guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
-            return UrsusUpdateCheckResult(
-                message: "Sparkle updates are not configured for this Ursus build.",
-                exitCode: 1
-            )
-        }
-
-        guard manualContinuation == nil else {
-            return UrsusUpdateCheckResult(
-                message: "A Sparkle update check is already running.",
-                exitCode: 1
-            )
-        }
-
-        let updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: self,
-            userDriverDelegate: self
-        )
-        manualUpdaterController = updaterController
-        manualUpdater = updaterController.updater
-        updaterController.startUpdater()
-
-        guard updaterController.updater.canCheckForUpdates else {
-            manualUpdaterController = nil
-            return UrsusUpdateCheckResult(
-                message: "Sparkle cannot start a new update check right now.",
-                exitCode: 1
-            )
-        }
-
-        bringUpdateUIToFront()
-
-        return await withCheckedContinuation { continuation in
-            manualContinuation = continuation
-            updaterController.checkForUpdates(nil)
-        }
-    }
-
-    func updater(
-        _ updater: SPUUpdater,
-        didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
-        error: (any Error)?
-    ) {
-        guard updater === manualUpdater else {
-            return
-        }
-
-        let result: UrsusUpdateCheckResult
-        if let error {
-            result = UrsusUpdateCheckResult(
-                message: "Sparkle update check finished with an error: \(error.localizedDescription)",
-                exitCode: 1
-            )
-        } else {
-            result = UrsusUpdateCheckResult(
-                message: "Sparkle update check finished.",
-                exitCode: 0
-            )
-        }
-
-        manualContinuation?.resume(returning: result)
-        manualContinuation = nil
-        manualUpdaterController = nil
-        manualUpdater = nil
-    }
-
-    nonisolated func standardUserDriverWillShowModalAlert() {
-        Task { @MainActor in
-            bringUpdateUIToFront()
-        }
-    }
-
-    nonisolated func standardUserDriverDidShowModalAlert() {
-        Task { @MainActor in
-            bringUpdateUIToFront()
-        }
+        await UrsusCommandLineUpdateRequest.openForegroundAppForManualCheck()
     }
 }
 
@@ -223,20 +144,79 @@ private struct UrsusSparkleConfiguration {
 }
 
 @MainActor
-private func bringUpdateUIToFront() {
-    let app = NSApplication.shared
+enum UrsusCommandLineUpdateRequest {
+    static let foregroundLaunchArgument = "--ursus-foreground-check-updates"
 
-    if app.activationPolicy() != .regular {
-        app.setActivationPolicy(.regular)
+    private static let pendingDefaultsKey = "UrsusPendingCommandLineUpdateCheckRequestedAt"
+    private static let pendingRequestMaxAge: TimeInterval = 300
+
+    static func openForegroundAppForManualCheck() async -> UrsusUpdateCheckResult {
+        guard UrsusSparkleConfiguration(bundle: .main).isConfigured else {
+            return UrsusUpdateCheckResult(
+                message: "Sparkle updates are not configured for this Ursus build.",
+                exitCode: 1
+            )
+        }
+
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: pendingDefaultsKey)
+        UserDefaults.standard.synchronize()
+
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+        configuration.arguments = [foregroundLaunchArgument]
+        configuration.createsNewApplicationInstance = shouldCreateNewApplicationInstance()
+
+        return await withCheckedContinuation { continuation in
+            NSWorkspace.shared.openApplication(
+                at: Bundle.main.bundleURL,
+                configuration: configuration
+            ) { _, error in
+                if let error {
+                    UserDefaults.standard.removeObject(forKey: pendingDefaultsKey)
+                    continuation.resume(
+                        returning: UrsusUpdateCheckResult(
+                            message: "Ursus could not open its update UI: \(error.localizedDescription)",
+                            exitCode: 1
+                        )
+                    )
+                    return
+                }
+
+                continuation.resume(
+                    returning: UrsusUpdateCheckResult(
+                        message: "Opened Ursus to check for updates.",
+                        exitCode: 0
+                    )
+                )
+            }
+        }
     }
 
-    if app.isHidden {
-        app.unhide(nil)
+    static func consumePendingForegroundCheckRequest(now: Date = Date()) -> Bool {
+        let defaults = UserDefaults.standard
+        let launchedForUpdateCheck = CommandLine.arguments.contains(foregroundLaunchArgument)
+        let requestTimestamp = defaults.object(forKey: pendingDefaultsKey) as? Double
+
+        if requestTimestamp != nil {
+            defaults.removeObject(forKey: pendingDefaultsKey)
+        }
+
+        guard let requestTimestamp else {
+            return launchedForUpdateCheck
+        }
+
+        return launchedForUpdateCheck || now.timeIntervalSince1970 - requestTimestamp <= pendingRequestMaxAge
     }
 
-    if #available(macOS 14, *) {
-        app.activate()
-    } else {
-        NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+    private static func shouldCreateNewApplicationInstance() -> Bool {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else {
+            return false
+        }
+
+        return !NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .contains { runningApplication in
+                runningApplication.processIdentifier != getpid()
+                    && runningApplication.activationPolicy == .regular
+            }
     }
 }

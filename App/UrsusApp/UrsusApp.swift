@@ -26,12 +26,18 @@ struct UrsusApp: App {
             UrsusWindowSurface {
                 UrsusDashboardView(model: model, updaterController: updaterController)
                     .frame(width: 720, height: 620)
+                    .task {
+                        await handlePendingCommandLineUpdateCheck()
+                    }
             }
         }
         .windowResizability(.contentSize)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 model.applicationDidBecomeActive()
+                Task {
+                    await handlePendingCommandLineUpdateCheck()
+                }
             }
         }
         .commands {
@@ -46,6 +52,15 @@ struct UrsusApp: App {
                     .frame(minWidth: 560, minHeight: 520)
             }
         }
+    }
+
+    @MainActor
+    private func handlePendingCommandLineUpdateCheck() async {
+        guard UrsusCommandLineUpdateRequest.consumePendingForegroundCheckRequest() else {
+            return
+        }
+
+        await updaterController.checkForUpdatesFromCommandLineRequest()
     }
 }
 

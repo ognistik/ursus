@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 import Sparkle
@@ -48,6 +49,23 @@ final class UrsusUpdaterController: ObservableObject {
         updaterController.checkForUpdates(nil)
     }
 
+    func checkForUpdatesFromCommandLineRequest() async {
+        guard isConfigured else {
+            return
+        }
+
+        for _ in 0..<20 where !updaterController.updater.canCheckForUpdates {
+            try? await Task.sleep(nanoseconds: 100_000_000)
+        }
+
+        guard updaterController.updater.canCheckForUpdates else {
+            return
+        }
+
+        bringAppToFront()
+        updaterController.checkForUpdates(nil)
+    }
+
     func setAutomaticallyChecksForUpdates(_ newValue: Bool) {
         automaticallyChecksForUpdates = newValue
 
@@ -70,6 +88,28 @@ private extension UrsusUpdaterController {
         updater.publisher(for: \.automaticallyChecksForUpdates)
             .receive(on: RunLoop.main)
             .assign(to: &$automaticallyChecksForUpdates)
+    }
+
+    func bringAppToFront() {
+        let app = NSApplication.shared
+
+        if app.activationPolicy() != .regular {
+            app.setActivationPolicy(.regular)
+        }
+
+        app.unhide(nil)
+
+        if let keyWindow = app.keyWindow {
+            keyWindow.makeKeyAndOrderFront(nil)
+        } else if let visibleWindow = app.windows.first(where: { $0.isVisible }) {
+            visibleWindow.makeKeyAndOrderFront(nil)
+        }
+
+        if #available(macOS 14, *) {
+            app.activate()
+        } else {
+            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        }
     }
 }
 
