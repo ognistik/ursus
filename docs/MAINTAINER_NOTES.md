@@ -42,6 +42,10 @@ This file is the concise handoff for contributors and future agent threads. It s
 - Donation prompting is app-only. MCP runtime code only records local eligibility in `Runtime/runtime-state.sqlite`.
 - Sparkle update UI remains in the app executable, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge usage without opening the dashboard.
 - Embedded bridge / stdio Sparkle scheduling must avoid `SPUStandardUpdaterController`; hidden CLI runs use a background `SPUUpdater` user driver so the bridge does not claim the visible app's LaunchServices identity. If that background check finds an update, it hands off to the same app executable in Sparkle-only foreground mode.
+- Background bridge / stdio Sparkle checks are silent when no update is found or when a check fails. Only a real update-found event should foreground Sparkle UI.
+- User-initiated checks (`ursus --check-updates` and the app's own "Check for Updates…") may show Sparkle's standard "up to date" UI. Do not carry that no-update UI behavior into background bridge / MCP checks.
+- Sparkle-only mode exists specifically to avoid the old failure mode where the wrong process owned the modal update window and left Ursus stuck, unclickable, or impossible to reopen. Do not move update UI ownership back into the hidden bridge / CLI process, and do not add another helper app for update presentation.
+- Clearing `SULastCheckTime` and restarting bridge / stdio is the intended local test reset for scheduled checks. Long-running bridge / stdio processes should keep Sparkle's daily scheduling alive without requiring the dashboard app to stay open.
 
 ### CLI
 
@@ -63,6 +67,7 @@ Important behavior:
 - Running `ursus` with no command starts the stdio MCP server.
 - The public launcher at `~/.local/bin/ursus` forwards into `Ursus.app/Contents/MacOS/Ursus` with a hidden `--ursus-cli` flag.
 - Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its normal cadence. Ordinary short-lived CLI commands do not trigger scheduled Sparkle checks. `ursus --check-updates` and MCP / bridge update-found events hand off to the foreground app executable in Sparkle-only mode so the user-facing Sparkle UI owns a normal AppKit run loop without opening the dashboard.
+- Ordinary one-shot CLI commands such as note creation should not advance Sparkle's scheduler or touch `SULastCheckTime`; only the long-running MCP / bridge surfaces and explicit update-check commands should participate.
 - CLI bridge recovery is available through `ursus bridge pause`, `ursus bridge resume`, and `ursus bridge remove`.
 - Bare `--new-note` preserves the interactive editing-note flow and can seed tags from the selected Bear note when a selected-note token is configured.
 - Explicit `--new-note` mode skips selected-note lookup, follows the create-adds-inbox-tags default when `--tags` is omitted, appends tags unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is passed.

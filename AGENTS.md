@@ -35,6 +35,11 @@ Read [docs/MAINTAINER_NOTES.md](./docs/MAINTAINER_NOTES.md) before making substa
 - The MCP server should run as a single instance; startup now takes a process lock to prevent stale concurrent servers.
 - Runtime artifacts live under `~/Library/Application Support/Ursus`.
 - Debug tracing is written under `~/Library/Application Support/Ursus/Logs/debug.log` with size-based retention.
+- Sparkle update UI must remain owned by the app executable. Long-running `ursus mcp` / `ursus bridge serve` use a background `SPUUpdater` scheduler and only hand off to foreground Sparkle UI when an update is actually available.
+- Background Sparkle checks must stay silent on "no update" and on updater errors. User-initiated checks may show Sparkle's normal "up to date" UI.
+- Do not make ordinary one-shot CLI commands participate in scheduled Sparkle checks or advance `SULastCheckTime`.
+- Do not add another helper app for update presentation. Preserve the current Sparkle-only foreground mode in the main app executable and the separation between bridge process ownership and update UI ownership.
+- If you touch Sparkle, bridge lifecycle, launcher behavior, or multi-process app/CLI handoff, update `docs/ARCHITECTURE.md` and `docs/MAINTAINER_NOTES.md` in the same change and preserve the documented invariants.
 
 ## Working Style
 
