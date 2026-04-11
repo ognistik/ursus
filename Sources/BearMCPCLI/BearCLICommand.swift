@@ -144,7 +144,7 @@ enum BearCLICommand {
 
         Backups And Templates:
           ursus --backup-note [note-id-or-title ...]
-              Save backup snapshots for one or more notes.
+              Save backup snapshotss. Wait a few seconds before running if currently editing to ensure changes are saved.
           ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]
               Restore notes from saved backups.
           ursus --apply-template [note-id-or-title ...]
