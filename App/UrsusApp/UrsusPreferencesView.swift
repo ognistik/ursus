@@ -170,7 +170,9 @@ struct UrsusPreferencesView: View {
                     UrsusNumericFieldRow(
                         label: "Backup retention days",
                         value: autosavingBinding(\.backupRetentionDaysDraft),
-                        range: 0...365                    )
+                        range: 0...365,
+                        helpText: "If set to 0, backups will be disabled."
+                    )
                     configurationValidationMessages(for: .backupRetentionDays)
                 }
             }
