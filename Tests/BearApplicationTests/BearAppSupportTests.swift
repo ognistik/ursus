@@ -264,7 +264,7 @@ func dashboardSnapshotIncludesPreferredAppAndHelperDiagnosticsWithHealthyLaunche
 }
 
 @Test
-func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() throws {
+func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeCLIAndChatGPT() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
@@ -283,6 +283,8 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
         .appendingPathComponent("Application Support", isDirectory: true)
         .appendingPathComponent("Claude", isDirectory: true)
         .appendingPathComponent("claude_desktop_config.json", isDirectory: false)
+    let claudeCLIConfigURL = homeDirectoryURL
+        .appendingPathComponent(".claude.json", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -310,6 +312,18 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
       }
     }
     """.write(to: claudeConfigURL, atomically: true, encoding: .utf8)
+    try """
+    {
+      "mcpServers": {
+        "ursus": {
+          "type": "stdio",
+          "command": "\(launcherURL.path)",
+          "args": ["mcp"],
+          "env": {}
+        }
+      }
+    }
+    """.write(to: claudeCLIConfigURL, atomically: true, encoding: .utf8)
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -340,6 +354,13 @@ func dashboardSnapshotIncludesHostAppSetupGuidanceForCodexClaudeAndChatGPT() thr
     #expect(claudeSetup.status == BearDoctorCheckStatus.ok)
     #expect(claudeSetup.configPath == claudeConfigURL.path)
     #expect(claudeSetup.snippet?.contains(#""ursus": {"#) == true)
+    #expect(claudeSetup.integrationState == .installed)
+
+    let claudeCLISetup = try #require(hostSetup(named: "claude-cli", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(claudeCLISetup.status == BearDoctorCheckStatus.ok)
+    #expect(claudeCLISetup.configPath == claudeCLIConfigURL.path)
+    #expect(claudeCLISetup.snippet?.contains(#""ursus": {"#) == true)
+    #expect(claudeCLISetup.integrationState == .installed)
 
     let chatGPTSetup = try #require(hostSetup(named: "chatgpt", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(chatGPTSetup.status == BearDoctorCheckStatus.notConfigured)
@@ -1939,6 +1960,8 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
         .appendingPathComponent("Application Support", isDirectory: true)
         .appendingPathComponent("Claude", isDirectory: true)
         .appendingPathComponent("claude_desktop_config.json", isDirectory: false)
+    let claudeCLIConfigURL = homeDirectoryURL
+        .appendingPathComponent(".claude.json", isDirectory: false)
 
     try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
     try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -1952,6 +1975,18 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     args = ["mcp"]
     """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
     try "{ invalid json".write(to: claudeConfigURL, atomically: true, encoding: .utf8)
+    try """
+    {
+      "mcpServers": {
+        "ursus": {
+          "type": "stdio",
+          "command": "/tmp/not-ursus-launcher",
+          "args": ["mcp"],
+          "env": {}
+        }
+      }
+    }
+    """.write(to: claudeCLIConfigURL, atomically: true, encoding: .utf8)
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -1971,16 +2006,116 @@ func dashboardSnapshotFlagsHostAppsThatNeedConfigUpdates() throws {
     let codexSetup = try #require(hostSetup(named: "codex", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(codexSetup.status == BearDoctorCheckStatus.invalid)
     #expect(codexSetup.detail.contains("public launcher path"))
+    #expect(codexSetup.integrationState == .repairNeeded)
 
     let claudeSetup = try #require(hostSetup(named: "claude-desktop", in: dashboard.settings?.hostAppSetups ?? []))
     #expect(claudeSetup.status == BearDoctorCheckStatus.invalid)
     #expect(claudeSetup.detail.contains("could not be parsed as JSON"))
+    #expect(claudeSetup.integrationState == .repairNeeded)
+
+    let claudeCLISetup = try #require(hostSetup(named: "claude-cli", in: dashboard.settings?.hostAppSetups ?? []))
+    #expect(claudeCLISetup.status == BearDoctorCheckStatus.invalid)
+    #expect(claudeCLISetup.integrationState == .repairNeeded)
 
     let codexDiagnostic = try #require(diagnostic(named: "host-codex", in: dashboard.diagnostics))
     #expect(codexDiagnostic.status == BearDoctorCheckStatus.invalid)
 
     let claudeDiagnostic = try #require(diagnostic(named: "host-claude-desktop", in: dashboard.diagnostics))
     #expect(claudeDiagnostic.status == BearDoctorCheckStatus.invalid)
+
+    let claudeCLIDiagnostic = try #require(diagnostic(named: "host-claude-cli", in: dashboard.diagnostics))
+    #expect(claudeCLIDiagnostic.status == BearDoctorCheckStatus.invalid)
+}
+
+@Test
+func installAndRemoveHostAppIntegrationsManageSupportedConfigs() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let homeDirectoryURL = tempRoot.appendingPathComponent("home", isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{}".write(to: configFileURL, atomically: true, encoding: .utf8)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    try BearAppSupport.installHostAppIntegration(
+        id: "codex",
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL
+    )
+    try BearAppSupport.installHostAppIntegration(
+        id: "claude-desktop",
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL
+    )
+    try BearAppSupport.installHostAppIntegration(
+        id: "claude-cli",
+        fileManager: fileManager,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL
+    )
+
+    let installedDashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        tokenStore: InMemoryBearTokenStore(),
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(hostSetup(named: "codex", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
+    #expect(hostSetup(named: "claude-desktop", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
+    #expect(hostSetup(named: "claude-cli", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
+
+    try BearAppSupport.removeHostAppIntegration(
+        id: "codex",
+        fileManager: fileManager,
+        homeDirectoryURL: homeDirectoryURL
+    )
+    try BearAppSupport.removeHostAppIntegration(
+        id: "claude-desktop",
+        fileManager: fileManager,
+        homeDirectoryURL: homeDirectoryURL
+    )
+    try BearAppSupport.removeHostAppIntegration(
+        id: "claude-cli",
+        fileManager: fileManager,
+        homeDirectoryURL: homeDirectoryURL
+    )
+
+    let removedDashboard = BearAppSupport.loadDashboardSnapshot(
+        fileManager: fileManager,
+        tokenStore: InMemoryBearTokenStore(),
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        homeDirectoryURL: homeDirectoryURL,
+        callbackAppBundleURLProvider: { _ in nil },
+        helperBundleURLProvider: { _ in nil }
+    )
+
+    #expect(hostSetup(named: "codex", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
+    #expect(hostSetup(named: "claude-desktop", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
+    #expect(hostSetup(named: "claude-cli", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
 }
 
 

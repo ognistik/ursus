@@ -20,7 +20,7 @@ struct UrsusSetupView: View {
                         Divider()
                         tokenPanel(settings)
                         Divider()
-                        connectAppsPanel(settings)
+                        connectAppsPanel()
                         Divider()
                         bridgePanel(settings)
                     }
@@ -238,7 +238,7 @@ struct UrsusSetupView: View {
         }
     }
 
-    private func connectAppsPanel(_ settings: BearAppSettingsSnapshot) -> some View {
+    private func connectAppsPanel() -> some View {
         let supportedSetups = model.setupHostSetups
 
         return UrsusPanel(
@@ -258,28 +258,10 @@ struct UrsusSetupView: View {
 
                     UrsusMessageStack(error: model.cliStatusError)
                 } else {
-                    Text("Setup is available for supported apps found on this Mac.")
+                    Text("Setup is available for supported apps found on this Mac. Restart the client after installing Ursus.")
                         .font(.footnote)
                         .foregroundStyle(ursusTertiaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if !supportedSetups.isEmpty, let title = launcherPrimaryActionTitle(for: settings) {
-                    UrsusGroupedBlock {
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text("Install the launcher before copying setup.")
-                                .font(.footnote)
-                                .foregroundStyle(ursusTertiaryTextColor)
-
-                            Spacer(minLength: 12)
-
-                            Button(title) {
-                                model.installPublicLauncher()
-                            }
-                            .ursusButtonStyle()
-                            .disabled(model.currentBundledCLIPath == nil)
-                        }
-                    }
                 }
 
                 if !supportedSetups.isEmpty {
@@ -597,50 +579,79 @@ private struct UrsusHostSetupRow: View {
     @ObservedObject var model: UrsusAppModel
     let setup: BearHostAppSetupSnapshot
 
-    private var isConfigured: Bool {
-        hostSetupShowsConfiguredMark(setup.status)
+    private var showsInstalledState: Bool {
+        setup.integrationState == .installed
+    }
+
+    private var primaryActionTitle: String? {
+        setup.primaryAction?.title
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if isConfigured {
-                        UrsusConfiguredMark()
-                    }
+        HStack(alignment: .center, spacing: 12) {
+            Text(setup.appName)
+                .font(.callout.weight(.medium))
 
-                    Text(setup.appName)
-                        .font(.callout.weight(.medium))
-                }
-                Spacer()
+            Spacer(minLength: 12)
 
-                if let badgeStatus = hostSetupBadgeStatus(for: setup.status) {
-                    UrsusStatusBadge(title: compactStatusTitle(for: badgeStatus), status: badgeStatus)
-                }
+            if let badgeStatus = hostSetupBadgeStatus(for: setup.status) {
+                UrsusStatusBadge(title: compactStatusTitle(for: badgeStatus), status: badgeStatus)
             }
 
-            if let detail = hostSetupDetail(for: setup) {
-                Text(detail)
-                    .font(.subheadline)
-                    .foregroundStyle(ursusSecondaryTextColor)
+            if showsInstalledState {
+                UrsusInstalledIndicator()
             }
 
-            HStack(spacing: 10) {
-                if !isConfigured, setup.snippet != nil {
-                    Button("Copy Setup") {
-                        model.copyHostSetupSnippet(setup)
-                    }
-                    .ursusButtonStyle()
+            if let primaryActionTitle {
+                Button(primaryActionTitle) {
+                    model.installHostAppIntegration(setup)
                 }
+                .ursusButtonStyle(primaryActionTitle == "Repair" ? .secondary : .softPrimary)
+                .disabled(model.currentBundledCLIPath == nil)
+            }
 
+            Menu {
                 if let configPath = setup.configPath {
                     Button("Reveal Config") {
                         model.reveal(path: configPath)
                     }
-                    .ursusButtonStyle()
                 }
+
+                if setup.snippet != nil {
+                    Button("Copy Setup") {
+                        model.copyHostSetupSnippet(setup)
+                    }
+                }
+
+                if setup.integrationState != .installNeeded {
+                    Divider()
+
+                    Button("Remove from \(setup.appName)", role: .destructive) {
+                        model.removeHostAppIntegration(setup)
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(ursusInlineLabelColor)
             }
+            .menuStyle(.borderlessButton)
+            .help("More")
         }
+    }
+}
+
+private struct UrsusInstalledIndicator: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            UrsusConfiguredMark()
+
+            Text("Installed")
+                .font(.caption)
+                .foregroundStyle(ursusTertiaryTextColor)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Installed")
     }
 }
 
@@ -778,19 +789,6 @@ private func friendlyInsertPosition(_ rawValue: String) -> String {
     }
 }
 
-private func hostSetupDetail(for setup: BearHostAppSetupSnapshot) -> String? {
-    switch setup.status {
-    case .ok, .configured:
-        return nil
-    case .missing:
-        return "Open the app once if needed."
-    case .notConfigured:
-        return nil
-    case .invalid, .failed:
-        return "Copy setup again to repair this app's connection."
-    }
-}
-
 private func bridgeBadge(for settings: BearAppSettingsSnapshot) -> (title: String, status: BearDoctorCheckStatus)? {
     let bridge = settings.bridge
 
@@ -805,15 +803,6 @@ private func bridgeBadge(for settings: BearAppSettingsSnapshot) -> (title: Strin
         return (compactStatusTitle(for: bridge.status), bridge.status)
     case .ok, .configured, .missing, .notConfigured:
         return nil
-    }
-}
-
-private func hostSetupShowsConfiguredMark(_ status: BearDoctorCheckStatus) -> Bool {
-    switch status {
-    case .ok, .configured:
-        return true
-    case .missing, .notConfigured, .invalid, .failed:
-        return false
     }
 }
 

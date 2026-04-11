@@ -285,6 +285,36 @@ final class UrsusAppModel: ObservableObject {
         }
     }
 
+    func installHostAppIntegration(_ setup: BearHostAppSetupSnapshot) {
+        guard !isPreviewMode else {
+            return
+        }
+
+        do {
+            _ = try BearAppSupport.installPublicLauncher(fromAppBundleURL: Bundle.main.bundleURL)
+            try BearAppSupport.installHostAppIntegration(id: setup.id)
+            cliStatusError = nil
+            hostSetupStatusError = nil
+            refreshAppState()
+        } catch {
+            hostSetupStatusError = localizedMessage(for: error)
+        }
+    }
+
+    func removeHostAppIntegration(_ setup: BearHostAppSetupSnapshot) {
+        guard !isPreviewMode else {
+            return
+        }
+
+        do {
+            try BearAppSupport.removeHostAppIntegration(id: setup.id)
+            hostSetupStatusError = nil
+            refreshAppState()
+        } catch {
+            hostSetupStatusError = localizedMessage(for: error)
+        }
+    }
+
     func performCLIMaintenanceAction(_ action: BearAppCLIMaintenanceAction) {
         switch action {
         case .installLauncher, .refreshLauncher:
@@ -437,18 +467,6 @@ final class UrsusAppModel: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(snippet, forType: .string)
-        hostSetupStatusError = nil
-    }
-
-    func copyHostConfigPath(_ setup: BearHostAppSetupSnapshot) {
-        guard let configPath = setup.configPath else {
-            hostSetupStatusError = "No local config path is tracked for \(setup.appName)."
-            return
-        }
-
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(configPath, forType: .string)
         hostSetupStatusError = nil
     }
 

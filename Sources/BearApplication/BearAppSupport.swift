@@ -534,6 +534,32 @@ public enum BearAppSupport {
         )
     }
 
+    public static func installHostAppIntegration(
+        id: String,
+        fileManager: FileManager = .default,
+        launcherURL: URL = UrsusCLILocator.publicLauncherURL,
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+    ) throws {
+        try BearHostAppSupport.installIntegration(
+            id: id,
+            fileManager: fileManager,
+            launcherURL: launcherURL,
+            homeDirectoryURL: homeDirectoryURL
+        )
+    }
+
+    public static func removeHostAppIntegration(
+        id: String,
+        fileManager: FileManager = .default,
+        homeDirectoryURL: URL = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+    ) throws {
+        try BearHostAppSupport.removeIntegration(
+            id: id,
+            fileManager: fileManager,
+            homeDirectoryURL: homeDirectoryURL
+        )
+    }
+
     @discardableResult
     public static func reconcilePublicLauncherIfNeeded(
         fromAppBundleURL appBundleURL: URL,
