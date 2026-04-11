@@ -36,6 +36,8 @@ This file is the concise handoff for contributors and future agent threads. It s
 - `Ursus.app` is the control center and product shell.
 - The app uses one main dashboard window with `Setup`, `Preferences`, and `Tools` tabs.
 - `Setup` handles the main path: defaults, Bear selected-note token, detected local host setup, and optional localhost bridge setup.
+- Connect Apps lists only detected local hosts and keeps each row compact: app name, passive `Installed` indicator when healthy, one primary `Install` or `Repair` action when needed, and one trailing overflow menu for advanced actions.
+- Supported local host rows are currently `Codex`, `Claude Desktop`, and `Claude CLI`. Remove actions are app-specific and delete only Ursus's host config entry, not the shared launcher or the app itself.
 - `Preferences` owns durable note/template defaults, inline `template.md` editing with validation, inbox-tag editing, and Sparkle update controls.
 - `Tools` owns launcher repair, reveal-file/log actions, and tool availability controls.
 - Ursus does not expose a separate macOS Settings window or multi-window dashboard flow; `Cmd+,` and `File > New Window` stay disabled because those surfaces already live inside the main window tabs.
@@ -67,6 +69,7 @@ Important behavior:
 
 - Running `ursus` with no command starts the stdio MCP server.
 - The public launcher at `~/.local/bin/ursus` forwards into `Ursus.app/Contents/MacOS/Ursus` with a hidden `--ursus-cli` flag.
+- Opening `Ursus.app` reconciles that public launcher automatically before the user works through Setup, so host install/repair flows can target the shared launcher path consistently.
 - Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its configured 3-hour cadence. Ordinary short-lived CLI commands do not trigger scheduled Sparkle checks. `ursus --check-updates` and MCP / bridge update-found events hand off to the foreground app executable in Sparkle-only mode so the user-facing Sparkle UI owns a normal AppKit run loop without opening the dashboard. `ursus --auto-install-updates true|false` updates Sparkle's persisted automatic-download/install preference from the command line; enabling it also turns on automatic update checks so it matches the user-facing Sparkle opt-in flow.
 - Ordinary one-shot CLI commands such as note creation should not advance Sparkle's scheduler or touch `SULastCheckTime`; only the long-running MCP / bridge surfaces and explicit update-check commands should participate.
 - CLI bridge recovery is available through `ursus bridge pause`, `ursus bridge resume`, and `ursus bridge remove`.
@@ -151,6 +154,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - App bundle versioning has one release-facing source of truth in the Xcode project build settings.
 - Bridge HTTP request tracing writes compact ingress/egress lines to `Logs/debug.log`, including a `base-url-miss` hint when clients hit the bridge origin instead of the MCP endpoint.
 - If MCP behavior changes in a way that `tools/list` will not reflect on its own, bump `UrsusMCPServer.bridgeSurfaceEpoch`.
+- Host integrations are explicit per app rather than generic. Codex merges `~/.codex/config.toml`, Claude Desktop merges `claude_desktop_config.json`, and Claude CLI merges `~/.claude.json`. Rewrites preserve unrelated settings, and destructive recovery plus Codex TOML rewrites create sibling backup files before overwriting the file.
 
 ## Working Documentation Set
 

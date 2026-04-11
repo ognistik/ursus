@@ -931,6 +931,10 @@ enum BearHostAppSupport {
         let trimmed = strippedContents.trimmingCharacters(in: .whitespacesAndNewlines)
         let updatedContents = trimmed.isEmpty ? "\(snippet)\n" : "\(trimmed)\n\n\(snippet)\n"
 
+        if fileManager.fileExists(atPath: configURL.path), existingContents != updatedContents {
+            try backupConfigFile(at: configURL, fileManager: fileManager)
+        }
+
         try updatedContents.write(to: configURL, atomically: true, encoding: .utf8)
     }
 
@@ -950,6 +954,11 @@ enum BearHostAppSupport {
         let strippedContents = removingCodexSection(from: existingContents)
         let trimmed = strippedContents.trimmingCharacters(in: .whitespacesAndNewlines)
         let finalContents = trimmed.isEmpty ? "" : "\(trimmed)\n"
+
+        if existingContents != finalContents {
+            try backupConfigFile(at: configURL, fileManager: fileManager)
+        }
+
         try finalContents.write(to: configURL, atomically: true, encoding: .utf8)
     }
 

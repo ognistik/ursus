@@ -2046,6 +2046,15 @@ func installAndRemoveHostAppIntegrationsManageSupportedConfigs() throws {
     try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
     try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
     try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+    let codexConfigURL = homeDirectoryURL
+        .appendingPathComponent(".codex", isDirectory: true)
+        .appendingPathComponent("config.toml", isDirectory: false)
+    try fileManager.createDirectory(at: codexConfigURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try """
+    [mcp_servers.other]
+    enabled = true
+    command = "/usr/bin/true"
+    """.write(to: codexConfigURL, atomically: true, encoding: .utf8)
     defer {
         try? fileManager.removeItem(at: tempRoot)
     }
@@ -2084,6 +2093,7 @@ func installAndRemoveHostAppIntegrationsManageSupportedConfigs() throws {
     #expect(hostSetup(named: "codex", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
     #expect(hostSetup(named: "claude-desktop", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
     #expect(hostSetup(named: "claude-cli", in: installedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installed)
+    #expect(backupFiles(nextTo: codexConfigURL, fileManager: fileManager).count == 1)
 
     try BearAppSupport.removeHostAppIntegration(
         id: "codex",
@@ -2116,6 +2126,7 @@ func installAndRemoveHostAppIntegrationsManageSupportedConfigs() throws {
     #expect(hostSetup(named: "codex", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
     #expect(hostSetup(named: "claude-desktop", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
     #expect(hostSetup(named: "claude-cli", in: removedDashboard.settings?.hostAppSetups ?? [])?.integrationState == .installNeeded)
+    #expect(backupFiles(nextTo: codexConfigURL, fileManager: fileManager).count == 2)
 }
 
 
@@ -2383,6 +2394,13 @@ private func diagnostic(named key: String, in diagnostics: [BearDoctorCheck]) ->
 
 private func hostSetup(named id: String, in setups: [BearHostAppSetupSnapshot]) -> BearHostAppSetupSnapshot? {
     setups.first(where: { $0.id == id })
+}
+
+private func backupFiles(nextTo configURL: URL, fileManager: FileManager) -> [String] {
+    let directoryURL = configURL.deletingLastPathComponent()
+    let backupPrefix = "\(configURL.lastPathComponent).backup-"
+    let filenames = (try? fileManager.contentsOfDirectory(atPath: directoryURL.path)) ?? []
+    return filenames.filter { $0.hasPrefix(backupPrefix) }
 }
 
 private final class LaunchctlRecorder: @unchecked Sendable {

@@ -87,6 +87,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - The terminal-facing CLI also supports `--new-note`, `--backup-note`, `--restore-note`, `--apply-template`, `--check-updates`, `--auto-install-updates true|false`, `doctor`, `paths`, and bridge utility commands.
 - The app owns the in-bundle launch path at `Ursus.app/Contents/MacOS/Ursus`.
 - The public launcher at `~/.local/bin/ursus` resolves to the app executable with a hidden `--ursus-cli` flag, so replacing `Ursus.app` updates Terminal and bridge launches together.
+- Opening `Ursus.app` reconciles that public launcher automatically, so Setup-driven host installs and repairs can target one shared launcher path before they rewrite host configs.
 - Embedded CLI runs launched through the app bundle receive a Sparkle update-checking hook from the app target. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle for the long-running MCP surfaces using a background `SPUUpdater` user driver that does not register the bridge as the visible app. Sparkle's scheduled interval is fixed at 3 hours through the app bundle configuration so app, stdio MCP, and bridge surfaces share one cadence. When that background check finds an update, or when the user runs `ursus --check-updates`, Ursus hands off to a normal foreground app process in Sparkle-only mode so the standard Sparkle UI owns a real AppKit lifecycle without opening the dashboard. Ordinary short-lived CLI commands do not participate in Sparkle's scheduled checks.
 - Sparkle behavior is intentionally split by initiation mode. User-initiated checks (`ursus --check-updates` and the app UI's "Check for Updates…") may show Sparkle's normal "no updates available" result. Background bridge / stdio scheduled checks stay silent when no update is found or when the check errors; they only foreground Sparkle when an update is actually available.
 - The Sparkle-only foreground handoff must continue using the same `Ursus.app` executable, not a separate helper app and not the hidden embedded CLI path. This avoids the stuck-process / unfocusable-dialog failures caused by trying to present Sparkle UI from the wrong process role.
@@ -112,6 +113,15 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - Bridge install/resume waits for MCP `initialize` and `tools/list` probes. Repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect cleanly.
 - Bridge diagnostics combine LaunchAgent state, TCP reachability, MCP `initialize` health, and recent stdout/stderr log hints.
 - Bridge runtime state records config drift inputs, selected-note token availability, and a hash of the served MCP surface. If MCP behavior changes in a way that `tools/list` will not reflect, bump `UrsusMCPServer.bridgeSurfaceEpoch`.
+
+## Local Host Integrations
+
+- The `Setup` tab's Connect Apps section lists only detected local hosts and keeps each row compact: app name, passive `Installed` indicator when healthy, one primary `Install` or `Repair` action when needed, and one trailing overflow menu for advanced actions.
+- Supported local host integrations are currently `Codex`, `Claude Desktop`, and `Claude CLI`; remote-only clients stay outside this section.
+- Host integration health is explicit per row: `Install` means no Ursus config is present, `Repair` means Ursus config exists but is stale or broken, and `Installed` means the host config is correct and the shared launcher exists and is executable.
+- Install and repair are implemented per host rather than through a generic plugin layer: Codex rewrites `~/.codex/config.toml`, Claude Desktop merges `claude_desktop_config.json`, and Claude CLI merges `~/.claude.json`.
+- Remove actions delete only Ursus's own host config entry. They do not uninstall `Ursus.app` and do not remove the shared launcher at `~/.local/bin/ursus`.
+- Host config rewrites preserve unrelated settings, and destructive recovery plus Codex TOML rewrites create sibling backup files before the file is changed.
 
 ## App-Only Features
 
