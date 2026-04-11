@@ -241,6 +241,8 @@ enum UrsusCommandLineUpdateRequest {
         configuration.activates = true
         configuration.arguments = launchArguments(for: mode)
         configuration.createsNewApplicationInstance = shouldCreateNewApplicationInstance()
+        let pendingDefaultsKey = Self.pendingDefaultsKey
+        let pendingModeDefaultsKey = Self.pendingModeDefaultsKey
 
         return await withCheckedContinuation { continuation in
             NSWorkspace.shared.openApplication(
@@ -342,7 +344,9 @@ enum UrsusSparkleUpdateUIRunner {
         return delegate.exitCode
     }
 
-    static func activate(_ app: NSApplication = .shared) {
+    static func activate(_ application: NSApplication? = nil) {
+        let app = application ?? NSApplication.shared
+
         if app.activationPolicy() != .regular {
             app.setActivationPolicy(.regular)
         }
@@ -420,7 +424,7 @@ private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDele
 
     nonisolated func standardUserDriverWillHandleShowingUpdate(
         _ handleShowingUpdate: Bool,
-        for update: SUAppcastItem,
+        forUpdate update: SUAppcastItem,
         state: SPUUserUpdateState
     ) {
         Task { @MainActor in
