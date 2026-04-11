@@ -99,6 +99,7 @@ The server does not expose Bear resources, but it answers empty `resources/list`
 - Remote connector clients should use the full MCP endpoint URL, not the bare bridge origin.
 - The bridge uses stateless HTTP transport and returns one-shot SSE-formatted POST responses when clients advertise `text/event-stream`.
 - Bridge install/resume waits for MCP `initialize` and `tools/list` probes before reporting success.
+- App-level Restart is intentionally lighter than Repair: it stop/starts the existing LaunchAgent when the plist still matches expectations, while Repair rewrites the LaunchAgent and reconciles bridge install artifacts.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`.
 - The bridge can be open or OAuth-protected. Protected mode is scoped to the optional HTTP bridge and does not affect stdio.
 - Bridge OAuth state lives in `~/Library/Application Support/Ursus/Auth/bridge-auth.sqlite`.

@@ -338,9 +338,8 @@ final class UrsusAppModel: ObservableObject {
             return
         }
 
-        let appBundleURL = Bundle.main.bundleURL
         runBridgeOperation(.restart) {
-            _ = try BearAppSupport.installBridgeLaunchAgent(fromAppBundleURL: appBundleURL)
+            _ = try BearAppSupport.restartBridgeLaunchAgent()
         }
     }
 

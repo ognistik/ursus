@@ -1208,7 +1208,7 @@ func bridgeSnapshotRequiresRestartWhenLoadedBridgeHasNoRuntimeState() throws {
 }
 
 @Test
-func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
+func pauseRestartResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     let fileManager = FileManager.default
     let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
@@ -1256,6 +1256,7 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     }
 
     let recorder = LaunchctlRecorder(loaded: true)
+    let originalPlistData = try Data(contentsOf: launchAgentPlistURL)
 
     let pauseReceipt = try BearAppSupport.pauseBridgeLaunchAgent(
         fileManager: fileManager,
@@ -1267,6 +1268,22 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
     )
     #expect(pauseReceipt.status == .paused)
     #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+
+    let restartReceipt = try BearAppSupport.restartBridgeLaunchAgent(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: recorder.statefulRunner,
+        endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
+    )
+    #expect(restartReceipt.status == .resumed)
+    #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+    #expect(try Data(contentsOf: launchAgentPlistURL) == originalPlistData)
 
     let resumeReceipt = try BearAppSupport.resumeBridgeLaunchAgent(
         fileManager: fileManager,
@@ -1280,8 +1297,24 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         launchctlRunner: recorder.statefulRunner,
         endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
     )
-    #expect(resumeReceipt.status == .resumed)
+    #expect(resumeReceipt.status == .unchanged)
     #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+
+    let restartedReceipt = try BearAppSupport.restartBridgeLaunchAgent(
+        fileManager: fileManager,
+        configDirectoryURL: configDirectoryURL,
+        configFileURL: configFileURL,
+        templateURL: templateURL,
+        launcherURL: launcherURL,
+        launchAgentPlistURL: launchAgentPlistURL,
+        standardOutputURL: stdoutURL,
+        standardErrorURL: stderrURL,
+        launchctlRunner: recorder.statefulRunner,
+        endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
+    )
+    #expect(restartedReceipt.status == .restarted)
+    #expect(fileManager.fileExists(atPath: launchAgentPlistURL.path))
+    #expect(try Data(contentsOf: launchAgentPlistURL) == originalPlistData)
 
     let removeReceipt = try BearAppSupport.removeBridgeLaunchAgent(
         fileManager: fileManager,
@@ -1316,9 +1349,86 @@ func pauseResumeAndRemoveBridgeLaunchAgentManageLoadedStateAndPlist() throws {
         ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
         ["print", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
+        ["bootout", "gui/\(getuid())/com.aft.ursus"],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
+        ["bootstrap", "gui/\(getuid())", launchAgentPlistURL.path],
+        ["print", "gui/\(getuid())/com.aft.ursus"],
         ["bootout", "gui/\(getuid())/com.aft.ursus"],
         ["print", "gui/\(getuid())/com.aft.ursus"],
     ])
+}
+
+@Test
+func restartBridgeLaunchAgentRequiresRepairWhenPlistDrifts() throws {
+    let fileManager = FileManager.default
+    let tempRoot = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let configDirectoryURL = tempRoot.appendingPathComponent("config", isDirectory: true)
+    let configFileURL = configDirectoryURL.appendingPathComponent("config.json", isDirectory: false)
+    let templateURL = configDirectoryURL.appendingPathComponent("template.md", isDirectory: false)
+    let launcherURL = tempRoot
+        .appendingPathComponent(".local", isDirectory: true)
+        .appendingPathComponent("bin", isDirectory: true)
+        .appendingPathComponent("ursus", isDirectory: false)
+    let launchAgentPlistURL = tempRoot
+        .appendingPathComponent("Library", isDirectory: true)
+        .appendingPathComponent("LaunchAgents", isDirectory: true)
+        .appendingPathComponent("com.aft.ursus.plist", isDirectory: false)
+    let stdoutURL = tempRoot.appendingPathComponent("bridge.stdout.log", isDirectory: false)
+    let stderrURL = tempRoot.appendingPathComponent("bridge.stderr.log", isDirectory: false)
+
+    try fileManager.createDirectory(at: configDirectoryURL, withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launcherURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try fileManager.createDirectory(at: launchAgentPlistURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try "{{content}}\n\n{{tags}}\n".write(to: templateURL, atomically: true, encoding: .utf8)
+    try "#!/bin/sh\nexit 0\n".write(to: launcherURL, atomically: true, encoding: .utf8)
+    try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: launcherURL.path)
+
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30,
+        bridge: BearBridgeConfiguration(enabled: true, host: "127.0.0.1", port: 6205)
+    )
+    try BearJSON.makeEncoder().encode(configuration).write(to: configFileURL, options: .atomic)
+    try """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.aft.ursus</string>
+    </dict>
+    </plist>
+    """.write(to: launchAgentPlistURL, atomically: true, encoding: .utf8)
+    defer {
+        try? fileManager.removeItem(at: tempRoot)
+    }
+
+    let recorder = LaunchctlRecorder(loaded: true)
+
+    #expect(throws: BearError.self) {
+        try BearAppSupport.restartBridgeLaunchAgent(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL,
+            launcherURL: launcherURL,
+            launchAgentPlistURL: launchAgentPlistURL,
+            standardOutputURL: stdoutURL,
+            standardErrorURL: stderrURL,
+            launchctlRunner: recorder.statefulRunner,
+            endpointProbe: { _, _ in BearBridgeEndpointProbeResult(reachable: true) }
+        )
+    }
 }
 
 @Test

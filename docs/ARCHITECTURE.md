@@ -110,7 +110,8 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - OAuth routes and protected `/mcp` challenges answer CORS preflight and expose Bearer challenge headers for browser-based connector setup.
 - `Ursus.app` remains the control center for bridge auth state and remembered-grant revocation.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting `~/.local/bin/ursus bridge serve`.
-- Bridge install/resume waits for MCP `initialize` and `tools/list` probes. Repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect cleanly.
+- Bridge install/resume/restart waits for MCP `initialize` and `tools/list` probes. Repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect cleanly.
+- App-level Restart reuses the existing LaunchAgent plist when it still matches the expected launcher and log paths; Repair remains the heavier reinstall path for missing or drifted LaunchAgent artifacts.
 - Bridge diagnostics combine LaunchAgent state, TCP reachability, MCP `initialize` health, and recent stdout/stderr log hints.
 - Bridge runtime state records config drift inputs, selected-note token availability, and a hash of the served MCP surface. If MCP behavior changes in a way that `tools/list` will not reflect, bump `UrsusMCPServer.bridgeSurfaceEpoch`.
 

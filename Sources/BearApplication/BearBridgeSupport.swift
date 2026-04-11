@@ -244,6 +244,7 @@ public enum BearBridgeLaunchAgentActionStatus: String, Codable, Hashable, Sendab
     case removed
     case paused
     case resumed
+    case restarted
     case unchanged
 }
 
@@ -597,36 +598,93 @@ public extension BearAppSupport {
             standardOutputURL: standardOutputURL,
             standardErrorURL: standardErrorURL
         )
-        guard try BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL) == expectedPlist else {
+        guard (try? BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL)) == expectedPlist else {
             throw BearError.configuration("The Ursus bridge LaunchAgent needs repair before it can be resumed.")
         }
 
         let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
         if !loaded {
             try? clearBridgeRuntimeState(fileManager: fileManager)
-            try prepareBridgeArtifacts(
+            try bootstrapBridgeLaunchAgent(
                 fileManager: fileManager,
+                bridge: bridge,
                 launchAgentPlistURL: launchAgentPlistURL,
                 standardOutputURL: standardOutputURL,
-                standardErrorURL: standardErrorURL
-            )
-            try assertBridgePortAvailable(host: bridge.host, port: bridge.port)
-            try runLaunchctl(
-                ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
-                launchctlRunner: launchctlRunner,
-                failureMessage: "Failed to resume the Ursus bridge LaunchAgent."
-            )
-            try waitForBridgeEndpoint(
-                host: bridge.host,
-                port: bridge.port,
-                endpointURL: try bridge.endpointURLString(),
                 standardErrorURL: standardErrorURL,
-                endpointProbe: endpointProbe
+                launchctlRunner: launchctlRunner,
+                endpointProbe: endpointProbe,
+                failureMessage: "Failed to resume the Ursus bridge LaunchAgent."
             )
         }
 
         return BearBridgeLaunchAgentActionReceipt(
             status: loaded ? .unchanged : .resumed,
+            plistPath: launchAgentPlistURL.path,
+            endpointURL: try bridge.endpointURLString()
+        )
+    }
+
+    static func restartBridgeLaunchAgent(
+        fileManager: FileManager = .default,
+        configDirectoryURL: URL = BearPaths.configDirectoryURL,
+        configFileURL: URL = BearPaths.configFileURL,
+        templateURL: URL = BearPaths.noteTemplateURL,
+        launcherURL: URL = BearBridgeLaunchAgent.launcherURL,
+        launchAgentPlistURL: URL = BearBridgeLaunchAgent.plistURL,
+        standardOutputURL: URL = BearBridgeLaunchAgent.standardOutputURL,
+        standardErrorURL: URL = BearBridgeLaunchAgent.standardErrorURL,
+        launchctlRunner: BearLaunchctlCommandRunner = BearLaunchctl.run,
+        endpointProbe: BearBridgeEndpointProbe = defaultBridgeEndpointProbe
+    ) throws -> BearBridgeLaunchAgentActionReceipt {
+        let configuration = try BearRuntimeBootstrap.loadConfiguration(
+            fileManager: fileManager,
+            configDirectoryURL: configDirectoryURL,
+            configFileURL: configFileURL,
+            templateURL: templateURL
+        )
+        let bridge = try configuration.bridge.validated()
+
+        guard bridge.enabled else {
+            throw BearError.configuration("Install the Ursus bridge before trying to restart it.")
+        }
+
+        guard fileManager.fileExists(atPath: launchAgentPlistURL.path) else {
+            throw BearError.configuration("The Ursus bridge LaunchAgent is not installed. Install it again from the app.")
+        }
+
+        let expectedPlist = BearBridgeLaunchAgent.expectedPlist(
+            launcherURL: launcherURL,
+            standardOutputURL: standardOutputURL,
+            standardErrorURL: standardErrorURL
+        )
+        guard (try? BearBridgeLaunchAgentPlist.load(from: launchAgentPlistURL)) == expectedPlist else {
+            throw BearError.configuration("The Ursus bridge LaunchAgent needs repair before it can be restarted.")
+        }
+
+        let loaded = try queryLaunchAgentLoaded(launchctlRunner: launchctlRunner)
+        try? clearBridgeRuntimeState(fileManager: fileManager)
+        if loaded {
+            try unloadBridgeLaunchAgentIfPresent(
+                launchAgentPlistURL: launchAgentPlistURL,
+                launchctlRunner: launchctlRunner
+            )
+        }
+
+        try bootstrapBridgeLaunchAgent(
+            fileManager: fileManager,
+            bridge: bridge,
+            launchAgentPlistURL: launchAgentPlistURL,
+            standardOutputURL: standardOutputURL,
+            standardErrorURL: standardErrorURL,
+            launchctlRunner: launchctlRunner,
+            endpointProbe: endpointProbe,
+            failureMessage: loaded
+                ? "Failed to restart the Ursus bridge LaunchAgent."
+                : "Failed to start the Ursus bridge LaunchAgent."
+        )
+
+        return BearBridgeLaunchAgentActionReceipt(
+            status: loaded ? .restarted : .resumed,
             plistPath: launchAgentPlistURL.path,
             endpointURL: try bridge.endpointURLString()
         )
@@ -830,6 +888,37 @@ private extension BearAppSupport {
             logURL: standardErrorURL,
             logsDirectoryURL: standardErrorURL.deletingLastPathComponent(),
             writer: .externalProcess
+        )
+    }
+
+    static func bootstrapBridgeLaunchAgent(
+        fileManager: FileManager,
+        bridge: BearBridgeConfiguration,
+        launchAgentPlistURL: URL,
+        standardOutputURL: URL,
+        standardErrorURL: URL,
+        launchctlRunner: BearLaunchctlCommandRunner,
+        endpointProbe: BearBridgeEndpointProbe,
+        failureMessage: String
+    ) throws {
+        try prepareBridgeArtifacts(
+            fileManager: fileManager,
+            launchAgentPlistURL: launchAgentPlistURL,
+            standardOutputURL: standardOutputURL,
+            standardErrorURL: standardErrorURL
+        )
+        try assertBridgePortAvailable(host: bridge.host, port: bridge.port)
+        try runLaunchctl(
+            ["bootstrap", launchdUserDomain(), launchAgentPlistURL.path],
+            launchctlRunner: launchctlRunner,
+            failureMessage: failureMessage
+        )
+        try waitForBridgeEndpoint(
+            host: bridge.host,
+            port: bridge.port,
+            endpointURL: try bridge.endpointURLString(),
+            standardErrorURL: standardErrorURL,
+            endpointProbe: endpointProbe
         )
     }
 
