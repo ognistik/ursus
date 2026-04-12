@@ -164,7 +164,7 @@ func bearApplyTemplateDecodesOperationsAndUsesMutationPresentationDefaults() asy
 
             let replaceCall = try #require(await writeTransport.replaceCalls.first)
             #expect(replaceCall.noteID == "note-1")
-            #expect(replaceCall.fullText == "# Test Note\n\n---\n#project-x\n---\nBody line")
+            #expect(replaceCall.fullText == "# Test Note\n---\n#project-x\n---\nBody line")
             #expect(replaceCall.presentation.openNote == false)
             #expect(replaceCall.presentation.openNoteOverride == nil)
             #expect(replaceCall.presentation.newWindow == false)

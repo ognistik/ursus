@@ -557,7 +557,6 @@ func applyTemplateMigratesAllTagOnlyClustersPreservesInlineTagsAndCleansWhitespa
     let receipt = try #require(receipts.first)
     #expect(replaceCall.fullText == """
     # Inbox
-
     ---
     #project-x #deep work# #review
     ---
@@ -608,7 +607,6 @@ func applyTemplateMergesExistingTemplateTagsBeforeMigratedClusters() async throw
     let receipt = try #require(receipts.first)
     #expect(replaceCall.fullText == """
     # Inbox
-
     ---
     #0-inbox #project-x #review
     ---
@@ -646,7 +644,6 @@ func applyTemplateAppliesTemplateEvenWhenNoteHasNoTags() async throws {
     let receipt = try #require(receipts.first)
     #expect(replaceCall.fullText == """
     # Inbox
-
     ---
 
     ---
@@ -686,9 +683,16 @@ func applyTemplateReturnsUnchangedWhenNoteIsAlreadyNormalized() async throws {
         ])
     }
 
+    let replaceCall = try #require(await transport.replaceCalls.first)
     let receipt = try #require(receipts.first)
-    #expect(await transport.replaceCalls.isEmpty)
-    #expect(receipt.status == "unchanged")
+    #expect(replaceCall.fullText == """
+    # Inbox
+    ---
+    #0-inbox #project-x
+    ---
+    Line 1
+    """)
+    #expect(receipt.status == "applied")
     #expect(receipt.appliedTags == ["0-inbox", "project-x"])
 }
 
@@ -720,12 +724,51 @@ func applyTemplateUsesTemplateFileEvenWhenTemplateManagementIsDisabled() async t
     let replaceCall = try #require(await transport.replaceCalls.first)
     #expect(replaceCall.fullText == """
     # Inbox
-
     ---
     #project-x
     ---
     Body line
     """)
+}
+
+@Test
+func applyTemplateNormalizesArbitraryBlankAndWhitespaceOnlyLinesAroundEditableContent() async throws {
+    let rawText = "# Inbox\n\n   \n\t\nThis is an example note\n   \n#tag\n\n \n"
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "This is an example note\n#tag",
+        rawText: rawText,
+        tags: ["tag"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+    ---
+    #tag
+    ---
+    This is an example note
+    """)
+    #expect(receipt.status == "applied")
+    #expect(receipt.appliedTags == ["tag"])
 }
 
 @Test

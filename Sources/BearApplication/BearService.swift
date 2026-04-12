@@ -1749,6 +1749,14 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
+    private func composeRawTextForNormalizedTemplateBody(title: String, body: String) -> String {
+        BearText.composeRawText(
+            title: title,
+            body: body,
+            separator: "\n"
+        )
+    }
+
     private func composeRawTextPreservingStyle(for note: BearNote, title: String, body: String) -> String {
         BearText.composeRawText(
             title: title,
@@ -1937,7 +1945,7 @@ public final class BearService: @unchecked Sendable {
             literalTags: mergedTags,
             template: template
         )
-        let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+        let updatedRawText = composeRawTextForNormalizedTemplateBody(title: note.title, body: updatedBody)
 
         return ApplyTemplateOutcome(
             updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
