@@ -23,14 +23,14 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
 
 *   **`bear_create_notes`**: Creates notes using your saved Ursus defaults.
     *   **Tags**: By default, Ursus may append your configured inbox tags. You can request AI to `use_only_request_tags: true` if you want to ignore your defaults and use *only* the tags provided in the request.
-    *   **Presentation**: You can override your global defaults for whether the note opens (`open_note`) and whether it opens in a new window (`new_window`).
+    *   **Presentation**: You can override your global defaults for whether the note opens (`open_note`) and whether it opens in a new window (`new_window`). When the note is opened, `new_window: true` uses a separate Bear window and `new_window: false` uses Bear's main window.
 *   **`bear_insert_text`**: Insert text relative to your existing content. Use `position: top` or `bottom` for simple insertion, or use the `target` option to insert `before` or `after` a specific heading or exact string.
 *   **`bear_replace_content`**: Perform structural replacements.
     *   **Kinds**: Choose `title`, `body` (replaces the entire editable area), or `string` (replaces specific text).
     *   **Occurrence**: When replacing `string`, set `occurrence` to `one` (first match) or `all` (every match).
 *   **`bear_add_files`**: Attach local files (requires a valid local file path) with the same `position` or `target` insertion logic used by `bear_insert_text`.
 *   **`bear_apply_template`**: Applies your template to an existing note. This is the smart way to normalize tag-only clusters into your defined `{{tags}}` slot.
-*   **`bear_open_notes`**: Open notes in Bear. You can force a new window by setting `new_window: true`.
+*   **`bear_open_notes`**: Open notes in Bear. `new_window: true` opens in a separate Bear window; `new_window: false` opens in Bear's main window.
 *   **`bear_archive_notes`**: Archives the specified notes.
 
 *Note: `bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_add_tags`, `bear_remove_tags`, `bear_apply_template`, and restore flows create backups automatically before rewriting note content. You can disable backups by setting `0` retention days in your preferences.*

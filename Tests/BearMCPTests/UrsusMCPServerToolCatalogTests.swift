@@ -32,6 +32,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(createDescription.contains("omitted tag-merge behavior uses request tags when any are supplied"))
     #expect(propertyDescription(named: "open_note", in: create)?.contains("Omit to use the default `false`") == true)
     #expect(propertyDescription(named: "new_window", in: create)?.contains("the default when the created note is opened: `false`") == true)
+    #expect(propertyDescription(named: "new_window", in: create)?.contains("Only applies when `open_note` is `true`. `true` opens in a separate Bear window. `false` opens in Bear's main window.") == true)
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
     let insertDescription = try #require(insert.description)
@@ -60,6 +61,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
     #expect(try #require(openNotes.description).contains("Default: `new_window` = `false`"))
     #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
+    #expect(propertyDescription(named: "new_window", in: openNotes)?.contains("`true` opens in a separate Bear window. `false` opens in Bear's main window.") == true)
 
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
     #expect(try #require(replace.description).contains("Do not call `bear_get_notes` only to resolve the note selector"))
