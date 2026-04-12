@@ -606,7 +606,7 @@ private struct UrsusHostSetupRow: View {
                 Button(primaryActionTitle) {
                     model.installHostAppIntegration(setup)
                 }
-                .ursusButtonStyle(primaryActionTitle == "Repair" ? .softPrimary : .softPrimary)
+                .ursusButtonStyle(primaryActionTitle == "Repair" ? .softPrimary : .secondary)
                 .disabled(model.currentBundledCLIPath == nil)
             }
 
@@ -760,7 +760,7 @@ private func bridgeInstallButtonRole(
 ) -> UrsusButtonRole {
     switch action {
     case .installBridge:
-        return .softPrimary
+        return .secondary
     case .repairBridge:
         return .softPrimary
     case .installLauncher, .repairLauncher:
