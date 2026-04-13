@@ -168,6 +168,7 @@ This README covers the basics. For everything else:
 - [CLI reference](./docs/cli.md)
 - [Bridge and authorization](./docs/bridge.md)
 - [Troubleshooting](./docs/troubleshooting.md)
+- [Set as a Quick Action in Alter](./Support/scripts/alter-quick-note.scpt)
 
 If you want to go deeper, clone the project, or see how things are wired internally:
 
