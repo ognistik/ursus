@@ -631,7 +631,7 @@ private struct UrsusHostSetupRow: View {
                     }
                 }
 
-                if setup.integrationState != .installNeeded {
+                if setup.managedByUrsus {
                     Divider()
 
                     Button("Remove from \(setup.appName)", role: .destructive) {

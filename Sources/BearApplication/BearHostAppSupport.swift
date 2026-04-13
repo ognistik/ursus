@@ -37,6 +37,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
     public let appName: String
     public let configPath: String?
     public let presentInSetup: Bool
+    public let managedByUrsus: Bool
     public let integrationState: BearHostAppIntegrationState
     public let status: BearDoctorCheckStatus
     public let statusTitle: String
@@ -52,6 +53,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
         appName: String,
         configPath: String? = nil,
         presentInSetup: Bool = true,
+        managedByUrsus: Bool = false,
         integrationState: BearHostAppIntegrationState? = nil,
         status: BearDoctorCheckStatus,
         statusTitle: String,
@@ -66,6 +68,7 @@ public struct BearHostAppSetupSnapshot: Codable, Hashable, Sendable, Identifiabl
         self.appName = appName
         self.configPath = configPath
         self.presentInSetup = presentInSetup
+        self.managedByUrsus = managedByUrsus
         self.integrationState = integrationState ?? BearHostAppIntegrationState(status: status)
         self.status = status
         self.statusTitle = statusTitle
@@ -321,13 +324,24 @@ enum BearHostAppSupport {
         }
 
         let hasUrsusSection = contents.contains("[mcp_servers.ursus]") || contents.contains("[mcp_servers.\"ursus\"]")
-        let hasStablePath = contents.contains("command = \"\(cliPath)\"")
-        let hasMCPArgs = contents.range(
-            of: #"args\s*=\s*\[[^\]]*"mcp"[^\]]*\]"#,
-            options: .regularExpression
-        ) != nil
+        let sections = codexServerSections(from: contents)
+        let managedSection = sections.first(where: { section in
+            section.name == "ursus" &&
+                section.command == cliPath &&
+                section.argumentsContainMCP
+        })
+        let manualSection = sections.first(where: { section in
+            section.command == cliPath &&
+                section.supportsDirectMCPLaunch &&
+                section.name != "ursus"
+        }) ?? sections.first(where: { section in
+            section.name == "ursus" &&
+                section.command == cliPath &&
+                section.supportsDirectMCPLaunch &&
+                !section.argumentsContainMCP
+        })
 
-        if hasUrsusSection && hasStablePath && hasMCPArgs {
+        if managedSection != nil {
             if !launcherIsReady {
                 return HostAppResult(
                     setup: BearHostAppSetupSnapshot(
@@ -335,6 +349,7 @@ enum BearHostAppSupport {
                         appName: "Codex",
                         configPath: configURL.path,
                         presentInSetup: isDetected,
+                        managedByUrsus: true,
                         status: .invalid,
                         statusTitle: "Needs update",
                         detail: "Codex points at the Ursus launcher path, but the launcher is not installed or executable yet.",
@@ -359,6 +374,7 @@ enum BearHostAppSupport {
                     appName: "Codex",
                     configPath: configURL.path,
                     presentInSetup: isDetected,
+                    managedByUrsus: true,
                     status: .ok,
                     statusTitle: "Configured",
                     detail: "Codex already points `mcp_servers.ursus` at the public launcher path.",
@@ -373,6 +389,56 @@ enum BearHostAppSupport {
                     value: configURL.path,
                     status: .ok,
                     detail: "configured to launch Ursus from the public launcher path"
+                )
+            )
+        }
+
+        if let manualSection {
+            if !launcherIsReady {
+                return HostAppResult(
+                    setup: BearHostAppSetupSnapshot(
+                        id: "codex",
+                        appName: "Codex",
+                        configPath: configURL.path,
+                        presentInSetup: isDetected,
+                        status: .invalid,
+                        statusTitle: "Needs update",
+                        detail: "Codex has a custom MCP server entry pointing at the Ursus launcher path, but the launcher is not installed or executable yet.",
+                        snippetTitle: "Current recommended section",
+                        snippetLanguage: "toml",
+                        snippet: snippet,
+                        mergeNote: "Repair the launcher from Ursus.app so Codex can launch Ursus again. Ursus will leave your custom server alias untouched.",
+                        checks: checks
+                    ),
+                    doctorCheck: BearDoctorCheck(
+                        key: "host-codex",
+                        value: configURL.path,
+                        status: .invalid,
+                        detail: "custom Codex MCP entry `\(manualSection.name)` points at the public launcher, but the launcher at \(cliPath) is unavailable"
+                    )
+                )
+            }
+
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "codex",
+                    appName: "Codex",
+                    configPath: configURL.path,
+                    presentInSetup: isDetected,
+                    status: .ok,
+                    statusTitle: "Configured",
+                    detail: "Codex already uses the Ursus launcher through the custom `\(manualSection.name)` MCP server entry.",
+                    snippetTitle: "Current recommended section",
+                    snippetLanguage: "toml",
+                    snippet: snippet,
+                    mergeNote: "Ursus detected a working manual Codex entry. One-click Remove stays hidden because Ursus does not own that custom server alias.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-codex",
+                    value: configURL.path,
+                    status: .ok,
+                    detail: "configured to launch Ursus from the public launcher path via custom Codex MCP entry `\(manualSection.name)`"
                 )
             )
         }
@@ -502,66 +568,134 @@ enum BearHostAppSupport {
         }
 
         let mcpServers = root["mcpServers"] as? [String: Any]
+        let serverEntries = jsonServerEntries(from: mcpServers)
+        let managedEntry = serverEntries.first(where: { entry in
+            entry.name == "ursus" &&
+                entry.command == cliPath &&
+                entry.argumentsContainMCP &&
+                entry.supportsDirectMCPLaunch
+        })
+        let manualEntry = serverEntries.first(where: { entry in
+            entry.command == cliPath &&
+                entry.supportsDirectMCPLaunch &&
+                entry.name != "ursus"
+        }) ?? serverEntries.first(where: { entry in
+            entry.name == "ursus" &&
+                entry.command == cliPath &&
+                entry.supportsDirectMCPLaunch &&
+                !entry.argumentsContainMCP
+        })
         let ursusServer = mcpServers?["ursus"] as? [String: Any]
         let command = ursusServer?["command"] as? String
         let args = ursusServer?["args"] as? [String] ?? []
         let transportType = ursusServer?["type"] as? String
 
-        if ursusServer != nil {
-            let commandMatches = command == cliPath
-            let argsMatch = args.contains("mcp")
-            let typeMatches = transportType == nil || transportType == "stdio"
-
-            if commandMatches && argsMatch && typeMatches {
-                if !launcherIsReady {
-                    return HostAppResult(
-                        setup: BearHostAppSetupSnapshot(
-                            id: "claude-desktop",
-                            appName: "Claude Desktop",
-                            configPath: configURL.path,
-                            presentInSetup: isDetected,
-                            status: .invalid,
-                            statusTitle: "Needs update",
-                            detail: "Claude Desktop points at the Ursus launcher path, but the launcher is not installed or executable yet.",
-                            snippetTitle: "Current recommended JSON",
-                            snippetLanguage: "json",
-                            snippet: snippet,
-                            mergeNote: "Repair the launcher from Ursus.app so Claude Desktop can launch Ursus again.",
-                            checks: checks
-                        ),
-                        doctorCheck: BearDoctorCheck(
-                            key: "host-claude-desktop",
-                            value: configURL.path,
-                            status: .invalid,
-                            detail: "configured entry found, but the public launcher at \(cliPath) is unavailable"
-                        )
-                    )
-                }
-
+        if managedEntry != nil {
+            if !launcherIsReady {
                 return HostAppResult(
                     setup: BearHostAppSetupSnapshot(
                         id: "claude-desktop",
                         appName: "Claude Desktop",
                         configPath: configURL.path,
                         presentInSetup: isDetected,
-                        status: .ok,
-                        statusTitle: "Configured",
-                        detail: "Claude Desktop already has an Ursus stdio server entry pointing at the public launcher path.",
+                        managedByUrsus: true,
+                        status: .invalid,
+                        statusTitle: "Needs update",
+                        detail: "Claude Desktop points at the Ursus launcher path, but the launcher is not installed or executable yet.",
                         snippetTitle: "Current recommended JSON",
                         snippetLanguage: "json",
                         snippet: snippet,
-                        mergeNote: "No change is needed unless you want to repair the public launcher from Ursus.app.",
+                        mergeNote: "Repair the launcher from Ursus.app so Claude Desktop can launch Ursus again.",
                         checks: checks
                     ),
                     doctorCheck: BearDoctorCheck(
                         key: "host-claude-desktop",
                         value: configURL.path,
-                        status: .ok,
-                        detail: "configured to launch Ursus from the public launcher path"
+                        status: .invalid,
+                        detail: "configured entry found, but the public launcher at \(cliPath) is unavailable"
                     )
                 )
             }
 
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "claude-desktop",
+                    appName: "Claude Desktop",
+                    configPath: configURL.path,
+                    presentInSetup: isDetected,
+                    managedByUrsus: true,
+                    status: .ok,
+                    statusTitle: "Configured",
+                    detail: "Claude Desktop already has an Ursus stdio server entry pointing at the public launcher path.",
+                    snippetTitle: "Current recommended JSON",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "No change is needed unless you want to repair the public launcher from Ursus.app.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-claude-desktop",
+                    value: configURL.path,
+                    status: .ok,
+                    detail: "configured to launch Ursus from the public launcher path"
+                )
+            )
+        }
+
+        if let manualEntry {
+            if !launcherIsReady {
+                return HostAppResult(
+                    setup: BearHostAppSetupSnapshot(
+                        id: "claude-desktop",
+                        appName: "Claude Desktop",
+                        configPath: configURL.path,
+                        presentInSetup: isDetected,
+                        status: .invalid,
+                        statusTitle: "Needs update",
+                        detail: "Claude Desktop has a custom MCP server entry pointing at the Ursus launcher path, but the launcher is not installed or executable yet.",
+                        snippetTitle: "Current recommended JSON",
+                        snippetLanguage: "json",
+                        snippet: snippet,
+                        mergeNote: "Repair the launcher from Ursus.app so Claude Desktop can launch Ursus again. Ursus will leave your custom server alias untouched.",
+                        checks: checks
+                    ),
+                    doctorCheck: BearDoctorCheck(
+                        key: "host-claude-desktop",
+                        value: configURL.path,
+                        status: .invalid,
+                        detail: "custom Claude Desktop MCP entry `\(manualEntry.name)` points at the public launcher, but the launcher at \(cliPath) is unavailable"
+                    )
+                )
+            }
+
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "claude-desktop",
+                    appName: "Claude Desktop",
+                    configPath: configURL.path,
+                    presentInSetup: isDetected,
+                    status: .ok,
+                    statusTitle: "Configured",
+                    detail: "Claude Desktop already uses the Ursus launcher through the custom `\(manualEntry.name)` MCP server entry.",
+                    snippetTitle: "Current recommended JSON",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "Ursus detected a working manual Claude Desktop entry. One-click Remove stays hidden because Ursus does not own that custom server alias.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-claude-desktop",
+                    value: configURL.path,
+                    status: .ok,
+                    detail: "configured to launch Ursus from the public launcher path via custom Claude Desktop MCP entry `\(manualEntry.name)`"
+                )
+            )
+        }
+
+        if ursusServer != nil {
+            let commandMatches = command == cliPath
+            let argsMatch = args.contains("mcp")
+            let typeMatches = transportType == nil || transportType == "stdio"
             let detail = if !commandMatches {
                 "Claude Desktop already has an Ursus entry, but `command` is not `\(cliPath)` yet."
             } else if !argsMatch {
@@ -693,66 +827,134 @@ enum BearHostAppSupport {
         }
 
         let mcpServers = root["mcpServers"] as? [String: Any]
+        let serverEntries = jsonServerEntries(from: mcpServers)
+        let managedEntry = serverEntries.first(where: { entry in
+            entry.name == "ursus" &&
+                entry.command == cliPath &&
+                entry.argumentsContainMCP &&
+                entry.supportsDirectMCPLaunch
+        })
+        let manualEntry = serverEntries.first(where: { entry in
+            entry.command == cliPath &&
+                entry.supportsDirectMCPLaunch &&
+                entry.name != "ursus"
+        }) ?? serverEntries.first(where: { entry in
+            entry.name == "ursus" &&
+                entry.command == cliPath &&
+                entry.supportsDirectMCPLaunch &&
+                !entry.argumentsContainMCP
+        })
         let ursusServer = mcpServers?["ursus"] as? [String: Any]
         let command = ursusServer?["command"] as? String
         let args = ursusServer?["args"] as? [String] ?? []
         let transportType = ursusServer?["type"] as? String
 
-        if ursusServer != nil {
-            let commandMatches = command == cliPath
-            let argsMatch = args.contains("mcp")
-            let typeMatches = transportType == nil || transportType == "stdio"
-
-            if commandMatches && argsMatch && typeMatches {
-                if !launcherIsReady {
-                    return HostAppResult(
-                        setup: BearHostAppSetupSnapshot(
-                            id: "claude-cli",
-                            appName: "Claude CLI",
-                            configPath: configURL.path,
-                            presentInSetup: isDetected,
-                            status: .invalid,
-                            statusTitle: "Needs update",
-                            detail: "Claude CLI points at the Ursus launcher path, but the launcher is not installed or executable yet.",
-                            snippetTitle: "Current recommended JSON",
-                            snippetLanguage: "json",
-                            snippet: snippet,
-                            mergeNote: "Repair the launcher from Ursus.app so Claude CLI can launch Ursus again.",
-                            checks: checks
-                        ),
-                        doctorCheck: BearDoctorCheck(
-                            key: "host-claude-cli",
-                            value: configURL.path,
-                            status: .invalid,
-                            detail: "configured entry found, but the public launcher at \(cliPath) is unavailable"
-                        )
-                    )
-                }
-
+        if managedEntry != nil {
+            if !launcherIsReady {
                 return HostAppResult(
                     setup: BearHostAppSetupSnapshot(
                         id: "claude-cli",
                         appName: "Claude CLI",
                         configPath: configURL.path,
                         presentInSetup: isDetected,
-                        status: .ok,
-                        statusTitle: "Configured",
-                        detail: "Claude CLI already has an Ursus stdio server entry pointing at the public launcher path.",
+                        managedByUrsus: true,
+                        status: .invalid,
+                        statusTitle: "Needs update",
+                        detail: "Claude CLI points at the Ursus launcher path, but the launcher is not installed or executable yet.",
                         snippetTitle: "Current recommended JSON",
                         snippetLanguage: "json",
                         snippet: snippet,
-                        mergeNote: "No change is needed unless you want to repair the public launcher from Ursus.app.",
+                        mergeNote: "Repair the launcher from Ursus.app so Claude CLI can launch Ursus again.",
                         checks: checks
                     ),
                     doctorCheck: BearDoctorCheck(
                         key: "host-claude-cli",
                         value: configURL.path,
-                        status: .ok,
-                        detail: "configured to launch Ursus from the public launcher path"
+                        status: .invalid,
+                        detail: "configured entry found, but the public launcher at \(cliPath) is unavailable"
                     )
                 )
             }
 
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "claude-cli",
+                    appName: "Claude CLI",
+                    configPath: configURL.path,
+                    presentInSetup: isDetected,
+                    managedByUrsus: true,
+                    status: .ok,
+                    statusTitle: "Configured",
+                    detail: "Claude CLI already has an Ursus stdio server entry pointing at the public launcher path.",
+                    snippetTitle: "Current recommended JSON",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "No change is needed unless you want to repair the public launcher from Ursus.app.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-claude-cli",
+                    value: configURL.path,
+                    status: .ok,
+                    detail: "configured to launch Ursus from the public launcher path"
+                )
+            )
+        }
+
+        if let manualEntry {
+            if !launcherIsReady {
+                return HostAppResult(
+                    setup: BearHostAppSetupSnapshot(
+                        id: "claude-cli",
+                        appName: "Claude CLI",
+                        configPath: configURL.path,
+                        presentInSetup: isDetected,
+                        status: .invalid,
+                        statusTitle: "Needs update",
+                        detail: "Claude CLI has a custom MCP server entry pointing at the Ursus launcher path, but the launcher is not installed or executable yet.",
+                        snippetTitle: "Current recommended JSON",
+                        snippetLanguage: "json",
+                        snippet: snippet,
+                        mergeNote: "Repair the launcher from Ursus.app so Claude CLI can launch Ursus again. Ursus will leave your custom server alias untouched.",
+                        checks: checks
+                    ),
+                    doctorCheck: BearDoctorCheck(
+                        key: "host-claude-cli",
+                        value: configURL.path,
+                        status: .invalid,
+                        detail: "custom Claude CLI MCP entry `\(manualEntry.name)` points at the public launcher, but the launcher at \(cliPath) is unavailable"
+                    )
+                )
+            }
+
+            return HostAppResult(
+                setup: BearHostAppSetupSnapshot(
+                    id: "claude-cli",
+                    appName: "Claude CLI",
+                    configPath: configURL.path,
+                    presentInSetup: isDetected,
+                    status: .ok,
+                    statusTitle: "Configured",
+                    detail: "Claude CLI already uses the Ursus launcher through the custom `\(manualEntry.name)` MCP server entry.",
+                    snippetTitle: "Current recommended JSON",
+                    snippetLanguage: "json",
+                    snippet: snippet,
+                    mergeNote: "Ursus detected a working manual Claude CLI entry. One-click Remove stays hidden because Ursus does not own that custom server alias.",
+                    checks: checks
+                ),
+                doctorCheck: BearDoctorCheck(
+                    key: "host-claude-cli",
+                    value: configURL.path,
+                    status: .ok,
+                    detail: "configured to launch Ursus from the public launcher path via custom Claude CLI MCP entry `\(manualEntry.name)`"
+                )
+            )
+        }
+
+        if ursusServer != nil {
+            let commandMatches = command == cliPath
+            let argsMatch = args.contains("mcp")
+            let typeMatches = transportType == nil || transportType == "stdio"
             let detail = if !commandMatches {
                 "Claude CLI already has an Ursus entry, but `command` is not `\(cliPath)` yet."
             } else if !argsMatch {
@@ -1134,6 +1336,99 @@ enum BearHostAppSupport {
         return keptLines.joined(separator: "\n")
     }
 
+    private static func codexServerSections(from contents: String) -> [CodexServerSection] {
+        let lines = contents.components(separatedBy: .newlines)
+        var sections: [CodexServerSection] = []
+        var currentName: String?
+        var currentLines: [String] = []
+
+        func flushCurrentSection() {
+            guard let currentName else {
+                return
+            }
+
+            sections.append(
+                CodexServerSection(
+                    name: currentName,
+                    body: currentLines.joined(separator: "\n")
+                )
+            )
+        }
+
+        for line in lines {
+            if let serverName = codexServerName(fromHeaderLine: line) {
+                flushCurrentSection()
+                currentName = serverName
+                currentLines = []
+                continue
+            }
+
+            let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+            if currentName != nil, trimmedLine.hasPrefix("["), trimmedLine.hasSuffix("]") {
+                flushCurrentSection()
+                currentName = nil
+                currentLines = []
+                continue
+            }
+
+            if currentName != nil {
+                currentLines.append(line)
+            }
+        }
+
+        flushCurrentSection()
+        return sections
+    }
+
+    private static func codexServerName(fromHeaderLine line: String) -> String? {
+        let trimmedLine = line.trimmingCharacters(in: .whitespaces)
+        guard trimmedLine.hasPrefix("[mcp_servers."), trimmedLine.hasSuffix("]") else {
+            return nil
+        }
+
+        let prefixLength = "[mcp_servers.".count
+        let namePortion = String(trimmedLine.dropFirst(prefixLength).dropLast())
+        if namePortion.hasPrefix("\""), namePortion.hasSuffix("\"") {
+            return String(namePortion.dropFirst().dropLast())
+        }
+
+        return namePortion
+    }
+
+    private static func jsonServerEntries(from mcpServers: [String: Any]?) -> [JSONServerEntry] {
+        guard let mcpServers else {
+            return []
+        }
+
+        return mcpServers.compactMap { name, value in
+            guard let object = value as? [String: Any] else {
+                return nil
+            }
+
+            return JSONServerEntry(name: name, object: object)
+        }
+    }
+
+    fileprivate static func firstRegexCapture(
+        pattern: String,
+        in input: String
+    ) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+
+        let range = NSRange(input.startIndex..<input.endIndex, in: input)
+        guard
+            let match = regex.firstMatch(in: input, options: [], range: range),
+            match.numberOfRanges > 1,
+            let captureRange = Range(match.range(at: 1), in: input)
+        else {
+            return nil
+        }
+
+        return String(input[captureRange])
+    }
+
     private static func upsertJSONIntegration(
         at configURL: URL,
         fileManager: FileManager,
@@ -1234,4 +1529,61 @@ enum BearHostAppSupport {
 private struct HostAppResult {
     let setup: BearHostAppSetupSnapshot
     let doctorCheck: BearDoctorCheck?
+}
+
+private struct CodexServerSection {
+    let name: String
+    let body: String
+
+    var command: String? {
+        BearHostAppSupport.firstRegexCapture(
+            pattern: #"(?m)^\s*command\s*=\s*"([^"]+)""#,
+            in: body
+        )
+    }
+
+    var argumentsContainMCP: Bool {
+        body.range(
+            of: #"(?m)^\s*args\s*=\s*\[[^\]]*"mcp"[^\]]*\]"#,
+            options: .regularExpression
+        ) != nil
+    }
+
+    var hasArgumentsField: Bool {
+        body.range(
+            of: #"(?m)^\s*args\s*="#,
+            options: .regularExpression
+        ) != nil
+    }
+
+    var supportsDirectMCPLaunch: Bool {
+        !hasArgumentsField || argumentsContainMCP
+    }
+}
+
+private struct JSONServerEntry {
+    let name: String
+    let object: [String: Any]
+
+    var command: String? {
+        object["command"] as? String
+    }
+
+    var arguments: [String] {
+        object["args"] as? [String] ?? []
+    }
+
+    var transportType: String? {
+        object["type"] as? String
+    }
+
+    var argumentsContainMCP: Bool {
+        arguments.contains("mcp")
+    }
+
+    var supportsDirectMCPLaunch: Bool {
+        let typeMatches = transportType == nil || transportType == "stdio"
+        let argsMatch = arguments.isEmpty || argumentsContainMCP
+        return typeMatches && argsMatch
+    }
 }

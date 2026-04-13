@@ -119,6 +119,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 ## Local Host Integrations
 
 - The `Setup` tab's Connect Apps section lists only detected local hosts and keeps each row compact: app name, passive `Installed` indicator when healthy, one primary `Install` or `Repair` action when needed, and one trailing overflow menu for advanced actions.
+- Host-app detection is launcher-centric rather than alias-centric: supported local hosts count as installed when an existing local stdio MCP entry already points at the shared `~/.local/bin/ursus` launcher, even if the user chose a custom server alias or omitted explicit `mcp` args. The destructive Remove action remains limited to Ursus-managed canonical entries so custom aliases are preserved.
 - Supported local host integrations are currently `Codex`, `Claude Desktop`, and `Claude CLI`; remote-only clients stay outside this section.
 - Host integration health is explicit per row: `Install` means no Ursus config is present, `Repair` means Ursus config exists but is stale or broken, and `Installed` means the host config is correct and the shared launcher exists and is executable.
 - Install and repair are implemented per host rather than through a generic plugin layer: Codex rewrites `~/.codex/config.toml`, Claude Desktop merges `claude_desktop_config.json`, and Claude CLI merges `~/.claude.json`.

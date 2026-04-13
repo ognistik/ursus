@@ -37,6 +37,7 @@ This file is the concise handoff for contributors and future agent threads. It s
 - The app uses one main dashboard window with `Setup`, `Preferences`, and `Tools` tabs.
 - `Setup` handles the main path: defaults, Bear selected-note token, detected local host setup, and optional localhost bridge setup.
 - Connect Apps lists only detected local hosts and keeps each row compact: app name, passive `Installed` indicator when healthy, one primary `Install` or `Repair` action when needed, and one trailing overflow menu for advanced actions.
+- Connect Apps treats manual local stdio entries that already point at the shared `~/.local/bin/ursus` launcher as installed even when the host-specific MCP alias is custom or the config omits explicit `mcp` args. One-click Remove stays reserved for Ursus-managed canonical entries so manual aliases are never deleted automatically.
 - Supported local host rows are currently `Codex`, `Claude Desktop`, and `Claude CLI`. Remove actions are app-specific and delete only Ursus's host config entry, not the shared launcher or the app itself.
 - `Preferences` owns durable note/template defaults, inline `template.md` editing with validation, inbox-tag editing, and Sparkle update controls.
 - `Tools` owns launcher repair, reveal-file/log actions, and tool availability controls.
