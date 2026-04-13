@@ -162,14 +162,6 @@ struct UrsusBridgeAccessOverlay: View {
                 Text(grant.clientTitle)
                     .font(.callout.weight(.semibold))
 
-                if let resource = grant.resource, !resource.isEmpty {
-                    Text(resource)
-                        .font(.footnote)
-                        .foregroundStyle(ursusTertiaryTextColor)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
                 Text("Approved \(grant.createdAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.footnote)
                     .foregroundStyle(ursusSecondaryTextColor)
