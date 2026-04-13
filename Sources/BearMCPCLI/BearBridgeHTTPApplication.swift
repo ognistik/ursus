@@ -1,4 +1,5 @@
 import BearCore
+import BearMCP
 import Foundation
 import Logging
 import MCP
@@ -761,11 +762,17 @@ extension BearBridgeHTTPApplication {
         let result = Initialize.Result(
             protocolVersion: negotiatedProtocolVersion,
             capabilities: await server.capabilities,
-            serverInfo: .init(
-                name: server.name,
-                version: server.version,
-                title: server.title
-            ),
+            serverInfo: server.name == UrsusBranding.serverName
+                ? UrsusMCPServer.brandedServerInfo(
+                    name: server.name,
+                    version: server.version,
+                    title: server.title ?? UrsusBranding.serverTitle
+                )
+                : .init(
+                    name: server.name,
+                    version: server.version,
+                    title: server.title
+                ),
             instructions: server.instructions
         )
 

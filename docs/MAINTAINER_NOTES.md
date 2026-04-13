@@ -90,6 +90,8 @@ Implemented MCP tools:
 
 MCP presentation controls are intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and other note/tag mutation tools run as background mutations without presentation overrides.
 
+Ursus advertises a human-readable MCP server title (`Ursus`) during `initialize`. The HTTP bridge also includes themed SVG `serverInfo.icons` metadata for clients that render server branding.
+
 The server does not expose Bear resources, but it answers empty `resources/list` and `resources/templates/list` requests so clients that probe resources do not treat the server as broken.
 
 ### Optional HTTP Bridge

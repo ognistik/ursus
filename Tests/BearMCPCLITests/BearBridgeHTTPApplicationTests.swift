@@ -1,4 +1,5 @@
 import BearApplication
+import BearCore
 import Darwin
 import Foundation
 import Logging
@@ -364,7 +365,13 @@ func repeatedInitializeResponseReturnsFreshHandshakeForInitializedBridge() async
     #expect(initializeResponse.id == .string("re-init-1"))
     #expect(result.protocolVersion == "2025-11-25")
     #expect(result.serverInfo.name == "ursus")
+    #expect(result.serverInfo.title == UrsusBranding.serverTitle)
     #expect(result.serverInfo.version == "0.1.0")
+    let icons = try #require(result.serverInfo.icons)
+    #expect(icons.count == 2)
+    #expect(icons.allSatisfy { $0.src.hasPrefix("data:\(UrsusBranding.svgMIMEType);base64,") })
+    #expect(icons.allSatisfy { $0.mimeType == UrsusBranding.svgMIMEType })
+    #expect(Set(icons.compactMap(\.theme)) == Set([Icon.Theme.light, Icon.Theme.dark]))
     #expect(result.capabilities.tools?.listChanged == false)
     #expect(result.capabilities.resources?.listChanged == false)
 }

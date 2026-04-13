@@ -5,7 +5,8 @@ import Foundation
 import MCP
 
 public final class UrsusMCPServer: Sendable {
-    public static let serverName = "ursus"
+    public static let serverName = UrsusBranding.serverName
+    public static let serverTitle = UrsusBranding.serverTitle
     public static let serverVersion = "0.1.0"
     // Bump this only when the served MCP behavior changes in a way that
     // `tools/list` will not naturally reflect. Tool-schema and description
@@ -33,6 +34,7 @@ public final class UrsusMCPServer: Sendable {
         let server = Server(
             name: Self.serverName,
             version: Self.serverVersion,
+            title: Self.serverTitle,
             capabilities: .init(
                 resources: .init(listChanged: false),
                 tools: .init(listChanged: false)
@@ -41,6 +43,36 @@ public final class UrsusMCPServer: Sendable {
 
         await registerHandlers(on: server)
         return server
+    }
+
+    public static var brandedIcons: [Icon] {
+        [
+            Icon(
+                src: UrsusBranding.logoDataURI(fillColor: UrsusBranding.lightThemeForeground),
+                mimeType: UrsusBranding.svgMIMEType,
+                sizes: ["any"],
+                theme: .light
+            ),
+            Icon(
+                src: UrsusBranding.logoDataURI(fillColor: UrsusBranding.darkThemeForeground),
+                mimeType: UrsusBranding.svgMIMEType,
+                sizes: ["any"],
+                theme: .dark
+            ),
+        ]
+    }
+
+    public static func brandedServerInfo(
+        name: String = UrsusMCPServer.serverName,
+        version: String = UrsusMCPServer.serverVersion,
+        title: String? = UrsusMCPServer.serverTitle
+    ) -> Server.Info {
+        .init(
+            name: name,
+            version: version,
+            title: title,
+            icons: brandedIcons
+        )
     }
 
     private func registerHandlers(on server: Server) async {

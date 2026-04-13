@@ -13,6 +13,74 @@ import Testing
 #endif
 
 @Test(.timeLimit(.minutes(1)))
+func mcpServerInitializeAdvertisesUrsusTitle() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: "Test Note",
+        body: "Body",
+        rawText: "# Test Note\n\nBody",
+        tags: [],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: MCPToolRecordingWriteTransport(),
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        let initializeResult = try await client.connect(transport: clientTransport)
+
+        #expect(initializeResult.serverInfo.name == UrsusBranding.serverName)
+        #expect(initializeResult.serverInfo.title == UrsusBranding.serverTitle)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
 func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws {
     let note = BearNote(
         ref: NoteRef(identifier: "note-1"),

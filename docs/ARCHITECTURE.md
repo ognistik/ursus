@@ -36,6 +36,7 @@
 - `bear_get_notes` returns a canonical `content` field, strips template wrapper noise when the current template matches, and returns attachment metadata by default. Attachment OCR/search text is opt-in through `include_attachment_text: true`.
 - The MCP server does not expose Bear resources, but answers empty `resources/list` and `resources/templates/list` requests for client compatibility.
 - Tool descriptions are built from loaded config at startup so user-overridable defaults are visible in the tool catalog.
+- MCP initialization advertises the human-readable server title `Ursus`, and the HTTP bridge includes themed SVG `serverInfo.icons` metadata for clients that support server branding.
 
 ## Mutation Planning
 
