@@ -117,6 +117,60 @@ func databaseReaderUsesZOPTForNoteVersion() throws {
 }
 
 @Test
+func databaseReaderRetriesTransientExclusiveLockAndEventuallySucceeds() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Inbox",
+            rawText: "# Inbox\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let lock = try ExclusiveDatabaseLock(databaseURL: databaseURL)
+    try lock.acquire()
+    defer { lock.releaseAndWait() }
+
+    lock.release(after: 0.2)
+
+    let note = try #require(try reader.note(id: "note-1"))
+
+    #expect(note.ref.identifier == "note-1")
+}
+
+@Test
+func databaseReaderThrowsWhenExclusiveLockOutlivesRetryWindow() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-1",
+            title: "Inbox",
+            rawText: "# Inbox\n\nBody",
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let lock = try ExclusiveDatabaseLock(databaseURL: databaseURL)
+    try lock.acquire()
+    defer { lock.releaseAndWait() }
+
+    #expect(throws: DatabaseError.self) {
+        _ = try reader.note(id: "note-1")
+    }
+}
+
+@Test
 func databaseReaderListTagsFiltersByLocationQueryAndParentPath() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
@@ -868,6 +922,71 @@ private func makeTemporaryBearDatabaseURL() throws -> URL {
     FileManager.default.temporaryDirectory
         .appendingPathComponent(UUID().uuidString)
         .appendingPathExtension("sqlite")
+}
+
+private final class ExclusiveDatabaseLock: @unchecked Sendable {
+    private let queue: DatabaseQueue
+    private let acquired = DispatchSemaphore(value: 0)
+    private let releaseSignal = DispatchSemaphore(value: 0)
+    private let finished = DispatchSemaphore(value: 0)
+    private let stateLock = NSLock()
+    private let errorLock = NSLock()
+    private var isReleased = false
+    private var acquisitionError: Error?
+
+    init(databaseURL: URL) throws {
+        self.queue = try DatabaseQueue(path: databaseURL.path)
+    }
+
+    func acquire() throws {
+        DispatchQueue.global().async {
+            defer { self.finished.signal() }
+
+            do {
+                try self.queue.writeWithoutTransaction { db in
+                    try db.execute(sql: "BEGIN EXCLUSIVE TRANSACTION")
+                    self.acquired.signal()
+                    self.releaseSignal.wait()
+                    try db.execute(sql: "COMMIT TRANSACTION")
+                }
+            } catch {
+                self.errorLock.lock()
+                self.acquisitionError = error
+                self.errorLock.unlock()
+                self.acquired.signal()
+            }
+        }
+
+        acquired.wait()
+        errorLock.lock()
+        let acquisitionError = self.acquisitionError
+        errorLock.unlock()
+        if let acquisitionError {
+            throw acquisitionError
+        }
+    }
+
+    func release(after delay: TimeInterval) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+            self.release()
+        }
+    }
+
+    func releaseAndWait() {
+        release()
+        finished.wait()
+    }
+
+    private func release() {
+        stateLock.lock()
+        let shouldSignal = !isReleased
+        isReleased = true
+        stateLock.unlock()
+
+        if shouldSignal {
+            releaseSignal.signal()
+        }
+    }
 }
 
 private func seedBearDatabase(

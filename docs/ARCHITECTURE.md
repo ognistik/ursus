@@ -17,7 +17,7 @@
 ## Read And Write Model
 
 - Reads come directly from Bear's local SQLite database.
-- Normal reads use a short bounded retry on transient SQLite busy/locked errors.
+- Normal reads use a bounded backoff retry window on transient SQLite busy/locked errors so brief Bear write contention does not surface as tool failures, while still failing promptly on longer lockouts.
 - Mutations are submitted through Bear's official x-callback actions. Ursus never writes directly to Bear's SQLite database.
 - Bear x-callback URLs use an action-aware activation policy: UI navigation and requested note opens foreground Bear, while background mutations send `open_note=no` plus `show_window=no`.
 - Debug traces log x-callback action/query summaries while redacting token-bearing callback URLs and large `text` / `file` payload values.

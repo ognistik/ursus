@@ -4,8 +4,10 @@ import GRDB
 
 public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
     private enum ReadRetry {
-        static let maxAttempts = 5
-        static let delayBetweenAttempts: TimeInterval = 0.05
+        static let totalWindow: TimeInterval = 1.25
+        static let initialDelay: TimeInterval = 0.025
+        static let maxDelay: TimeInterval = 0.2
+        static let backoffMultiplier = 2.0
     }
 
     private let databaseQueue: DatabaseQueue
@@ -666,19 +668,30 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
 
     private func withRetryableRead<T>(_ operation: () throws -> T) throws -> T {
         var attempt = 1
+        var nextDelay = ReadRetry.initialDelay
+        let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(ReadRetry.totalWindow * 1_000_000_000)
+
         while true {
             do {
                 return try operation()
             } catch let error as DatabaseError {
-                guard Self.isRetryableReadLock(error), attempt < ReadRetry.maxAttempts else {
+                guard Self.isRetryableReadLock(error) else {
                     throw error
                 }
 
+                let now = DispatchTime.now().uptimeNanoseconds
+                guard now < deadline else {
+                    throw error
+                }
+
+                let remaining = TimeInterval(deadline - now) / 1_000_000_000
+                let sleepDuration = min(nextDelay, remaining)
                 BearDebugLog.append(
-                    "db.read retrying after transient sqlite lock code=\(error.resultCode.rawValue) attempt=\(attempt) message=\(error.message ?? "unknown")"
+                    "db.read retrying after transient sqlite lock code=\(error.resultCode.rawValue) attempt=\(attempt) next_delay_ms=\(Int((sleepDuration * 1_000).rounded())) message=\(error.message ?? "unknown")"
                 )
-                Thread.sleep(forTimeInterval: ReadRetry.delayBetweenAttempts)
+                Thread.sleep(forTimeInterval: sleepDuration)
                 attempt += 1
+                nextDelay = min(nextDelay * ReadRetry.backoffMultiplier, ReadRetry.maxDelay)
             }
         }
     }

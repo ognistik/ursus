@@ -149,6 +149,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The Bear database path is resolved directly from Bear's canonical group-container path and is not stored in `config.json`.
+- Bear DB reads stay read-only and use a bounded retry/backoff window only for transient SQLite lock/busy errors so brief Bear write contention does not affect ordinary tool reads.
 - The selected-note token is managed in macOS Keychain through Ursus-owned code rather than `config.json`.
 - Discovery page size and snippet length come from config defaults; MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides.
 - Backup snapshot payloads live in canonical per-note folders under `Backups/<note-id>/<snapshot-id>.json`; rebuildable metadata lives in root-level `backups.sqlite`.
