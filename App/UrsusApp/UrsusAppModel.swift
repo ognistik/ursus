@@ -384,6 +384,14 @@ final class UrsusAppModel: ObservableObject {
         showsBridgeAccessOverlay = false
     }
 
+    func preloadBridgeAccessOverlayIfNeeded() async {
+        guard !isPreviewMode else {
+            return
+        }
+
+        await refreshBridgeAuthReviewNow()
+    }
+
     func revokeBridgeGrant(_ grant: BearBridgeAuthGrantSummary) {
         guard !isPreviewMode else {
             return

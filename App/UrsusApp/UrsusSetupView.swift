@@ -33,26 +33,34 @@ struct UrsusSetupView: View {
             }
             .allowsHitTesting(!model.showsBridgeAccessOverlay)
 
-            if model.showsBridgeAccessOverlay {
-                ZStack {
-                    (colorScheme == .dark
-                     ? Color.black.opacity(0.50)
-                     : Color.black.opacity(0.26))
-                }
-                .ignoresSafeArea()
-                .transition(.opacity)
-                .onTapGesture {
-                    model.closeBridgeAccessOverlay()
-                }
-
-                UrsusBridgeAccessOverlay(model: model)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 32)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            ZStack {
+                (colorScheme == .dark
+                 ? Color.black.opacity(0.50)
+                 : Color.black.opacity(0.26))
             }
+            .ignoresSafeArea()
+            .opacity(model.showsBridgeAccessOverlay ? 1 : 0)
+            .allowsHitTesting(model.showsBridgeAccessOverlay)
+            .accessibilityHidden(!model.showsBridgeAccessOverlay)
+            .animation(.easeInOut(duration: 0.18), value: model.showsBridgeAccessOverlay)
+            .onTapGesture {
+                model.closeBridgeAccessOverlay()
+            }
+
+            UrsusBridgeAccessOverlay(model: model)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .opacity(model.showsBridgeAccessOverlay ? 1 : 0)
+                .offset(y: model.showsBridgeAccessOverlay ? 0 : 28)
+                .disabled(!model.showsBridgeAccessOverlay)
+                .allowsHitTesting(model.showsBridgeAccessOverlay)
+                .accessibilityHidden(!model.showsBridgeAccessOverlay)
+                .animation(.easeInOut(duration: 0.18), value: model.showsBridgeAccessOverlay)
         }
-        .animation(.easeInOut(duration: 0.18), value: model.showsBridgeAccessOverlay)
+        .task {
+            await model.preloadBridgeAccessOverlayIfNeeded()
+        }
     }
 
     private var heroPanel: some View {
