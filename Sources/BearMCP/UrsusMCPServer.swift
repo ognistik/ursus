@@ -736,7 +736,7 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. For multiple topics, alternate phrasings, or search hypotheses that may belong to different notes, prefer separate objects in `operations` instead of one combined text string. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
+                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Always call this tool with a top-level `operations` array. Within one operation, use `text_mode: any_terms` when multiple terms are alternative matches and may appear in different notes. Use `text_mode: all_terms` only when every term should appear in the same note. For multiple distinct topics, alternate phrasings, or separate search hypotheses that should stay independently identifiable in the results, prefer separate objects in `operations` instead of one combined text string. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
@@ -915,7 +915,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
+                description: "Create one or more Bear notes. Always call this tool with a top-level `operations` array. Each note to create must be one object inside `operations`. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. If the user explicitly says whether the note should open, send `open_note` with that exact intent.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -1078,7 +1078,7 @@ private enum ToolCatalog {
             "text_mode": .object([
                 "type": .string("string"),
                 "enum": .array([.string("substring"), .string("any_terms"), .string("all_terms")]),
-                "description": .string("Optional text matching mode. Default `substring` treats `text` as one phrase-like search. Use `any_terms` for a broader OR-style search within one operation, and `all_terms` only when every term should appear in the same note. When terms may belong to different notes, prefer separate operation objects."),
+                "description": .string("Optional text matching mode. Default `substring` treats `text` as one phrase-like search. Use `any_terms` for OR-style matching within one operation when any listed term may match and those terms may appear in different notes. Use `all_terms` only when every term must appear in the same note. When you want separate search hypotheses or separately labeled result groups, prefer separate operation objects."),
             ]),
             "text_not": .object([
                 "type": .string("array"),
