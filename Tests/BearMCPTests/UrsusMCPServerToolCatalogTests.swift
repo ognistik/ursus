@@ -30,9 +30,9 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(createDescription.contains("`new_window` = `false` when opened"))
     #expect(createDescription.contains("configured inbox tags = `0-inbox`, `client work`"))
     #expect(createDescription.contains("omitted tag-merge behavior uses request tags when any are supplied"))
-    #expect(propertyDescription(named: "open_note", in: create)?.contains("Omit to use the default `false`") == true)
-    #expect(propertyDescription(named: "new_window", in: create)?.contains("the default when the created note is opened: `false`") == true)
-    #expect(propertyDescription(named: "new_window", in: create)?.contains("Only applies when `open_note` is `true`. `true` opens in a separate Bear window. `false` opens in Bear's main window.") == true)
+    #expect(createDescription.contains("Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults.") == true)
+    #expect(propertyDescription(named: "open_note", in: create) == "Optional. Omit to use the default `false`. Send `true` only when the user explicitly wants the created note to open.")
+    #expect(propertyDescription(named: "new_window", in: create) == "Optional. Only applies when `open_note` is `true`. Omit to use the default when opening: `false`. Send `true` only when the user explicitly wants a separate Bear window.")
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
     let insertDescription = try #require(insert.description)
@@ -61,7 +61,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
     #expect(try #require(openNotes.description).contains("Default: `new_window` = `false`"))
     #expect(propertyDescription(named: "note", in: openNotes)?.contains("exact case-insensitive title across notes and archive") == true)
-    #expect(propertyDescription(named: "new_window", in: openNotes)?.contains("`true` opens in a separate Bear window. `false` opens in Bear's main window.") == true)
+    #expect(propertyDescription(named: "new_window", in: openNotes) == "Optional. Omit to use the default when opening: `false`. Send `true` only when the user explicitly wants a separate Bear window.")
 
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
     #expect(try #require(replace.description).contains("Do not call `bear_get_notes` only to resolve the note selector"))
@@ -318,6 +318,34 @@ func toolCatalogOmitsBackupHintWhenBackupListingIsUnavailable() throws {
 
     #expect(try #require(noRetentionFind.description).contains("returned notes may include `hasBackups`") == false)
     #expect(try #require(disabledFind.description).contains("returned notes may include `hasBackups`") == false)
+}
+
+@Test
+func toolCatalogFlipsPresentationOverrideGuidanceWhenDefaultsAreTrue() throws {
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .top,
+        templateManagementEnabled: true,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 7,
+        defaultSnippetLength: 90,
+        backupRetentionDays: 30
+    )
+
+    let tools = UrsusMCPServer.toolCatalog(
+        configuration: configuration,
+        selectedNoteTokenConfigured: true
+    )
+
+    let create = try #require(tool(named: "bear_create_notes", in: tools))
+    #expect(propertyDescription(named: "open_note", in: create) == "Optional. Omit to use the default `true`. Send `false` only when the user explicitly wants the created note to stay closed.")
+    #expect(propertyDescription(named: "new_window", in: create) == "Optional. Only applies when `open_note` is `true`. Omit to use the default when opening: `true`. Send `false` only when the user explicitly wants Bear's main window.")
+
+    let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
+    #expect(propertyDescription(named: "new_window", in: openNotes) == "Optional. Omit to use the default when opening: `true`. Send `false` only when the user explicitly wants Bear's main window.")
 }
 
 private func tool(named name: String, in tools: [Tool]) -> Tool? {

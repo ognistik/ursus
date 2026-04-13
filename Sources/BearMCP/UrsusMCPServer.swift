@@ -915,7 +915,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. Always call this tool with a top-level `operations` array. Each note to create must be one object inside `operations`; do not send `title`, `content`, or `tags` at the top level. `content` must be a non-empty string and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). Do not send `open_note` unless the user explicitly says whether the created note should open or stay closed. Do not send `new_window` unless the user explicitly asks to open the note in a separate or new Bear window. When the user does not mention opening behavior, omit both fields and let the configured defaults apply. If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`.",
+                description: "Create one or more Bear notes. Call this tool with a top-level `operations` array; each note to create must be one object in that array. `content` is required, must be non-empty, and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults. If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -931,8 +931,11 @@ private enum ToolCatalog {
                         "type": .string("boolean"),
                         "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Do not treat inferred tags as request tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
-                    "open_note": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.createOpensNoteByDefault))", overrideWhen: "the user explicitly states whether the created note should open")) `true` forces open and `false` forces closed."),
-                    "new_window": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default when the created note is opened: \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")) Only applies when `open_note` is `true`. `true` opens in a separate Bear window. `false` opens in Bear's main window."),
+                    "open_note": optionalPresentationBoolean(description: openNoteOverrideDescription(defaultValue: configuration.createOpensNoteByDefault)),
+                    "new_window": optionalPresentationBoolean(description: newWindowOverrideDescription(
+                        defaultValue: configuration.openUsesNewWindowByDefault,
+                        appliesWhenOpeningNote: true
+                    )),
                 ],
                 required: ["title", "content"],
                 presentationProperties: [:]
@@ -1007,7 +1010,10 @@ private enum ToolCatalog {
                 description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Default: `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)).",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "new_window": optionalPresentationBoolean(description: "\(omitUnlessDescription(defaultClause: "the default \(formattedBool(configuration.openUsesNewWindowByDefault))", overrideWhen: "the user explicitly asks for a separate or floating Bear window")) `true` opens in a separate Bear window. `false` opens in Bear's main window."),
+                    "new_window": optionalPresentationBoolean(description: newWindowOverrideDescription(
+                        defaultValue: configuration.openUsesNewWindowByDefault,
+                        appliesWhenOpeningNote: false
+                    )),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
@@ -1301,6 +1307,33 @@ private enum ToolCatalog {
 
     private static func omitUnlessDescription(defaultClause: String, overrideWhen: String) -> String {
         "Optional. Omit to use \(defaultClause). Do not send unless \(overrideWhen)."
+    }
+
+    private static func openNoteOverrideDescription(defaultValue: Bool) -> String {
+        let defaultDescription = formattedBool(defaultValue)
+        let overrideDescription = if defaultValue {
+            "Send `false` only when the user explicitly wants the created note to stay closed."
+        } else {
+            "Send `true` only when the user explicitly wants the created note to open."
+        }
+
+        return "Optional. Omit to use the default \(defaultDescription). \(overrideDescription)"
+    }
+
+    private static func newWindowOverrideDescription(defaultValue: Bool, appliesWhenOpeningNote: Bool) -> String {
+        let defaultDescription = formattedBool(defaultValue)
+        let openingContext = if appliesWhenOpeningNote {
+            "Only applies when `open_note` is `true`. "
+        } else {
+            ""
+        }
+        let overrideDescription = if defaultValue {
+            "Send `false` only when the user explicitly wants Bear's main window."
+        } else {
+            "Send `true` only when the user explicitly wants a separate Bear window."
+        }
+
+        return "Optional. \(openingContext)Omit to use the default when opening: \(defaultDescription). \(overrideDescription)"
     }
 
     private static func formattedBool(_ value: Bool) -> String {
