@@ -704,7 +704,7 @@ private enum ToolCatalog {
         [
             batchedDiscoveryTool(
                 name: "bear_find_notes",
-                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
+                description: "Find Bear notes with text, tag, inbox-tag, and date filters and return compact summaries. For multiple topics, alternate phrasings, or search hypotheses that may belong to different notes, prefer separate objects in `operations` instead of one combined text string. Use `bear_list_tags` first when the exact tag name is uncertain. Discovery excludes trash.\(backupDiscoverabilityHint(configuration: configuration))",
                 operationProperties: findNotesOperationProperties(configuration: configuration),
                 required: []
             ),
@@ -1035,14 +1035,18 @@ private enum ToolCatalog {
 
     private static func findNotesOperationProperties(configuration: BearConfiguration) -> [String: Value] {
         discoveryOperationProperties([
-            "id": .object(["type": .string("string")]),
+            "id": .object([
+                "type": .string("string"),
+                "description": .string("Optional client label echoed back in the matching result object. Useful for naming separate search hypotheses inside one batch."),
+            ]),
             "text": .object([
                 "type": .string("string"),
-                "description": .string("Optional text to find inside note titles, bodies, or attachments."),
+                "description": .string("Optional text to find inside note titles, bodies, or attachments. Use one phrase when the words should stay together. If the user gives multiple distinct topics or alternate phrasings that may belong to different notes, prefer separate operation objects instead of one combined text string."),
             ]),
             "text_mode": .object([
                 "type": .string("string"),
                 "enum": .array([.string("substring"), .string("any_terms"), .string("all_terms")]),
+                "description": .string("Optional text matching mode. Default `substring` treats `text` as one phrase-like search. Use `any_terms` for a broader OR-style search within one operation, and `all_terms` only when every term should appear in the same note. When terms may belong to different notes, prefer separate operation objects."),
             ]),
             "text_not": .object([
                 "type": .string("array"),

@@ -9,7 +9,7 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
 ## 1. Discovery
 *Find notes with precision.*
 
-*   **`bear_find_notes`**: The primary search tool. Filter by text (including attachments), tags, date ranges, pinned status, todos, or whether the note is in your archive. You can request AI to set the `text_mode` to `substring`, `any_terms`, or `all_terms` for flexible matching.
+*   **`bear_find_notes`**: The primary search tool. Filter by text (including attachments), tags, date ranges, pinned status, todos, or whether the note is in your archive. You can request AI to set the `text_mode` to `substring`, `any_terms`, or `all_terms` for flexible matching. If you have multiple topics or alternate phrasings that may belong to different notes, AI should prefer separate objects in `operations` instead of one combined text string.
     *   **A small but important detail**: each search needs at least one real filter, and results come back paginated so searches stay compact.
 *   **`bear_find_notes_by_tag`**: Find notes containing specific tags. Set `tag_match` to `any` (contains at least one) or `all` (contains every tag provided).
 *   **`bear_find_notes_by_inbox_tags`**: Quickly find notes based on the inbox tags configured in your Ursus preferences.

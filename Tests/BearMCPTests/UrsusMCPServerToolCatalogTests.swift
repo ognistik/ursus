@@ -201,9 +201,13 @@ func toolCatalogInjectsDiscoveryDefaultsAndInboxTags() throws {
 
     let find = try #require(tool(named: "bear_find_notes", in: tools))
     #expect(try #require(find.description).hasPrefix("Find Bear notes with text, tag, inbox-tag, and date filters"))
+    #expect(try #require(find.description).contains("prefer separate objects in `operations` instead of one combined text string"))
     #expect(try #require(find.description).contains("returned notes may include `hasBackups`"))
     #expect(propertyDescription(named: "limit", in: find) == nil)
     #expect(propertyDescription(named: "snippet_length", in: find) == nil)
+    #expect(propertyDescription(named: "id", in: find)?.contains("search hypotheses") == true)
+    #expect(propertyDescription(named: "text", in: find)?.contains("separate operation objects") == true)
+    #expect(propertyDescription(named: "text_mode", in: find)?.contains("Default `substring`") == true)
     #expect(propertyDescription(named: "has_pinned", in: find)?.contains("pinned notes") == true)
     #expect(propertyDescription(named: "has_todos", in: find)?.contains("open todos only") == true)
     #expect(propertyDescription(named: "has_attachment_search_text", in: find) == nil)

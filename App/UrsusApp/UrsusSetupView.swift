@@ -258,7 +258,7 @@ struct UrsusSetupView: View {
 
                     UrsusMessageStack(error: model.cliStatusError)
                 } else {
-                    Text("Setup is available for supported apps found on this Mac. Restart the client after installing Ursus.")
+                    Text("Supported apps found on this Mac are shown below. Other clients can still connect manually using the Ursus launcher path or the Remote MCP Bridge.")
                         .font(.footnote)
                         .foregroundStyle(ursusTertiaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)

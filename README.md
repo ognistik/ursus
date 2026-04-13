@@ -37,7 +37,7 @@ Bear has no version history. Ursus fills that gap with snapshots captured automa
 Ursus exposes a focused set across five areas: discovery, notes, tags, backups, and navigation. Most tools accept multiple operations in a single call.
 
 **Discovery has real depth.**
-Search by text, tags, date ranges, pinned state, todos, attachment content, and more. Mix filters in one query. Results paginate, so large searches don't flood your context.
+Search by text, tags, date ranges, pinned state, todos, attachment content, and more. Mix filters in one query, or batch separate search hypotheses when terms may belong to different notes. Results paginate, so large searches don't flood your context.
 
 **CLI and automation**
 Create notes, back up, restore, and apply templates from the command line or any automation tool: Keyboard Maestro, Raycast, Alfred, BetterTouchTool, you name it.
