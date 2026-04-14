@@ -834,6 +834,7 @@ func bearCompareBackupAcceptsSelectedNoteTarget() async throws {
                     .object([
                         "selected": .bool(true),
                         "snapshot_id": .string("snapshot-1"),
+                        "detail": .string("full"),
                     ]),
                 ]),
             ]

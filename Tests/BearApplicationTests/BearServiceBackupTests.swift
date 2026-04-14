@@ -417,7 +417,20 @@ func listBackupsRejectsMismatchedCursorWhenDateFiltersDiffer() async throws {
 
 @Test
 func compareBackupsReturnsCompactDiffMetadata() async throws {
-    let note = makeBackupServiceNote(id: "note-1", title: "Inbox", body: "Current\nUpdated")
+    let note = makeBackupServiceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        Current
+        Updated 1
+        Updated 2
+        Updated 3
+        Updated 4
+        Updated 5
+        Updated 6
+        Updated 7
+        """
+    )
     let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
     let writeTransport = BackupServiceWriteTransport()
     let backupStore = RecordingBackupStore(
@@ -453,6 +466,61 @@ func compareBackupsReturnsCompactDiffMetadata() async throws {
     #expect(comparison.changed == true)
     #expect(comparison.titleChanged == false)
     #expect(comparison.hunks.isEmpty == false)
+    #expect(comparison.truncated == true)
+    #expect(comparison.hunks.first?.currentExcerpt?.contains("... (+") == true)
+}
+
+@Test
+func compareBackupsReturnsFullChangedRegionsWhenRequested() async throws {
+    let note = makeBackupServiceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        Current
+        Updated 1
+        Updated 2
+        Updated 3
+        Updated 4
+        Updated 5
+        Updated 6
+        Updated 7
+        """
+    )
+    let readStore = BackupServiceReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]])
+    let writeTransport = BackupServiceWriteTransport()
+    let backupStore = RecordingBackupStore(
+        snapshots: [
+            "snapshot-1": BearBackupSnapshot(
+                snapshotID: "snapshot-1",
+                noteID: "note-1",
+                version: 3,
+                title: "Inbox",
+                rawText: "# Inbox\n\nCurrent",
+                modifiedAt: Date(timeIntervalSince1970: 1_710_000_400),
+                capturedAt: Date(timeIntervalSince1970: 1_710_000_450),
+                reason: .replaceContent,
+                operationGroupID: "op-1"
+            ),
+        ]
+    )
+    let service = BearService(
+        configuration: makeBackupServiceConfiguration(templateManagementEnabled: false),
+        readStore: readStore,
+        writeTransport: writeTransport,
+        backupStore: backupStore,
+        logger: Logger(label: "BearServiceBackupTests")
+    )
+
+    let result = try await service.compareBackups([
+        CompareBackupOperation(id: "cmp", noteID: "Inbox", snapshotID: "snapshot-1", detail: .full),
+    ])
+
+    let comparison = try #require(result.results.first?.comparison)
+    let hunk = try #require(comparison.hunks.first)
+    #expect(comparison.truncated == false)
+    #expect(hunk.currentLineCount == 7)
+    #expect(hunk.currentExcerpt?.contains("Updated 7") == true)
+    #expect(hunk.currentExcerpt?.contains("... (+") == false)
 }
 
 @Test

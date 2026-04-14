@@ -53,7 +53,7 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
 
 *   **`bear_create_backups`**: Manually snapshot a note.
 *   **`bear_list_backups`**: Returns a paginated history of snapshots of a specific note. You can filter by date using `from` and `to` timestamps (ISO 8601 or natural language like "yesterday").
-*   **`bear_compare_backup`**: Compares a specific `snapshot_id` to the current note content, returning compact diff hunks.
+*   **`bear_compare_backup`**: Compares a specific `snapshot_id` to the current note content. By default it returns compact diff hunks plus a `truncated` flag when excerpts or hunk counts were limited. Set `detail: full` when you need the full changed regions for each hunk.
 *   **`bear_delete_backups`**: Delete a single snapshot (`snapshot_id`) or use `delete_all: true` to clear the entire backup history for a note.
 *   **`bear_restore_notes`**: Restores the note to a saved snapshot. If `snapshot_id` is omitted, it rolls back to the most recent backup.
 

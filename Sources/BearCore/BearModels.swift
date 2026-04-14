@@ -850,15 +850,27 @@ public struct CreateBackupReceipt: Codable, Hashable, Sendable {
     }
 }
 
+public enum BackupComparisonDetail: String, Codable, Hashable, Sendable {
+    case compact
+    case full
+}
+
 public struct CompareBackupOperation: Codable, Hashable, Sendable {
     public let id: String?
     public let noteID: String
     public let snapshotID: String
+    public let detail: BackupComparisonDetail
 
-    public init(id: String? = nil, noteID: String, snapshotID: String) {
+    public init(
+        id: String? = nil,
+        noteID: String,
+        snapshotID: String,
+        detail: BackupComparisonDetail = .compact
+    ) {
         self.id = id
         self.noteID = noteID
         self.snapshotID = snapshotID
+        self.detail = detail
     }
 }
 
@@ -905,6 +917,7 @@ public struct BackupComparison: Codable, Hashable, Sendable {
     public let currentModifiedAt: Date
     public let changed: Bool
     public let titleChanged: Bool
+    public let truncated: Bool
     public let hunks: [BackupComparisonHunk]
 
     public init(
@@ -916,6 +929,7 @@ public struct BackupComparison: Codable, Hashable, Sendable {
         currentModifiedAt: Date,
         changed: Bool,
         titleChanged: Bool,
+        truncated: Bool,
         hunks: [BackupComparisonHunk]
     ) {
         self.noteID = noteID
@@ -926,6 +940,7 @@ public struct BackupComparison: Codable, Hashable, Sendable {
         self.currentModifiedAt = currentModifiedAt
         self.changed = changed
         self.titleChanged = titleChanged
+        self.truncated = truncated
         self.hunks = hunks
     }
 }

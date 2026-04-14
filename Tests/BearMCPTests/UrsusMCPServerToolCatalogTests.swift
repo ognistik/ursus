@@ -114,8 +114,9 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     #expect(propertyDescription(named: "selected", in: listBackups)?.contains("currently selected Bear note") == true)
 
     let compareBackup = try #require(tool(named: "bear_compare_backup", in: tools))
-    #expect(try #require(compareBackup.description).contains("bounded diff hunks"))
+    #expect(try #require(compareBackup.description).contains("detail: full"))
     #expect(propertyDescription(named: "snapshot_id", in: compareBackup)?.contains("Required backup snapshot identifier") == true)
+    #expect(propertyDescription(named: "detail", in: compareBackup)?.contains("full changed regions") == true)
 
     let deleteBackups = try #require(tool(named: "bear_delete_backups", in: tools))
     #expect(try #require(deleteBackups.description).contains("Provide `snapshot_id` to delete one exact backup"))

@@ -26,7 +26,7 @@ If you add a Bear token, Ursus can target your currently selected note directly.
 Ursus reads the note, plans the change locally, and sends a clean replacement through Bear's write path. That means it can insert before or after a heading, replace an exact string, or attach a file relative to a specific part of the note,  without scrambling your layout or template.
 
 **It backs up notes before touching them.**
-Bear has no version history. Ursus fills that gap with snapshots captured automatically before major note-rewriting operations. You can compare a backup to the current note, or restore from any saved point.
+Bear has no version history. Ursus fills that gap with snapshots captured automatically before major note-rewriting operations. You can compare a backup to the current note in a compact default mode, ask for the full changed regions when needed, or restore from any saved point.
 
 **The tools are batch-friendly.**
 Ursus exposes a focused set across five areas: discovery, notes, tags, backups, and navigation. Most tools accept multiple operations in a single call.

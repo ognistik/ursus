@@ -189,7 +189,11 @@ public final class BearService: @unchecked Sendable {
                 return CompareBackupOperationResult(
                     index: index,
                     id: operation.id,
-                    comparison: self.makeBackupComparison(note: note, snapshot: snapshot)
+                    comparison: self.makeBackupComparison(
+                        note: note,
+                        snapshot: snapshot,
+                        detail: operation.detail
+                    )
                 )
             } catch {
                 return CompareBackupOperationResult(
@@ -2868,10 +2872,20 @@ public final class BearService: @unchecked Sendable {
         max(1, configuration.defaultSnippetLength)
     }
 
-    private func makeBackupComparison(note: BearNote, snapshot: BearBackupSnapshot) -> BackupComparison {
-        let hunks = makeBackupComparisonHunks(
+    private struct BackupComparisonHunkResult {
+        let hunks: [BackupComparisonHunk]
+        let truncated: Bool
+    }
+
+    private func makeBackupComparison(
+        note: BearNote,
+        snapshot: BearBackupSnapshot,
+        detail: BackupComparisonDetail
+    ) -> BackupComparison {
+        let comparisonHunks = makeBackupComparisonHunks(
             backupText: snapshot.rawText,
-            currentText: note.rawText
+            currentText: note.rawText,
+            detail: detail
         )
 
         return BackupComparison(
@@ -2883,35 +2897,66 @@ public final class BearService: @unchecked Sendable {
             currentModifiedAt: note.revision.modifiedAt,
             changed: snapshot.rawText != note.rawText,
             titleChanged: snapshot.title != note.title,
-            hunks: hunks
+            truncated: comparisonHunks.truncated,
+            hunks: comparisonHunks.hunks
         )
     }
 
-    private func makeBackupComparisonHunks(backupText: String, currentText: String) -> [BackupComparisonHunk] {
+    private func makeBackupComparisonHunks(
+        backupText: String,
+        currentText: String,
+        detail: BackupComparisonDetail
+    ) -> BackupComparisonHunkResult {
         let backupLines = normalizedDiffLines(backupText)
         let currentLines = normalizedDiffLines(currentText)
 
         guard backupLines != currentLines else {
-            return []
+            return BackupComparisonHunkResult(hunks: [], truncated: false)
+        }
+
+        if detail == .full {
+            let diff = currentLines.difference(from: backupLines)
+            let hunks = groupedComparisonHunks(from: diff, truncateExcerpts: false)
+            if hunks.isEmpty {
+                return BackupComparisonHunkResult(
+                    hunks: [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines, truncateExcerpts: false)],
+                    truncated: false
+                )
+            }
+
+            return BackupComparisonHunkResult(hunks: hunks, truncated: false)
         }
 
         let totalLines = backupLines.count + currentLines.count
         if totalLines > 400 {
-            return [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines)]
+            return BackupComparisonHunkResult(
+                hunks: [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines, truncateExcerpts: true)],
+                truncated: true
+            )
         }
 
         let diff = currentLines.difference(from: backupLines)
-        let hunks = groupedComparisonHunks(from: diff)
+        let hunks = groupedComparisonHunks(from: diff, truncateExcerpts: true)
         guard !hunks.isEmpty else {
-            return [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines)]
+            return BackupComparisonHunkResult(
+                hunks: [singleComparisonHunk(backupLines: backupLines, currentLines: currentLines, truncateExcerpts: true)],
+                truncated: true
+            )
         }
 
         let maxHunks = 8
-        return Array(hunks.prefix(maxHunks))
+        let limitedHunks = Array(hunks.prefix(maxHunks))
+        let hunkLimitTruncated = hunks.count > maxHunks
+        let excerptTruncated = limitedHunks.contains(where: hunkContainsTruncation(_:))
+        return BackupComparisonHunkResult(
+            hunks: limitedHunks,
+            truncated: hunkLimitTruncated || excerptTruncated
+        )
     }
 
     private func groupedComparisonHunks(
-        from diff: CollectionDifference<String>
+        from diff: CollectionDifference<String>,
+        truncateExcerpts: Bool
     ) -> [BackupComparisonHunk] {
         let removals = diff.removals.sorted { lhs, rhs in
             guard case .remove(let lhsOffset, _, _) = lhs, case .remove(let rhsOffset, _, _) = rhs else {
@@ -2988,8 +3033,8 @@ public final class BearService: @unchecked Sendable {
                     currentStartLine: currentStart + 1,
                     backupLineCount: backupLines.count,
                     currentLineCount: currentLines.count,
-                    backupExcerpt: boundedDiffExcerpt(backupLines),
-                    currentExcerpt: boundedDiffExcerpt(currentLines)
+                    backupExcerpt: renderDiffExcerpt(backupLines, truncate: truncateExcerpts),
+                    currentExcerpt: renderDiffExcerpt(currentLines, truncate: truncateExcerpts)
                 )
             )
         }
@@ -2997,7 +3042,11 @@ public final class BearService: @unchecked Sendable {
         return hunks
     }
 
-    private func singleComparisonHunk(backupLines: [String], currentLines: [String]) -> BackupComparisonHunk {
+    private func singleComparisonHunk(
+        backupLines: [String],
+        currentLines: [String],
+        truncateExcerpts: Bool
+    ) -> BackupComparisonHunk {
         let prefixCount = commonPrefixCount(backupLines, currentLines)
         let suffixCount = commonSuffixCount(backupLines, currentLines, prefixCount: prefixCount)
         let backupChanged = Array(backupLines.dropFirst(prefixCount).dropLast(suffixCount))
@@ -3019,8 +3068,8 @@ public final class BearService: @unchecked Sendable {
             currentStartLine: prefixCount + 1,
             backupLineCount: backupChanged.count,
             currentLineCount: currentChanged.count,
-            backupExcerpt: boundedDiffExcerpt(backupChanged),
-            currentExcerpt: boundedDiffExcerpt(currentChanged)
+            backupExcerpt: renderDiffExcerpt(backupChanged, truncate: truncateExcerpts),
+            currentExcerpt: renderDiffExcerpt(currentChanged, truncate: truncateExcerpts)
         )
     }
 
@@ -3029,6 +3078,18 @@ public final class BearService: @unchecked Sendable {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
             .components(separatedBy: "\n")
+    }
+
+    private func renderDiffExcerpt(_ lines: [String], truncate: Bool) -> String? {
+        if truncate {
+            return boundedDiffExcerpt(lines)
+        }
+
+        guard !lines.isEmpty else {
+            return nil
+        }
+
+        return lines.joined(separator: "\n")
     }
 
     private func boundedDiffExcerpt(_ lines: [String]) -> String? {
@@ -3050,6 +3111,23 @@ public final class BearService: @unchecked Sendable {
 
         let cutoff = joined.index(joined.startIndex, offsetBy: maxCharacters)
         return String(joined[..<cutoff]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+    }
+
+    private func hunkContainsTruncation(_ hunk: BackupComparisonHunk) -> Bool {
+        excerptContainsTruncation(hunk.backupExcerpt, lineCount: hunk.backupLineCount)
+            || excerptContainsTruncation(hunk.currentExcerpt, lineCount: hunk.currentLineCount)
+    }
+
+    private func excerptContainsTruncation(_ excerpt: String?, lineCount: Int) -> Bool {
+        guard let excerpt else {
+            return false
+        }
+
+        if lineCount > 6 {
+            return true
+        }
+
+        return excerpt.hasSuffix("...")
     }
 
     private func commonPrefixCount(_ lhs: [String], _ rhs: [String]) -> Int {

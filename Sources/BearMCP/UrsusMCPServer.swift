@@ -168,7 +168,8 @@ public final class UrsusMCPServer: Sendable {
                 CompareBackupOperation(
                     id: MCPArgumentDecoder.optionalString(object, "id"),
                     noteID: resolvedNoteSelector,
-                    snapshotID: try requiredString(object, "snapshot_id")
+                    snapshotID: try requiredString(object, "snapshot_id"),
+                    detail: try comparisonDetail(object)
                 )
             }
             let result = try await service.compareBackups(operations)
@@ -519,6 +520,18 @@ public final class UrsusMCPServer: Sendable {
         return strings
     }
 
+    private func comparisonDetail(_ object: [String: Value]) throws -> BackupComparisonDetail {
+        guard let rawValue = MCPArgumentDecoder.optionalString(object, "detail") else {
+            return .compact
+        }
+
+        guard let detail = BackupComparisonDetail(rawValue: rawValue) else {
+            throw BearError.invalidInput("Invalid compare detail '\(rawValue)'. Use `compact` or `full`.")
+        }
+
+        return detail
+    }
+
     private func decodeFindNotesOperation(_ object: [String: Value]) throws -> FindNotesOperation {
         FindNotesOperation(
             id: MCPArgumentDecoder.optionalString(object, "id"),
@@ -800,13 +813,18 @@ private enum ToolCatalog {
             ),
             batchedDiscoveryTool(
                 name: "bear_compare_backup",
-                description: "Compare one saved backup snapshot against the current Bear note without returning full note bodies by default. Each operation requires exactly one note target plus `snapshot_id`, and returns compact metadata plus bounded diff hunks.",
+                description: "Compare one saved backup snapshot against the current Bear note. By default, each operation returns compact metadata plus bounded diff hunks and marks the comparison as truncated when excerpts or hunk counts were limited. Set `detail: full` when you need the full changed regions instead of compact excerpts.",
                 operationProperties: [
                     "id": .object(["type": .string("string")]),
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "snapshot_id": .object([
                         "type": .string("string"),
                         "description": .string("Required backup snapshot identifier to compare against the current note."),
+                    ]),
+                    "detail": .object([
+                        "type": .string("string"),
+                        "enum": .array([.string("compact"), .string("full")]),
+                        "description": .string("Optional comparison detail level. Omit or use `compact` to return bounded diff hunks and truncation metadata. Use `full` to return the full changed regions for each hunk."),
                     ]),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["snapshot_id"])
@@ -915,7 +933,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. Call this tool with a top-level `operations` array; each note to create must be one object in that array. `content` is required, must be non-empty, and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults. If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`.",
+                description: "Create one or more Bear notes. You must call this tool with a top-level `operations` array; each note to create must be one object in that array. `content` is required, must be non-empty, and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults. If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`.",
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
