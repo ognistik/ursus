@@ -46,7 +46,7 @@ This file is the concise handoff for contributors and future agent threads. It s
 - Sparkle update UI remains in the app executable, and embedded CLI runs can participate in scheduled Sparkle checks for stdio MCP / bridge usage without opening the dashboard.
 - Embedded bridge / stdio Sparkle scheduling must avoid `SPUStandardUpdaterController`; hidden CLI runs use a background `SPUUpdater` user driver so the bridge does not claim the visible app's LaunchServices identity. If that background check finds an update, it hands off to the same app executable in Sparkle-only foreground mode.
 - Background bridge / stdio Sparkle checks are silent when no update is found or when a check fails. Only a real update-found event should foreground Sparkle UI.
-- User-initiated checks (`ursus --check-updates` and the app's own "Check for Updates…") may show Sparkle's standard "up to date" UI. Do not carry that no-update UI behavior into background bridge / MCP checks.
+- User-initiated checks (`ursus update check` and the app's own "Check for Updates…") may show Sparkle's standard "up to date" UI. Do not carry that no-update UI behavior into background bridge / MCP checks.
 - Sparkle-only mode exists specifically to avoid the old failure mode where the wrong process owned the modal update window and left Ursus stuck, unclickable, or impossible to reopen. Do not move update UI ownership back into the hidden bridge / CLI process, and do not add another helper app for update presentation.
 - Clearing `SULastCheckTime` and restarting bridge / stdio is the intended local test reset for scheduled checks. Long-running bridge / stdio processes should keep Sparkle's 3-hour scheduling alive without requiring the dashboard app to stay open.
 
@@ -54,12 +54,14 @@ This file is the concise handoff for contributors and future agent threads. It s
 
 Current direct utility commands:
 
-- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
-- `ursus --backup-note [note-id-or-title ...]`
-- `ursus --restore-note [NOTE_ID SNAPSHOT_ID ...]`
-- `ursus --apply-template [note-id-or-title ...]`
-- `ursus --check-updates`
-- `ursus --auto-install-updates true|false`
+- `ursus note new [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
+- `ursus note backup [note-id-or-title ...]`
+- `ursus note restore`
+- `ursus note restore latest [note-id-or-title ...]`
+- `ursus note restore snapshot [NOTE_ID SNAPSHOT_ID ...]`
+- `ursus note apply-template [note-id-or-title ...]`
+- `ursus update check`
+- `ursus update auto-install on|off`
 - `ursus bridge serve`
 - `ursus bridge status`
 - `ursus bridge print-url`
@@ -71,14 +73,14 @@ Important behavior:
 - Running `ursus` with no command starts the stdio MCP server.
 - The public launcher at `~/.local/bin/ursus` forwards into `Ursus.app/Contents/MacOS/Ursus` with a hidden `--ursus-cli` flag.
 - Opening `Ursus.app` reconciles that public launcher automatically before the user works through Setup, so host install/repair flows can target the shared launcher path consistently.
-- Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its configured 3-hour cadence. Ordinary short-lived CLI commands do not trigger scheduled Sparkle checks. `ursus --check-updates` and MCP / bridge update-found events hand off to the foreground app executable in Sparkle-only mode so the user-facing Sparkle UI owns a normal AppKit run loop without opening the dashboard. `ursus --auto-install-updates true|false` updates Sparkle's persisted automatic-download/install preference from the command line; enabling it also turns on automatic update checks so it matches the user-facing Sparkle opt-in flow.
+- Embedded CLI runs launched through the app bundle supply a Sparkle update checker. `ursus mcp` and `ursus bridge serve` start Sparkle's scheduled check cycle so Sparkle can check on its configured 3-hour cadence. Ordinary short-lived CLI commands do not trigger scheduled Sparkle checks. `ursus update check` and MCP / bridge update-found events hand off to the foreground app executable in Sparkle-only mode so the user-facing Sparkle UI owns a normal AppKit run loop without opening the dashboard. `ursus update auto-install on|off` updates Sparkle's persisted automatic-download/install preference from the command line; enabling it also turns on automatic update checks so it matches the user-facing Sparkle opt-in flow.
 - Ordinary one-shot CLI commands such as note creation should not advance Sparkle's scheduler or touch `SULastCheckTime`; only the long-running MCP / bridge surfaces and explicit update-check commands should participate.
 - CLI bridge recovery is available through `ursus bridge pause`, `ursus bridge resume`, and `ursus bridge remove`.
-- Bare `--new-note` preserves the interactive editing-note flow and can seed tags from the selected Bear note when a selected-note token is configured.
-- Explicit `--new-note` mode skips selected-note lookup, follows the create-adds-inbox-tags default when `--tags` is omitted, appends tags unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is passed.
+- Bare `ursus note new` preserves the interactive editing-note flow and can seed tags from the selected Bear note when a selected-note token is configured.
+- Explicit `ursus note new` mode skips selected-note lookup, follows the create-adds-inbox-tags default when `--tags` is omitted, appends tags unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is passed.
 - `--new-window` is only valid with `--open-note`.
-- `--backup-note`, bare `--restore-note`, and `--apply-template` target the selected Bear note when no explicit targets are passed.
-- Passed note arguments resolve as exact note id first, then exact case-insensitive title, except `--restore-note`, which requires exact `NOTE_ID SNAPSHOT_ID` pairs.
+- `ursus note backup`, bare `ursus note restore`, and `ursus note apply-template` target the selected Bear note when no explicit targets are passed.
+- Passed note arguments resolve as exact note id first, then exact case-insensitive title, except `ursus note restore snapshot`, which requires exact `NOTE_ID SNAPSHOT_ID` pairs.
 
 ### MCP
 

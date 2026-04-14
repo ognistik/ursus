@@ -5,14 +5,26 @@ import Testing
 @testable import BearCLIRuntime
 
 @Test
-func parseNewNoteWithoutExtraFlagsKeepsInteractiveMode() throws {
-    let command = try BearCLICommand.parse(arguments: ["--new-note"])
+func parseNoteNewWithoutExtraFlagsKeepsInteractiveMode() throws {
+    let command = try BearCLICommand.parse(arguments: ["note", "new"])
 
     switch command {
-    case .newNote(let options):
+    case .note(.new(let options)):
         #expect(options == nil)
     default:
-        Issue.record("Expected '--new-note' to parse as .newNote(nil).")
+        Issue.record("Expected 'note new' to parse as .note(.new(nil)).")
+    }
+}
+
+@Test
+func parseNoteAliasNewWithoutExtraFlagsKeepsInteractiveMode() throws {
+    let command = try BearCLICommand.parse(arguments: ["n", "new"])
+
+    switch command {
+    case .note(.new(let options)):
+        #expect(options == nil)
+    default:
+        Issue.record("Expected 'n new' to parse as .note(.new(nil)).")
     }
 }
 
@@ -77,32 +89,69 @@ func parseBridgeWithoutSubcommandShowsBridgeHelp() throws {
 }
 
 @Test
-func parseCheckForUpdatesCommand() throws {
-    let command = try BearCLICommand.parse(arguments: ["--check-updates"])
+func parseNoteWithoutSubcommandShowsNoteHelp() throws {
+    let command = try BearCLICommand.parse(arguments: ["note"])
 
     switch command {
-    case .checkForUpdates:
+    case .note(.help):
         break
     default:
-        Issue.record("Expected '--check-updates' to parse as .checkForUpdates.")
+        Issue.record("Expected bare 'note' to parse as note help.")
+    }
+}
+
+@Test
+func parseUpdateWithoutSubcommandShowsUpdateHelp() throws {
+    let command = try BearCLICommand.parse(arguments: ["update"])
+
+    switch command {
+    case .update(.help):
+        break
+    default:
+        Issue.record("Expected bare 'update' to parse as update help.")
+    }
+}
+
+@Test
+func parseUpdateCheckCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["update", "check"])
+
+    switch command {
+    case .update(.check):
+        break
+    default:
+        Issue.record("Expected 'update check' to parse as .update(.check).")
+    }
+}
+
+@Test
+func parseUpdateAliasCheckCommand() throws {
+    let command = try BearCLICommand.parse(arguments: ["u", "check"])
+
+    switch command {
+    case .update(.check):
+        break
+    default:
+        Issue.record("Expected 'u check' to parse as .update(.check).")
     }
 }
 
 @Test
 func parseAutoInstallUpdatesCommand() throws {
-    let command = try BearCLICommand.parse(arguments: ["--auto-install-updates", "true"])
+    let command = try BearCLICommand.parse(arguments: ["update", "auto-install", "on"])
 
     switch command {
-    case .automaticUpdateInstalls(let option):
+    case .update(.automaticInstall(let option)):
         #expect(option.enabled == true)
     default:
-        Issue.record("Expected '--auto-install-updates true' to parse as .automaticUpdateInstalls(true).")
+        Issue.record("Expected 'update auto-install on' to parse as .update(.automaticInstall(true)).")
     }
 }
 
+@Test
 func parseAutoInstallUpdatesRejectsInvalidValue() {
     #expect {
-        try BearCLICommand.parse(arguments: ["--auto-install-updates", "maybe"])
+        try BearCLICommand.parse(arguments: ["update", "auto-install", "maybe"])
     } throws: { error in
         guard let bearError = error as? BearError else {
             return false
@@ -110,7 +159,7 @@ func parseAutoInstallUpdatesRejectsInvalidValue() {
 
         switch bearError {
         case .invalidInput(let message):
-            return message.contains("--auto-install-updates") && message.contains("true") && message.contains("false")
+            return message.contains("update auto-install") && message.contains("on") && message.contains("off")
         default:
             return false
         }
@@ -120,31 +169,54 @@ func parseAutoInstallUpdatesRejectsInvalidValue() {
 @Test
 func parseOldCheckForUpdatesCommandIsNotAccepted() {
     do {
-        _ = try BearCLICommand.parse(arguments: ["--check-for-updates"])
-        Issue.record("Expected '--check-for-updates' to be rejected.")
+        _ = try BearCLICommand.parse(arguments: ["--check-updates"])
+        Issue.record("Expected '--check-updates' to be rejected.")
     } catch {
-        #expect(String(describing: error).contains("--check-for-updates"))
+        #expect(String(describing: error).contains("--check-updates"))
     }
 }
 
 @Test
-func usageTextGroupsCommandsOptionsAndExamples() {
+func usageTextGroupsCommandsAndScopedHelp() {
     let usage = BearCLICommand.usageText
 
     #expect(usage.contains("Ursus is a local CLI and MCP server for Bear note workflows."))
     #expect(usage.contains("Core:"))
-    #expect(usage.contains("Bridge:"))
-    #expect(usage.contains("Updates:"))
-    #expect(usage.contains("`--new-note` options:"))
+    #expect(usage.contains("Command Groups:"))
+    #expect(usage.contains("Help:"))
+    #expect(usage.contains("ursus note --help"))
+    #expect(usage.contains("ursus update --help"))
     #expect(usage.contains("Examples:"))
-    #expect(usage.contains("Create a tagged note and open it in Bear."))
-    #expect(usage.contains("ursus --check-updates"))
-    #expect(usage.contains("ursus --auto-install-updates true|false"))
+    #expect(usage.contains("ursus update check"))
+}
+
+@Test
+func noteUsageTextExplainsCommandsFlagsAndExamples() {
+    let usage = BearCLICommand.noteUsageText
+
+    #expect(usage.contains("Manage Bear note creation, backups, restore flows, and template application."))
+    #expect(usage.contains("ursus note restore snapshot NOTE_ID SNAPSHOT_ID"))
+    #expect(usage.contains("`note new` flags:"))
+    #expect(usage.contains("--open-note, -on"))
+    #expect(usage.contains("Aliases:"))
+    #expect(usage.contains("Examples:"))
+}
+
+@Test
+func updateUsageTextExplainsCommandsAliasesAndValues() {
+    let usage = BearCLICommand.updateUsageText
+
+    #expect(usage.contains("Manage Ursus app update checks and automatic install preferences."))
+    #expect(usage.contains("ursus update check"))
+    #expect(usage.contains("ursus u auto-install on"))
+    #expect(usage.contains("Values:"))
+    #expect(usage.contains("on"))
+    #expect(usage.contains("off"))
 }
 
 @Test
 func checkForUpdatesWithoutBundledAppProviderReturnsGuidance() async {
-    let exitCode = await UrsusCLIRuntime.run(arguments: ["--check-updates"])
+    let exitCode = await UrsusCLIRuntime.run(arguments: ["update", "check"])
 
     #expect(exitCode == 1)
 }
@@ -161,10 +233,11 @@ func bridgeUsageTextExplainsBridgeCommandsAndExamples() {
 }
 
 @Test
-func parseNewNoteExplicitFlagsCollectsOverridesAndAliases() throws {
+func parseNoteNewExplicitFlagsCollectsOverridesAndAliases() throws {
     let command = try BearCLICommand.parse(
         arguments: [
-            "--new-note",
+            "n",
+            "new",
             "-t", "Daily Capture",
             "-g", "project-x, deep work",
             "--tags", "ops",
@@ -176,7 +249,7 @@ func parseNewNoteExplicitFlagsCollectsOverridesAndAliases() throws {
     )
 
     switch command {
-    case .newNote(let options):
+    case .note(.new(let options)):
         let options = try #require(options)
         #expect(options.title == "Daily Capture")
         #expect(options.tags == ["project-x", "deep work", "ops"])
@@ -185,29 +258,29 @@ func parseNewNoteExplicitFlagsCollectsOverridesAndAliases() throws {
         #expect(options.openNote)
         #expect(options.newWindow)
     default:
-        Issue.record("Expected explicit '--new-note' arguments to parse as .newNote(options).")
+        Issue.record("Expected explicit 'n new' arguments to parse as .note(.new(options)).")
     }
 }
 
 @Test
-func parseNewNoteExplicitModeDefaultsToClosedAppendBehavior() throws {
-    let command = try BearCLICommand.parse(arguments: ["--new-note", "--content", "Body"])
+func parseNoteNewExplicitModeDefaultsToClosedAppendBehavior() throws {
+    let command = try BearCLICommand.parse(arguments: ["note", "new", "--content", "Body"])
 
     switch command {
-    case .newNote(let options):
+    case .note(.new(let options)):
         let options = try #require(options)
         #expect(options.replaceTags == false)
         #expect(options.openNote == false)
         #expect(options.newWindow == false)
     default:
-        Issue.record("Expected explicit '--new-note' arguments to parse as .newNote(options).")
+        Issue.record("Expected explicit 'note new' arguments to parse as .note(.new(options)).")
     }
 }
 
 @Test
-func parseNewNoteRejectsNewWindowWithoutOpenNote() throws {
+func parseNoteNewRejectsNewWindowWithoutOpenNote() throws {
     #expect {
-        try BearCLICommand.parse(arguments: ["--new-note", "--new-window"])
+        try BearCLICommand.parse(arguments: ["note", "new", "--new-window"])
     } throws: { error in
         guard let bearError = error as? BearError else {
             return false
@@ -223,9 +296,33 @@ func parseNewNoteRejectsNewWindowWithoutOpenNote() throws {
 }
 
 @Test
-func parseRestoreNoteRequiresEvenPairs() throws {
+func parseRestoreWithoutArgumentsBuildsLatestSelectedMode() throws {
+    let command = try BearCLICommand.parse(arguments: ["note", "restore"])
+
+    switch command {
+    case .note(.restoreLatest(let selectors)):
+        #expect(selectors.isEmpty)
+    default:
+        Issue.record("Expected bare 'note restore' to parse as .note(.restoreLatest([])).")
+    }
+}
+
+@Test
+func parseRestoreLatestBuildsSelectorList() throws {
+    let command = try BearCLICommand.parse(arguments: ["note", "restore", "latest", "note-1", "Project Notes"])
+
+    switch command {
+    case .note(.restoreLatest(let selectors)):
+        #expect(selectors == ["note-1", "Project Notes"])
+    default:
+        Issue.record("Expected 'note restore latest ...' to parse as .note(.restoreLatest(selectors)).")
+    }
+}
+
+@Test
+func parseRestoreSnapshotRequiresPairs() throws {
     #expect {
-        try BearCLICommand.parse(arguments: ["--restore-note", "note-1", "snapshot-1", "note-2"])
+        try BearCLICommand.parse(arguments: ["note", "restore", "snapshot", "note-1", "snapshot-1", "note-2"])
     } throws: { error in
         guard let bearError = error as? BearError else {
             return false
@@ -241,34 +338,24 @@ func parseRestoreNoteRequiresEvenPairs() throws {
 }
 
 @Test
-func parseRestoreNoteWithoutArgumentsBuildsEmptyRequestList() throws {
-    let command = try BearCLICommand.parse(arguments: ["--restore-note"])
-
-    switch command {
-    case .restoreNote(let requests):
-        #expect(requests.isEmpty)
-    default:
-        Issue.record("Expected bare '--restore-note' to parse as .restoreNote([]).")
-    }
-}
-
-@Test
-func parseRestoreNoteBuildsPairRequests() throws {
+func parseRestoreSnapshotBuildsPairRequests() throws {
     let command = try BearCLICommand.parse(arguments: [
-        "--restore-note",
+        "note",
+        "restore",
+        "snapshot",
         "note-1", "snapshot-1",
         "note-2", "snapshot-2",
     ])
 
     switch command {
-    case .restoreNote(let requests):
+    case .note(.restoreSnapshot(let requests)):
         #expect(requests.count == 2)
         #expect(requests[0].noteID == "note-1")
         #expect(requests[0].snapshotID == "snapshot-1")
         #expect(requests[1].noteID == "note-2")
         #expect(requests[1].snapshotID == "snapshot-2")
     default:
-        Issue.record("Expected '--restore-note' arguments to parse as restore requests.")
+        Issue.record("Expected 'note restore snapshot ...' to parse as snapshot restore requests.")
     }
 }
 

@@ -1229,7 +1229,7 @@ struct UrsusTagEditor: View {
             }
 
             VStack(alignment: .leading, spacing: 8) {
-                TextField("Add default inbox tag", text: $draft)
+                TextField("Add inbox tag", text: $draft)
                     .textFieldStyle(.plain)
                     .ursusInputChrome()
                     .submitLabel(.done)

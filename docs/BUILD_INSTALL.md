@@ -254,10 +254,14 @@ The public launcher installed by the app is:
 
 Current utility commands:
 
-- `ursus --new-note [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
-- `ursus --backup-note [note-id-or-title ...]`
-- `ursus --restore-note NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
-- `ursus --apply-template [note-id-or-title ...]`
+- `ursus note new [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
+- `ursus note backup [note-id-or-title ...]`
+- `ursus note restore`
+- `ursus note restore latest [note-id-or-title ...]`
+- `ursus note restore snapshot NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
+- `ursus note apply-template [note-id-or-title ...]`
+- `ursus update check`
+- `ursus update auto-install on|off`
 - `ursus bridge serve`
 - `ursus bridge status`
 - `ursus bridge print-url`
@@ -272,12 +276,12 @@ Current utility commands:
 
 Current selector behavior:
 
-- `--new-note` with no extra flags preserves the current interactive editing-note flow
-- explicit `--new-note` mode skips selected-note lookup, makes omitted `--tags` follow the create-adds-inbox-tags default, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is present
+- `ursus note new` with no extra flags preserves the current interactive editing-note flow
+- explicit `ursus note new` mode skips selected-note lookup, makes omitted `--tags` follow the create-adds-inbox-tags default, defaults to append semantics unless `--replace-tags` is passed, and leaves the note closed unless `--open-note` is present
 - `--tags` accepts a comma-separated list and may be passed more than once
 - `--new-window` requires `--open-note`
-- `--apply-template` and `--backup-note` use the selected Bear note when no note ids or titles are passed
-- `--restore-note` requires exact `NOTE_ID SNAPSHOT_ID` pairs
+- `ursus note apply-template`, `ursus note backup`, and bare `ursus note restore` use the selected Bear note when no note ids or titles are passed
+- `ursus note restore snapshot` requires exact `NOTE_ID SNAPSHOT_ID` pairs
 - passed note arguments resolve as exact note id first, then exact case-insensitive title
 - quote titles with spaces
 

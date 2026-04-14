@@ -52,6 +52,10 @@ public enum UrsusCLIRuntime {
                 print(BearCLICommand.usageText)
             case .bridge(.help):
                 print(BearCLICommand.bridgeUsageText)
+            case .note(.help):
+                print(BearCLICommand.noteUsageText)
+            case .update(.help):
+                print(BearCLICommand.updateUsageText)
             case .doctor:
                 print(
                     BearRuntimeBootstrap.doctorReport(
@@ -99,7 +103,7 @@ public enum UrsusCLIRuntime {
                 print(renderBridgeActionReceipt(receipt, action: "remove"))
             case .bridge(.serve):
                 try await runBridge(logger: logger)
-            case .newNote(let options):
+            case .note(.new(let options)):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let receipt: MutationReceipt
                 if let options {
@@ -115,47 +119,48 @@ public enum UrsusCLIRuntime {
                     receipt = try await runtime.service.createInteractiveNote()
                 }
                 print(renderNewNoteReceipt(receipt))
-            case .backupNote(let selectors):
+            case .note(.backup(let selectors)):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let summaries = try await runtime.service.backupNoteTargets(
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
                 print(renderBackupSummaries(summaries))
-            case .restoreNote(let requests):
+            case .note(.restoreLatest(let selectors)):
                 let runtime = try makeRuntimeServices(logger: logger)
-                let receipts: [RestoreBackupReceipt]
-                if requests.isEmpty {
-                    receipts = try await runtime.service.restoreLatestBackupsForTargets([.selected])
-                } else {
-                    receipts = try await runtime.service.restoreCLIBackups(
-                        requests.map {
-                            RestoreBackupRequest(
-                                noteID: $0.noteID,
-                                snapshotID: $0.snapshotID,
-                                presentation: BearPresentationOptions()
-                            )
-                        }
-                    )
-                }
+                let receipts = try await runtime.service.restoreLatestBackupsForTargets(
+                    selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
+                )
                 print(renderRestoreBackupReceipts(receipts))
-            case .applyTemplate(let selectors):
+            case .note(.restoreSnapshot(let requests)):
+                let runtime = try makeRuntimeServices(logger: logger)
+                let receipts = try await runtime.service.restoreCLIBackups(
+                    requests.map {
+                        RestoreBackupRequest(
+                            noteID: $0.noteID,
+                            snapshotID: $0.snapshotID,
+                            presentation: BearPresentationOptions()
+                        )
+                    }
+                )
+                print(renderRestoreBackupReceipts(receipts))
+            case .note(.applyTemplate(let selectors)):
                 let runtime = try makeRuntimeServices(logger: logger)
                 let receipts = try await runtime.service.applyTemplateToTargets(
                     selectors.isEmpty ? [.selected] : selectors.map(NoteTarget.selector)
                 )
                 print(renderApplyTemplateReceipts(receipts))
-            case .checkForUpdates:
+            case .update(.check):
                 guard let updateChecker else {
-                    print("Sparkle update checks are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus --check-updates` after opening Ursus.app once to install or repair the launcher.")
+                    print("Sparkle update checks are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus update check` after opening Ursus.app once to install or repair the launcher.")
                     return 1
                 }
 
                 let result = await updateChecker.checkForUpdatesFromCLI()
                 print(result.message)
                 return result.exitCode
-            case .automaticUpdateInstalls(let option):
+            case .update(.automaticInstall(let option)):
                 guard let updateChecker else {
-                    print("Sparkle automatic install settings are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus --auto-install-updates \(option.enabled ? "true" : "false")` after opening Ursus.app once to install or repair the launcher.")
+                    print("Sparkle automatic install settings are available from the bundled Ursus.app launcher. Run `~/.local/bin/ursus update auto-install \(option.enabled ? "on" : "off")` after opening Ursus.app once to install or repair the launcher.")
                     return 1
                 }
 

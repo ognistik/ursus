@@ -24,11 +24,11 @@ private func makeEmbeddedUpdateChecker(arguments: [String]) -> UrsusCommandLineU
         return UrsusCommandLineUpdateChecker()
     }
 
-    if arguments.first == "--check-updates" {
+    if arguments.count >= 2, ["update", "u"].contains(arguments[0]), arguments[1] == "check" {
         return UrsusCommandLineUpdateChecker()
     }
 
-    if arguments.first == "--auto-install-updates" {
+    if arguments.count >= 3, ["update", "u"].contains(arguments[0]), arguments[1] == "auto-install" {
         return UrsusCommandLineUpdateChecker()
     }
 

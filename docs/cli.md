@@ -1,78 +1,139 @@
 # Ursus CLI Reference
 
-The Ursus CLI is designed for fast, terminal-based interactions and deep integration with system automation tools like Raycast, Alfred, BTT, or Keyboard Maestro.
+The Ursus CLI is designed for fast terminal workflows and for automation tools like Raycast, Alfred, BTT, or Keyboard Maestro.
 
-**Pro-Tip:** To use Ursus in your own automation scripts, find the path to the executable first by running:
+To find the shared launcher path on your machine, run:
+
 ```bash
 which ursus
 ```
-Then, use that absolute path in your automation workflows. In most normal installs, that stable shared path will be `~/.local/bin/ursus`.
+
+In most normal installs, that stable path will be `~/.local/bin/ursus`.
 
 ---
 
-## The "Selected Note" Flow
-One of the most powerful features of Ursus is its awareness of your selected note in Bear. If you have a Bear API token saved in your Ursus setup, many commands become "context-aware" by default:
+## Help Overview
 
-*   **Bare commands**: Running `ursus --backup-note` or `ursus --apply-template` with no arguments automatically targets the **currently selected Bear note**.
-*   **Intelligent Creation**: When you use the bare `ursus --new-note` command, Ursus looks at the note you have open. It can automatically inherit those tags, ensuring your new notes are consistent with your current project—all while following your defined template.
+Use the top-level help when you want the big picture:
 
----
-
-## Note Operations
-
-*   **`ursus --new-note`**: Creates a new note. 
-    *   **Interactive Flow**: Running this bare creates a note seeded with the selected note’s tags. If no selected notes are found, it uses your inbox tags.
-    *   **Explicit Flow**: Add flags for total control:
-        *   `--title`: Set the note title.
-        *   `--content`: Set the initial note body.
-        *   `--tags`: Add a comma-separated list of tags. Use `--replace-tags` if you want to overwrite your inbox tags rather than append.
-        *   `--open-note` / `--new-window`: Immediately bring the note into focus in Bear. `--new-window` requires `--open-note`.
-*   **`ursus --backup-note`**: Takes a snapshot of your notes. If you pass no arguments, it snapshots the currently selected note. Backups are automatically created by Ursus before AI edit operations, but you can also use this to manually and securely save your work at any stage.
-*   **`ursus --restore-note`**: Brings a note back to a previous state. 
-    *   **Selected note**: Running this bare restores the currently selected note from its most recent backup.
-    *   **Specific**: Use the `NOTE_ID SNAPSHOT_ID` format to roll back to a specific point in time.
-*   **`ursus --apply-template`**: Re-applies your template to a note (or the selected note if no target is specified). It ensures your tags land in the `{{tags}}` slot and your content stays clean.
-
----
-
-## MCP & Bridge Management
-
-*   **`ursus` / `ursus mcp`**: Launches the stdio MCP server. This is the default mode used when connecting Ursus to local clients like Claude Desktop or Codex.
-*   **`ursus bridge serve`**: Starts the optional HTTP bridge. This is essential for remote or browser-based AI connectors (like ChatGPT) that need to connect to an MCP URL. This is also set directly from the UI.
-*   **Bridge Utilities**:
-    *   `ursus bridge status`: Quickly check if the bridge is healthy.
-    *   `ursus bridge print-url`: Get your current bridge endpoint URL.
-    *   `ursus bridge pause` / `resume`: Control the bridge service without removing it.
-    *   `ursus bridge remove`: Fully stop and uninstall the bridge.
-
----
-
-## Utilities & Maintenance
-
-*   **`ursus doctor`**: Your first stop for troubleshooting. It validates your local setup and flags any issues.
-*   **`ursus paths`**: Quickly print the location of your config, logs, and other support files.
-*   **Updates**: 
-    *   `ursus --check-updates`: Checks for updates via Sparkle.
-    *   `ursus --auto-install-updates true|false`: Configure whether Ursus handles its own updates automatically.
-
----
-
-## Automation Examples
-
-**1. Backup the Selected Note (Keyboard Maestro / Raycast)**
 ```bash
-$HOME/.local/bin/ursus --backup-note
+ursus --help
+ursus -h
 ```
-*Creates a safety snapshot of whatever you are currently working on in Bear.*
 
-**2. Smart Capture**
-```bash
-$HOME/.local/bin/ursus --new-note --title "Meeting Notes" --tags work,meeting --open-note
-```
-*Creates a new tagged note and immediately opens in Bear so you can start typing.*
+Use scoped help when you want a focused command list:
 
-**3. Template Refresh**
 ```bash
-$HOME/.local/bin/ursus --apply-template
+ursus note --help
+ursus update --help
+ursus bridge --help
 ```
-*Quickly run this if you've changed your template and want your selected note to reflect the new structure.*
+
+This keeps the terminal output easier to scan instead of forcing every command into one crowded screen.
+
+---
+
+## The Selected Note Flow
+
+If you have a Bear API token saved in Ursus, several note commands become context-aware by default:
+
+- `ursus note backup` with no arguments backs up the currently selected Bear note.
+- `ursus note apply-template` with no arguments targets the currently selected Bear note.
+- `ursus note restore` with no arguments restores the selected Bear note from its most recent backup.
+- `ursus note new` with no modifiers uses the interactive selected-note-aware flow and can inherit tags from the note you currently have open.
+
+---
+
+## Note Commands
+
+The note command group is:
+
+```bash
+ursus note ...
+ursus n ...
+```
+
+Main commands:
+
+- `ursus note new [--title TEXT] [--content TEXT] [--tags TAGS] [--replace-tags] [--open-note] [--new-window]`
+- `ursus note backup [note-id-or-title ...]`
+- `ursus note restore`
+- `ursus note restore latest [note-id-or-title ...]`
+- `ursus note restore snapshot NOTE_ID SNAPSHOT_ID [NOTE_ID SNAPSHOT_ID ...]`
+- `ursus note apply-template [note-id-or-title ...]`
+
+Creation flags:
+
+- `--title`, `-t`: set the note title
+- `--content`, `-c`: set the initial body content
+- `--tags`, `-g`: add comma-separated tags; you may pass this more than once
+- `--replace-tags`, `-rt`: replace tags instead of appending them
+- `--open-note`, `-on`: open the note in Bear after creating it
+- `--new-window`, `-nw`: open the note in a new Bear window; requires `--open-note`
+
+Restore modes:
+
+- `ursus note restore`: restore the selected note from its latest backup
+- `ursus note restore latest "Project Notes"`: restore the latest backup for one specific note
+- `ursus note restore snapshot abc123 snap001`: restore one exact note and snapshot pair
+- `ursus note restore snapshot abc123 snap001 def456 snap002`: restore several exact pairs in one command
+
+Note behavior:
+
+- `ursus note new` with no modifiers keeps the current interactive create flow.
+- Explicit `ursus note new` mode skips selected-note lookup and uses the create-adds-inbox-tags default when `--tags` is omitted.
+- `ursus note backup`, `ursus note restore`, and `ursus note apply-template` use the selected Bear note when no targets are passed.
+- Passed note selectors resolve as exact note id first, then exact case-insensitive title.
+
+Examples:
+
+```bash
+$HOME/.local/bin/ursus note backup
+$HOME/.local/bin/ursus note new --title "Meeting Notes" --tags work,meeting --open-note
+$HOME/.local/bin/ursus note restore
+$HOME/.local/bin/ursus note apply-template
+```
+
+---
+
+## Update Commands
+
+The update command group is:
+
+```bash
+ursus update ...
+ursus u ...
+```
+
+Commands:
+
+- `ursus update check`
+- `ursus update auto-install on`
+- `ursus update auto-install off`
+
+Examples:
+
+```bash
+$HOME/.local/bin/ursus update check
+$HOME/.local/bin/ursus update auto-install on
+```
+
+`on` enables Sparkle automatic installs and automatic update checks. `off` disables automatic installs without changing automatic update checks.
+
+---
+
+## MCP And Bridge Commands
+
+- `ursus` or `ursus mcp`: launch the stdio MCP server
+- `ursus bridge serve`: start the optional HTTP bridge
+- `ursus bridge status`: check whether the bridge is healthy
+- `ursus bridge print-url`: print the configured bridge MCP endpoint URL
+- `ursus bridge pause` / `resume`: control the installed bridge service without removing it
+- `ursus bridge remove`: fully stop and uninstall the bridge
+
+---
+
+## Utilities
+
+- `ursus doctor`: validate the local Ursus setup and print diagnostics
+- `ursus paths`: print the important support-file and runtime paths

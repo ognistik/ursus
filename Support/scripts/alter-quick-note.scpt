@@ -14,5 +14,5 @@ on run argv
 	set homePath to POSIX path of (path to home folder)
 	set cliPath to homePath & ".local/bin/ursus"
 	
-	do shell script quoted form of cliPath & " --new-note -on -nw -c " & quoted form of noteContent
+	do shell script quoted form of cliPath & " note new -on -nw -c " & quoted form of noteContent
 end run

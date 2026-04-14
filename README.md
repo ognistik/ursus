@@ -141,8 +141,8 @@ Most users only need a minute inside the app.
 Ursus has built-in update support. You'll get notified when there's something new, and you can choose when to install. You can also manage this from Preferences or via CLI:
 
 ```bash
-ursus --check-updates
-ursus --auto-install-updates true|false
+ursus update check
+ursus update auto-install on|off
 ```
 
 ---
