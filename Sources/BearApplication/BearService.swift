@@ -1478,11 +1478,16 @@ public final class BearService: @unchecked Sendable {
         let literalTags: [String]
         if let tagsCaptureIndex = descriptor.tagsCaptureIndex {
             let tagsRange = match.range(at: tagsCaptureIndex)
-            literalTags = tagsRange.location == NSNotFound
-                ? []
-                : BearTag.extractNormalizedNames(
-                    from: utf16Body.substring(with: tagsRange)
+            let tagSlotText = tagsRange.location == NSNotFound
+                ? ""
+                : utf16Body.substring(with: tagsRange)
+            guard isTagOnlyText(tagSlotText) else {
+                logger.warning(
+                    "Rejected unsafe template match for note \(note.ref.identifier): captured tags slot contained non-tag content."
                 )
+                return nil
+            }
+            literalTags = BearTag.extractNormalizedNames(from: tagSlotText)
         } else {
             literalTags = []
         }
@@ -2047,9 +2052,25 @@ public final class BearService: @unchecked Sendable {
         let lines = normalizedLineEndings(text).components(separatedBy: "\n")
         var lineIndex = 0
         var clusters: [TagCluster] = []
+        var activeFence: MarkdownFence?
 
         while lineIndex < lines.count {
             let line = lines[lineIndex]
+            if let fence = markdownFence(in: line) {
+                if let currentFence = activeFence, currentFence.canClose(with: fence) {
+                    activeFence = nil
+                } else if activeFence == nil {
+                    activeFence = fence
+                }
+                lineIndex += 1
+                continue
+            }
+
+            guard activeFence == nil else {
+                lineIndex += 1
+                continue
+            }
+
             guard isTagOnlyLine(line) else {
                 lineIndex += 1
                 continue
@@ -2076,6 +2097,30 @@ public final class BearService: @unchecked Sendable {
 
         let stripped = removingAllTagTokens(from: line)
         return stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func isTagOnlyText(_ text: String) -> Bool {
+        let tokens = BearTag.extractTokens(from: text)
+        guard !tokens.isEmpty else {
+            return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        let stripped = removingAllTagTokens(from: text)
+        return stripped.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func markdownFence(in line: String) -> MarkdownFence? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard let first = trimmed.first, first == "`" || first == "~" else {
+            return nil
+        }
+
+        let count = trimmed.prefix { $0 == first }.count
+        guard count >= 3 else {
+            return nil
+        }
+
+        return MarkdownFence(character: first, length: count)
     }
 
     private func removingAllTagTokens(from text: String) -> String {
@@ -2313,6 +2358,15 @@ public final class BearService: @unchecked Sendable {
     private struct TagCluster {
         let lineRange: Range<Int>
         let tags: [String]
+    }
+
+    private struct MarkdownFence {
+        let character: Character
+        let length: Int
+
+        func canClose(with candidate: MarkdownFence) -> Bool {
+            candidate.character == character && candidate.length >= length
+        }
     }
 
     private struct TemplatePattern {

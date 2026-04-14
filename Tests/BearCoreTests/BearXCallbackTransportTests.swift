@@ -202,6 +202,62 @@ func replaceAllTreatsModifiedNoteAsUpdatedEvenWhenVersionStaysTheSame() async th
 }
 
 @Test
+func replaceAllFailsWhenStoredTextDoesNotMatchRequestedFullReplacement() async throws {
+    let readStore = MutableTransportReadStore(
+        note: makeNote(
+            id: "note-1",
+            title: "Example",
+            version: 3,
+            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            body: "Before"
+        )
+    )
+    let transport = BearXCallbackTransport(
+        readStore: readStore,
+        urlOpener: { _ in
+            readStore.replaceRawText(
+                noteID: "note-1",
+                rawText: BearText.composeRawText(title: "Example", body: "Wrong after text"),
+                preserveVersion: true
+            )
+        }
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await transport.replaceAll(
+            noteID: "note-1",
+            fullText: BearText.composeRawText(title: "Example", body: "Expected after text"),
+            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false)
+        )
+    }
+}
+
+@Test
+func replaceAllFailsWhenMutationCannotBeVerifiedBeforeTimeout() async throws {
+    let readStore = MutableTransportReadStore(
+        note: makeNote(
+            id: "note-1",
+            title: "Example",
+            version: 3,
+            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            body: "Before"
+        )
+    )
+    let transport = BearXCallbackTransport(
+        readStore: readStore,
+        urlOpener: { _ in }
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await transport.replaceAll(
+            noteID: "note-1",
+            fullText: BearText.composeRawText(title: "Example", body: "After"),
+            presentation: BearPresentationOptions(openNote: false, newWindow: false, showWindow: true, edit: false)
+        )
+    }
+}
+
+@Test
 func addFileTreatsAttachmentCountChangeAsUpdatedEvenWhenNoteMetadataStaysTheSame() async throws {
     let readStore = MutableTransportReadStore(
         note: makeNote(

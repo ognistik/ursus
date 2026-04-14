@@ -102,11 +102,26 @@ public actor BearXCallbackTransport: BearWriteTransport {
         try await openAndLog(action: "replace-all", url: url, activates: presentation.opensNoteInUI)
 
         let updated = try await waitForNoteMutation(noteID: noteID, previous: previous)
+        guard let updated else {
+            throw BearError.xCallback(
+                "Could not verify exact note replacement for note \(noteID) before the verification timeout."
+            )
+        }
+
+        guard normalizedLineEndings(updated.rawText) == normalizedLineEndings(fullText) else {
+            BearDebugLog.append(
+                "xcallback.replace-all verification-mismatch noteID=\(noteID) expectedLength=\(fullText.count) actualLength=\(updated.rawText.count)"
+            )
+            throw BearError.xCallback(
+                "Bear reported note \(noteID) as updated, but the stored note text did not match the requested full replacement."
+            )
+        }
+
         return MutationReceipt(
             noteID: noteID,
-            title: updated?.title ?? previous?.title,
-            status: updated == nil ? "submitted" : "updated",
-            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+            title: updated.title,
+            status: "updated",
+            modifiedAt: updated.revision.modifiedAt
         )
     }
 
@@ -356,6 +371,12 @@ public actor BearXCallbackTransport: BearWriteTransport {
 
             return nil
         }
+    }
+
+    private func normalizedLineEndings(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
     }
 
     private func waitForTagRename(from oldTag: String, to newTag: String) async throws -> Bool {

@@ -654,6 +654,128 @@ func applyTemplateAppliesTemplateEvenWhenNoteHasNoTags() async throws {
 }
 
 @Test
+func applyTemplateRejectsFalseTemplateMatchWhenTagSlotContainsProseAndLinks() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "TEST",
+        body: """
+        ---
+        #1-projects/ursus
+
+        Quick note CLI new command
+        UI default inbox tag
+
+        MISSED
+
+        https://youtu.be/MavnuV0NRwU?si=5rNaRmaL7TuA09aQ
+        https://x.com/paulsolt/status/2033734500413243699?s=46
+
+        Takeout audio commentary and also the other film we watched don't remember the name!!
+        ---
+        Watch Video on Scaler
+        https://youtube.com/watch?v=hBnQB-ehEf0f
+
+        #0-inbox
+        """,
+        tags: ["1-projects/ursus", "0-inbox"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # TEST
+    ---
+    #1-projects/ursus #0-inbox
+    ---
+    ---
+
+    Quick note CLI new command
+    UI default inbox tag
+
+    MISSED
+
+    https://youtu.be/MavnuV0NRwU?si=5rNaRmaL7TuA09aQ
+    https://x.com/paulsolt/status/2033734500413243699?s=46
+
+    Takeout audio commentary and also the other film we watched don't remember the name!!
+    ---
+    Watch Video on Scaler
+    https://youtube.com/watch?v=hBnQB-ehEf0f
+    """)
+    #expect(replaceCall.fullText.contains("Quick note CLI new command"))
+    #expect(replaceCall.fullText.contains("Takeout audio commentary and also the other film we watched don't remember the name!!"))
+    #expect(receipt.appliedTags == ["1-projects/ursus", "0-inbox"])
+}
+
+@Test
+func applyTemplateDoesNotMigrateTagOnlyLinesInsideFencedCodeBlocks() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: """
+        Intro
+
+        ```
+        #tag-in-code
+        ```
+
+        #project-x
+        Outro
+        """,
+        tags: ["tag-in-code", "project-x"]
+    )
+    let transport = NoteTagRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await withTemporaryNoteTemplate("---\n{{tags}}\n---\n{{content}}\n") {
+        try await service.applyTemplate([
+            ApplyTemplateRequest(
+                noteID: "note-1",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    let receipt = try #require(receipts.first)
+    #expect(replaceCall.fullText == """
+    # Inbox
+    ---
+    #project-x
+    ---
+    Intro
+
+    ```
+    #tag-in-code
+    ```
+
+    Outro
+    """)
+    #expect(receipt.appliedTags == ["project-x"])
+}
+
+@Test
 func applyTemplateReturnsUnchangedWhenNoteIsAlreadyNormalized() async throws {
     let note = makeNoteTagSourceNote(
         id: "note-1",
