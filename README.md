@@ -1,16 +1,11 @@
 <h1 align="center">Ursus</h1>
-<p align="center"><strong>Local MCP, CLI, and utilities for Bear.</strong></p>
-<p align="center">Drag it into Applications, open it once, and your AI apps that support MCP can now connect to Bear.</p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/ursus-main-window-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="./docs/images/ursus-main-window-light.png">
-    <img
-      src="./docs/images/ursus-main-window-dark.png"
-      alt="Ursus main window"
-      width="720">
+    <img alt="Ursus Logo" src="./docs/images/ursus-icon.png" width="150">
   </picture>
 </p>
+<p align="center"><strong>Local MCP, CLI, and utilities for Bear.</strong></p>
+<p align="center">Drag it into Applications, open it once, and your AI apps that support MCP can now connect to Bear.</p>
 
 ---
 
@@ -25,7 +20,7 @@
 *Ursus isn’t trying to do everything. It’s built around a deliberate way of working with Bear: inbox-first capture, template-aware editing, safe AI changes, and actually interacting with the note you’re already looking at.*
 
 **It works with the note you already have open.**
-If you add a Bear API token, Ursus can target your currently selected note directly. Just say 'summarize my selected note' or 'proofread this selected note,' no need to tell it which note to find. Of course, you can also use the note title or ID to target something else specifically.
+If you add a Bear token, Ursus can target your currently selected note directly. Just say 'summarize my selected note' or 'proofread this selected note,' no need to tell it which note to find. Of course, you can also use the note title or ID to target something else specifically.
 
 **It edits notes without breaking their structure.**
 Ursus reads the note, plans the change locally, and sends a clean replacement through Bear's write path. That means it can insert before or after a heading, replace an exact string, or attach a file relative to a specific part of the note,  without scrambling your layout or template.
@@ -33,7 +28,7 @@ Ursus reads the note, plans the change locally, and sends a clean replacement th
 **It backs up notes before touching them.**
 Bear has no version history. Ursus fills that gap with snapshots captured automatically before major note-rewriting operations. You can compare a backup to the current note, or restore from any saved point.
 
-**The tools are explicit and batch-friendly.**
+**The tools are batch-friendly.**
 Ursus exposes a focused set across five areas: discovery, notes, tags, backups, and navigation. Most tools accept multiple operations in a single call.
 
 **Discovery has real depth.**
@@ -44,10 +39,10 @@ Create notes, back up, restore, and apply templates from the command line or any
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/ursuse-preferences-dark.png">
-    <source media="(prefers-color-scheme: light)" srcset="./docs/images/ursuse-preferences-light.png">
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/images/ursus-main-window-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="./docs/images/ursus-main-window-light.png">
     <img
-      src="./docs/images/ursuse-preferences-dark.png"
+      src="./docs/images/ursus-main-window-dark.png"
       alt="Ursus main window"
       width="720">
   </picture>
@@ -78,8 +73,6 @@ Ursus installs a shared command at `~/.local/bin/ursus` — that's the stable pa
 
 ---
 
-## Connect your AI app
-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="./docs/images/ursus-connect-apps-dark.png">
@@ -90,6 +83,8 @@ Ursus installs a shared command at `~/.local/bin/ursus` — that's the stable pa
       width="720">
   </picture>
 </p>
+
+## Connect your AI app
 
 Ursus supports two connection styles.
 
@@ -153,10 +148,9 @@ To remove Ursus completely:
 
 1. If you connected any AI apps, remove the Ursus entry from their config
 2. If the Bridge is running or installed, select Remove in the Setup tab
-3. Quit `Ursus.app`
-4. Delete `Ursus.app` from `/Applications`
-5. Remove the shared launcher: `rm -f ~/.local/bin/ursus`
-6. Remove app data: `rm -rf ~/Library/Application\ Support/Ursus`
+3. Delete `Ursus.app` from `/Applications`
+4. Remove the shared launcher: `rm -f ~/.local/bin/ursus`
+5. Remove app data: `rm -rf ~/Library/Application\ Support/Ursus`
 
 ---
 
