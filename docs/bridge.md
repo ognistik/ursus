@@ -11,7 +11,7 @@ However, some AI applications don’t support this direct method, or you might w
     <img
       src="./images/ursus-bridge-oauth-dark.png"
       alt="Ursus main window"
-      width="720">
+      width="820">
   </picture>
 </p>
 
@@ -54,7 +54,7 @@ In other words: the local bridge URL by itself is not enough for a remote-only s
     <img
       src="./images/ursus-bridge-access-dark.png"
       alt="Ursus main window"
-      width="720">
+      width="820">
   </picture>
 </p>
 
