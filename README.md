@@ -4,7 +4,7 @@
     <img alt="Ursus Logo" src="./docs/images/ursus-icon.png" width="150">
   </picture>
 </p>
-<p align="center"><strong>Local MCP, CLI, and utilities for Bear.</strong></p>
+<p align="center"><strong>Local MCP, CLI, and utilities for Bear · <a href="https://youtu.be/tEK_9TK6GXA">Overview Video</a></strong></p>
 <p align="center">Drag it into Applications, open it once, and your AI apps that support MCP can now connect to Bear.</p>
 
 ---
