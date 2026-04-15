@@ -3,6 +3,17 @@
     <channel>
         <title>Ursus</title>
         <item>
+            <title>1.0.1</title>
+            <pubDate>Wed, 15 Apr 2026 16:04:44 -0600</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## Changed
+* Fixed a bug in the Sparkle update system where users would see a “No Updates Available” popup during automatic updates.
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.1/Ursus.1.0.1.dmg" length="19673161" type="application/octet-stream" sparkle:edSignature="B/xHpTr22+AbIHRkqPk2vR+mFbBbnFWeiTaqpoy+nYePrUmcwF8+ojW2WSSAXq1Uj7RcxlTNNO+5SBEdc14NBg=="/>
+        </item>
+        <item>
             <title>1.0.0</title>
             <pubDate>Wed, 15 Apr 2026 12:28:51 -0600</pubDate>
             <sparkle:version>5</sparkle:version>
@@ -30,23 +41,6 @@ Lots of bug fixes from previous alpha versions. Happy to have this live!
 - Lots of bug fixes under the hood.
 ]]></description>
             <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.3/Ursus.0.2.3.dmg" length="19574273" type="application/octet-stream" sparkle:edSignature="GmyhP8xPjO3o695aHxtmFu2i6pP7sxhlEQ9TKqqqk6XaQtqAoUygbXWHT3hJpuY/tO91a2QjrjJ2T0mwPKDWAQ=="/>
-        </item>
-        <item>
-            <title>0.2.2</title>
-            <pubDate>Fri, 10 Apr 2026 08:58:56 -0600</pubDate>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## Changed
-### Minor Polish Fixes
-- Cleaned up UI in Setup & Preferences
-
-### Binary Compatibility
-- Extended support to Intel
-- Extended support down to MacOS 14
-
-]]></description>
-            <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.2/Ursus.0.2.2.dmg" length="19551998" type="application/octet-stream" sparkle:edSignature="U7OtPyV33BBANiYOMD1l23zxN3yNcudi1QHpgN0teGsB3AsFlxWSOOEOEv6coJ+qMqZTmO3aDJKgUP7xfDy2DA=="/>
         </item>
         <item>
             <title>0.2.1</title>

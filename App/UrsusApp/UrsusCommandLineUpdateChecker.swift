@@ -457,8 +457,12 @@ private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDele
         UrsusSparkleUpdateUIRunner.activate()
 
         switch mode {
-        case .manual, .updateAvailable:
+        case .manual:
             updaterController.checkForUpdates(nil)
+        case .updateAvailable:
+            // This handoff started from a silent background check that already found an
+            // update, so keep the retry silent if the feed changes before the UI opens.
+            updaterController.updater.checkForUpdatesInBackground()
         }
     }
 

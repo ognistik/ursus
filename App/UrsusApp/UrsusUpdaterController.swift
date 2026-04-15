@@ -64,8 +64,12 @@ final class UrsusUpdaterController: ObservableObject {
 
         bringAppToFront()
         switch mode {
-        case .manual, .updateAvailable:
+        case .manual:
             updaterController.checkForUpdates(nil)
+        case .updateAvailable:
+            // Preserve the background-check semantics during the foreground handoff so
+            // stale handoffs do not show Sparkle's "You're up to date" UI.
+            updaterController.updater.checkForUpdatesInBackground()
         }
     }
 
