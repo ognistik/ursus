@@ -25,20 +25,21 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
     let createDescription = try #require(create.description)
-    #expect(createDescription.hasPrefix("Create one or more Bear notes."))
-    #expect(createDescription.contains("Defaults: `open_note` = `false`"))
-    #expect(createDescription.contains("`new_window` = `false` when opened"))
-    #expect(createDescription.contains("configured inbox tags = `0-inbox`, `client work`"))
+    #expect(createDescription.hasPrefix("Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title."))
+    #expect(createDescription.contains("Omit `tags` unless the user explicitly wants tags added."))
+    #expect(createDescription.contains("Do not infer or invent tags unless the user explicitly asks for tags."))
+    #expect(createDescription.contains("Configured inbox tags = `0-inbox`, `client work`"))
     #expect(createDescription.contains("omitted tag-merge behavior uses request tags when any are supplied"))
-    #expect(createDescription.contains("Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults.") == true)
-    #expect(propertyDescription(named: "open_note", in: create) == "Optional. Omit to use the default `false`. Send `true` only when the user explicitly wants the created note to open.")
-    #expect(propertyDescription(named: "new_window", in: create) == "Optional. Only applies when `open_note` is `true`. Omit to use the default when opening: `false`. Send `true` only when the user explicitly wants a separate Bear window.")
+    #expect(createDescription.contains("Created notes stay closed after creation. Use `bear_open_notes` only when the user explicitly wants the created note opened or wants specific window behavior."))
+    #expect(propertyDescription(named: "tags", in: create) == "Optional explicit tags to add to the created note. Include `tags` only when the user explicitly wants tags added.")
+    #expect(propertyDescription(named: "use_only_request_tags", in: create) == "Optional. Omit to use the current tag-merge behavior. Do not send unless the user explicitly asks to change tag merging for this request. `true` uses only the supplied request tags. `false` appends configured inbox tags. Omitted behavior: uses request tags when any are supplied, otherwise falls back to configured inbox tags. If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`.")
+    #expect(propertyDescription(named: "open_note", in: create) == nil)
+    #expect(propertyDescription(named: "new_window", in: create) == nil)
 
     let insert = try #require(tool(named: "bear_insert_text", in: tools))
     let insertDescription = try #require(insert.description)
     #expect(insertDescription.hasPrefix("Insert text into one or more Bear notes."))
     #expect(insertDescription.contains("`position` = `top`"))
-    #expect(insertDescription.contains("`new_window` = `false` when opened") == false)
     #expect(insertDescription.contains("`note` accepts a selector matched as exact note id first"))
     #expect(propertyDescription(named: "note", in: insert)?.contains("Use exactly one of `note` or `selected: true`") == true)
     #expect(propertyDescription(named: "selected", in: insert)?.contains("currently selected Bear note") == true)
@@ -173,7 +174,7 @@ func batchedToolSchemasAdvertiseNonEmptyOperations() throws {
         #expect(required.contains("operations"))
         #expect(operations["minItems"]?.intValue == 1)
         #expect(operations["description"]?.stringValue == "Required non-empty array of operation objects.")
-        #expect(try #require(matchedTool.description).contains("`operations` must be a non-empty array of operation objects."))
+        #expect(try #require(matchedTool.description).contains("Required input shape: send a top-level `operations` array containing one or more operation objects. Do not send operation fields at the top level."))
     }
 
     let inbox = try #require(tool(named: "bear_find_notes_by_inbox_tags", in: tools))
@@ -322,7 +323,7 @@ func toolCatalogOmitsBackupHintWhenBackupListingIsUnavailable() throws {
 }
 
 @Test
-func toolCatalogFlipsPresentationOverrideGuidanceWhenDefaultsAreTrue() throws {
+func toolCatalogFlipsCreateOpenGuidanceWhenDefaultsAreTrue() throws {
     let configuration = BearConfiguration(
         inboxTags: ["0-inbox"],
         defaultInsertPosition: .top,
@@ -342,8 +343,9 @@ func toolCatalogFlipsPresentationOverrideGuidanceWhenDefaultsAreTrue() throws {
     )
 
     let create = try #require(tool(named: "bear_create_notes", in: tools))
-    #expect(propertyDescription(named: "open_note", in: create) == "Optional. Omit to use the default `true`. Send `false` only when the user explicitly wants the created note to stay closed.")
-    #expect(propertyDescription(named: "new_window", in: create) == "Optional. Only applies when `open_note` is `true`. Omit to use the default when opening: `true`. Send `false` only when the user explicitly wants Bear's main window.")
+    #expect(try #require(create.description).contains("Created notes open automatically after creation."))
+    #expect(propertyDescription(named: "open_note", in: create) == nil)
+    #expect(propertyDescription(named: "new_window", in: create) == nil)
 
     let openNotes = try #require(tool(named: "bear_open_notes", in: tools))
     #expect(propertyDescription(named: "new_window", in: openNotes) == "Optional. Omit to use the default when opening: `true`. Send `false` only when the user explicitly wants Bear's main window.")

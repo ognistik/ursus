@@ -248,11 +248,11 @@ public final class UrsusMCPServer: Sendable {
             return try await successfulToolResult(receipts, count: successfulOperationCount(receipts))
 
         case "bear_create_notes":
-            let defaults = BearPresentationOptions(
+            let defaultCreatePresentation = BearPresentationOptions(
                 openNote: configuration.createOpensNoteByDefault,
                 newWindow: configuration.openUsesNewWindowByDefault,
-                showWindow: true,
-                edit: true
+                showWindow: configuration.createOpensNoteByDefault,
+                edit: configuration.createOpensNoteByDefault
             )
             let requests = try requiredObjectArray(params.arguments, "operations").map { object in
                 CreateNoteRequest(
@@ -260,7 +260,7 @@ public final class UrsusMCPServer: Sendable {
                     content: try requiredString(object, "content"),
                     tags: object["tags"]?.arrayValue?.compactMap(\.stringValue) ?? [],
                     useOnlyRequestTags: try MCPArgumentDecoder.optionalBool(object, "use_only_request_tags"),
-                    presentation: try MCPArgumentDecoder.createNotePresentation(object, defaults: defaults)
+                    presentation: defaultCreatePresentation
                 )
             }
             let receipts = try await service.createNotes(requests)
@@ -483,7 +483,7 @@ public final class UrsusMCPServer: Sendable {
 
     private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
         guard let rawValue = arguments?[key], let rawArray = rawValue.arrayValue else {
-            throw BearError.invalidInput("Missing required array argument '\(key)'.")
+            throw BearError.invalidInput("Missing required array argument '\(key)'. This tool only accepts a top-level `operations` array. Put each requested action inside one object in `operations`, not at the top level.")
         }
         guard !rawArray.isEmpty else {
             throw BearError.invalidInput("`\(key)` must contain at least one operation object.")
@@ -933,7 +933,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_create_notes",
-                description: "Create one or more Bear notes. You must call this tool with a top-level `operations` array; each note to create must be one object in that array. `content` is required, must be non-empty, and must not include or repeat the title. Pass `tags` only when the user explicitly asks for them. Do not infer or invent tags from the content, title, or context. Defaults: `open_note` = \(formattedBool(configuration.createOpensNoteByDefault)); `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)) when opened; configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). Omit `open_note` and `new_window` unless the user explicitly wants to override those defaults. If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`.",
+                description: createNotesDescription(configuration: configuration),
                 operationProperties: [
                     "title": .object(["type": .string("string")]),
                     "content": .object([
@@ -943,17 +943,12 @@ private enum ToolCatalog {
                     "tags": .object([
                         "type": .string("array"),
                         "items": .object(["type": .string("string")]),
-                        "description": .string("Optional explicit request tags only. Include tags here only when the user directly specifies them."),
+                        "description": .string("Optional explicit tags to add to the created note. Include `tags` only when the user explicitly wants tags added."),
                     ]),
                     "use_only_request_tags": .object([
                         "type": .string("boolean"),
-                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Do not treat inferred tags as request tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
+                        "description": .string("\(omitUnlessDescription(defaultClause: "the current tag-merge behavior", overrideWhen: "the user explicitly asks to change tag merging for this request")) `true` uses only the supplied request tags. `false` appends configured inbox tags. Omitted behavior: \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add specific tags, pass `tags` and omit `use_only_request_tags`."),
                     ]),
-                    "open_note": optionalPresentationBoolean(description: openNoteOverrideDescription(defaultValue: configuration.createOpensNoteByDefault)),
-                    "new_window": optionalPresentationBoolean(description: newWindowOverrideDescription(
-                        defaultValue: configuration.openUsesNewWindowByDefault,
-                        appliesWhenOpeningNote: true
-                    )),
                 ],
                 required: ["title", "content"],
                 presentationProperties: [:]
@@ -1028,10 +1023,7 @@ private enum ToolCatalog {
                 description: "Open Bear notes in the Bear UI. `note` accepts a selector matched as exact note id first, then exact case-insensitive title; ambiguous title matches must be disambiguated with the note id. Default: `new_window` = \(formattedBool(configuration.openUsesNewWindowByDefault)).",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
-                    "new_window": optionalPresentationBoolean(description: newWindowOverrideDescription(
-                        defaultValue: configuration.openUsesNewWindowByDefault,
-                        appliesWhenOpeningNote: false
-                    )),
+                    "new_window": optionalPresentationBoolean(description: newWindowOverrideDescription(defaultValue: configuration.openUsesNewWindowByDefault)),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported),
                 presentationProperties: [:]
@@ -1260,7 +1252,7 @@ private enum ToolCatalog {
     }
 
     private static func batchedToolDescription(_ description: String) -> String {
-        "\(description) `operations` must be a non-empty array of operation objects."
+        "\(description) Required input shape: send a top-level `operations` array containing one or more operation objects. Do not send operation fields at the top level."
     }
 
     private static func optionalPresentationBoolean(description: String) -> Value {
@@ -1327,31 +1319,15 @@ private enum ToolCatalog {
         "Optional. Omit to use \(defaultClause). Do not send unless \(overrideWhen)."
     }
 
-    private static func openNoteOverrideDescription(defaultValue: Bool) -> String {
+    private static func newWindowOverrideDescription(defaultValue: Bool) -> String {
         let defaultDescription = formattedBool(defaultValue)
-        let overrideDescription = if defaultValue {
-            "Send `false` only when the user explicitly wants the created note to stay closed."
-        } else {
-            "Send `true` only when the user explicitly wants the created note to open."
-        }
-
-        return "Optional. Omit to use the default \(defaultDescription). \(overrideDescription)"
-    }
-
-    private static func newWindowOverrideDescription(defaultValue: Bool, appliesWhenOpeningNote: Bool) -> String {
-        let defaultDescription = formattedBool(defaultValue)
-        let openingContext = if appliesWhenOpeningNote {
-            "Only applies when `open_note` is `true`. "
-        } else {
-            ""
-        }
         let overrideDescription = if defaultValue {
             "Send `false` only when the user explicitly wants Bear's main window."
         } else {
             "Send `true` only when the user explicitly wants a separate Bear window."
         }
 
-        return "Optional. \(openingContext)Omit to use the default when opening: \(defaultDescription). \(overrideDescription)"
+        return "Optional. Omit to use the default when opening: \(defaultDescription). \(overrideDescription)"
     }
 
     private static func formattedBool(_ value: Bool) -> String {
@@ -1456,5 +1432,16 @@ private enum ToolCatalog {
         case .replace:
             return "uses request tags when any are supplied, otherwise falls back to configured inbox tags"
         }
+    }
+
+    private static func createNotesDescription(configuration: BearConfiguration) -> String {
+        let base = "Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title. Omit `tags` unless the user explicitly wants tags added. Do not infer or invent tags unless the user explicitly asks for tags. Configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`."
+        let openingBehavior = if configuration.createOpensNoteByDefault {
+            " Created notes open automatically after creation."
+        } else {
+            " Created notes stay closed after creation. Use `bear_open_notes` only when the user explicitly wants the created note opened or wants specific window behavior."
+        }
+
+        return "\(base)\(openingBehavior)"
     }
 }

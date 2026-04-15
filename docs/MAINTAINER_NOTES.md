@@ -92,7 +92,7 @@ Implemented MCP tools:
 - tag/navigation: `bear_open_tag`, `bear_open_notes`, `bear_rename_tags`, `bear_delete_tags`, `bear_add_tags`, `bear_remove_tags`
 - note mutation: `bear_apply_template`, `bear_create_notes`, `bear_insert_text`, `bear_replace_content`, `bear_add_files`, `bear_archive_notes`
 
-MCP presentation controls are intentionally narrow: `bear_create_notes` keeps config-driven `open_note` and `new_window`, `bear_open_notes` keeps `new_window`, and other note/tag mutation tools run as background mutations without presentation overrides.
+MCP presentation controls are intentionally narrow: `bear_create_notes` follows config-driven post-creation opening behavior without per-call presentation overrides, `bear_open_notes` keeps `new_window`, and other note/tag mutation tools run as background mutations without presentation overrides.
 
 Ursus advertises a human-readable MCP server title (`Ursus`) during `initialize`. The HTTP bridge also includes themed SVG `serverInfo.icons` metadata for clients that render server branding.
 

@@ -23,7 +23,7 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
 
 *   **`bear_create_notes`**: Creates notes using your saved Ursus defaults.
     *   **Tags**: By default, Ursus may append your configured inbox tags. You can request AI to `use_only_request_tags: true` if you want to ignore your defaults and use *only* the tags provided in the request.
-    *   **Presentation**: You can override your global defaults for whether the note opens (`open_note`) and whether it opens in a new window (`new_window`). When the note is opened, `new_window: true` uses a separate Bear window and `new_window: false` uses Bear's main window.
+    *   **Opening**: Creation follows your saved default for whether a note opens after creation. If you want the created note opened or want a specific window behavior, use `bear_open_notes` after creation.
 *   **`bear_insert_text`**: Insert text relative to your existing content. Use `position: top` or `bottom` for simple insertion, or use the `target` option to insert `before` or `after` a specific heading or exact string.
 *   **`bear_replace_content`**: Perform structural replacements.
     *   **Kinds**: Choose `title`, `body` (replaces the entire editable area), or `string` (replaces specific text).

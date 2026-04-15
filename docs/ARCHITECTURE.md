@@ -51,7 +51,7 @@
 - `bear_add_tags` prefers a matched template `{{tags}}` slot, then raw tag-only clusters, then template/default-position fallback.
 - `bear_remove_tags` strips literal tag tokens from raw body text with whitespace cleanup.
 - `bear_apply_template` always loads the current `template.md`, migrates tag-only clusters into the `{{tags}}` slot, preserves inline prose hashtags, and fails clearly if the template is missing required `{{content}}` / `{{tags}}` slots.
-- Mutation-time presentation stays narrow: `bear_create_notes` exposes config-driven `open_note` / `new_window`, `bear_open_notes` exposes `new_window`, and other note/tag mutation tools do not expose presentation overrides.
+- Mutation-time presentation stays narrow: `bear_create_notes` follows config-driven post-creation opening behavior without per-call presentation overrides, `bear_open_notes` exposes `new_window`, and other note/tag mutation tools do not expose presentation overrides.
 
 ## Backups
 

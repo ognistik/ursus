@@ -129,7 +129,7 @@ public enum BearToolName: String, CaseIterable, Codable, Hashable, Sendable {
         case .applyTemplate:
             return "Reformat existing notes using your current Ursus template while preserving their actual content and normalizing tag placement."
         case .createNotes:
-            return "Create new Bear notes with your configured template, open note, and tag behavior. Default tag and open behavior can be overriden on command."
+            return "Create new Bear notes with your configured template and tag behavior. Whether creation opens the note comes from your saved defaults; use the open-notes tool when you want an explicit open action."
         case .insertText:
             return "Add new text into an existing note without replacing everything else. It can insert at the top, bottom, or relative to specific text or headings inside the note."
         case .replaceContent:

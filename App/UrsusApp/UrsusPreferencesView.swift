@@ -42,7 +42,7 @@ struct UrsusPreferencesView: View {
     private var behaviorPanel: some View {
         UrsusPanel(
             title: "Note Behavior",
-            titleHelpText: "Tools will use these defaults, but you can command the AI to override them in your requests."
+            titleHelpText: "Tools use these defaults. If note creation stays closed, you can still ask the AI to open the note after creation."
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 Toggle("Create opens note by default", isOn: autosavingBinding(\.createOpensNoteByDefaultDraft))

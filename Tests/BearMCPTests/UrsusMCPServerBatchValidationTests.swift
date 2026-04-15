@@ -62,7 +62,7 @@ func batchedToolValidationMatrixNormalizesOperationsContract() async throws {
                 client: client,
                 tool: testCase.tool,
                 arguments: [:],
-                expectedError: "Missing required array argument 'operations'."
+                expectedError: "Missing required array argument 'operations'. This tool only accepts a top-level `operations` array. Put each requested action inside one object in `operations`, not at the top level."
             )
 
             try await assertToolError(
