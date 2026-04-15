@@ -80,7 +80,7 @@ Ursus installs a shared command at `~/.local/bin/ursus` — that's the stable pa
     <img
       src="./docs/images/ursus-connect-apps-dark.png"
       alt="Ursus main window"
-      width="720">
+      width="820">
   </picture>
 </p>
 
@@ -115,7 +115,7 @@ The bridge is loopback-only by default and includes built-in OAuth support. If y
     <img
       src="./docs/images/ursus-install-bridge-dark.png"
       alt="Ursus main window"
-      width="720">
+      width="820">
   </picture>
 </p>
 
