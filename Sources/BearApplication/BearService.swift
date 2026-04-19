@@ -5,6 +5,9 @@ import Logging
 
 public final class BearService: @unchecked Sendable {
     private static let backgroundMutationPresentation = BearPresentationOptions.backgroundMutation
+    private static let truncatedExcerptMarker = " [truncated]"
+    private static let omittedLinesMarkerPrefix = "[+"
+    private static let omittedLinesMarkerSuffix = " more lines omitted]"
 
     private let configuration: BearConfiguration
     private let tokenStore: any BearTokenStore
@@ -12,6 +15,7 @@ public final class BearService: @unchecked Sendable {
     private let writeTransport: BearWriteTransport
     private let backupStore: (any BearBackupStore)?
     private let backupPresenceLookup: (@Sendable ([String]) throws -> Set<String>)?
+    private let noteContextStore: BearNoteReadContextStore
     private let logger: Logger
     private var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -34,6 +38,7 @@ public final class BearService: @unchecked Sendable {
         writeTransport: BearWriteTransport,
         backupStore: (any BearBackupStore)? = nil,
         backupPresenceLookup: (@Sendable ([String]) throws -> Set<String>)? = nil,
+        noteContextStore: BearNoteReadContextStore = BearNoteReadContextStore(),
         logger: Logger
     ) {
         self.configuration = configuration
@@ -42,6 +47,7 @@ public final class BearService: @unchecked Sendable {
         self.writeTransport = writeTransport
         self.backupStore = backupStore
         self.backupPresenceLookup = backupPresenceLookup
+        self.noteContextStore = noteContextStore
         self.logger = logger
     }
 
@@ -273,12 +279,18 @@ public final class BearService: @unchecked Sendable {
 
         let noteIDsWithBackups = loadNoteIDsWithBackups(for: resolvedNotes.map(\.ref.identifier))
         return try resolvedNotes.map { note in
-            try fetchedNote(
+            let fetched = try fetchedNote(
                 from: note,
                 template: noteTemplate,
                 includeAttachmentText: includeAttachmentText,
                 hasBackups: noteIDsWithBackups.map { $0.contains(note.ref.identifier) }
             )
+            noteContextStore.remember(
+                noteID: fetched.noteID,
+                version: fetched.version,
+                content: fetched.content
+            )
+            return fetched
         }
     }
 
@@ -327,7 +339,19 @@ public final class BearService: @unchecked Sendable {
                 preserveEmptyContentLine: request.preserveEmptyContentLine,
                 presentation: request.presentation
             )
-            receipts.append(try await writeTransport.create(effective))
+            let receipt = try await writeTransport.create(effective)
+            if
+                let noteID = receipt.noteID,
+                let version = receipt.version,
+                receipt.status == "created"
+            {
+                noteContextStore.remember(
+                    noteID: noteID,
+                    version: version,
+                    content: sanitizedContent
+                )
+            }
+            receipts.append(receipt)
         }
         return receipts
     }
@@ -461,7 +485,14 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
-            try self.validateExpectedVersion(request.expectedVersion, for: note, kind: request.kind)
+            let plan = self.replaceContentPlan(for: note, template: noteTemplate)
+            if let conflictReceipt = self.bodyReplaceConflictReceiptIfNeeded(
+                request,
+                note: note,
+                currentContent: plan.content
+            ) {
+                return conflictReceipt
+            }
 
             try await self.captureBackupIfNeeded(for: note, reason: .replaceContent)
             let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
@@ -904,6 +935,40 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    private func replaceConflictSummary(previousContent: String, currentContent: String) -> (hunks: [ReplaceConflictHunk], truncated: Bool) {
+        let diff = makeBackupComparisonHunks(
+            backupText: previousContent,
+            currentText: currentContent,
+            detail: .compact
+        )
+        return (
+            diff.hunks.map(makeReplaceConflictHunk),
+            diff.truncated
+        )
+    }
+
+    private func makeReplaceConflictHunk(_ hunk: BackupComparisonHunk) -> ReplaceConflictHunk {
+        let kind: ReplaceConflictHunkKind
+        switch hunk.kind {
+        case .insert:
+            kind = .insert
+        case .delete:
+            kind = .delete
+        case .replace:
+            kind = .replace
+        }
+
+        return ReplaceConflictHunk(
+            kind: kind,
+            previousStartLine: hunk.backupStartLine,
+            currentStartLine: hunk.currentStartLine,
+            previousLineCount: hunk.backupLineCount,
+            currentLineCount: hunk.currentLineCount,
+            previousExcerpt: hunk.backupExcerpt,
+            currentExcerpt: hunk.currentExcerpt
+        )
+    }
+
     private func exactTag(named normalizedName: String) throws -> TagSummary? {
         for location in [BearNoteLocation.notes, .archive] {
             let matches = try readStore.listTags(
@@ -1182,22 +1247,118 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
-    private func validateExpectedVersion(_ expectedVersion: Int?, for note: BearNote, kind: ReplaceContentKind) throws {
-        switch kind {
-        case .body:
-            guard let expectedVersion else {
-                throw BearError.invalidInput(
-                    "replace kind 'body' requires expected_version from the latest bear_get_notes read for note \(note.ref.identifier)."
-                )
-            }
-            guard note.revision.version == expectedVersion else {
-                throw BearError.mutationConflict(
-                    "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'. If you only need a small targeted edit and you already know the exact current text to change, prefer bear_replace_content with kind 'string' instead of a full-body replacement."
-                )
-            }
-        case .title, .string:
-            break
+    private func bodyReplaceConflictReceiptIfNeeded(
+        _ request: ReplaceContentRequest,
+        note: BearNote,
+        currentContent: String
+    ) -> MutationReceipt? {
+        guard request.kind == .body else {
+            return nil
         }
+
+        if let conflictToken = request.conflictToken, !conflictToken.isEmpty {
+            let accepted = noteContextStore.consumeConflictToken(
+                conflictToken,
+                noteID: note.ref.identifier,
+                currentVersion: note.revision.version,
+                requestedContent: request.newString
+            )
+            guard accepted else {
+                return MutationReceipt(
+                    noteID: note.ref.identifier,
+                    title: note.title,
+                    status: "conflict",
+                    modifiedAt: note.revision.modifiedAt,
+                    conflict: ReplaceConflictInfo(
+                        reason: "invalid_conflict_token",
+                        message: "The conflict token is invalid, expired, already used, or no longer matches the current note state. Call bear_get_notes again before retrying replace kind 'body'.",
+                        resolution: .readNoteAgain,
+                        diffTooLarge: true,
+                        truncated: false,
+                        hunks: []
+                    )
+                )
+            }
+
+            return nil
+        }
+
+        guard let expectedVersion = request.expectedVersion else {
+            return MutationReceipt(
+                noteID: note.ref.identifier,
+                title: note.title,
+                status: "invalid",
+                modifiedAt: note.revision.modifiedAt,
+                conflict: ReplaceConflictInfo(
+                    reason: "missing_expected_version",
+                    message: "replace kind 'body' requires expected_version from the latest bear_get_notes read for note \(note.ref.identifier).",
+                    resolution: .readNoteAgain,
+                    diffTooLarge: true,
+                    truncated: false,
+                    hunks: []
+                )
+            )
+        }
+
+        guard note.revision.version != expectedVersion else {
+            return nil
+        }
+
+        guard let cachedContext = noteContextStore.context(noteID: note.ref.identifier, version: expectedVersion) else {
+            return MutationReceipt(
+                noteID: note.ref.identifier,
+                title: note.title,
+                status: "conflict",
+                modifiedAt: note.revision.modifiedAt,
+                conflict: ReplaceConflictInfo(
+                    reason: "version_mismatch",
+                    message: "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'.",
+                    resolution: .readNoteAgain,
+                    diffTooLarge: true,
+                    truncated: false,
+                    hunks: []
+                )
+            )
+        }
+
+        let summary = replaceConflictSummary(previousContent: cachedContext.content, currentContent: currentContent)
+        if summary.truncated {
+            return MutationReceipt(
+                noteID: note.ref.identifier,
+                title: note.title,
+                status: "conflict",
+                modifiedAt: note.revision.modifiedAt,
+                conflict: ReplaceConflictInfo(
+                    reason: "version_mismatch",
+                    message: "Note changed since the last bear_get_notes read, and the differences are too large to summarize safely. Call bear_get_notes again before retrying replace kind 'body'.",
+                    resolution: .readNoteAgain,
+                    diffTooLarge: true,
+                    truncated: true,
+                    hunks: summary.hunks
+                )
+            )
+        }
+
+        let conflictToken = noteContextStore.issueConflictToken(
+            noteID: note.ref.identifier,
+            currentVersion: note.revision.version,
+            requestedContent: request.newString
+        )
+        return MutationReceipt(
+            noteID: note.ref.identifier,
+            title: note.title,
+            status: "conflict",
+            modifiedAt: note.revision.modifiedAt,
+            conflict: ReplaceConflictInfo(
+                reason: "version_mismatch",
+                message: "Note changed since the last bear_get_notes read. Review the compact diff summary below. If you still want to apply the same full-body replacement, retry bear_replace_content with this conflictToken. Otherwise call bear_get_notes again.",
+                resolution: .retryWithConflictToken,
+                conflictToken: conflictToken,
+                diffTooLarge: false,
+                truncated: false,
+                hunks: summary.hunks
+            )
+        )
     }
 
     private func requiredReplaceString(_ value: String?, noteID: String) throws -> String {
@@ -3176,7 +3337,7 @@ public final class BearService: @unchecked Sendable {
         let maxCharacters = 320
         var excerptLines = Array(lines.prefix(maxLines))
         if lines.count > maxLines {
-            excerptLines.append("... (+\(lines.count - maxLines) more lines)")
+            excerptLines.append("[+\(lines.count - maxLines) more lines omitted]")
         }
 
         let joined = excerptLines.joined(separator: "\n")
@@ -3185,7 +3346,7 @@ public final class BearService: @unchecked Sendable {
         }
 
         let cutoff = joined.index(joined.startIndex, offsetBy: maxCharacters)
-        return String(joined[..<cutoff]).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
+        return String(joined[..<cutoff]).trimmingCharacters(in: .whitespacesAndNewlines) + Self.truncatedExcerptMarker
     }
 
     private func hunkContainsTruncation(_ hunk: BackupComparisonHunk) -> Bool {
@@ -3202,7 +3363,15 @@ public final class BearService: @unchecked Sendable {
             return true
         }
 
-        return excerpt.hasSuffix("...")
+        if excerpt.contains(Self.truncatedExcerptMarker) {
+            return true
+        }
+
+        return excerpt
+            .split(separator: "\n")
+            .contains { line in
+                line.hasPrefix(Self.omittedLinesMarkerPrefix) && line.hasSuffix(Self.omittedLinesMarkerSuffix)
+            }
     }
 
     private func commonPrefixCount(_ lhs: [String], _ rhs: [String]) -> Int {

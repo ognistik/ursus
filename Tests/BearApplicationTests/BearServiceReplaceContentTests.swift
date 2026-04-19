@@ -53,18 +53,21 @@ func replaceContentBodyRequiresExpectedVersion() async throws {
         logger: Logger(label: "BearServiceReplaceContentTests")
     )
 
-    await #expect(throws: BearError.self) {
-        _ = try await service.replaceContent([
-            ReplaceContentRequest(
-                noteID: "note-1",
-                kind: .body,
-                oldString: nil,
-                occurrence: nil,
-                newString: "Line 2",
-                presentation: BearPresentationOptions()
-            ),
-        ])
-    }
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let receipt = try #require(receipts.first)
+    #expect(receipt.status == "invalid")
+    #expect(receipt.conflict?.reason == "missing_expected_version")
+    #expect(receipt.conflict?.resolution == .readNoteAgain)
 }
 
 @Test
@@ -75,26 +78,34 @@ func replaceContentBodyRejectsStaleExpectedVersion() async throws {
         body: "Line 1",
         tags: ["0-inbox"]
     )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0")
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
         writeTransport: ReplaceContentRecordingWriteTransport(),
+        noteContextStore: noteContextStore,
         logger: Logger(label: "BearServiceReplaceContentTests")
     )
 
-    await #expect(throws: BearError.self) {
-        _ = try await service.replaceContent([
-            ReplaceContentRequest(
-                noteID: "note-1",
-                kind: .body,
-                oldString: nil,
-                occurrence: nil,
-                newString: "Line 2",
-                expectedVersion: note.revision.version - 1,
-                presentation: BearPresentationOptions()
-            ),
-        ])
-    }
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let receipt = try #require(receipts.first)
+    #expect(receipt.status == "conflict")
+    #expect(receipt.conflict?.reason == "version_mismatch")
+    #expect(receipt.conflict?.resolution == .retryWithConflictToken)
+    #expect(receipt.conflict?.conflictToken != nil)
+    #expect(receipt.conflict?.hunks.isEmpty == false)
 }
 
 @Test
@@ -169,32 +180,165 @@ func replaceContentBodyRejectsStaleExpectedVersionWithoutLeakingCurrentVersion()
         body: "Line 1",
         tags: ["0-inbox"]
     )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0")
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
         writeTransport: ReplaceContentRecordingWriteTransport(),
+        noteContextStore: noteContextStore,
         logger: Logger(label: "BearServiceReplaceContentTests")
     )
 
-    do {
-        _ = try await service.replaceContent([
-            ReplaceContentRequest(
-                noteID: "note-1",
-                kind: .body,
-                oldString: nil,
-                occurrence: nil,
-                newString: "Line 2",
-                expectedVersion: note.revision.version - 1,
-                presentation: BearPresentationOptions()
-            ),
-        ])
-        Issue.record("Expected stale expected_version conflict.")
-    } catch let error as BearError {
-        #expect(
-            error.errorDescription ==
-                "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'. If you only need a small targeted edit and you already know the exact current text to change, prefer bear_replace_content with kind 'string' instead of a full-body replacement."
-        )
-    }
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let receipt = try #require(receipts.first)
+    let conflict = try #require(receipt.conflict)
+    #expect(conflict.message.contains("current Bear note `version`") == false)
+    #expect(conflict.message.contains("version 3") == false)
+    #expect(conflict.hunks.allSatisfy { hunk in
+        (hunk.previousExcerpt?.contains("version 3") ?? false) == false &&
+            (hunk.currentExcerpt?.contains("version 3") ?? false) == false
+    })
+}
+
+@Test
+func replaceContentBodyAcceptsSingleRetryConflictTokenForSameRequestedBody() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Current line",
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Previous line")
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let conflictReceipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Replacement body",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let conflictToken = try #require(conflictReceipts.first?.conflict?.conflictToken)
+    let retryReceipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Replacement body",
+            conflictToken: conflictToken,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(retryReceipts.first?.status == "updated")
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\nReplacement body")
+}
+
+@Test
+func replaceContentBodyRejectsTooLargeConflictSummaryWithoutToken() async throws {
+    let previousLines = (1 ... 250).map { "Old line \($0)" }.joined(separator: "\n")
+    let currentLines = (1 ... 250).map { "Current line \($0)" }.joined(separator: "\n")
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: currentLines,
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: previousLines)
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Replacement body",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let conflict = try #require(receipts.first?.conflict)
+    #expect(conflict.resolution == .readNoteAgain)
+    #expect(conflict.diffTooLarge == true)
+    #expect(conflict.truncated == true)
+    #expect(conflict.conflictToken == nil)
+}
+
+@Test
+func replaceContentBodyTreatsLiteralEllipsisAsSmallConflictNotTruncation() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Alpha line\nBeta line\nGamma line\n\nAnother line\nPlease edit this note...",
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: "note-1",
+        version: note.revision.version - 1,
+        content: "Alpha line\nBeta line\nGamma line\n\nPlease edit this note before the next tool call."
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Replacement body",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let conflict = try #require(receipts.first?.conflict)
+    #expect(conflict.resolution == .retryWithConflictToken)
+    #expect(conflict.diffTooLarge == false)
+    #expect(conflict.truncated == false)
+    #expect(conflict.conflictToken != nil)
 }
 
 @Test

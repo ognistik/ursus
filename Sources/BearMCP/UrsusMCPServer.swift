@@ -290,7 +290,8 @@ public final class UrsusMCPServer: Sendable {
                     oldString: object["old_string"]?.stringValue,
                     occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
                     newString: try requiredPresentString(object, "new_string"),
-                    expectedVersion: object["expected_version"]?.intValue
+                    expectedVersion: object["expected_version"]?.intValue,
+                    conflictToken: object["conflict_token"]?.stringValue
                 )
             }
             let receipts = try await service.replaceContent(requests)
@@ -461,7 +462,7 @@ public final class UrsusMCPServer: Sendable {
 
     private func statusCountsAsSuccessfulOperation(_ status: String) -> Bool {
         switch status {
-        case "not_found", "failed", "error", "invalid", "denied":
+        case "not_found", "failed", "error", "invalid", "denied", "conflict":
             return false
         default:
             return true
@@ -975,13 +976,13 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: body`, also provide `expected_version` from the latest `bear_get_notes` read of that same note; this is required for full-body replacement so stale reads do not overwrite newer Bear edits. For `kind: title`, omit `old_string` and `occurrence`. `expected_version` is ignored for `kind: title` and `kind: string`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or current note version is not already known.",
+                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: body`, provide `expected_version` from the latest `bear_get_notes` read of that same note, unless you are retrying a previous version-mismatch conflict with a server-issued `conflict_token`. For `kind: title`, omit `old_string` and `occurrence`. `expected_version` and `conflict_token` are ignored for `kind: title` and `kind: string`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or current note version is not already known.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
-                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body and requires `expected_version` from the latest `bear_get_notes` read. `string` replaces exact text within the editable body only."),
+                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body and normally requires `expected_version` from the latest `bear_get_notes` read, unless a prior conflict receipt supplied a valid `conflict_token`. `string` replaces exact text within the editable body only."),
                     ]),
                     "old_string": .object([
                         "type": .string("string"),
@@ -998,7 +999,11 @@ private enum ToolCatalog {
                     ]),
                     "expected_version": .object([
                         "type": .string("integer"),
-                        "description": .string("Use this with `kind: body`; it is required in that mode. Pass the exact `version` returned by the latest `bear_get_notes` read of the same note so full-body replacement fails clearly if the note changed in Bear after that read. For `kind: title` and `kind: string`, this field is ignored."),
+                        "description": .string("Use this with `kind: body`; pass the exact `version` returned by the latest `bear_get_notes` read of the same note. It is required for ordinary full-body replacement, but you may omit it when retrying a version conflict with a valid server-issued `conflict_token`. For `kind: title` and `kind: string`, this field is ignored."),
+                    ]),
+                    "conflict_token": .object([
+                        "type": .string("string"),
+                        "description": .string("Use this only with `kind: body` after Ursus returns a version-mismatch conflict receipt that includes a `conflictToken`. The token is short-lived, single-use, and valid only for retrying the same requested full-body replacement against the exact conflict state Ursus already summarized. For `kind: title` and `kind: string`, this field is ignored."),
                     ]),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["kind", "new_string"]),
@@ -1440,7 +1445,7 @@ private enum ToolCatalog {
     }
 
     private static func createNotesDescription(configuration: BearConfiguration) -> String {
-        let base = "Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title. Omit `tags` unless the user explicitly wants tags added. Do not infer or invent tags unless the user explicitly asks for tags. Configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`."
+        let base = "Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title. Omit `tags` unless the user explicitly wants tags added. Do not infer or invent tags unless the user explicitly asks for tags. Configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. When Ursus can verify the created Bear note immediately, the creation receipt may also include the note's current Bear `version`, whether the note was opened, and whether it opened in the main Bear window or a new window."
         let openingBehavior = if configuration.createOpensNoteByDefault {
             " Created notes open automatically after creation."
         } else {

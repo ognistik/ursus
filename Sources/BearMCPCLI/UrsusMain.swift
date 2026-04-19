@@ -402,10 +402,23 @@ public enum UrsusCLIRuntime {
 
     private static func renderNewNoteReceipt(_ receipt: MutationReceipt) -> String {
         let title = receipt.title ?? "Untitled"
-        if let noteID = receipt.noteID {
-            return "\(label(for: receipt.status, action: "create")): \(title) (\(noteID))"
+        let openedSuffix: String
+        if receipt.opened == true {
+            switch receipt.openedIn {
+            case .newWindow:
+                openedSuffix = " [opened in new window]"
+            case .mainWindow:
+                openedSuffix = " [opened in main window]"
+            case nil:
+                openedSuffix = " [opened]"
+            }
+        } else {
+            openedSuffix = ""
         }
-        return "\(label(for: receipt.status, action: "create")): \(title)"
+        if let noteID = receipt.noteID {
+            return "\(label(for: receipt.status, action: "create")): \(title) (\(noteID))\(openedSuffix)"
+        }
+        return "\(label(for: receipt.status, action: "create")): \(title)\(openedSuffix)"
     }
 
     private static func renderMutationReceipts(_ receipts: [MutationReceipt], action: String) -> String {

@@ -78,7 +78,12 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: matched?.ref.identifier,
             title: request.title,
             status: matched == nil ? "submitted" : "created",
-            modifiedAt: matched?.revision.modifiedAt
+            modifiedAt: matched?.revision.modifiedAt,
+            version: matched?.revision.version,
+            opened: request.presentation.opensNoteInUI,
+            openedIn: request.presentation.opensNoteInUI
+                ? (request.presentation.opensInNewWindow ? .newWindow : .mainWindow)
+                : nil
         )
     }
 
@@ -448,5 +453,9 @@ public actor BearXCallbackTransport: BearWriteTransport {
 private extension BearPresentationOptions {
     var opensNoteInUI: Bool {
         openNoteOverride ?? openNote
+    }
+
+    var opensInNewWindow: Bool {
+        newWindowOverride ?? newWindow
     }
 }

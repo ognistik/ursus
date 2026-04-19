@@ -320,6 +320,11 @@ func bearCreateNotesUsesConfigDrivenPresentationDefaults() async throws {
             )
 
             #expect(result.isError != true, "Tool error: \(result.content)")
+            let payload = try decodedJSONArray(result)
+            let receipt = try #require(payload.first)
+            #expect(receipt["version"] as? Int == 1)
+            #expect(receipt["opened"] as? Bool == false)
+            #expect(receipt["openedIn"] == nil)
 
             let createCall = try #require(await writeTransport.createCalls.first)
             #expect(createCall.request.title == "Created Note")
@@ -329,6 +334,92 @@ func bearCreateNotesUsesConfigDrivenPresentationDefaults() async throws {
             #expect(createCall.request.presentation.newWindowOverride == nil)
             #expect(createCall.request.presentation.showWindow == false)
             #expect(createCall.request.presentation.edit == false)
+        }
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func bearCreateNotesReceiptReportsWhenConfigOpenedInMainWindow() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(
+            version: 1,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: "Existing Note",
+        body: "Body",
+        rawText: "# Existing Note\n\nBody",
+        tags: [],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: false,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await withTemporaryMCPNoteTemplate(nil) {
+            try await server.start(transport: serverTransport)
+            _ = try await client.connect(transport: clientTransport)
+
+            let result = try await client.callTool(
+                name: "bear_create_notes",
+                arguments: [
+                    "operations": .array([
+                        .object([
+                            "title": .string("Created Note"),
+                            "content": .string("Body"),
+                        ]),
+                    ]),
+                ]
+            )
+
+            #expect(result.isError != true, "Tool error: \(result.content)")
+            let payload = try decodedJSONArray(result)
+            let receipt = try #require(payload.first)
+            #expect(receipt["opened"] as? Bool == true)
+            #expect(receipt["openedIn"] as? String == "main_window")
         }
     } catch {
         await server.stop()
@@ -585,7 +676,123 @@ func bearReplaceContentBodyRejectsMissingExpectedVersion() async throws {
             ]
         )
 
-        #expect(result.isError == true)
+        #expect(result.isError != true)
+        let payload = try decodedJSONArray(result)
+        let first = try #require(payload.first)
+        #expect(first["status"] as? String == "invalid")
+        let conflict = try #require(first["conflict"] as? [String: Any])
+        #expect(conflict["reason"] as? String == "missing_expected_version")
+        #expect(conflict["resolution"] as? String == "read_note_again")
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func bearReplaceContentBodyReturnsConflictReceiptAndAcceptsConflictTokenRetry() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Current body",
+        rawText: "# Test Note\n\nCurrent body",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(noteID: "note-1", version: 2, content: "Previous body")
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let conflictResult = try await client.callTool(
+            name: "bear_replace_content",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "kind": .string("body"),
+                        "new_string": .string("Replacement body"),
+                        "expected_version": .int(2),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(conflictResult.isError != true)
+        let conflictPayload = try decodedJSONArray(conflictResult)
+        let conflictReceipt = try #require(conflictPayload.first)
+        #expect(conflictReceipt["status"] as? String == "conflict")
+        let conflict = try #require(conflictReceipt["conflict"] as? [String: Any])
+        #expect(conflict["resolution"] as? String == "retry_with_conflict_token")
+        let conflictToken = try #require(conflict["conflictToken"] as? String)
+
+        let retryResult = try await client.callTool(
+            name: "bear_replace_content",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "kind": .string("body"),
+                        "new_string": .string("Replacement body"),
+                        "conflict_token": .string(conflictToken),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(retryResult.isError != true)
+        let retryPayload = try decodedJSONArray(retryResult)
+        let retryReceipt = try #require(retryPayload.first)
+        #expect(retryReceipt["status"] as? String == "updated")
+
+        let replaceCall = try #require(await writeTransport.replaceCalls.first)
+        #expect(replaceCall.noteID == "note-1")
+        #expect(replaceCall.fullText == "# Test Note\n\nReplacement body")
     } catch {
         await server.stop()
         await client.disconnect()
@@ -1042,6 +1249,31 @@ private struct MCPToolReadStore: BearReadStore {
     func findNotes(title: String, modifiedAfter: Date?) throws -> [BearNote] { [] }
 }
 
+private func toolResultText(_ result: (content: [Tool.Content], isError: Bool?)) throws -> String {
+    let first = try #require(result.content.first)
+    switch first {
+    case .text(let text, _, _):
+        return text
+    default:
+        throw MCPToolResultDecodeError.unexpectedToolContent
+    }
+}
+
+private func decodedJSONArray(_ result: (content: [Tool.Content], isError: Bool?)) throws -> [[String: Any]] {
+    let text = try toolResultText(result)
+    let data = Data(text.utf8)
+    let value = try JSONSerialization.jsonObject(with: data)
+    guard let array = value as? [[String: Any]] else {
+        throw MCPToolResultDecodeError.unexpectedJSONShape
+    }
+    return array
+}
+
+private enum MCPToolResultDecodeError: Error {
+    case unexpectedToolContent
+    case unexpectedJSONShape
+}
+
 private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     struct CreateCall: Sendable {
         let request: CreateNoteRequest
@@ -1064,7 +1296,19 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
 
     func create(_ request: CreateNoteRequest) async throws -> MutationReceipt {
         createCalls.append(CreateCall(request: request))
-        return MutationReceipt(noteID: "created", title: request.title, status: "created", modifiedAt: nil)
+        let opened = request.presentation.openNoteOverride ?? request.presentation.openNote
+        let openedIn: NoteOpenDisposition? = opened
+            ? ((request.presentation.newWindowOverride ?? request.presentation.newWindow) ? .newWindow : .mainWindow)
+            : nil
+        return MutationReceipt(
+            noteID: "created",
+            title: request.title,
+            status: "created",
+            modifiedAt: nil,
+            version: 1,
+            opened: opened,
+            openedIn: openedIn
+        )
     }
 
     func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {

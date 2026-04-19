@@ -1130,6 +1130,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
     public let occurrence: ReplaceStringOccurrence?
     public let newString: String
     public let expectedVersion: Int?
+    public let conflictToken: String?
     public let presentation: BearPresentationOptions
 
     public init(
@@ -1139,6 +1140,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         occurrence: ReplaceStringOccurrence?,
         newString: String,
         expectedVersion: Int? = nil,
+        conflictToken: String? = nil,
         presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
@@ -1147,6 +1149,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         self.occurrence = occurrence
         self.newString = newString
         self.expectedVersion = expectedVersion
+        self.conflictToken = conflictToken
         self.presentation = presentation
     }
 }
@@ -1253,17 +1256,106 @@ public struct RestoreBackupRequest: Codable, Hashable, Sendable {
     }
 }
 
+public enum NoteOpenDisposition: String, Codable, Hashable, Sendable {
+    case mainWindow = "main_window"
+    case newWindow = "new_window"
+}
+
+public enum ReplaceConflictResolution: String, Codable, Hashable, Sendable {
+    case retryWithConflictToken = "retry_with_conflict_token"
+    case readNoteAgain = "read_note_again"
+}
+
+public enum ReplaceConflictHunkKind: String, Codable, Hashable, Sendable {
+    case insert
+    case delete
+    case replace
+}
+
+public struct ReplaceConflictHunk: Codable, Hashable, Sendable {
+    public let kind: ReplaceConflictHunkKind
+    public let previousStartLine: Int
+    public let currentStartLine: Int
+    public let previousLineCount: Int
+    public let currentLineCount: Int
+    public let previousExcerpt: String?
+    public let currentExcerpt: String?
+
+    public init(
+        kind: ReplaceConflictHunkKind,
+        previousStartLine: Int,
+        currentStartLine: Int,
+        previousLineCount: Int,
+        currentLineCount: Int,
+        previousExcerpt: String?,
+        currentExcerpt: String?
+    ) {
+        self.kind = kind
+        self.previousStartLine = previousStartLine
+        self.currentStartLine = currentStartLine
+        self.previousLineCount = previousLineCount
+        self.currentLineCount = currentLineCount
+        self.previousExcerpt = previousExcerpt
+        self.currentExcerpt = currentExcerpt
+    }
+}
+
+public struct ReplaceConflictInfo: Codable, Hashable, Sendable {
+    public let reason: String
+    public let message: String
+    public let resolution: ReplaceConflictResolution
+    public let conflictToken: String?
+    public let diffTooLarge: Bool
+    public let truncated: Bool
+    public let hunks: [ReplaceConflictHunk]
+
+    public init(
+        reason: String,
+        message: String,
+        resolution: ReplaceConflictResolution,
+        conflictToken: String? = nil,
+        diffTooLarge: Bool,
+        truncated: Bool,
+        hunks: [ReplaceConflictHunk]
+    ) {
+        self.reason = reason
+        self.message = message
+        self.resolution = resolution
+        self.conflictToken = conflictToken
+        self.diffTooLarge = diffTooLarge
+        self.truncated = truncated
+        self.hunks = hunks
+    }
+}
+
 public struct MutationReceipt: Codable, Hashable, Sendable {
     public let noteID: String?
     public let title: String?
     public let status: String
     public let modifiedAt: Date?
+    public let version: Int?
+    public let opened: Bool?
+    public let openedIn: NoteOpenDisposition?
+    public let conflict: ReplaceConflictInfo?
 
-    public init(noteID: String?, title: String?, status: String, modifiedAt: Date?) {
+    public init(
+        noteID: String?,
+        title: String?,
+        status: String,
+        modifiedAt: Date?,
+        version: Int? = nil,
+        opened: Bool? = nil,
+        openedIn: NoteOpenDisposition? = nil,
+        conflict: ReplaceConflictInfo? = nil
+    ) {
         self.noteID = noteID
         self.title = title
         self.status = status
         self.modifiedAt = modifiedAt
+        self.version = version
+        self.opened = opened
+        self.openedIn = openedIn
+        self.conflict = conflict
     }
 }
 

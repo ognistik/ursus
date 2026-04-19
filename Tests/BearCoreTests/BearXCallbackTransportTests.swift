@@ -22,6 +22,8 @@ func createRetriesThroughTransientSQLiteLockDuringReceiptPolling() async throws 
 
     #expect(receipt.status == "created")
     #expect(receipt.noteID == "created-note")
+    #expect(receipt.opened == false)
+    #expect(receipt.openedIn == nil)
 }
 
 @Test
@@ -50,6 +52,36 @@ func createActivatesBearOnlyWhenTheCreatedNoteWillOpen() async throws {
     )
 
     #expect(await opener.activations == [false, true])
+}
+
+@Test
+func createReceiptReportsOpenedWindowDisposition() async throws {
+    let transport = BearXCallbackTransport(
+        readStore: StaticReadStore(note: makeNote(id: "created-note", title: "Created"), tags: []),
+        urlOpener: { _ in }
+    )
+
+    let mainWindowReceipt = try await transport.create(
+        CreateNoteRequest(
+            title: "Opened Main",
+            content: "Body",
+            tags: [],
+            presentation: BearPresentationOptions(openNote: true, newWindow: false, showWindow: true, edit: false)
+        )
+    )
+    let newWindowReceipt = try await transport.create(
+        CreateNoteRequest(
+            title: "Opened New",
+            content: "Body",
+            tags: [],
+            presentation: BearPresentationOptions(openNote: true, newWindow: true, showWindow: true, edit: false)
+        )
+    )
+
+    #expect(mainWindowReceipt.opened == true)
+    #expect(mainWindowReceipt.openedIn == .mainWindow)
+    #expect(newWindowReceipt.opened == true)
+    #expect(newWindowReceipt.openedIn == .newWindow)
 }
 
 @Test
