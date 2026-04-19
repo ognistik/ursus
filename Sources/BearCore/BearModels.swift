@@ -87,6 +87,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
     public let tags: [String]
     public let createdAt: Date
     public let modifiedAt: Date
+    public let version: Int
     public let hasBackups: Bool?
     public let attachments: [NoteAttachment]
     public let encrypted: Bool?
@@ -98,6 +99,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         tags: [String],
         createdAt: Date,
         modifiedAt: Date,
+        version: Int,
         hasBackups: Bool? = nil,
         attachments: [NoteAttachment],
         encrypted: Bool? = nil
@@ -108,6 +110,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         self.tags = tags
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.version = version
         self.hasBackups = hasBackups
         self.attachments = attachments
         self.encrypted = encrypted
@@ -1126,6 +1129,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
     public let oldString: String?
     public let occurrence: ReplaceStringOccurrence?
     public let newString: String
+    public let expectedVersion: Int?
     public let presentation: BearPresentationOptions
 
     public init(
@@ -1134,6 +1138,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         oldString: String?,
         occurrence: ReplaceStringOccurrence?,
         newString: String,
+        expectedVersion: Int? = nil,
         presentation: BearPresentationOptions = .backgroundMutation
     ) {
         self.noteID = noteID
@@ -1141,6 +1146,7 @@ public struct ReplaceContentRequest: Codable, Hashable, Sendable {
         self.oldString = oldString
         self.occurrence = occurrence
         self.newString = newString
+        self.expectedVersion = expectedVersion
         self.presentation = presentation
     }
 }

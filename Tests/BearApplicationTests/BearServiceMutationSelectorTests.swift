@@ -22,6 +22,7 @@ func replaceContentResolvesExactCaseInsensitiveTitleSelector() async throws {
             oldString: nil,
             occurrence: nil,
             newString: "Updated",
+            expectedVersion: note.revision.version,
             presentation: BearPresentationOptions()
         ),
     ])

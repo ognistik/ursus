@@ -85,7 +85,7 @@ func getNotesUsesTemplateStrippedCanonicalContentAndOmitsAttachmentTextByDefault
     #expect(fetched.attachments.first?.attachmentID == "attachment-1")
     #expect(fetched.attachments.first?.searchText == nil)
     #expect(attachmentPayload["searchText"] == nil)
-    #expect(payload["version"] == nil)
+    #expect(payload["version"] as? Int == note.revision.version)
     #expect(payload["hasBackups"] == nil)
 }
 
@@ -129,7 +129,7 @@ func getNotesIncludesAttachmentTextWhenExplicitlyRequested() async throws {
     let attachmentPayload = try #require((payload["attachments"] as? [[String: Any]])?.first)
     #expect(fetched.attachments.first?.searchText == "Attachment OCR")
     #expect(attachmentPayload["searchText"] as? String == "Attachment OCR")
-    #expect(payload["version"] == nil)
+    #expect(payload["version"] as? Int == note.revision.version)
 }
 
 @Test
@@ -158,7 +158,7 @@ func getNotesIncludesHasBackupsWhenBackupLookupIsAvailable() throws {
     let payload = try encodedJSONObject(fetched)
     #expect(fetched.hasBackups == true)
     #expect(payload["hasBackups"] as? Bool == true)
-    #expect(payload["version"] == nil)
+    #expect(payload["version"] as? Int == note.revision.version)
 }
 
 @Test

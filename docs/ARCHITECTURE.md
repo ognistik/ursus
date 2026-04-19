@@ -33,7 +33,7 @@
 - Pagination uses opaque cursors keyed by the normalized filter set and internal sort key.
 - Text discovery ranking is deterministic: exact phrase matches first, then ordered terms, unordered all-term matches, modified date, and note id.
 - Discovery summaries include template-aware snippets, `hasAttachments`, matched fields for text searches, and optional `hasBackups`. Attachment OCR/search text never appears in discovery output.
-- `bear_get_notes` returns a canonical `content` field, strips template wrapper noise when the current template matches, and returns attachment metadata by default. Attachment OCR/search text is opt-in through `include_attachment_text: true`.
+- `bear_get_notes` returns a canonical `content` field, the current Bear note `version` from Bear's SQLite row revision (`Z_OPT`), strips template wrapper noise when the current template matches, and returns attachment metadata by default. Attachment OCR/search text is opt-in through `include_attachment_text: true`.
 - The MCP server does not expose Bear resources, but answers empty `resources/list` and `resources/templates/list` requests for client compatibility.
 - Tool descriptions are built from loaded config at startup so user-overridable defaults are visible in the tool catalog.
 - MCP initialization advertises the human-readable server title `Ursus`, and the HTTP bridge includes themed SVG `serverInfo.icons` metadata for clients that support server branding.
@@ -42,7 +42,7 @@
 
 - Note-targeting mutations accept exact note ids or exact case-insensitive titles; ambiguous titles require a note id.
 - When selected-note token availability is present, note-targeting tools can also accept `selected: true`.
-- `bear_replace_content` computes final full note markdown locally and commits through Bear's `replace_all` mode. Title edits rebuild the note with the new title; body/string edits are limited to editable content.
+- `bear_replace_content` computes final full note markdown locally and commits through Bear's `replace_all` mode. Title edits rebuild the note with the new title; body/string edits are limited to editable content. Full-body replacement requires `expected_version` from a fresh `bear_get_notes` read so stale reads fail clearly instead of overwriting newer Bear edits. `expected_version` is otherwise tolerated and ignored for title/string replacement.
 - Before note-destructive mutations, the service captures one durable pre-mutation backup snapshot per logical note operation.
 - `bear_create_notes` renders one `template.md`, merges configured inbox tags with explicit request tags according to config/request overrides, and writes tags into note text rather than Bear's `tags=` create parameter.
 - `bear_insert_text` and `bear_add_files` preserve templated note structure when possible. Relative placements are planned locally against editable content and committed through full replacement after any backend attachment anchoring is cleaned up.

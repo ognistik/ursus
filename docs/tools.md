@@ -13,7 +13,7 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
     *   **A small but important detail**: each search needs at least one real filter, and results come back paginated so searches stay compact.
 *   **`bear_find_notes_by_tag`**: Find notes containing specific tags. Set `tag_match` to `any` (contains at least one) or `all` (contains every tag provided).
 *   **`bear_find_notes_by_inbox_tags`**: Quickly find notes based on the inbox tags configured in your Ursus preferences.
-*   **`bear_get_notes`**: Fetch the full note content and attachment OCR content. Use this only when you need the text body. If you are just trying to find a note to edit, you don't need to call this—the mutation tools resolve note targets automatically. Set `include_attachment_text` to `true` if you need to access OCR text from attachments.
+*   **`bear_get_notes`**: Fetch the full note content, current note `version`, and attachment OCR content. Use this when you need the current text body or the fresh Bear revision number for a guarded full-body replacement. If you are just trying to find a note to edit, you don't need to call this—the mutation tools resolve note targets automatically. Set `include_attachment_text` to `true` if you need to access OCR text from attachments.
 *   **`bear_list_tags`**: List all tags in your library. Use `query` to filter by a substring or `under_tag` to return all nested tags under a specific parent.
 
 ---
@@ -27,6 +27,8 @@ Most note-targeting tools allow you to pass a specific `note` (by ID or exact ti
 *   **`bear_insert_text`**: Insert text relative to your existing content. Use `position: top` or `bottom` for simple insertion, or use the `target` option to insert `before` or `after` a specific heading or exact string.
 *   **`bear_replace_content`**: Perform structural replacements.
     *   **Kinds**: Choose `title`, `body` (replaces the entire editable area), or `string` (replaces specific text).
+    *   **Version guard for full-body replace**: When replacing `body`, you must pass `expected_version` from the latest `bear_get_notes` read of that same note. This prevents a stale full-note overwrite if Bear content changed after the read.
+    *   **Forgiving extra field behavior**: If `expected_version` is accidentally sent with `title` or `string`, Ursus ignores it instead of failing the operation.
     *   **Occurrence**: When replacing `string`, set `occurrence` to `one` (first match) or `all` (every match).
 *   **`bear_add_files`**: Attach local files (requires a valid local file path) with the same `position` or `target` insertion logic used by `bear_insert_text`.
 *   **`bear_apply_template`**: Applies your template to an existing note. This is the smart way to normalize tag-only clusters into your defined `{{tags}}` slot.

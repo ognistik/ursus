@@ -28,6 +28,7 @@ func replaceContentBodyPreservesTemplateWrapper() async throws {
                 oldString: nil,
                 occurrence: nil,
                 newString: "Line 2",
+                expectedVersion: note.revision.version,
                 presentation: BearPresentationOptions()
             ),
         ])
@@ -35,6 +36,165 @@ func replaceContentBodyPreservesTemplateWrapper() async throws {
 
     let replaceCall = try #require(await transport.replaceCalls.first)
     #expect(replaceCall.fullText == "# Inbox\n\n---\n#0-inbox\n---\nLine 2")
+}
+
+@Test
+func replaceContentBodyRequiresExpectedVersion() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.replaceContent([
+            ReplaceContentRequest(
+                noteID: "note-1",
+                kind: .body,
+                oldString: nil,
+                occurrence: nil,
+                newString: "Line 2",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+}
+
+@Test
+func replaceContentBodyRejectsStaleExpectedVersion() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    await #expect(throws: BearError.self) {
+        _ = try await service.replaceContent([
+            ReplaceContentRequest(
+                noteID: "note-1",
+                kind: .body,
+                oldString: nil,
+                occurrence: nil,
+                newString: "Line 2",
+                expectedVersion: note.revision.version - 1,
+                presentation: BearPresentationOptions()
+            ),
+        ])
+    }
+}
+
+@Test
+func replaceContentStringIgnoresExpectedVersion() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .string,
+            oldString: "Line 1",
+            occurrence: .one,
+            newString: "Line 2",
+            expectedVersion: note.revision.version,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\nLine 2")
+}
+
+@Test
+func replaceContentTitleIgnoresExpectedVersion() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .title,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Projects",
+            expectedVersion: note.revision.version,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Projects\n\nLine 1")
+}
+
+@Test
+func replaceContentBodyRejectsStaleExpectedVersionWithoutLeakingCurrentVersion() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    do {
+        _ = try await service.replaceContent([
+            ReplaceContentRequest(
+                noteID: "note-1",
+                kind: .body,
+                oldString: nil,
+                occurrence: nil,
+                newString: "Line 2",
+                expectedVersion: note.revision.version - 1,
+                presentation: BearPresentationOptions()
+            ),
+        ])
+        Issue.record("Expected stale expected_version conflict.")
+    } catch let error as BearError {
+        #expect(
+            error.errorDescription ==
+                "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'. If you only need a small targeted edit and you already know the exact current text to change, prefer bear_replace_content with kind 'string' instead of a full-body replacement."
+        )
+    }
 }
 
 @Test
@@ -95,6 +255,7 @@ func replaceContentEmptyTemplatedBodyPreservesExistingSingleNewlineTitleSeparato
                 oldString: nil,
                 occurrence: nil,
                 newString: "",
+                expectedVersion: note.revision.version,
                 presentation: BearPresentationOptions()
             ),
         ])

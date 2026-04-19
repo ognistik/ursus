@@ -25,8 +25,8 @@ This file is the concise handoff for contributors and future agent threads. It s
 - Keep template storage as one real file at `~/Library/Application Support/Ursus/template.md`.
 - Mutation tools should return compact receipts unless the user explicitly asks for content.
 - `bear_compare_backup` defaults to compact diff hunks with truncation metadata and accepts `detail: full` when callers need the full changed regions for each hunk.
-- `bear_replace_content` computes the final full note markdown locally, then commits through Bear's full replacement path.
-- Discovery tools should return compact note summaries; `bear_get_notes` remains the full-note fetch.
+- `bear_replace_content` computes the final full note markdown locally, then commits through Bear's full replacement path. Full-body replacement uses `expected_version` from `bear_get_notes` as a stale-read guard, while title/string replacements ignore that field when clients send it anyway.
+- Discovery tools should return compact note summaries; `bear_get_notes` remains the full-note fetch and now includes Bear's current note revision `version`.
 - Batch operations are first-class. Batched MCP tools require a non-empty `operations` array and distinguish missing batches from empty batches.
 - Bear's own trash/restore flows are not part of the MCP surface. Backup restore is exposed separately through `bear_restore_notes`.
 

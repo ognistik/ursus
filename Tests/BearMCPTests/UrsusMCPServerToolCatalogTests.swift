@@ -66,10 +66,12 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
 
     let replace = try #require(tool(named: "bear_replace_content", in: tools))
     #expect(try #require(replace.description).contains("Do not call `bear_get_notes` only to resolve the note selector"))
-    #expect(try #require(replace.description).contains("exact current text is not already known"))
+    #expect(try #require(replace.description).contains("exact current text or current note version is not already known"))
+    #expect(try #require(replace.description).contains("ignored for `kind: title` and `kind: string`"))
     #expect(propertyDescription(named: "note", in: replace)?.contains("exact case-insensitive title across notes and archive") == true)
     #expect(propertyDescription(named: "kind", in: replace)?.contains("Required replacement kind") == true)
-    #expect(propertyDescription(named: "expected_version", in: replace) == nil)
+    #expect(propertyDescription(named: "expected_version", in: replace)?.contains("required in that mode") == true)
+    #expect(propertyDescription(named: "expected_version", in: replace)?.contains("ignored") == true)
 
     let addTags = try #require(tool(named: "bear_add_tags", in: tools))
     let addTagsDescription = try #require(addTags.description)
@@ -133,6 +135,7 @@ func toolCatalogInjectsCurrentSessionDefaultsIntoOverrideableFields() throws {
     let getNotes = try #require(tool(named: "bear_get_notes", in: tools))
     #expect(try #require(getNotes.description).contains("selected: true"))
     #expect(try #require(getNotes.description).contains("Attachment OCR/search text is omitted unless `include_attachment_text` is `true`"))
+    #expect(try #require(getNotes.description).contains("Returned notes include the current Bear note `version`"))
     #expect(propertyDescription(named: "include_attachment_text", inTopLevelTool: getNotes)?.contains("default `false`") == true)
     #expect(propertyDescription(named: "selected", inTopLevelTool: getNotes)?.contains("currently selected Bear note") == true)
 

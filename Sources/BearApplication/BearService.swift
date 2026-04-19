@@ -461,6 +461,7 @@ public final class BearService: @unchecked Sendable {
 
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
+            try self.validateExpectedVersion(request.expectedVersion, for: note, kind: request.kind)
 
             try await self.captureBackupIfNeeded(for: note, reason: .replaceContent)
             let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
@@ -1181,6 +1182,24 @@ public final class BearService: @unchecked Sendable {
         }
     }
 
+    private func validateExpectedVersion(_ expectedVersion: Int?, for note: BearNote, kind: ReplaceContentKind) throws {
+        switch kind {
+        case .body:
+            guard let expectedVersion else {
+                throw BearError.invalidInput(
+                    "replace kind 'body' requires expected_version from the latest bear_get_notes read for note \(note.ref.identifier)."
+                )
+            }
+            guard note.revision.version == expectedVersion else {
+                throw BearError.mutationConflict(
+                    "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'. If you only need a small targeted edit and you already know the exact current text to change, prefer bear_replace_content with kind 'string' instead of a full-body replacement."
+                )
+            }
+        case .title, .string:
+            break
+        }
+    }
+
     private func requiredReplaceString(_ value: String?, noteID: String) throws -> String {
         guard let value else {
             throw BearError.invalidInput("replace kind 'string' requires old_string for note \(noteID).")
@@ -1393,6 +1412,7 @@ public final class BearService: @unchecked Sendable {
                 tags: note.tags,
                 createdAt: note.revision.createdAt,
                 modifiedAt: note.revision.modifiedAt,
+                version: note.revision.version,
                 hasBackups: hasBackups,
                 attachments: [],
                 encrypted: true
@@ -1419,6 +1439,7 @@ public final class BearService: @unchecked Sendable {
             tags: note.tags,
             createdAt: note.revision.createdAt,
             modifiedAt: note.revision.modifiedAt,
+            version: note.revision.version,
             hasBackups: hasBackups,
             attachments: attachments
         )

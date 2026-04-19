@@ -289,7 +289,8 @@ public final class UrsusMCPServer: Sendable {
                     kind: try MCPArgumentDecoder.replaceContentKind(object),
                     oldString: object["old_string"]?.stringValue,
                     occurrence: try MCPArgumentDecoder.replaceStringOccurrence(object),
-                    newString: try requiredPresentString(object, "new_string")
+                    newString: try requiredPresentString(object, "new_string"),
+                    expectedVersion: object["expected_version"]?.intValue
                 )
             }
             let receipts = try await service.replaceContent(requests)
@@ -755,7 +756,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Use this only when current note content, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(backupDiscoverabilityHint(configuration: configuration))\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
+                description: "Fetch full Bear note records for one or more selectors. Returned notes include the current Bear note `version` from Bear's database row revision field; use that `version` only as concurrency metadata for a later full-body replacement, not as a backup or snapshot identifier. Use this tool only when current note content, note version, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(backupDiscoverabilityHint(configuration: configuration))\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -974,13 +975,13 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: title` and `kind: body`, omit `old_string` and `occurrence`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text is not already known.",
+                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: body`, also provide `expected_version` from the latest `bear_get_notes` read of that same note; this is required for full-body replacement so stale reads do not overwrite newer Bear edits. For `kind: title`, omit `old_string` and `occurrence`. `expected_version` is ignored for `kind: title` and `kind: string`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or current note version is not already known.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
-                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body. `string` replaces exact text within the editable body only."),
+                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body and requires `expected_version` from the latest `bear_get_notes` read. `string` replaces exact text within the editable body only."),
                     ]),
                     "old_string": .object([
                         "type": .string("string"),
@@ -994,6 +995,10 @@ private enum ToolCatalog {
                     "new_string": .object([
                         "type": .string("string"),
                         "description": .string("Required replacement text. For `kind: title`, this is the full new title and must not be empty. For `kind: body`, this is the full replacement editable body and may be empty. For `kind: string`, this is the replacement for matched text and may be empty."),
+                    ]),
+                    "expected_version": .object([
+                        "type": .string("integer"),
+                        "description": .string("Use this with `kind: body`; it is required in that mode. Pass the exact `version` returned by the latest `bear_get_notes` read of the same note so full-body replacement fails clearly if the note changed in Bear after that read. For `kind: title` and `kind: string`, this field is ignored."),
                     ]),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
                 required: requiredNoteFields(selectedNoteSupported: selectedNoteSupported, trailing: ["kind", "new_string"]),

@@ -139,6 +139,7 @@ func bearReplaceContentAcceptsEmptyNewStringForStringReplacement() async throws 
                         "old_string": .string("#test"),
                         "new_string": .string(""),
                         "occurrence": .string("one"),
+                        "expected_version": .int(999),
                     ]),
                 ]),
             ]
@@ -498,6 +499,7 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
                         "selected": .bool(true),
                         "kind": .string("body"),
                         "new_string": .string("Updated"),
+                        "expected_version": .int(3),
                     ]),
                 ]),
             ]
@@ -508,6 +510,82 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         let replaceCall = try #require(await writeTransport.replaceCalls.first)
         #expect(replaceCall.noteID == "note-1")
         #expect(await writeTransport.selectedNoteResolutionCount == 1)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
+func bearReplaceContentBodyRejectsMissingExpectedVersion() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(version: 3, createdAt: Date(), modifiedAt: Date()),
+        title: "Test Note",
+        body: "Body",
+        rawText: "# Test Note\n\nBody",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: MCPToolRecordingWriteTransport(),
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let result = try await client.callTool(
+            name: "bear_replace_content",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "kind": .string("body"),
+                        "new_string": .string("Updated"),
+                    ]),
+                ]),
+            ]
+        )
+
+        #expect(result.isError == true)
     } catch {
         await server.stop()
         await client.disconnect()
