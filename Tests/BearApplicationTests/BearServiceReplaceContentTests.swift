@@ -13,10 +13,18 @@ func replaceContentBodyPreservesTemplateWrapper() async throws {
         tags: ["0-inbox"]
     )
     let transport = ReplaceContentRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: note.body,
+        replaceEligible: true
+    )
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: true),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
         writeTransport: transport,
+        noteContextStore: noteContextStore,
         logger: Logger(label: "BearServiceReplaceContentTests")
     )
 
@@ -71,6 +79,112 @@ func replaceContentBodyRequiresExpectedVersion() async throws {
 }
 
 @Test
+func replaceContentBodyRejectsUntrustedExpectedVersionEvenWhenCurrentVersionMatches() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            expectedVersion: note.revision.version,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let receipt = try #require(receipts.first)
+    #expect(receipt.status == "invalid")
+    #expect(receipt.conflict?.reason == "expected_version_not_replace_eligible")
+    #expect(receipt.conflict?.resolution == .readNoteAgain)
+}
+
+@Test
+func replaceContentBodyAcceptsTrustedCurrentVersionWithoutCachedSnapshot() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.markReplaceEligible(noteID: note.ref.identifier, version: note.revision.version)
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            expectedVersion: note.revision.version,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(receipts.first?.status == "updated")
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\nLine 2")
+}
+
+@Test
+func replaceContentBodyRequiresReadAgainWhenTrustedVersionMismatchesWithoutCachedSnapshot() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.markReplaceEligible(noteID: note.ref.identifier, version: note.revision.version - 1)
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Line 2",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let receipt = try #require(receipts.first)
+    #expect(receipt.status == "conflict")
+    #expect(receipt.conflict?.reason == "version_mismatch")
+    #expect(receipt.conflict?.resolution == .readNoteAgain)
+    #expect(receipt.conflict?.conflictToken == nil)
+}
+
+@Test
 func replaceContentBodyRejectsStaleExpectedVersion() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",
@@ -79,7 +193,7 @@ func replaceContentBodyRejectsStaleExpectedVersion() async throws {
         tags: ["0-inbox"]
     )
     let noteContextStore = BearNoteReadContextStore()
-    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0")
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0", replaceEligible: true)
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
@@ -181,7 +295,7 @@ func replaceContentBodyRejectsStaleExpectedVersionWithoutLeakingCurrentVersion()
         tags: ["0-inbox"]
     )
     let noteContextStore = BearNoteReadContextStore()
-    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0")
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Line 0", replaceEligible: true)
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
@@ -221,7 +335,7 @@ func replaceContentBodyAcceptsSingleRetryConflictTokenForSameRequestedBody() asy
         tags: ["0-inbox"]
     )
     let noteContextStore = BearNoteReadContextStore()
-    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Previous line")
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: "Previous line", replaceEligible: true)
     let transport = ReplaceContentRecordingWriteTransport()
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
@@ -257,6 +371,51 @@ func replaceContentBodyAcceptsSingleRetryConflictTokenForSameRequestedBody() asy
     ])
 
     #expect(retryReceipts.first?.status == "updated")
+    #expect(retryReceipts.first?.version == 4)
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Inbox\n\nReplacement body")
+}
+
+@Test
+func replaceContentBodyAcceptsVersionDriftWhenCurrentContentMatchesTrustedSnapshot() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Current line",
+        tags: ["0-inbox"]
+    )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: "note-1",
+        version: note.revision.version - 1,
+        content: "Current line",
+        replaceEligible: true
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    let receipts = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .body,
+            oldString: nil,
+            occurrence: nil,
+            newString: "Replacement body",
+            expectedVersion: note.revision.version - 1,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(receipts.first?.status == "updated")
+    #expect(receipts.first?.conflict == nil)
+    #expect(receipts.first?.version == 4)
+    #expect(noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: note.revision.version))
     let replaceCall = try #require(await transport.replaceCalls.first)
     #expect(replaceCall.fullText == "# Inbox\n\nReplacement body")
 }
@@ -272,7 +431,7 @@ func replaceContentBodyRejectsTooLargeConflictSummaryWithoutToken() async throws
         tags: ["0-inbox"]
     )
     let noteContextStore = BearNoteReadContextStore()
-    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: previousLines)
+    noteContextStore.remember(noteID: "note-1", version: note.revision.version - 1, content: previousLines, replaceEligible: true)
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
@@ -312,7 +471,8 @@ func replaceContentBodyTreatsLiteralEllipsisAsSmallConflictNotTruncation() async
     noteContextStore.remember(
         noteID: "note-1",
         version: note.revision.version - 1,
-        content: "Alpha line\nBeta line\nGamma line\n\nPlease edit this note before the next tool call."
+        content: "Alpha line\nBeta line\nGamma line\n\nPlease edit this note before the next tool call.",
+        replaceEligible: true
     )
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
@@ -384,10 +544,18 @@ func replaceContentEmptyTemplatedBodyPreservesExistingSingleNewlineTitleSeparato
         tags: ["0-inbox"]
     )
     let transport = ReplaceContentRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: "---\n#0-inbox\n---\nLine 1",
+        replaceEligible: true
+    )
     let service = BearService(
         configuration: makeReplaceContentConfiguration(templateManagementEnabled: true),
         readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
         writeTransport: transport,
+        noteContextStore: noteContextStore,
         logger: Logger(label: "BearServiceReplaceContentTests")
     )
 
@@ -573,7 +741,7 @@ private actor ReplaceContentRecordingWriteTransport: BearWriteTransport {
 
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText))
-        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil)
+        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {

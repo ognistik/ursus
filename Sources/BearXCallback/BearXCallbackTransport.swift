@@ -97,7 +97,8 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: request.noteID,
             title: updated?.title ?? previous?.title,
             status: updated == nil ? "submitted" : "updated",
-            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt,
+            version: updated?.revision.version
         )
     }
 
@@ -126,7 +127,8 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: noteID,
             title: updated.title,
             status: "updated",
-            modifiedAt: updated.revision.modifiedAt
+            modifiedAt: updated.revision.modifiedAt,
+            version: updated.revision.version
         )
     }
 
@@ -145,7 +147,8 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: request.noteID,
             title: updated?.title ?? previous?.title,
             status: updated == nil ? "submitted" : "updated",
-            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt,
+            version: updated?.revision.version
         )
     }
 
@@ -213,7 +216,8 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: noteID,
             title: updated?.title ?? previous?.title,
             status: updated == nil ? "submitted" : "archived",
-            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt,
+            version: updated?.revision.version
         )
     }
 
@@ -242,7 +246,8 @@ public actor BearXCallbackTransport: BearWriteTransport {
             noteID: noteID,
             title: updated?.title ?? previous?.title,
             status: updated == nil ? "submitted" : "trashed",
-            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt
+            modifiedAt: updated?.revision.modifiedAt ?? previous?.revision.modifiedAt,
+            version: updated?.revision.version
         )
     }
 

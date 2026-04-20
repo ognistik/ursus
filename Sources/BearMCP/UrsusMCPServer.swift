@@ -757,7 +757,7 @@ private enum ToolCatalog {
             ),
             Tool(
                 name: "bear_get_notes",
-                description: "Fetch full Bear note records for one or more selectors. Returned notes include the current Bear note `version` from Bear's database row revision field; use that `version` only as concurrency metadata for a later full-body replacement, not as a backup or snapshot identifier. Use this tool only when current note content, note version, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(backupDiscoverabilityHint(configuration: configuration))\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
+                description: "Fetch full Bear note records for one or more selectors. Returned notes include the current Bear note `version` from Bear's database row revision field; use that `version` as the trusted concurrency token for a later full-body replacement or for descendant mutation receipts that continue the same full-note lineage, not as a backup or snapshot identifier. Use this tool only when current note content, note version, attachment metadata, or other full-note fields are needed. Attachment OCR/search text is omitted unless `include_attachment_text` is `true`. Do not call it only to resolve a selector before a note-targeting mutation; those tools already resolve selectors server-side. Selectors are matched as exact note ids first, then exact case-insensitive titles.\(backupDiscoverabilityHint(configuration: configuration))\(selectedNoteDescriptionSuffix(selectedNoteSupported))",
                 inputSchema: .object([
                     "type": .string("object"),
                     "properties": .object(getNotesInputProperties(configuration: configuration, selectedNoteSupported: selectedNoteSupported)),
@@ -898,7 +898,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_tags",
-                description: "Add one or more tags to specific Bear notes. This affects only the targeted notes; it does not rename or delete tags globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current tags are actually needed.",
+                description: "Add one or more tags to specific Bear notes. This affects only the targeted notes; it does not rename or delete tags globally. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current tags are actually needed.\(trustedMutationVersionReceiptHint())",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -912,7 +912,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_remove_tags",
-                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace.",
+                description: "Remove one or more literal tags from specific Bear notes without deleting the tag globally from Bear. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first only when the exact current literal tags are actually needed. The server removes matching literal tag tokens anywhere in the editable note body, including template tag slots when present, and then cleans up whitespace.\(trustedMutationVersionReceiptHint())",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "tags": .object([
@@ -926,7 +926,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_apply_template",
-                description: "Apply the current template to one or more Bear notes and normalize tag-only clusters into the template `{{tags}}` slot. It preserves inline prose hashtags, returns compact receipts, and fails clearly if `template.md` is missing or invalid.",
+                description: "Apply the current template to one or more Bear notes and normalize tag-only clusters into the template `{{tags}}` slot. It preserves inline prose hashtags, returns compact receipts, and fails clearly if `template.md` is missing or invalid.\(trustedMutationVersionReceiptHint())",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                 ].merging(selectedNoteOperationProperty(selectedNoteSupported: selectedNoteSupported), uniquingKeysWith: { current, _ in current }),
@@ -957,7 +957,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_insert_text",
-                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `text`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.",
+                description: "Insert text into one or more Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `text`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.\(trustedMutationVersionReceiptHint())",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "text": .object([
@@ -976,13 +976,13 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_replace_content",
-                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: body`, provide `expected_version` from the latest `bear_get_notes` read of that same note, unless you are retrying a previous version-mismatch conflict with a server-issued `conflict_token`. For `kind: title`, omit `old_string` and `occurrence`. `expected_version` and `conflict_token` are ignored for `kind: title` and `kind: string`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or current note version is not already known.",
+                description: "Replace Bear note content while preserving note structure. For each operation, provide exactly one note target: `note` or `selected: true`. Provide `kind` and `new_string`. For `kind: string`, also provide `old_string` and `occurrence`. For `kind: body`, provide `expected_version` from the latest trusted full-note lineage for that note unless you are retrying a previous version-mismatch conflict with a server-issued `conflict_token`. For `kind: title`, omit `old_string` and `occurrence`. `expected_version` and `conflict_token` are ignored for `kind: title` and `kind: string`. Do not call `bear_get_notes` only to resolve the note selector; this tool already resolves selectors server-side. Use `bear_get_notes` first when the exact current text or current note version is not already known.",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "kind": .object([
                         "type": .string("string"),
                         "enum": .array([.string("title"), .string("body"), .string("string")]),
-                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body and normally requires `expected_version` from the latest `bear_get_notes` read, unless a prior conflict receipt supplied a valid `conflict_token`. `string` replaces exact text within the editable body only."),
+                        "description": .string("Required replacement kind. `title` replaces only the note title. `body` replaces the full editable body and normally requires `expected_version` from the latest trusted full-note lineage for that note, unless a prior conflict receipt supplied a valid `conflict_token`. `string` replaces exact text within the editable body only."),
                     ]),
                     "old_string": .object([
                         "type": .string("string"),
@@ -999,7 +999,7 @@ private enum ToolCatalog {
                     ]),
                     "expected_version": .object([
                         "type": .string("integer"),
-                        "description": .string("Use this with `kind: body`; pass the exact `version` returned by the latest `bear_get_notes` read of the same note. It is required for ordinary full-body replacement, but you may omit it when retrying a version conflict with a valid server-issued `conflict_token`. For `kind: title` and `kind: string`, this field is ignored."),
+                        "description": .string("Use this with `kind: body`; pass the exact `version` returned by the latest `bear_get_notes` read of the same note, by `bear_create_notes` for that created note, or by a later verified note-mutation receipt that descended from one of those full-note results. It is required for ordinary full-body replacement, but you may omit it when retrying a version conflict with a valid server-issued `conflict_token`. For `kind: title` and `kind: string`, this field is ignored."),
                     ]),
                     "conflict_token": .object([
                         "type": .string("string"),
@@ -1011,7 +1011,7 @@ private enum ToolCatalog {
             ),
             batchedMutationTool(
                 name: "bear_add_files",
-                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `file_path`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.",
+                description: "Attach one or more local files to Bear notes. `note` accepts a selector matched as exact note id first, then exact case-insensitive title. For each operation, use exactly one note target: `note` or `selected: true`. Provide `file_path`. Use exactly one insertion mode: relative `target`, or `position`/default-position mode. If `target` is present, omit `position` and insert before or after a matching heading or exact editable-content string. If `target` is omitted, `position` controls top or bottom placement; if `position` is also omitted, `position` = `\(configuration.defaultInsertPosition.rawValue)`.\(trustedMutationVersionReceiptHint())",
                 operationProperties: [
                     "note": noteSelectorProperty(selectedNoteSupported: selectedNoteSupported),
                     "file_path": .object([
@@ -1445,7 +1445,7 @@ private enum ToolCatalog {
     }
 
     private static func createNotesDescription(configuration: BearConfiguration) -> String {
-        let base = "Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title. Omit `tags` unless the user explicitly wants tags added. Do not infer or invent tags unless the user explicitly asks for tags. Configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. When Ursus can verify the created Bear note immediately, the creation receipt may also include the note's current Bear `version`, whether the note was opened, and whether it opened in the main Bear window or a new window."
+        let base = "Create one or more Bear notes. `content` is required, must be non-empty, and must not include or repeat the title. Omit `tags` unless the user explicitly wants tags added. Do not infer or invent tags unless the user explicitly asks for tags. Configured inbox tags = \(formattedTagList(configuration.inboxTags)); omitted tag-merge behavior \(formattedCreateTagMergeBehavior(configuration)). If the user only asks to add a tag, pass `tags` and omit `use_only_request_tags`. When Ursus can verify the created Bear note immediately, the creation receipt may also include the note's current Bear `version`, whether the note was opened, and whether it opened in the main Bear window or a new window. That verified create `version` starts the trusted full-note lineage that later note-mutation receipts and full-body replacements may continue."
         let openingBehavior = if configuration.createOpensNoteByDefault {
             " Created notes open automatically after creation."
         } else {
@@ -1453,5 +1453,9 @@ private enum ToolCatalog {
         }
 
         return "\(base)\(openingBehavior)"
+    }
+
+    private static func trustedMutationVersionReceiptHint() -> String {
+        " Verified receipts may also include the new Bear `version`, but only when the targeted note already descends from a prior `bear_get_notes` or `bear_create_notes` full-note lineage; cold note mutations do not start that lineage on their own."
     }
 }

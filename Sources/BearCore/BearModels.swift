@@ -1364,13 +1364,15 @@ public struct RestoreBackupReceipt: Codable, Hashable, Sendable {
     public let title: String?
     public let status: String
     public let modifiedAt: Date?
+    public let version: Int?
     public let snapshotID: String
 
-    public init(noteID: String, title: String?, status: String, modifiedAt: Date?, snapshotID: String) {
+    public init(noteID: String, title: String?, status: String, modifiedAt: Date?, version: Int? = nil, snapshotID: String) {
         self.noteID = noteID
         self.title = title
         self.status = status
         self.modifiedAt = modifiedAt
+        self.version = version
         self.snapshotID = snapshotID
     }
 }
@@ -1406,6 +1408,7 @@ public struct NoteTagMutationReceipt: Codable, Hashable, Sendable {
     public let title: String?
     public let status: String
     public let modifiedAt: Date?
+    public let version: Int?
     public let addedTags: [String]
     public let removedTags: [String]
     public let skippedTags: [String]
@@ -1415,6 +1418,7 @@ public struct NoteTagMutationReceipt: Codable, Hashable, Sendable {
         title: String?,
         status: String,
         modifiedAt: Date?,
+        version: Int? = nil,
         addedTags: [String],
         removedTags: [String],
         skippedTags: [String]
@@ -1423,6 +1427,7 @@ public struct NoteTagMutationReceipt: Codable, Hashable, Sendable {
         self.title = title
         self.status = status
         self.modifiedAt = modifiedAt
+        self.version = version
         self.addedTags = addedTags
         self.removedTags = removedTags
         self.skippedTags = skippedTags
@@ -1434,6 +1439,7 @@ public struct ApplyTemplateReceipt: Codable, Hashable, Sendable {
     public let title: String?
     public let status: String
     public let modifiedAt: Date?
+    public let version: Int?
     public let appliedTags: [String]
 
     public init(
@@ -1441,12 +1447,14 @@ public struct ApplyTemplateReceipt: Codable, Hashable, Sendable {
         title: String?,
         status: String,
         modifiedAt: Date?,
+        version: Int? = nil,
         appliedTags: [String]
     ) {
         self.noteID = noteID
         self.title = title
         self.status = status
         self.modifiedAt = modifiedAt
+        self.version = version
         self.appliedTags = appliedTags
     }
 }

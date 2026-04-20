@@ -8,10 +8,18 @@ import Testing
 func replaceContentResolvesExactCaseInsensitiveTitleSelector() async throws {
     let note = makeMutationSelectorNote(id: "note-1", title: "Inbox", body: "Line 1")
     let transport = MutationSelectorRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: "Line 1",
+        replaceEligible: true
+    )
     let service = BearService(
         configuration: makeMutationSelectorConfiguration(),
         readStore: MutationSelectorReadStore(noteByID: ["note-1": note], notesByTitle: ["inbox": [note]]),
         writeTransport: transport,
+        noteContextStore: noteContextStore,
         logger: Logger(label: "BearServiceMutationSelectorTests")
     )
 

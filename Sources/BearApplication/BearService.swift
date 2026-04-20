@@ -288,7 +288,8 @@ public final class BearService: @unchecked Sendable {
             noteContextStore.remember(
                 noteID: fetched.noteID,
                 version: fetched.version,
-                content: fetched.content
+                content: fetched.content,
+                replaceEligible: true
             )
             return fetched
         }
@@ -348,7 +349,8 @@ public final class BearService: @unchecked Sendable {
                 noteContextStore.remember(
                     noteID: noteID,
                     version: version,
-                    content: sanitizedContent
+                    content: sanitizedContent,
+                    replaceEligible: true
                 )
             }
             receipts.append(receipt)
@@ -440,21 +442,38 @@ public final class BearService: @unchecked Sendable {
                     newContent: updatedContent,
                     template: noteTemplate
                 )
-                return try await self.writeTransport.replaceAll(
+                let receipt = try await self.writeTransport.replaceAll(
                     noteID: note.ref.identifier,
                     fullText: updatedRawText,
                     presentation: Self.backgroundMutationPresentation
+                )
+                return try self.receiptWithTrustedVersion(
+                    receipt,
+                    priorNote: note,
+                    resultingContent: updatedContent,
+                    template: noteTemplate
                 )
             }
 
             try await self.captureBackupIfNeeded(for: note, reason: .insertText)
             guard let templateMatch = plan.templateMatch else {
-                return try await self.writeTransport.insertText(
+                let updatedContent = self.insertedContent(
+                    byApplying: request.text,
+                    to: plan.content,
+                    position: self.resolvedInsertPosition(request.position)
+                )
+                let receipt = try await self.writeTransport.insertText(
                     InsertTextRequest(
                         noteID: note.ref.identifier,
                         text: request.text,
                         position: self.resolvedInsertPosition(request.position)
                     )
+                )
+                return try self.receiptWithTrustedVersion(
+                    receipt,
+                    priorNote: note,
+                    resultingContent: updatedContent,
+                    template: noteTemplate
                 )
             }
 
@@ -471,10 +490,16 @@ public final class BearService: @unchecked Sendable {
             )
             let updatedRawText = self.composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
 
-            return try await self.writeTransport.replaceAll(
+            let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedRawText,
                 presentation: Self.backgroundMutationPresentation
+            )
+            return try self.receiptWithTrustedVersion(
+                receipt,
+                priorNote: note,
+                resultingContent: updatedContent,
+                template: noteTemplate
             )
         }
     }
@@ -495,11 +520,18 @@ public final class BearService: @unchecked Sendable {
             }
 
             try await self.captureBackupIfNeeded(for: note, reason: .replaceContent)
+            let updatedContent = try self.updatedEditableContent(note: note, request: request, template: noteTemplate)
             let updatedText = try self.updatedRawText(note: note, request: request, template: noteTemplate)
-            return try await self.writeTransport.replaceAll(
+            let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
                 fullText: updatedText,
                 presentation: Self.backgroundMutationPresentation
+            )
+            return try self.receiptWithTrustedVersion(
+                receipt,
+                priorNote: note,
+                resultingContent: updatedContent,
+                template: noteTemplate
             )
         }
     }
@@ -522,7 +554,7 @@ public final class BearService: @unchecked Sendable {
                     target: target
                 )
                 try await self.captureBackupIfNeeded(for: note, reason: .addFile)
-                return try await self.addFileUsingAnchorFlow(
+                let result = try await self.addFileUsingAnchorFlow(
                     note: note,
                     plan: plan,
                     template: noteTemplate,
@@ -530,17 +562,29 @@ public final class BearService: @unchecked Sendable {
                     updatedContent: anchoredContent,
                     anchor: anchor
                 )
+                return try self.receiptWithTrustedVersion(
+                    result.receipt,
+                    priorNote: note,
+                    resultingContent: result.updatedContent,
+                    template: noteTemplate
+                )
             }
 
             try await self.captureBackupIfNeeded(for: note, reason: .addFile)
             guard let templateMatch = plan.templateMatch else {
-                return try await self.writeTransport.addFile(
+                let receipt = try await self.writeTransport.addFile(
                     AddFileRequest(
                         noteID: note.ref.identifier,
                         filePath: request.filePath,
                         header: request.header,
                         position: self.resolvedInsertPosition(request.position)
                     )
+                )
+                return try self.receiptWithTrustedVersion(
+                    receipt,
+                    priorNote: note,
+                    resultingContent: nil,
+                    template: noteTemplate
                 )
             }
 
@@ -550,13 +594,19 @@ public final class BearService: @unchecked Sendable {
                 to: templateMatch.content,
                 position: self.resolvedInsertPosition(request.position)
             )
-            return try await self.addFileUsingAnchorFlow(
+            let result = try await self.addFileUsingAnchorFlow(
                 note: note,
                 plan: plan,
                 template: noteTemplate,
                 request: request,
                 updatedContent: anchoredContent,
                 anchor: anchor
+            )
+            return try self.receiptWithTrustedVersion(
+                result.receipt,
+                priorNote: note,
+                resultingContent: result.updatedContent,
+                template: noteTemplate
             )
         }
     }
@@ -628,6 +678,11 @@ public final class BearService: @unchecked Sendable {
                     title: note.title,
                     status: "unchanged",
                     modifiedAt: note.revision.modifiedAt,
+                    version: self.currentTrustedVersion(
+                        noteID: note.ref.identifier,
+                        version: note.revision.version,
+                        content: self.renderedContent(for: note, template: noteTemplate)
+                    ),
                     addedTags: outcome.addedTags,
                     removedTags: outcome.removedTags,
                     skippedTags: outcome.skippedTags
@@ -641,11 +696,20 @@ public final class BearService: @unchecked Sendable {
                 presentation: Self.backgroundMutationPresentation
             )
 
+            let trustedVersion = try self.trustedDescendantVersion(
+                noteID: note.ref.identifier,
+                priorVersion: note.revision.version,
+                priorContent: self.renderedContent(for: note, template: noteTemplate),
+                newVersion: receipt.version,
+                resultingContent: outcome.updatedContent,
+                template: noteTemplate
+            )
             return NoteTagMutationReceipt(
                 noteID: note.ref.identifier,
                 title: receipt.title ?? note.title,
                 status: receipt.status,
                 modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                version: trustedVersion,
                 addedTags: outcome.addedTags,
                 removedTags: outcome.removedTags,
                 skippedTags: outcome.skippedTags
@@ -673,6 +737,11 @@ public final class BearService: @unchecked Sendable {
                     title: note.title,
                     status: "unchanged",
                     modifiedAt: note.revision.modifiedAt,
+                    version: self.currentTrustedVersion(
+                        noteID: note.ref.identifier,
+                        version: note.revision.version,
+                        content: self.renderedContent(for: note, template: noteTemplate)
+                    ),
                     addedTags: outcome.addedTags,
                     removedTags: outcome.removedTags,
                     skippedTags: outcome.skippedTags
@@ -686,11 +755,20 @@ public final class BearService: @unchecked Sendable {
                 presentation: Self.backgroundMutationPresentation
             )
 
+            let trustedVersion = try self.trustedDescendantVersion(
+                noteID: note.ref.identifier,
+                priorVersion: note.revision.version,
+                priorContent: self.renderedContent(for: note, template: noteTemplate),
+                newVersion: receipt.version,
+                resultingContent: outcome.updatedContent,
+                template: noteTemplate
+            )
             return NoteTagMutationReceipt(
                 noteID: note.ref.identifier,
                 title: receipt.title ?? note.title,
                 status: receipt.status,
                 modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                version: trustedVersion,
                 addedTags: outcome.addedTags,
                 removedTags: outcome.removedTags,
                 skippedTags: outcome.skippedTags
@@ -714,6 +792,11 @@ public final class BearService: @unchecked Sendable {
                     title: note.title,
                     status: "unchanged",
                     modifiedAt: note.revision.modifiedAt,
+                    version: self.currentTrustedVersion(
+                        noteID: note.ref.identifier,
+                        version: note.revision.version,
+                        content: self.renderedContent(for: note, template: loadedTemplate)
+                    ),
                     appliedTags: outcome.appliedTags
                 )
             }
@@ -725,11 +808,20 @@ public final class BearService: @unchecked Sendable {
                 presentation: Self.backgroundMutationPresentation
             )
 
+            let trustedVersion = try self.trustedDescendantVersion(
+                noteID: note.ref.identifier,
+                priorVersion: note.revision.version,
+                priorContent: self.renderedContent(for: note, template: loadedTemplate),
+                newVersion: receipt.version,
+                resultingContent: outcome.updatedContent,
+                template: loadedTemplate
+            )
             return ApplyTemplateReceipt(
                 noteID: note.ref.identifier,
                 title: receipt.title ?? note.title,
                 status: "applied",
                 modifiedAt: receipt.modifiedAt ?? note.revision.modifiedAt,
+                version: trustedVersion,
                 appliedTags: outcome.appliedTags
             )
         }
@@ -817,6 +909,7 @@ public final class BearService: @unchecked Sendable {
 
     public func restoreBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
         let requests = try requireNonEmptyOperations(requests)
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
         return try await mutateEach(requests) { request in
             let note = try self.resolveNoteSelector(request.noteID)
             guard let snapshot = try await self.backupStore?.snapshot(
@@ -835,18 +928,28 @@ public final class BearService: @unchecked Sendable {
                 fullText: snapshot.rawText,
                 presentation: Self.backgroundMutationPresentation
             )
+            let trustedVersion = try self.trustedDescendantVersion(
+                noteID: note.ref.identifier,
+                priorVersion: note.revision.version,
+                priorContent: self.renderedContent(for: note, template: noteTemplate),
+                newVersion: receipt.version,
+                resultingContent: nil,
+                template: noteTemplate
+            )
             return RestoreBackupReceipt(
                 noteID: note.ref.identifier,
                 title: receipt.title ?? note.title,
                 status: receipt.status,
                 modifiedAt: receipt.modifiedAt,
+                version: trustedVersion,
                 snapshotID: snapshot.snapshotID
             )
         }
     }
 
     public func restoreCLIBackups(_ requests: [RestoreBackupRequest]) async throws -> [RestoreBackupReceipt] {
-        try await mutateEach(requests) { request in
+        let noteTemplate = try loadTemplate(at: BearPaths.noteTemplateURL)
+        return try await mutateEach(requests) { request in
             let note = try self.loadNote(id: request.noteID)
             guard let snapshot = try await self.backupStore?.snapshot(
                 noteID: note.ref.identifier,
@@ -864,11 +967,20 @@ public final class BearService: @unchecked Sendable {
                 fullText: snapshot.rawText,
                 presentation: Self.backgroundMutationPresentation
             )
+            let trustedVersion = try self.trustedDescendantVersion(
+                noteID: note.ref.identifier,
+                priorVersion: note.revision.version,
+                priorContent: self.renderedContent(for: note, template: noteTemplate),
+                newVersion: receipt.version,
+                resultingContent: nil,
+                template: noteTemplate
+            )
             return RestoreBackupReceipt(
                 noteID: note.ref.identifier,
                 title: receipt.title ?? note.title,
                 status: receipt.status,
                 modifiedAt: receipt.modifiedAt,
+                version: trustedVersion,
                 snapshotID: snapshot.snapshotID
             )
         }
@@ -932,6 +1044,33 @@ public final class BearService: @unchecked Sendable {
                 occurrence: occurrence
             )
             return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: updatedContent, template: template)
+        }
+    }
+
+    private func updatedEditableContent(note: BearNote, request: ReplaceContentRequest, template: String?) throws -> String {
+        try validateReplaceContentRequest(request)
+
+        let plan = replaceContentPlan(for: note, template: template)
+
+        switch request.kind {
+        case .title:
+            let newTitle = request.newString.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !newTitle.isEmpty else {
+                throw BearError.invalidInput("replace kind 'title' requires a non-empty new_string.")
+            }
+            return plan.content
+        case .body:
+            return request.newString
+        case .string:
+            let oldString = try requiredReplaceString(request.oldString, noteID: request.noteID)
+            let occurrence = try requiredReplaceOccurrence(request.occurrence, noteID: request.noteID)
+            return try replacedContent(
+                in: plan.content,
+                noteID: request.noteID,
+                oldString: oldString,
+                newString: request.newString,
+                occurrence: occurrence
+            )
         }
     }
 
@@ -1280,6 +1419,12 @@ public final class BearService: @unchecked Sendable {
                 )
             }
 
+            noteContextStore.remember(
+                noteID: note.ref.identifier,
+                version: note.revision.version,
+                content: currentContent,
+                replaceEligible: true
+            )
             return nil
         }
 
@@ -1300,7 +1445,36 @@ public final class BearService: @unchecked Sendable {
             )
         }
 
-        guard note.revision.version != expectedVersion else {
+        guard noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: expectedVersion) else {
+            return MutationReceipt(
+                noteID: note.ref.identifier,
+                title: note.title,
+                status: "invalid",
+                modifiedAt: note.revision.modifiedAt,
+                conflict: ReplaceConflictInfo(
+                    reason: "expected_version_not_replace_eligible",
+                    message: "replace kind 'body' requires expected_version from a trusted full-note lineage for note \(note.ref.identifier). Use bear_get_notes first, or continue from a verified version receipt that descends from an earlier bear_get_notes or bear_create_notes result.",
+                    resolution: .readNoteAgain,
+                    diffTooLarge: true,
+                    truncated: false,
+                    hunks: []
+                )
+            )
+        }
+
+        if note.revision.version == expectedVersion {
+            return nil
+        }
+
+        if let cachedContext = noteContextStore.context(noteID: note.ref.identifier, version: expectedVersion),
+           cachedContext.content == currentContent
+        {
+            noteContextStore.remember(
+                noteID: note.ref.identifier,
+                version: note.revision.version,
+                content: currentContent,
+                replaceEligible: true
+            )
             return nil
         }
 
@@ -1312,7 +1486,7 @@ public final class BearService: @unchecked Sendable {
                 modifiedAt: note.revision.modifiedAt,
                 conflict: ReplaceConflictInfo(
                     reason: "version_mismatch",
-                    message: "Note changed since the last bear_get_notes read. Call bear_get_notes again before retrying replace kind 'body'.",
+                    message: "Note changed since the trusted version receipt for this note, and Ursus no longer has the earlier editable content needed to summarize the differences. Call bear_get_notes again before retrying replace kind 'body'.",
                     resolution: .readNoteAgain,
                     diffTooLarge: true,
                     truncated: false,
@@ -1359,6 +1533,109 @@ public final class BearService: @unchecked Sendable {
                 hunks: summary.hunks
             )
         )
+    }
+
+    private func currentTrustedVersion(noteID: String, version: Int, content: String? = nil) -> Int? {
+        trustedBaselineVersion(noteID: noteID, version: version, content: content)
+    }
+
+    private func trustedBaselineVersion(noteID: String, version: Int, content: String?) -> Int? {
+        if noteContextStore.isReplaceEligible(noteID: noteID, version: version) {
+            return version
+        }
+
+        guard
+            let content,
+            let matchedVersion = noteContextStore.matchingReplaceEligibleVersion(noteID: noteID, content: content)
+        else {
+            return nil
+        }
+
+        BearDebugLog.append(
+            "note-context.rebase noteID=\(noteID) matchedTrustedVersion=\(matchedVersion) currentVersion=\(version)"
+        )
+        noteContextStore.remember(
+            noteID: noteID,
+            version: version,
+            content: content,
+            replaceEligible: true
+        )
+        return version
+    }
+
+    private func trustedDescendantVersion(
+        noteID: String,
+        priorVersion: Int,
+        priorContent: String?,
+        newVersion: Int?,
+        resultingContent: String?,
+        template: String?
+    ) throws -> Int? {
+        guard let newVersion else {
+            return nil
+        }
+
+        guard trustedBaselineVersion(noteID: noteID, version: priorVersion, content: priorContent) != nil else {
+            return nil
+        }
+
+        if let resultingContent {
+            noteContextStore.remember(
+                noteID: noteID,
+                version: newVersion,
+                content: resultingContent,
+                replaceEligible: true
+            )
+            return newVersion
+        }
+
+        noteContextStore.markReplaceEligible(noteID: noteID, version: newVersion)
+        if let capturedContent = try renderedContentSnapshot(noteID: noteID, version: newVersion, template: template) {
+            noteContextStore.remember(
+                noteID: noteID,
+                version: newVersion,
+                content: capturedContent,
+                replaceEligible: true
+            )
+        }
+
+        return newVersion
+    }
+
+    private func receiptWithTrustedVersion(
+        _ receipt: MutationReceipt,
+        priorNote: BearNote,
+        resultingContent: String?,
+        template: String?
+    ) throws -> MutationReceipt {
+        let priorContent = renderedContent(for: priorNote, template: template)
+        let trustedVersion = try trustedDescendantVersion(
+            noteID: priorNote.ref.identifier,
+            priorVersion: priorNote.revision.version,
+            priorContent: priorContent,
+            newVersion: receipt.version,
+            resultingContent: resultingContent,
+            template: template
+        )
+
+        return MutationReceipt(
+            noteID: receipt.noteID,
+            title: receipt.title,
+            status: receipt.status,
+            modifiedAt: receipt.modifiedAt,
+            version: trustedVersion,
+            opened: receipt.opened,
+            openedIn: receipt.openedIn,
+            conflict: receipt.conflict
+        )
+    }
+
+    private func renderedContentSnapshot(noteID: String, version: Int, template: String?) throws -> String? {
+        guard let note = try readStore.note(id: noteID), note.revision.version == version else {
+            return nil
+        }
+
+        return renderedContent(for: note, template: template)
     }
 
     private func requiredReplaceString(_ value: String?, noteID: String) throws -> String {
@@ -1840,7 +2117,7 @@ public final class BearService: @unchecked Sendable {
         request: AddFileRequest,
         updatedContent: String,
         anchor: AttachmentAnchor
-    ) async throws -> MutationReceipt {
+    ) async throws -> AddFileFlowResult {
         let internalPresentation = Self.backgroundMutationPresentation
         let anchoredRawText = self.rawTextByReplacingEditableContent(
             in: note,
@@ -1885,11 +2162,12 @@ public final class BearService: @unchecked Sendable {
             template: template
         )
 
-        return try await self.writeTransport.replaceAll(
+        let receipt = try await self.writeTransport.replaceAll(
             noteID: note.ref.identifier,
             fullText: cleanedRawText,
             presentation: internalPresentation
         )
+        return AddFileFlowResult(receipt: receipt, updatedContent: cleanedContent)
     }
 
     private func makeAttachmentAnchor() -> AttachmentAnchor {
@@ -2010,6 +2288,7 @@ public final class BearService: @unchecked Sendable {
             guard !addedTags.isEmpty else {
                 return NoteTagMutationOutcome(
                     updatedRawText: nil,
+                    updatedContent: nil,
                     addedTags: [],
                     removedTags: [],
                     skippedTags: skippedTags
@@ -2028,6 +2307,7 @@ public final class BearService: @unchecked Sendable {
             let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+                updatedContent: updatedRawText == note.rawText ? nil : updatedBody,
                 addedTags: addedTags,
                 removedTags: [],
                 skippedTags: skippedTags
@@ -2054,6 +2334,7 @@ public final class BearService: @unchecked Sendable {
             guard !removedTags.isEmpty else {
                 return NoteTagMutationOutcome(
                     updatedRawText: nil,
+                    updatedContent: nil,
                     addedTags: [],
                     removedTags: [],
                     skippedTags: skippedTags
@@ -2065,6 +2346,7 @@ public final class BearService: @unchecked Sendable {
             let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+                updatedContent: updatedRawText == note.rawText ? nil : updatedBody,
                 addedTags: [],
                 removedTags: removedTags,
                 skippedTags: skippedTags
@@ -2140,6 +2422,7 @@ public final class BearService: @unchecked Sendable {
 
         return ApplyTemplateOutcome(
             updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
+            updatedContent: updatedRawText == note.rawText ? nil : cleanedContent,
             appliedTags: mergedTags
         )
     }
@@ -2559,6 +2842,7 @@ public final class BearService: @unchecked Sendable {
 
     private struct NoteTagMutationOutcome {
         let updatedRawText: String?
+        let updatedContent: String?
         let addedTags: [String]
         let removedTags: [String]
         let skippedTags: [String]
@@ -2566,7 +2850,13 @@ public final class BearService: @unchecked Sendable {
 
     private struct ApplyTemplateOutcome {
         let updatedRawText: String?
+        let updatedContent: String?
         let appliedTags: [String]
+    }
+
+    private struct AddFileFlowResult {
+        let receipt: MutationReceipt
+        let updatedContent: String
     }
 
     private enum NoteTagMutationMode {

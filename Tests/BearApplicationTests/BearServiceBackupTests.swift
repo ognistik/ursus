@@ -467,7 +467,7 @@ func compareBackupsReturnsCompactDiffMetadata() async throws {
     #expect(comparison.titleChanged == false)
     #expect(comparison.hunks.isEmpty == false)
     #expect(comparison.truncated == true)
-    #expect(comparison.hunks.first?.currentExcerpt?.contains("... (+") == true)
+    #expect(comparison.hunks.first?.currentExcerpt?.contains("[+1 more lines omitted]") == true)
 }
 
 @Test
@@ -520,7 +520,7 @@ func compareBackupsReturnsFullChangedRegionsWhenRequested() async throws {
     #expect(comparison.truncated == false)
     #expect(hunk.currentLineCount == 7)
     #expect(hunk.currentExcerpt?.contains("Updated 7") == true)
-    #expect(hunk.currentExcerpt?.contains("... (+") == false)
+    #expect(hunk.currentExcerpt?.contains("[+") == false)
 }
 
 @Test

@@ -196,6 +196,102 @@ func insertTextRejectsAmbiguousRelativeStringTargetBeforeWriting() async throws 
     #expect(await transport.replaceCalls.isEmpty)
 }
 
+@Test
+func insertTextReturnsVersionOnlyWhenPriorVersionIsTrusted() async throws {
+    let note = makeInsertSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+
+    let coldTransport = InsertRecordingWriteTransport()
+    let coldService = BearService(
+        configuration: makeInsertConfiguration(templateManagementEnabled: false),
+        readStore: InsertReadStore(noteByID: ["note-1": note]),
+        writeTransport: coldTransport,
+        logger: Logger(label: "BearServiceInsertTests")
+    )
+
+    let coldReceipts = try await coldService.insertText([
+        InsertTextRequest(
+            noteID: "note-1",
+            text: "Line 2",
+            position: .bottom,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+    #expect(coldReceipts.first?.version == nil)
+
+    let trustedTransport = InsertRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: "Line 1",
+        replaceEligible: true
+    )
+    let trustedService = BearService(
+        configuration: makeInsertConfiguration(templateManagementEnabled: false),
+        readStore: InsertReadStore(noteByID: ["note-1": note]),
+        writeTransport: trustedTransport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceInsertTests")
+    )
+
+    let trustedReceipts = try await trustedService.insertText([
+        InsertTextRequest(
+            noteID: "note-1",
+            text: "Line 2",
+            position: .bottom,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(trustedReceipts.first?.version == 4)
+    #expect(noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: 4))
+    #expect(noteContextStore.context(noteID: note.ref.identifier, version: 4)?.content == "Line 1\nLine 2")
+}
+
+@Test
+func insertTextReturnsVersionWhenCurrentVersionDriftedButTrustedSnapshotContentMatches() async throws {
+    let note = makeInsertSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: ["0-inbox"]
+    )
+
+    let transport = InsertRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version - 1,
+        content: "Line 1",
+        replaceEligible: true
+    )
+    let service = BearService(
+        configuration: makeInsertConfiguration(templateManagementEnabled: false),
+        readStore: InsertReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceInsertTests")
+    )
+
+    let receipts = try await service.insertText([
+        InsertTextRequest(
+            noteID: "note-1",
+            text: "Line 2",
+            position: .bottom,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(receipts.first?.version == 4)
+    #expect(noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: note.revision.version))
+    #expect(noteContextStore.context(noteID: note.ref.identifier, version: note.revision.version)?.content == "Line 1")
+}
+
 private func makeInsertConfiguration(templateManagementEnabled: Bool) -> BearConfiguration {
     BearConfiguration(
         inboxTags: ["0-inbox"],
@@ -267,12 +363,12 @@ private actor InsertRecordingWriteTransport: BearWriteTransport {
 
     func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
         insertRequests.append(request)
-        return MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil)
+        return MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText, presentation: presentation))
-        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil)
+        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {

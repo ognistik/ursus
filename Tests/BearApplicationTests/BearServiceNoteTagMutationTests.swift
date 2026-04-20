@@ -281,6 +281,99 @@ func addTagsAppliesTemplateWhenEnabledAndNoTagClusterExists() async throws {
 }
 
 @Test
+func addTagsReturnsVersionOnlyWhenPriorVersionIsTrusted() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: []
+    )
+
+    let coldTransport = NoteTagRecordingWriteTransport()
+    let coldService = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: coldTransport,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let coldReceipts = try await coldService.addTags([
+        NoteTagsRequest(
+            noteID: "note-1",
+            tags: ["new-tag"],
+            presentation: BearPresentationOptions()
+        ),
+    ])
+    #expect(coldReceipts.first?.version == nil)
+
+    let trustedTransport = NoteTagRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: "Line 1",
+        replaceEligible: true
+    )
+    let trustedService = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: trustedTransport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let trustedReceipts = try await trustedService.addTags([
+        NoteTagsRequest(
+            noteID: "note-1",
+            tags: ["new-tag"],
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(trustedReceipts.first?.version == 4)
+    #expect(noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: 4))
+    #expect(noteContextStore.context(noteID: note.ref.identifier, version: 4)?.content == "Line 1\n#new-tag")
+}
+
+@Test
+func addTagsReturnsVersionWhenCurrentVersionDriftedButTrustedSnapshotContentMatches() async throws {
+    let note = makeNoteTagSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "Line 1",
+        tags: []
+    )
+
+    let transport = NoteTagRecordingWriteTransport()
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version - 1,
+        content: "Line 1",
+        replaceEligible: true
+    )
+    let service = BearService(
+        configuration: makeNoteTagConfiguration(templateManagementEnabled: false),
+        readStore: NoteTagReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        noteContextStore: noteContextStore,
+        logger: Logger(label: "BearServiceNoteTagMutationTests")
+    )
+
+    let receipts = try await service.addTags([
+        NoteTagsRequest(
+            noteID: "note-1",
+            tags: ["new-tag"],
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    #expect(receipts.first?.version == 4)
+    #expect(noteContextStore.isReplaceEligible(noteID: note.ref.identifier, version: note.revision.version))
+    #expect(noteContextStore.context(noteID: note.ref.identifier, version: note.revision.version)?.content == "Line 1")
+}
+
+@Test
 func addTagsFailsClearlyWhenTemplateIsMissingAndRequired() async throws {
     let note = makeNoteTagSourceNote(
         id: "note-1",
@@ -1037,7 +1130,7 @@ private actor NoteTagRecordingWriteTransport: BearWriteTransport {
 
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText))
-        return MutationReceipt(noteID: noteID, title: "Inbox", status: "updated", modifiedAt: nil)
+        return MutationReceipt(noteID: noteID, title: "Inbox", status: "updated", modifiedAt: nil, version: 4)
     }
 
     func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {

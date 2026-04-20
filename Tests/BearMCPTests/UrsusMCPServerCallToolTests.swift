@@ -529,6 +529,114 @@ func bearInsertTextDecodesRelativeTargetAndUsesReplaceAllFlow() async throws {
 }
 
 @Test(.timeLimit(.minutes(1)))
+func bearInsertTextReturnsVersionOnlyAfterTrustedGetNotesLineage() async throws {
+    let note = BearNote(
+        ref: NoteRef(identifier: "note-1"),
+        revision: NoteRevision(
+            version: 3,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: "Test Note",
+        body: "Line 1",
+        rawText: "# Test Note\n\nLine 1",
+        tags: ["test"],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let configuration = BearConfiguration(
+        inboxTags: ["0-inbox"],
+        defaultInsertPosition: .bottom,
+        templateManagementEnabled: false,
+        createOpensNoteByDefault: true,
+        openUsesNewWindowByDefault: true,
+        createAddsInboxTagsByDefault: true,
+        tagsMergeMode: .append,
+        defaultDiscoveryLimit: 20,
+        defaultSnippetLength: 280,
+        backupRetentionDays: 30
+    )
+    let writeTransport = MCPToolRecordingWriteTransport()
+    let service = BearService(
+        configuration: configuration,
+        readStore: MCPToolReadStore(note: note),
+        writeTransport: writeTransport,
+        logger: Logger(label: "UrsusMCPServerCallToolTests")
+    )
+
+    let (clientToServerRead, clientToServerWrite) = try FileDescriptor.pipe()
+    let (serverToClientRead, serverToClientWrite) = try FileDescriptor.pipe()
+    let serverTransport = StdioTransport(input: clientToServerRead, output: serverToClientWrite, logger: nil)
+    let clientTransport = StdioTransport(input: serverToClientRead, output: clientToServerWrite, logger: nil)
+
+    let server = await UrsusMCPServer(service: service, configuration: configuration).makeServer()
+    let client = Client(name: "BearMCPTestClient", version: "1.0")
+
+    do {
+        try await server.start(transport: serverTransport)
+        _ = try await client.connect(transport: clientTransport)
+
+        let coldResult = try await client.callTool(
+            name: "bear_insert_text",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "text": .string("Cold line"),
+                        "position": .string("bottom"),
+                    ]),
+                ]),
+            ]
+        )
+
+        let coldPayload = try decodedJSONArray(coldResult)
+        let coldReceipt = try #require(coldPayload.first)
+        #expect(coldReceipt["version"] == nil)
+
+        let getNotesResult = try await client.callTool(
+            name: "bear_get_notes",
+            arguments: [
+                "notes": .array([.string("Test Note")]),
+            ]
+        )
+        #expect(getNotesResult.isError != true)
+
+        let trustedResult = try await client.callTool(
+            name: "bear_insert_text",
+            arguments: [
+                "operations": .array([
+                    .object([
+                        "note": .string("Test Note"),
+                        "text": .string("Trusted line"),
+                        "position": .string("bottom"),
+                    ]),
+                ]),
+            ]
+        )
+
+        let trustedPayload = try decodedJSONArray(trustedResult)
+        let trustedReceipt = try #require(trustedPayload.first)
+        #expect(trustedReceipt["version"] as? Int == 4)
+    } catch {
+        await server.stop()
+        await client.disconnect()
+        try? clientToServerRead.close()
+        try? clientToServerWrite.close()
+        try? serverToClientRead.close()
+        try? serverToClientWrite.close()
+        throw error
+    }
+
+    await server.stop()
+    await client.disconnect()
+    try? clientToServerRead.close()
+    try? clientToServerWrite.close()
+    try? serverToClientRead.close()
+    try? serverToClientWrite.close()
+}
+
+@Test(.timeLimit(.minutes(1)))
 func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
     let note = BearNote(
         ref: NoteRef(identifier: "note-1"),
@@ -557,12 +665,20 @@ func bearReplaceContentAcceptsSelectedNoteTargetAndResolvesOnce() async throws {
         defaultSnippetLength: 280,
         backupRetentionDays: 30
     )
+    let noteContextStore = BearNoteReadContextStore()
+    noteContextStore.remember(
+        noteID: note.ref.identifier,
+        version: note.revision.version,
+        content: note.body,
+        replaceEligible: true
+    )
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(
         configuration: configuration,
         tokenStore: InMemoryBearTokenStore(token: "secret-token"),
         readStore: MCPToolReadStore(note: note),
         writeTransport: writeTransport,
+        noteContextStore: noteContextStore,
         logger: Logger(label: "UrsusMCPServerCallToolTests")
     )
 
@@ -727,7 +843,7 @@ func bearReplaceContentBodyReturnsConflictReceiptAndAcceptsConflictTokenRetry() 
         backupRetentionDays: 30
     )
     let noteContextStore = BearNoteReadContextStore()
-    noteContextStore.remember(noteID: "note-1", version: 2, content: "Previous body")
+    noteContextStore.remember(noteID: "note-1", version: 2, content: "Previous body", replaceEligible: true)
     let writeTransport = MCPToolRecordingWriteTransport()
     let service = BearService(
         configuration: configuration,
@@ -1312,16 +1428,16 @@ private actor MCPToolRecordingWriteTransport: BearWriteTransport {
     }
 
     func insertText(_ request: InsertTextRequest) async throws -> MutationReceipt {
-        MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil)
+        MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func replaceAll(noteID: String, fullText: String, presentation: BearPresentationOptions) async throws -> MutationReceipt {
         replaceCalls.append(ReplaceCall(noteID: noteID, fullText: fullText, presentation: presentation))
-        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil)
+        return MutationReceipt(noteID: noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func addFile(_ request: AddFileRequest) async throws -> MutationReceipt {
-        MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil)
+        MutationReceipt(noteID: request.noteID, title: nil, status: "updated", modifiedAt: nil, version: 4)
     }
 
     func open(_ request: OpenNoteRequest) async throws -> MutationReceipt {
