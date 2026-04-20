@@ -117,6 +117,38 @@ func databaseReaderUsesZOPTForNoteVersion() throws {
 }
 
 @Test
+func databaseReaderParsesFrontMatterAndExplicitTitleFromRawText() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-front-matter",
+            title: "Test Note",
+            rawText: """
+            ---
+            key1: This is a test
+            # Actually, I am just including some random text here.
+            ---
+            # Test Note
+            this is the body
+            """,
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 20
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+    let note = try #require(try reader.note(id: "note-front-matter"))
+
+    #expect(note.title == "Test Note")
+    #expect(note.hasExplicitTitle == true)
+    #expect(note.frontMatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(note.body == "this is the body")
+}
+
+@Test
 func databaseReaderRetriesTransientExclusiveLockAndEventuallySucceeds() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
@@ -553,6 +585,63 @@ func databaseReaderFindNotesSearchFieldsPreventTitleRankingBoosts() throws {
 
     #expect(batch.notes.map(\.ref.identifier) == ["note-2", "note-1"])
     #expect(batch.items.map(\.relevanceBucket) == [2, 8])
+}
+
+@Test
+func databaseReaderBodySearchIncludesFrontMatterButExcludesTitleAfterFrontMatter() throws {
+    let databaseURL = try makeTemporaryBearDatabaseURL()
+    try seedBearDatabase(at: databaseURL) { db in
+        try insertNote(
+            db,
+            pk: 1,
+            noteID: "note-front-matter",
+            title: "Test Note",
+            rawText: """
+            ---
+            key1: This is a test
+            ---
+            # Test Note
+            body stays ordinary
+            """,
+            archived: 0,
+            trashed: 0,
+            modifiedAt: 30
+        )
+    }
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+
+    let frontMatterBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: "This is a test",
+            textMode: .substring,
+            textTerms: ["This is a test"],
+            textNot: [],
+            searchFields: [.body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+    let titleOnlyBatch = try reader.findNotes(
+        FindNotesQuery(
+            text: "Test Note",
+            textMode: .substring,
+            textTerms: ["Test Note"],
+            textNot: [],
+            searchFields: [.body],
+            tagsAny: [],
+            tagsAll: [],
+            tagsNone: [],
+            location: .notes,
+            paging: DiscoveryPaging(limit: 10)
+        )
+    )
+
+    #expect(frontMatterBatch.notes.map(\.ref.identifier) == ["note-front-matter"])
+    #expect(titleOnlyBatch.notes.isEmpty)
 }
 
 @Test

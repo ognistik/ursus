@@ -90,6 +90,45 @@ func getNotesUsesTemplateStrippedCanonicalContentAndOmitsAttachmentTextByDefault
 }
 
 @Test
+func getNotesIncludesFrontMatterAndKeepsBodySeparate() throws {
+    let note = makeFetchedSourceNote(
+        id: "note-front-matter",
+        title: "Test Note",
+        body: "this is the body",
+        rawText: """
+        ---
+        key1: This is a test
+        # Actually, I am just including some random text here.
+        ---
+        # Test Note
+        this is the body
+        """,
+        tags: ["0-inbox"],
+        archived: false
+    )
+    let readStore = GetNotesReadStore(noteByID: ["note-front-matter": note])
+    let service = BearService(
+        configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
+        readStore: readStore,
+        writeTransport: GetNotesSilentWriteTransport(),
+        logger: Logger(label: "BearServiceGetNotesTests")
+    )
+
+    let notes = try service.getNotes(selectors: ["note-front-matter"], location: .notes)
+
+    let fetched = try #require(notes.first)
+    let payload = try encodedJSONObject(fetched)
+    let frontMatterPayload = try #require(payload["frontMatter"] as? [String: Any])
+    #expect(fetched.title == "Test Note")
+    #expect(fetched.hasExplicitTitle == true)
+    #expect(fetched.content == "this is the body")
+    #expect(fetched.frontMatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(frontMatterPayload["content"] as? String == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(frontMatterPayload["raw"] == nil)
+    #expect(frontMatterPayload["keys"] == nil)
+}
+
+@Test
 func getNotesIncludesAttachmentTextWhenExplicitlyRequested() async throws {
     let note = makeFetchedSourceNote(
         id: "note-1",
@@ -349,13 +388,17 @@ private func makeFetchedSourceNote(
     modifiedAt: Date = Date(timeIntervalSince1970: 1_710_000_500)
 ) -> BearNote {
     let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
+    let resolvedRawText = rawText ?? BearText.composeRawText(title: title, body: body)
+    let parsed = BearText.parse(rawText: resolvedRawText, fallbackTitle: title)
 
     return BearNote(
         ref: NoteRef(identifier: id),
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
-        title: title,
-        body: body,
-        rawText: rawText ?? BearText.composeRawText(title: title, body: body),
+        title: parsed.titleLine ?? title,
+        hasExplicitTitle: parsed.hasExplicitTitle,
+        frontMatter: parsed.frontMatter,
+        body: parsed.body,
+        rawText: resolvedRawText,
         tags: tags,
         archived: archived,
         trashed: trashed,

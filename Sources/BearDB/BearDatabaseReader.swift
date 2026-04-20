@@ -550,10 +550,35 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
     }
 
     private func bodySearchExpression(rawTextExpression: String, titleExpression: String) -> String {
+        let frontMatterPrefix = """
+        SUBSTR(
+            \(rawTextExpression),
+            1,
+            5 + INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) + 3
+        )
         """
+        let normalizedRemainderAfterFrontMatter = """
+        LTRIM(
+            SUBSTR(
+                \(rawTextExpression),
+                5 + INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) + 4
+            ),
+            CHAR(10)
+        )
+        """
+        let frontMatterAwareBody = """
+        CASE
+            WHEN \(normalizedRemainderAfterFrontMatter) = '# ' || COALESCE(\(titleExpression), '') THEN \(frontMatterPrefix)
+            WHEN \(normalizedRemainderAfterFrontMatter) LIKE '# ' || COALESCE(\(titleExpression), '') || CHAR(10) || '%' THEN \(frontMatterPrefix) || LTRIM(SUBSTR(\(normalizedRemainderAfterFrontMatter), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3), CHAR(10))
+            ELSE \(rawTextExpression)
+        END
+        """
+        return """
         CASE
             WHEN \(rawTextExpression) = '# ' || COALESCE(\(titleExpression), '') THEN ''
-            WHEN \(rawTextExpression) LIKE '# ' || COALESCE(\(titleExpression), '') || char(10) || '%' THEN SUBSTR(\(rawTextExpression), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3)
+            WHEN \(rawTextExpression) LIKE '# ' || COALESCE(\(titleExpression), '') || char(10) || '%' THEN LTRIM(SUBSTR(\(rawTextExpression), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3), CHAR(10))
+            WHEN SUBSTR(\(rawTextExpression), 1, 4) = '---' || CHAR(10)
+                 AND INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) > 0 THEN \(frontMatterAwareBody)
             ELSE \(rawTextExpression)
         END
         """
@@ -734,6 +759,7 @@ private struct NoteRow: FetchableRecord, Decodable {
         let resolvedTitle = title ?? ""
         let resolvedRawText = rawText ?? BearText.composeRawText(title: resolvedTitle, body: "")
         let parsedText = BearText.parse(rawText: resolvedRawText, fallbackTitle: resolvedTitle)
+        let effectiveTitle = parsedText.titleLine ?? resolvedTitle
 
         return BearNote(
             ref: NoteRef(identifier: noteID),
@@ -742,7 +768,9 @@ private struct NoteRow: FetchableRecord, Decodable {
                 createdAt: Date(timeIntervalSinceReferenceDate: creationDate ?? modificationDate ?? 0),
                 modifiedAt: Date(timeIntervalSinceReferenceDate: modificationDate ?? 0)
             ),
-            title: resolvedTitle,
+            title: effectiveTitle,
+            hasExplicitTitle: parsedText.hasExplicitTitle,
+            frontMatter: parsedText.frontMatter,
             body: parsedText.body,
             rawText: resolvedRawText,
             tags: splitTags(tags),

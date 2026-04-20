@@ -287,6 +287,96 @@ func replaceContentTitleIgnoresExpectedVersion() async throws {
 }
 
 @Test
+func replaceContentFrontMatterReplacesAndNormalizesFenceWrappers() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Test Note",
+        body: "this is the body",
+        rawText: """
+        ---
+        key1: old value
+        ---
+        # Test Note
+        this is the body
+        """,
+        tags: []
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .frontMatter,
+            oldString: nil,
+            occurrence: nil,
+            newString: """
+            ---
+            key1: This is a test
+            # Actually, I am just including some random text here.
+            ---
+            """,
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(
+        replaceCall.fullText == """
+        ---
+        key1: This is a test
+        # Actually, I am just including some random text here.
+        ---
+        # Test Note
+        this is the body
+        """
+    )
+}
+
+@Test
+func replaceContentFrontMatterRemovesExistingBlockWhenNewStringIsEmpty() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Test Note",
+        body: "this is the body",
+        rawText: """
+        ---
+        key1: old value
+        ---
+        # Test Note
+        this is the body
+        """,
+        tags: []
+    )
+    let transport = ReplaceContentRecordingWriteTransport()
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: transport,
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    _ = try await service.replaceContent([
+        ReplaceContentRequest(
+            noteID: "note-1",
+            kind: .frontMatter,
+            oldString: nil,
+            occurrence: nil,
+            newString: "",
+            presentation: BearPresentationOptions()
+        ),
+    ])
+
+    let replaceCall = try #require(await transport.replaceCalls.first)
+    #expect(replaceCall.fullText == "# Test Note\nthis is the body")
+}
+
+@Test
 func replaceContentBodyRejectsStaleExpectedVersionWithoutLeakingCurrentVersion() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",
@@ -691,13 +781,17 @@ private func makeReplaceContentSourceNote(
 ) -> BearNote {
     let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
     let modifiedAt = Date(timeIntervalSince1970: 1_710_000_500)
+    let resolvedRawText = rawText ?? BearText.composeRawText(title: title, body: body)
+    let parsed = BearText.parse(rawText: resolvedRawText, fallbackTitle: title)
 
     return BearNote(
         ref: NoteRef(identifier: id),
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
-        title: title,
-        body: body,
-        rawText: rawText ?? BearText.composeRawText(title: title, body: body),
+        title: parsed.titleLine ?? title,
+        hasExplicitTitle: parsed.hasExplicitTitle,
+        frontMatter: parsed.frontMatter,
+        body: parsed.body,
+        rawText: resolvedRawText,
         tags: tags,
         archived: false,
         trashed: false,

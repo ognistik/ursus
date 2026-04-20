@@ -92,6 +92,59 @@ func findNotesUsesConfiguredDefaultsAndTracksMatchedFields() throws {
 }
 
 @Test
+func findNotesSummariesExposeFrontMatterMetadataSeparatelyFromBodySnippet() throws {
+    let rawText = """
+    ---
+    key1: This is a test
+    # Actually, I am just including some random text here.
+    ---
+    # Test Note
+    this is the body
+    """
+    let parsed = BearText.parse(rawText: rawText, fallbackTitle: "Test Note")
+    let note = BearNote(
+        ref: NoteRef(identifier: "front-matter-note"),
+        revision: NoteRevision(
+            version: 3,
+            createdAt: Date(timeIntervalSince1970: 1_710_000_000),
+            modifiedAt: Date(timeIntervalSince1970: 1_710_000_500)
+        ),
+        title: parsed.titleLine ?? "Test Note",
+        hasExplicitTitle: parsed.hasExplicitTitle,
+        frontMatter: parsed.frontMatter,
+        body: parsed.body,
+        rawText: rawText,
+        tags: [],
+        archived: false,
+        trashed: false,
+        encrypted: false
+    )
+    let readStore = DiscoveryReadStore(findBatches: [
+        DiscoveryNoteBatch(notes: [note], hasMore: false),
+    ])
+    let service = BearService(
+        configuration: makeDiscoveryConfiguration(inboxTags: ["0-inbox"], defaultSnippetLength: 24),
+        readStore: readStore,
+        writeTransport: SilentWriteTransport(),
+        logger: Logger(label: "BearServiceDiscoveryTests")
+    )
+
+    let batch = try service.findNotes([
+        FindNotesOperation(text: "random text", location: .notes),
+    ])
+
+    let summary = try #require(batch.results.first?.items?.first)
+    let payload = try encodedJSONObject(summary)
+    #expect(summary.title == "Test Note")
+    #expect(summary.snippet == "this is the body")
+    #expect(summary.hasFrontMatter == true)
+    #expect(summary.frontMatterSnippet == "key1: This is a test #…")
+    #expect(summary.matchedFields == [.frontMatter])
+    #expect(payload["hasFrontMatter"] as? Bool == true)
+    #expect(payload["frontMatterKeys"] == nil)
+}
+
+@Test
 func findNotesByTagSupportsAllMatchAndNormalizesTags() throws {
     let note = makeNote(
         id: "tag-1",
@@ -480,13 +533,17 @@ private func makeNote(
     modifiedAt: Date = Date(timeIntervalSince1970: 1_710_000_500)
 ) -> BearNote {
     let createdAt = Date(timeIntervalSince1970: 1_710_000_000)
+    let rawText = BearText.composeRawText(title: title, body: body)
+    let parsed = BearText.parse(rawText: rawText, fallbackTitle: title)
 
     return BearNote(
         ref: NoteRef(identifier: id),
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
-        title: title,
-        body: body,
-        rawText: BearText.composeRawText(title: title, body: body),
+        title: parsed.titleLine ?? title,
+        hasExplicitTitle: parsed.hasExplicitTitle,
+        frontMatter: parsed.frontMatter,
+        body: parsed.body,
+        rawText: rawText,
         tags: tags,
         archived: archived,
         trashed: false,

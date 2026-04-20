@@ -488,7 +488,13 @@ public final class BearService: @unchecked Sendable {
                 literalTags: templateMatch.literalTags,
                 template: noteTemplate
             )
-            let updatedRawText = self.composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+            let updatedRawText = self.composeRawTextPreservingStyle(
+                for: note,
+                title: note.title,
+                hasExplicitTitle: note.hasExplicitTitle,
+                body: updatedBody,
+                frontMatter: note.frontMatter
+            )
 
             let receipt = try await self.writeTransport.replaceAll(
                 noteID: note.ref.identifier,
@@ -1033,6 +1039,13 @@ public final class BearService: @unchecked Sendable {
             return try rawTextByReplacingTitle(in: note, plan: plan, newTitle: newTitle, template: template)
         case .body:
             return rawTextByReplacingEditableContent(in: note, plan: plan, newContent: request.newString, template: template)
+        case .frontMatter:
+            return rawTextByReplacingFrontMatter(
+                in: note,
+                plan: plan,
+                newFrontMatterContent: request.newString,
+                template: template
+            )
         case .string:
             let oldString = try requiredReplaceString(request.oldString, noteID: request.noteID)
             let occurrence = try requiredReplaceOccurrence(request.occurrence, noteID: request.noteID)
@@ -1061,6 +1074,8 @@ public final class BearService: @unchecked Sendable {
             return plan.content
         case .body:
             return request.newString
+        case .frontMatter:
+            return plan.content
         case .string:
             let oldString = try requiredReplaceString(request.oldString, noteID: request.noteID)
             let occurrence = try requiredReplaceOccurrence(request.occurrence, noteID: request.noteID)
@@ -1374,7 +1389,7 @@ public final class BearService: @unchecked Sendable {
 
     private func validateReplaceContentRequest(_ request: ReplaceContentRequest) throws {
         switch request.kind {
-        case .title, .body:
+        case .title, .body, .frontMatter:
             if request.oldString != nil {
                 throw BearError.invalidInput("replace kind '\(request.kind.rawValue)' does not accept old_string.")
             }
@@ -1660,23 +1675,38 @@ public final class BearService: @unchecked Sendable {
         return ReplaceContentPlan(content: canonicalBody(for: note), templateMatch: nil)
     }
 
+    private func rawTextByReplacingFrontMatter(
+        in note: BearNote,
+        plan: ReplaceContentPlan,
+        newFrontMatterContent: String,
+        template: String?
+    ) -> String {
+        let normalizedContent = BearText.normalizeFrontMatterReplacement(newFrontMatterContent)
+        let updatedFrontMatter = normalizedContent.isEmpty
+            ? nil
+            : BearFrontMatter(content: normalizedContent)
+        return composeRawTextPreservingStyle(
+            for: note,
+            title: note.title,
+            hasExplicitTitle: note.hasExplicitTitle,
+            body: renderedBody(for: note, plan: plan, content: plan.content, template: template),
+            frontMatter: updatedFrontMatter
+        )
+    }
+
     private func rawTextByReplacingTitle(
         in note: BearNote,
         plan: ReplaceContentPlan,
         newTitle: String,
         template: String?
     ) throws -> String {
-        if let template, let templateMatch = plan.templateMatch {
-            let updatedBody = renderedTemplateBody(
-                title: newTitle,
-                content: plan.content,
-                literalTags: templateMatch.literalTags,
-                template: template
-            )
-            return composeRawTextPreservingStyle(for: note, title: newTitle, body: updatedBody)
-        }
-
-        return composeRawTextPreservingStyle(for: note, title: newTitle, body: plan.content)
+        return composeRawTextPreservingStyle(
+            for: note,
+            title: newTitle,
+            hasExplicitTitle: true,
+            body: renderedBody(for: note, plan: plan, content: plan.content, template: template, titleOverride: newTitle),
+            frontMatter: note.frontMatter
+        )
     }
 
     private func rawTextByReplacingEditableContent(
@@ -1685,19 +1715,32 @@ public final class BearService: @unchecked Sendable {
         newContent: String,
         template: String?
     ) -> String {
-        let updatedBody: String
+        composeRawTextPreservingStyle(
+            for: note,
+            title: note.title,
+            hasExplicitTitle: note.hasExplicitTitle,
+            body: renderedBody(for: note, plan: plan, content: newContent, template: template),
+            frontMatter: note.frontMatter
+        )
+    }
+
+    private func renderedBody(
+        for note: BearNote,
+        plan: ReplaceContentPlan,
+        content: String,
+        template: String?,
+        titleOverride: String? = nil
+    ) -> String {
         if let template, let templateMatch = plan.templateMatch {
-            updatedBody = renderedTemplateBody(
-                title: note.title,
-                content: newContent,
+            return renderedTemplateBody(
+                title: titleOverride ?? note.title,
+                content: content,
                 literalTags: templateMatch.literalTags,
                 template: template
             )
-        } else {
-            updatedBody = newContent
         }
 
-        return composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+        return content
     }
 
     private func replacedContent(
@@ -1775,10 +1818,13 @@ public final class BearService: @unchecked Sendable {
 
         return try notes.map { note in
             let attachments = try readStore.attachments(noteID: note.ref.identifier)
+            let frontMatterSnippet = note.frontMatter.map { discoveryTextSnippet(for: $0.content, limit: min(resolvedSnippetLength, 120)) }
             return NoteSummary(
                 noteID: note.ref.identifier,
                 title: note.title,
                 snippet: discoverySnippet(for: note, template: noteTemplate, limit: resolvedSnippetLength),
+                hasFrontMatter: note.frontMatter != nil,
+                frontMatterSnippet: frontMatterSnippet?.isEmpty == false ? frontMatterSnippet : nil,
                 hasAttachments: attachments.isEmpty == false,
                 hasBackups: noteIDsWithBackups.map { $0.contains(note.ref.identifier) },
                 matchedFields: matchedFields(for: note, attachments: attachments, query: query),
@@ -1790,7 +1836,10 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func discoverySnippet(for note: BearNote, template: String?, limit: Int) -> String {
-        let source = renderedContent(for: note, template: template)
+        discoveryTextSnippet(for: renderedContent(for: note, template: template), limit: limit)
+    }
+
+    private func discoveryTextSnippet(for source: String, limit: Int) -> String {
         let normalized = source
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -1814,23 +1863,38 @@ public final class BearService: @unchecked Sendable {
         for note: BearNote,
         attachments: [NoteAttachment],
         query: FindNotesQuery
-    ) -> [FindSearchField]? {
+    ) -> [NoteMatchField]? {
         guard query.text != nil else {
             return nil
         }
 
         let attachmentText = attachments.compactMap(\.searchText).joined(separator: " ")
-        let candidates: [(FindSearchField, String)] = [
-            (.title, note.title),
-            (.body, canonicalBody(for: note)),
-            (.attachments, attachmentText),
-        ]
+        var fields: [NoteMatchField] = []
 
-        let fields = query.searchFields.filter { field in
-            guard let value = candidates.first(where: { $0.0 == field })?.1, !value.isEmpty else {
-                return false
+        if query.searchFields.contains(.title),
+           note.title.isEmpty == false,
+           positiveTextMatches(note.title, query: query) {
+            fields.append(.title)
+        }
+
+        if query.searchFields.contains(.body) {
+            let frontMatterContent = note.frontMatter?.content ?? ""
+            if frontMatterContent.isEmpty == false,
+               positiveTextMatches(frontMatterContent, query: query) {
+                fields.append(.frontMatter)
             }
-            return positiveTextMatches(value, query: query)
+
+            let bodyContent = canonicalBody(for: note)
+            if bodyContent.isEmpty == false,
+               positiveTextMatches(bodyContent, query: query) {
+                fields.append(.body)
+            }
+        }
+
+        if query.searchFields.contains(.attachments),
+           attachmentText.isEmpty == false,
+           positiveTextMatches(attachmentText, query: query) {
+            fields.append(.attachments)
         }
 
         return fields.isEmpty ? [] : fields
@@ -1846,6 +1910,8 @@ public final class BearService: @unchecked Sendable {
             return BearFetchedNote(
                 noteID: note.ref.identifier,
                 title: note.title,
+                hasExplicitTitle: note.hasExplicitTitle,
+                frontMatter: note.frontMatter,
                 content: "",
                 tags: note.tags,
                 createdAt: note.revision.createdAt,
@@ -1873,6 +1939,8 @@ public final class BearService: @unchecked Sendable {
         return BearFetchedNote(
             noteID: note.ref.identifier,
             title: note.title,
+            hasExplicitTitle: note.hasExplicitTitle,
+            frontMatter: note.frontMatter,
             content: renderedContent(for: note, template: template),
             tags: note.tags,
             createdAt: note.revision.createdAt,
@@ -2218,38 +2286,35 @@ public final class BearService: @unchecked Sendable {
         )
     }
 
-    private func composeRawTextForNormalizedTemplateBody(title: String, body: String) -> String {
+    private func composeRawTextForNormalizedTemplateBody(for note: BearNote, title: String, body: String) -> String {
         BearText.composeRawText(
             title: title,
+            hasExplicitTitle: note.hasExplicitTitle,
             body: body,
+            frontMatter: note.frontMatter,
             separator: "\n"
         )
     }
 
-    private func composeRawTextPreservingStyle(for note: BearNote, title: String, body: String) -> String {
+    private func composeRawTextPreservingStyle(
+        for note: BearNote,
+        title: String,
+        hasExplicitTitle: Bool,
+        body: String,
+        frontMatter: BearFrontMatter?
+    ) -> String {
         BearText.composeRawText(
             title: title,
+            hasExplicitTitle: hasExplicitTitle,
             body: body,
+            frontMatter: frontMatter,
             separator: preservedTitleBodySeparator(for: note)
         )
     }
 
     private func preservedTitleBodySeparator(for note: BearNote) -> String {
-        let normalizedRawText = normalizedLineEndings(note.rawText)
-        let titleLine = "# \(note.title)"
-
-        guard normalizedRawText.hasPrefix(titleLine) else {
-            return "\n\n"
-        }
-
-        let separatorStart = normalizedRawText.index(normalizedRawText.startIndex, offsetBy: titleLine.count)
-        var cursor = separatorStart
-        while cursor < normalizedRawText.endIndex, normalizedRawText[cursor] == "\n" {
-            cursor = normalizedRawText.index(after: cursor)
-        }
-
-        let separator = String(normalizedRawText[separatorStart..<cursor])
-        return separator.isEmpty ? "\n\n" : separator
+        let parsed = BearText.parse(rawText: normalizedLineEndings(note.rawText), fallbackTitle: note.title)
+        return parsed.titleBodySeparator
     }
 
     private func noteTagMutationOutcome(
@@ -2304,7 +2369,13 @@ public final class BearService: @unchecked Sendable {
                 templateLiteralTags: literalTags
             )
 
-            let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+            let updatedRawText = composeRawTextPreservingStyle(
+                for: note,
+                title: note.title,
+                hasExplicitTitle: note.hasExplicitTitle,
+                body: updatedBody,
+                frontMatter: note.frontMatter
+            )
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
                 updatedContent: updatedRawText == note.rawText ? nil : updatedBody,
@@ -2343,7 +2414,13 @@ public final class BearService: @unchecked Sendable {
 
             let updatedBody = rawBodyByRemovingTags(removableKeys, from: canonicalBody)
 
-            let updatedRawText = composeRawTextPreservingStyle(for: note, title: note.title, body: updatedBody)
+            let updatedRawText = composeRawTextPreservingStyle(
+                for: note,
+                title: note.title,
+                hasExplicitTitle: note.hasExplicitTitle,
+                body: updatedBody,
+                frontMatter: note.frontMatter
+            )
             return NoteTagMutationOutcome(
                 updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
                 updatedContent: updatedRawText == note.rawText ? nil : updatedBody,
@@ -2418,7 +2495,7 @@ public final class BearService: @unchecked Sendable {
             literalTags: mergedTags,
             template: template
         )
-        let updatedRawText = composeRawTextForNormalizedTemplateBody(title: note.title, body: updatedBody)
+        let updatedRawText = composeRawTextForNormalizedTemplateBody(for: note, title: note.title, body: updatedBody)
 
         return ApplyTemplateOutcome(
             updatedRawText: updatedRawText == note.rawText ? nil : updatedRawText,
@@ -2782,26 +2859,7 @@ public final class BearService: @unchecked Sendable {
     }
 
     private func canonicalBody(for note: BearNote) -> String {
-        let normalized = note.rawText
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let titleLine = "# \(note.title)"
-
-        let firstLine: String
-        let remainder: String
-        if let newlineIndex = normalized.firstIndex(of: "\n") {
-            firstLine = String(normalized[..<newlineIndex])
-            remainder = String(normalized[normalized.index(after: newlineIndex)...])
-        } else {
-            firstLine = normalized
-            remainder = ""
-        }
-
-        guard firstLine == titleLine else {
-            return normalized
-        }
-
-        return remainder.trimmingCharacters(in: .newlines)
+        note.body
     }
 
     private struct TemplateBodyMatch {
