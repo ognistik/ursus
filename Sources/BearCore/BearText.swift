@@ -1,7 +1,7 @@
 import Foundation
 
 public struct ParsedBearText: Hashable, Sendable {
-    public let frontMatter: BearFrontMatter?
+    public let frontmatter: BearFrontmatter?
     public let titleLine: String?
     public let hasExplicitTitle: Bool
     public let body: String
@@ -13,17 +13,17 @@ public enum BearText {
         let normalized = rawText
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
-        let extractedFrontMatter = extractFrontMatter(from: normalized)
-        let afterFrontMatter = extractedFrontMatter.map { text(after: $0.range, in: normalized) } ?? normalized
-        let postFrontMatter = trimmingLeadingNewlines(afterFrontMatter)
-        let lines = postFrontMatter.components(separatedBy: "\n")
+        let extractedFrontmatter = extractFrontmatter(from: normalized)
+        let afterFrontmatter = extractedFrontmatter.map { text(after: $0.range, in: normalized) } ?? normalized
+        let postFrontmatter = trimmingLeadingNewlines(afterFrontmatter)
+        let lines = postFrontmatter.components(separatedBy: "\n")
 
         guard let first = lines.first, first.hasPrefix("# ") else {
             return ParsedBearText(
-                frontMatter: extractedFrontMatter?.value,
+                frontmatter: extractedFrontmatter?.value,
                 titleLine: nil,
                 hasExplicitTitle: false,
-                body: postFrontMatter.trimmingCharacters(in: .whitespacesAndNewlines),
+                body: postFrontmatter.trimmingCharacters(in: .whitespacesAndNewlines),
                 titleBodySeparator: "\n\n"
             )
         }
@@ -36,11 +36,11 @@ public enum BearText {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return ParsedBearText(
-            frontMatter: extractedFrontMatter?.value,
+            frontmatter: extractedFrontmatter?.value,
             titleLine: parsedTitle.isEmpty ? fallbackTitle : parsedTitle,
             hasExplicitTitle: true,
             body: body,
-            titleBodySeparator: titleBodySeparator(from: postFrontMatter, titleLine: first)
+            titleBodySeparator: titleBodySeparator(from: postFrontmatter, titleLine: first)
         )
     }
 
@@ -53,7 +53,7 @@ public enum BearText {
             title: title,
             hasExplicitTitle: true,
             body: body,
-            frontMatter: nil,
+            frontmatter: nil,
             separator: separator
         )
     }
@@ -62,15 +62,15 @@ public enum BearText {
         title: String,
         hasExplicitTitle: Bool,
         body: String,
-        frontMatter: BearFrontMatter?,
+        frontmatter: BearFrontmatter?,
         separator: String
     ) -> String {
         let trimmedBody = body.trimmingCharacters(in: .whitespacesAndNewlines)
         let effectiveSeparator = separator.isEmpty ? "\n\n" : separator
         var parts: [String] = []
 
-        if let frontMatter, frontMatter.content.trimmingCharacters(in: .newlines).isEmpty == false {
-            parts.append(renderFrontMatterBlock(content: frontMatter.content))
+        if let frontmatter, frontmatter.content.trimmingCharacters(in: .newlines).isEmpty == false {
+            parts.append(renderFrontmatterBlock(content: frontmatter.content))
         }
 
         if hasExplicitTitle {
@@ -87,7 +87,7 @@ public enum BearText {
         return parts.joined(separator: "\n")
     }
 
-    public static func normalizeFrontMatterReplacement(_ content: String) -> String {
+    public static func normalizeFrontmatterReplacement(_ content: String) -> String {
         let normalized = content
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -100,7 +100,7 @@ public enum BearText {
         return lines.dropFirst().dropLast().joined(separator: "\n").trimmingCharacters(in: .newlines)
     }
 
-    public static func renderFrontMatterBlock(content: String) -> String {
+    public static func renderFrontmatterBlock(content: String) -> String {
         let normalizedContent = content
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -138,7 +138,7 @@ public enum BearText {
         return String(text[range.upperBound...])
     }
 
-    private static func extractFrontMatter(from rawText: String) -> (value: BearFrontMatter, range: Range<String.Index>)? {
+    private static func extractFrontmatter(from rawText: String) -> (value: BearFrontmatter, range: Range<String.Index>)? {
         guard rawText.components(separatedBy: "\n").first == "---" else {
             return nil
         }
@@ -160,7 +160,7 @@ public enum BearText {
 
             let content = lines.dropFirst().prefix(index - 1).joined(separator: "\n")
             return (
-                BearFrontMatter(content: content),
+                BearFrontmatter(content: content),
                 range
             )
         }

@@ -92,7 +92,7 @@ func findNotesUsesConfiguredDefaultsAndTracksMatchedFields() throws {
 }
 
 @Test
-func findNotesSummariesExposeFrontMatterMetadataSeparatelyFromBodySnippet() throws {
+func findNotesSummariesExposeFrontmatterMetadataSeparatelyFromBodySnippet() throws {
     let rawText = """
     ---
     key1: This is a test
@@ -103,7 +103,7 @@ func findNotesSummariesExposeFrontMatterMetadataSeparatelyFromBodySnippet() thro
     """
     let parsed = BearText.parse(rawText: rawText, fallbackTitle: "Test Note")
     let note = BearNote(
-        ref: NoteRef(identifier: "front-matter-note"),
+        ref: NoteRef(identifier: "frontmatter-note"),
         revision: NoteRevision(
             version: 3,
             createdAt: Date(timeIntervalSince1970: 1_710_000_000),
@@ -111,7 +111,7 @@ func findNotesSummariesExposeFrontMatterMetadataSeparatelyFromBodySnippet() thro
         ),
         title: parsed.titleLine ?? "Test Note",
         hasExplicitTitle: parsed.hasExplicitTitle,
-        frontMatter: parsed.frontMatter,
+        frontmatter: parsed.frontmatter,
         body: parsed.body,
         rawText: rawText,
         tags: [],
@@ -137,11 +137,11 @@ func findNotesSummariesExposeFrontMatterMetadataSeparatelyFromBodySnippet() thro
     let payload = try encodedJSONObject(summary)
     #expect(summary.title == "Test Note")
     #expect(summary.snippet == "this is the body")
-    #expect(summary.hasFrontMatter == true)
-    #expect(summary.frontMatterSnippet == "key1: This is a test #…")
-    #expect(summary.matchedFields == [.frontMatter])
-    #expect(payload["hasFrontMatter"] as? Bool == true)
-    #expect(payload["frontMatterKeys"] == nil)
+    #expect(summary.hasFrontmatter == true)
+    #expect(summary.frontmatterSnippet == "key1: This is a test #…")
+    #expect(summary.matchedFields == [.frontmatter])
+    #expect(payload["hasFrontmatter"] as? Bool == true)
+    #expect(payload["frontmatterKeys"] == nil)
 }
 
 @Test
@@ -541,7 +541,7 @@ private func makeNote(
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
         title: parsed.titleLine ?? title,
         hasExplicitTitle: parsed.hasExplicitTitle,
-        frontMatter: parsed.frontMatter,
+        frontmatter: parsed.frontmatter,
         body: parsed.body,
         rawText: rawText,
         tags: tags,

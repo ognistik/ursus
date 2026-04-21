@@ -20,7 +20,7 @@ public struct NoteRevision: Codable, Hashable, Sendable {
     }
 }
 
-public struct BearFrontMatter: Codable, Hashable, Sendable {
+public struct BearFrontmatter: Codable, Hashable, Sendable {
     public let content: String
 
     public init(content: String) {
@@ -33,7 +33,7 @@ public struct BearNote: Codable, Hashable, Sendable {
     public let revision: NoteRevision
     public let title: String
     public let hasExplicitTitle: Bool
-    public let frontMatter: BearFrontMatter?
+    public let frontmatter: BearFrontmatter?
     public let body: String
     public let rawText: String
     public let tags: [String]
@@ -46,7 +46,7 @@ public struct BearNote: Codable, Hashable, Sendable {
         revision: NoteRevision,
         title: String,
         hasExplicitTitle: Bool = true,
-        frontMatter: BearFrontMatter? = nil,
+        frontmatter: BearFrontmatter? = nil,
         body: String,
         rawText: String,
         tags: [String],
@@ -58,7 +58,7 @@ public struct BearNote: Codable, Hashable, Sendable {
         self.revision = revision
         self.title = title
         self.hasExplicitTitle = hasExplicitTitle
-        self.frontMatter = frontMatter
+        self.frontmatter = frontmatter
         self.body = body
         self.rawText = rawText
         self.tags = tags
@@ -98,7 +98,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
     public let noteID: String
     public let title: String
     public let hasExplicitTitle: Bool
-    public let frontMatter: BearFrontMatter?
+    public let frontmatter: BearFrontmatter?
     public let content: String
     public let tags: [String]
     public let createdAt: Date
@@ -112,7 +112,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         noteID: String,
         title: String,
         hasExplicitTitle: Bool = true,
-        frontMatter: BearFrontMatter? = nil,
+        frontmatter: BearFrontmatter? = nil,
         content: String,
         tags: [String],
         createdAt: Date,
@@ -125,7 +125,7 @@ public struct BearFetchedNote: Codable, Hashable, Sendable {
         self.noteID = noteID
         self.title = title
         self.hasExplicitTitle = hasExplicitTitle
-        self.frontMatter = frontMatter
+        self.frontmatter = frontmatter
         self.content = content
         self.tags = tags
         self.createdAt = createdAt
@@ -152,7 +152,7 @@ public enum FindSearchField: String, Codable, Hashable, Sendable {
 public enum NoteMatchField: String, Codable, Hashable, Sendable {
     case title
     case body
-    case frontMatter = "front_matter"
+    case frontmatter = "frontmatter"
     case attachments
 }
 
@@ -661,8 +661,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
     public let noteID: String
     public let title: String
     public let snippet: String
-    public let hasFrontMatter: Bool
-    public let frontMatterSnippet: String?
+    public let hasFrontmatter: Bool
+    public let frontmatterSnippet: String?
     public let hasAttachments: Bool
     public let hasBackups: Bool?
     public let matchedFields: [NoteMatchField]?
@@ -674,8 +674,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         noteID: String,
         title: String,
         snippet: String,
-        hasFrontMatter: Bool = false,
-        frontMatterSnippet: String? = nil,
+        hasFrontmatter: Bool = false,
+        frontmatterSnippet: String? = nil,
         hasAttachments: Bool,
         hasBackups: Bool? = nil,
         matchedFields: [NoteMatchField]? = nil,
@@ -686,8 +686,8 @@ public struct NoteSummary: Codable, Hashable, Sendable {
         self.noteID = noteID
         self.title = title
         self.snippet = snippet
-        self.hasFrontMatter = hasFrontMatter
-        self.frontMatterSnippet = frontMatterSnippet
+        self.hasFrontmatter = hasFrontmatter
+        self.frontmatterSnippet = frontmatterSnippet
         self.hasAttachments = hasAttachments
         self.hasBackups = hasBackups
         self.matchedFields = matchedFields
@@ -1059,7 +1059,7 @@ public struct RelativeTextTarget: Codable, Hashable, Sendable {
 public enum ReplaceContentKind: String, Codable, Hashable, Sendable {
     case title
     case body
-    case frontMatter = "front_matter"
+    case frontmatter = "frontmatter"
     case string
 }
 

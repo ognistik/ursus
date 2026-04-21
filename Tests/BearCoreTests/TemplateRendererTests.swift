@@ -55,7 +55,7 @@ func bearTextParsesTitleAndBody() {
     let parsed = BearText.parse(rawText: "# Example\n\nBody line", fallbackTitle: "Fallback")
 
     #expect(parsed.titleLine == "Example")
-    #expect(parsed.frontMatter == nil)
+    #expect(parsed.frontmatter == nil)
     #expect(parsed.hasExplicitTitle == true)
     #expect(parsed.body == "Body line")
 }
@@ -67,7 +67,7 @@ func bearTextComposesRawText() {
 }
 
 @Test
-func bearTextParsesFrontMatterBeforeTitleAndBody() {
+func bearTextParsesFrontmatterBeforeTitleAndBody() {
     let parsed = BearText.parse(
         rawText: """
         ---
@@ -80,14 +80,14 @@ func bearTextParsesFrontMatterBeforeTitleAndBody() {
         fallbackTitle: "Fallback"
     )
 
-    #expect(parsed.frontMatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(parsed.frontmatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
     #expect(parsed.titleLine == "Test Note")
     #expect(parsed.hasExplicitTitle == true)
     #expect(parsed.body == "this is the body")
 }
 
 @Test
-func bearTextParsesFrontMatterWithoutExplicitTitle() {
+func bearTextParsesFrontmatterWithoutExplicitTitle() {
     let parsed = BearText.parse(
         rawText: """
         ---
@@ -99,19 +99,19 @@ func bearTextParsesFrontMatterWithoutExplicitTitle() {
         fallbackTitle: ""
     )
 
-    #expect(parsed.frontMatter?.content == "key1: value\nkey2: another")
+    #expect(parsed.frontmatter?.content == "key1: value\nkey2: another")
     #expect(parsed.titleLine == nil)
     #expect(parsed.hasExplicitTitle == false)
     #expect(parsed.body == "this is the body")
 }
 
 @Test
-func bearTextComposesTitlelessFrontMatterNotes() {
+func bearTextComposesTitlelessFrontmatterNotes() {
     let raw = BearText.composeRawText(
         title: "",
         hasExplicitTitle: false,
         body: "Body line",
-        frontMatter: BearFrontMatter(content: "key: value"),
+        frontmatter: BearFrontmatter(content: "key: value"),
         separator: "\n\n"
     )
 

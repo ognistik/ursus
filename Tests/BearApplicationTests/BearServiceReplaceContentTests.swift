@@ -287,7 +287,7 @@ func replaceContentTitleIgnoresExpectedVersion() async throws {
 }
 
 @Test
-func replaceContentFrontMatterReplacesAndNormalizesFenceWrappers() async throws {
+func replaceContentFrontmatterReplacesAndNormalizesFenceWrappers() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",
         title: "Test Note",
@@ -312,7 +312,7 @@ func replaceContentFrontMatterReplacesAndNormalizesFenceWrappers() async throws 
     _ = try await service.replaceContent([
         ReplaceContentRequest(
             noteID: "note-1",
-            kind: .frontMatter,
+            kind: .frontmatter,
             oldString: nil,
             occurrence: nil,
             newString: """
@@ -339,7 +339,7 @@ func replaceContentFrontMatterReplacesAndNormalizesFenceWrappers() async throws 
 }
 
 @Test
-func replaceContentFrontMatterRemovesExistingBlockWhenNewStringIsEmpty() async throws {
+func replaceContentFrontmatterRemovesExistingBlockWhenNewStringIsEmpty() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",
         title: "Test Note",
@@ -364,7 +364,7 @@ func replaceContentFrontMatterRemovesExistingBlockWhenNewStringIsEmpty() async t
     _ = try await service.replaceContent([
         ReplaceContentRequest(
             noteID: "note-1",
-            kind: .frontMatter,
+            kind: .frontmatter,
             oldString: nil,
             occurrence: nil,
             newString: "",
@@ -789,7 +789,7 @@ private func makeReplaceContentSourceNote(
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
         title: parsed.titleLine ?? title,
         hasExplicitTitle: parsed.hasExplicitTitle,
-        frontMatter: parsed.frontMatter,
+        frontmatter: parsed.frontmatter,
         body: parsed.body,
         rawText: resolvedRawText,
         tags: tags,

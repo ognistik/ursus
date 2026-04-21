@@ -117,13 +117,13 @@ func databaseReaderUsesZOPTForNoteVersion() throws {
 }
 
 @Test
-func databaseReaderParsesFrontMatterAndExplicitTitleFromRawText() throws {
+func databaseReaderParsesFrontmatterAndExplicitTitleFromRawText() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
         try insertNote(
             db,
             pk: 1,
-            noteID: "note-front-matter",
+            noteID: "note-frontmatter",
             title: "Test Note",
             rawText: """
             ---
@@ -140,11 +140,11 @@ func databaseReaderParsesFrontMatterAndExplicitTitleFromRawText() throws {
     }
 
     let reader = try BearDatabaseReader(databaseURL: databaseURL)
-    let note = try #require(try reader.note(id: "note-front-matter"))
+    let note = try #require(try reader.note(id: "note-frontmatter"))
 
     #expect(note.title == "Test Note")
     #expect(note.hasExplicitTitle == true)
-    #expect(note.frontMatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(note.frontmatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
     #expect(note.body == "this is the body")
 }
 
@@ -588,13 +588,13 @@ func databaseReaderFindNotesSearchFieldsPreventTitleRankingBoosts() throws {
 }
 
 @Test
-func databaseReaderBodySearchIncludesFrontMatterButExcludesTitleAfterFrontMatter() throws {
+func databaseReaderBodySearchIncludesFrontmatterButExcludesTitleAfterFrontmatter() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
         try insertNote(
             db,
             pk: 1,
-            noteID: "note-front-matter",
+            noteID: "note-frontmatter",
             title: "Test Note",
             rawText: """
             ---
@@ -611,7 +611,7 @@ func databaseReaderBodySearchIncludesFrontMatterButExcludesTitleAfterFrontMatter
 
     let reader = try BearDatabaseReader(databaseURL: databaseURL)
 
-    let frontMatterBatch = try reader.findNotes(
+    let frontmatterBatch = try reader.findNotes(
         FindNotesQuery(
             text: "This is a test",
             textMode: .substring,
@@ -640,7 +640,7 @@ func databaseReaderBodySearchIncludesFrontMatterButExcludesTitleAfterFrontMatter
         )
     )
 
-    #expect(frontMatterBatch.notes.map(\.ref.identifier) == ["note-front-matter"])
+    #expect(frontmatterBatch.notes.map(\.ref.identifier) == ["note-frontmatter"])
     #expect(titleOnlyBatch.notes.isEmpty)
 }
 

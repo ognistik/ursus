@@ -550,14 +550,14 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
     }
 
     private func bodySearchExpression(rawTextExpression: String, titleExpression: String) -> String {
-        let frontMatterPrefix = """
+        let frontmatterPrefix = """
         SUBSTR(
             \(rawTextExpression),
             1,
             5 + INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) + 3
         )
         """
-        let normalizedRemainderAfterFrontMatter = """
+        let normalizedRemainderAfterFrontmatter = """
         LTRIM(
             SUBSTR(
                 \(rawTextExpression),
@@ -566,10 +566,10 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             CHAR(10)
         )
         """
-        let frontMatterAwareBody = """
+        let frontmatterAwareBody = """
         CASE
-            WHEN \(normalizedRemainderAfterFrontMatter) = '# ' || COALESCE(\(titleExpression), '') THEN \(frontMatterPrefix)
-            WHEN \(normalizedRemainderAfterFrontMatter) LIKE '# ' || COALESCE(\(titleExpression), '') || CHAR(10) || '%' THEN \(frontMatterPrefix) || LTRIM(SUBSTR(\(normalizedRemainderAfterFrontMatter), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3), CHAR(10))
+            WHEN \(normalizedRemainderAfterFrontmatter) = '# ' || COALESCE(\(titleExpression), '') THEN \(frontmatterPrefix)
+            WHEN \(normalizedRemainderAfterFrontmatter) LIKE '# ' || COALESCE(\(titleExpression), '') || CHAR(10) || '%' THEN \(frontmatterPrefix) || LTRIM(SUBSTR(\(normalizedRemainderAfterFrontmatter), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3), CHAR(10))
             ELSE \(rawTextExpression)
         END
         """
@@ -578,7 +578,7 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
             WHEN \(rawTextExpression) = '# ' || COALESCE(\(titleExpression), '') THEN ''
             WHEN \(rawTextExpression) LIKE '# ' || COALESCE(\(titleExpression), '') || char(10) || '%' THEN LTRIM(SUBSTR(\(rawTextExpression), LENGTH('# ' || COALESCE(\(titleExpression), '')) + 3), CHAR(10))
             WHEN SUBSTR(\(rawTextExpression), 1, 4) = '---' || CHAR(10)
-                 AND INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) > 0 THEN \(frontMatterAwareBody)
+                 AND INSTR(SUBSTR(\(rawTextExpression), 5), CHAR(10) || '---' || CHAR(10)) > 0 THEN \(frontmatterAwareBody)
             ELSE \(rawTextExpression)
         END
         """
@@ -770,7 +770,7 @@ private struct NoteRow: FetchableRecord, Decodable {
             ),
             title: effectiveTitle,
             hasExplicitTitle: parsedText.hasExplicitTitle,
-            frontMatter: parsedText.frontMatter,
+            frontmatter: parsedText.frontmatter,
             body: parsedText.body,
             rawText: resolvedRawText,
             tags: splitTags(tags),

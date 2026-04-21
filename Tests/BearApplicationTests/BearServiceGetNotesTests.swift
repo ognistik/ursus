@@ -90,9 +90,9 @@ func getNotesUsesTemplateStrippedCanonicalContentAndOmitsAttachmentTextByDefault
 }
 
 @Test
-func getNotesIncludesFrontMatterAndKeepsBodySeparate() throws {
+func getNotesIncludesFrontmatterAndKeepsBodySeparate() throws {
     let note = makeFetchedSourceNote(
-        id: "note-front-matter",
+        id: "note-frontmatter",
         title: "Test Note",
         body: "this is the body",
         rawText: """
@@ -106,7 +106,7 @@ func getNotesIncludesFrontMatterAndKeepsBodySeparate() throws {
         tags: ["0-inbox"],
         archived: false
     )
-    let readStore = GetNotesReadStore(noteByID: ["note-front-matter": note])
+    let readStore = GetNotesReadStore(noteByID: ["note-frontmatter": note])
     let service = BearService(
         configuration: makeGetNotesConfiguration(inboxTags: ["0-inbox"]),
         readStore: readStore,
@@ -114,18 +114,18 @@ func getNotesIncludesFrontMatterAndKeepsBodySeparate() throws {
         logger: Logger(label: "BearServiceGetNotesTests")
     )
 
-    let notes = try service.getNotes(selectors: ["note-front-matter"], location: .notes)
+    let notes = try service.getNotes(selectors: ["note-frontmatter"], location: .notes)
 
     let fetched = try #require(notes.first)
     let payload = try encodedJSONObject(fetched)
-    let frontMatterPayload = try #require(payload["frontMatter"] as? [String: Any])
+    let frontmatterPayload = try #require(payload["frontmatter"] as? [String: Any])
     #expect(fetched.title == "Test Note")
     #expect(fetched.hasExplicitTitle == true)
     #expect(fetched.content == "this is the body")
-    #expect(fetched.frontMatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
-    #expect(frontMatterPayload["content"] as? String == "key1: This is a test\n# Actually, I am just including some random text here.")
-    #expect(frontMatterPayload["raw"] == nil)
-    #expect(frontMatterPayload["keys"] == nil)
+    #expect(fetched.frontmatter?.content == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(frontmatterPayload["content"] as? String == "key1: This is a test\n# Actually, I am just including some random text here.")
+    #expect(frontmatterPayload["raw"] == nil)
+    #expect(frontmatterPayload["keys"] == nil)
 }
 
 @Test
@@ -396,7 +396,7 @@ private func makeFetchedSourceNote(
         revision: NoteRevision(version: 3, createdAt: createdAt, modifiedAt: modifiedAt),
         title: parsed.titleLine ?? title,
         hasExplicitTitle: parsed.hasExplicitTitle,
-        frontMatter: parsed.frontMatter,
+        frontmatter: parsed.frontmatter,
         body: parsed.body,
         rawText: resolvedRawText,
         tags: tags,
