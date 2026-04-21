@@ -92,8 +92,8 @@ Do not run Sparkle's raw `generate_appcast` over the whole `release-artifacts` f
 
 ```sh
 Support/scripts/generate-sparkle-appcast.sh \
-  --archive "$PWD/.build/release-artifacts/Ursus.1.0.1.dmg" \
-  --tag v1.0.1
+  --archive "$PWD/.build/release-artifacts/Ursus.1.0.2.dmg" \
+  --tag v1.0.2
 ```
 
 This fetches the release notes from the GitHub Release body with `gh` and updates `docs/appcast.xml`. To override that body locally, pass `--release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"` or place a same-stem `.md`, `.html`, or `.txt` file beside the dotted DMG.

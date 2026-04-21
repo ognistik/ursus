@@ -2,6 +2,9 @@
 
 ## UNRELEASED
 
+---
+
+## [v1.0.2](https://github.com/ognistik/ursus/releases/tag/v1.0.2) - 2026/04/20
 ### New
 - Added first-class Bear YAML frontmatter support
   - bear_get_notes now returns frontmatter separately and keeps body clean; discovery summaries expose compact frontmatter metadata; and bear_replace_content now supports kind: frontmatter for add/replace/remove.

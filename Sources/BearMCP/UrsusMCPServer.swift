@@ -7,7 +7,7 @@ import MCP
 public final class UrsusMCPServer: Sendable {
     public static let serverName = UrsusBranding.serverName
     public static let serverTitle = UrsusBranding.serverTitle
-    public static let serverVersion = "0.1.0"
+    public static let serverVersion = "0.1.1"
     // Bump this only when the served MCP behavior changes in a way that
     // `tools/list` will not naturally reflect. Tool-schema and description
     // edits should flow through the catalog hash without touching this epoch.

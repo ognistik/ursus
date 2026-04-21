@@ -3,6 +3,27 @@
     <channel>
         <title>Ursus</title>
         <item>
+            <title>1.0.2</title>
+            <pubDate>Mon, 20 Apr 2026 18:22:32 -0600</pubDate>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[## New
+- Added first-class Bear YAML frontmatter support
+  - bear_get_notes now returns frontmatter separately and keeps body clean; discovery summaries expose compact frontmatter metadata; and bear_replace_content now supports kind: frontmatter for add/replace/remove.
+  - Simplified frontmatter payloads and improved discovery clarity by reporting frontmatter matches separately from body matches, while clarifying that expected_version is required only for full body replacement.
+
+## Changed
+- Improved bear_replace_content by adding guardrails to prevent full body replacements without the AI being aware of its content. 
+  - Implemented version checks from database & temporary snapshot system
+  - Ursus now has an improved built-in conflict resolution system for note body replacements when the user has manually edited a note (modifying the database version vs expected_version).
+
+---
+*Note: this update requires you restart your client and MCP bridge (if active)*
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.2/Ursus.1.0.2.dmg" length="19879976" type="application/octet-stream" sparkle:edSignature="lfPGzdJHpDc9TMRopxTmC9V7oA1z+QBFoZfAOzhV9bHHnvSxqLoIEh113VtijjHe46AWT8sd8xypY7loHKu9Ag=="/>
+        </item>
+        <item>
             <title>1.0.1</title>
             <pubDate>Wed, 15 Apr 2026 16:04:44 -0600</pubDate>
             <sparkle:version>6</sparkle:version>
@@ -24,23 +45,6 @@
 Lots of bug fixes from previous alpha versions. Happy to have this live!
 ]]></description>
             <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.0/Ursus.1.0.0.dmg" length="19672144" type="application/octet-stream" sparkle:edSignature="EU7gh/0nls76m9kLCjRvEeEn975IhWOlDLIfqKx4iL8cmNHw+P6F4HHeFIT247yHftiXjWeF/A+Gij3Cbay3DA=="/>
-        </item>
-        <item>
-            <title>0.2.3</title>
-            <pubDate>Fri, 10 Apr 2026 16:13:20 -0600</pubDate>
-            <sparkle:version>4</sparkle:version>
-            <sparkle:shortVersionString>0.2.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## Changed
-
-### CLI & Back-end updates
-- Added option to manage auto updates via sparkle
-- Cleaned up CLI `--help`
-- Fixed a LOT of issues and managed to get Sparkle updates without having to open the entire UI.
-- Fixed the window by giving it a title, not allowing duplicate windows, preventing a separate panel for settings.
-- Lots of bug fixes under the hood.
-]]></description>
-            <enclosure url="https://github.com/ognistik/ursus/releases/download/v0.2.3/Ursus.0.2.3.dmg" length="19574273" type="application/octet-stream" sparkle:edSignature="GmyhP8xPjO3o695aHxtmFu2i6pP7sxhlEQ9TKqqqk6XaQtqAoUygbXWHT3hJpuY/tO91a2QjrjJ2T0mwPKDWAQ=="/>
         </item>
         <item>
             <title>0.2.1</title>
