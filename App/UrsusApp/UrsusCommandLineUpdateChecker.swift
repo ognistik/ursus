@@ -359,20 +359,32 @@ enum UrsusSparkleUpdateUIRunner {
             visibleWindow.makeKeyAndOrderFront(nil)
         }
 
-        if #available(macOS 14, *) {
-            app.activate()
-        } else {
-            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        // The Sparkle-only handoff needs a stronger activation request than the
+        // default app.activate() path so scheduled background-found updates come
+        // to the front more reliably after bridge / stdio handoff.
+        _ = NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+
+        if !app.isActive {
+            if #available(macOS 14, *) {
+                app.activate()
+            } else {
+                _ = NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+            }
         }
     }
 }
 
 @MainActor
 private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
+    private static let delayedFocusAssistNanoseconds: UInt64 = 900_000_000
+
     private let mode: UrsusSparkleUpdateUIMode
     private var updaterController: SPUStandardUpdaterController?
     private var didStartCheck = false
     private var didRequestTermination = false
+    private var deferredUpdatePresentationTask: Task<Void, Never>?
+    private var deferredUpdateWakeObserver: NSObjectProtocol?
+    private var hasPendingDeferredScheduledUpdate = false
 
     private(set) var exitCode: Int32 = 0
 
@@ -398,11 +410,24 @@ private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDele
         false
     }
 
+    var supportsGentleScheduledUpdateReminders: Bool {
+        true
+    }
+
+    nonisolated func standardUserDriverShouldHandleShowingScheduledUpdate(
+        _ update: SUAppcastItem,
+        andInImmediateFocus immediateFocus: Bool
+    ) -> Bool {
+        immediateFocus || mode != .updateAvailable
+    }
+
     func updater(
         _ updater: SPUUpdater,
         didFinishUpdateCycleFor updateCheck: SPUUpdateCheck,
         error: (any Error)?
     ) {
+        cancelPendingDeferredUpdatePresentation()
+
         if error != nil {
             exitCode = 1
         }
@@ -429,6 +454,22 @@ private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDele
     ) {
         Task { @MainActor in
             UrsusSparkleUpdateUIRunner.activate()
+            scheduleDeferredUpdatePresentationIfNeeded(
+                handleShowingUpdate: handleShowingUpdate,
+                state: state
+            )
+        }
+    }
+
+    nonisolated func standardUserDriverDidReceiveUserAttention(forUpdate update: SUAppcastItem) {
+        Task { @MainActor in
+            cancelPendingDeferredUpdatePresentation()
+        }
+    }
+
+    nonisolated func standardUserDriverWillFinishUpdateSession() {
+        Task { @MainActor in
+            cancelPendingDeferredUpdatePresentation()
         }
     }
 
@@ -472,9 +513,87 @@ private final class UrsusSparkleUpdateUIAppDelegate: NSObject, NSApplicationDele
         }
         didRequestTermination = true
 
+        cancelPendingDeferredUpdatePresentation()
+
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 250_000_000)
             NSApplication.shared.terminate(nil)
         }
+    }
+
+    private func scheduleDeferredUpdatePresentationIfNeeded(
+        handleShowingUpdate: Bool,
+        state: SPUUserUpdateState
+    ) {
+        guard mode == .updateAvailable, !state.userInitiated else {
+            return
+        }
+
+        guard !handleShowingUpdate else {
+            return
+        }
+
+        guard !hasPendingDeferredScheduledUpdate else {
+            return
+        }
+
+        hasPendingDeferredScheduledUpdate = true
+
+        deferredUpdatePresentationTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: Self.delayedFocusAssistNanoseconds)
+            guard let self, !Task.isCancelled else {
+                return
+            }
+
+            self.presentDeferredScheduledUpdateIfNeeded()
+        }
+
+        guard deferredUpdateWakeObserver == nil else {
+            return
+        }
+
+        deferredUpdateWakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
+                }
+
+                self.presentDeferredScheduledUpdateIfNeeded()
+            }
+        }
+    }
+
+    private func presentDeferredScheduledUpdateIfNeeded() {
+        guard hasPendingDeferredScheduledUpdate else {
+            return
+        }
+
+        hasPendingDeferredScheduledUpdate = false
+        deferredUpdatePresentationTask?.cancel()
+        deferredUpdatePresentationTask = nil
+        removeDeferredUpdateWakeObserver()
+
+        UrsusSparkleUpdateUIRunner.activate()
+        updaterController?.checkForUpdates(nil)
+    }
+
+    private func cancelPendingDeferredUpdatePresentation() {
+        hasPendingDeferredScheduledUpdate = false
+        deferredUpdatePresentationTask?.cancel()
+        deferredUpdatePresentationTask = nil
+        removeDeferredUpdateWakeObserver()
+    }
+
+    private func removeDeferredUpdateWakeObserver() {
+        guard let deferredUpdateWakeObserver else {
+            return
+        }
+
+        NSWorkspace.shared.notificationCenter.removeObserver(deferredUpdateWakeObserver)
+        self.deferredUpdateWakeObserver = nil
     }
 }

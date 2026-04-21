@@ -2,6 +2,8 @@
 
 ## UNRELEASED
 
+- Improvements to the auto-update system, so the actual notice of update appears. 
+
 ---
 
 ## [v1.0.2](https://github.com/ognistik/ursus/releases/tag/v1.0.2) - 2026/04/20

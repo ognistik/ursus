@@ -112,10 +112,14 @@ private extension UrsusUpdaterController {
             visibleWindow.makeKeyAndOrderFront(nil)
         }
 
-        if #available(macOS 14, *) {
-            app.activate()
-        } else {
-            NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+        _ = NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+
+        if !app.isActive {
+            if #available(macOS 14, *) {
+                app.activate()
+            } else {
+                _ = NSRunningApplication.current.activate(options: [.activateIgnoringOtherApps])
+            }
         }
     }
 }
