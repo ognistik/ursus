@@ -3,6 +3,9 @@
 ## UNRELEASED
 
 - Improvements to the auto-update system, so the actual notice of update appears. 
+- Improved `bear_replace_content` resilience for AI clients:
+  - Internally accepts an unbatched single-operation payload while keeping the public schema focused on `operations`.
+  - Adds a clearer hint when exact string replacement fails because the requested text differs only by straight vs curly quote style.
 
 ---
 

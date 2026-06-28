@@ -1754,15 +1754,43 @@ public final class BearService: @unchecked Sendable {
         case .one:
             let occurrences = content.components(separatedBy: oldString).count - 1
             guard occurrences == 1 else {
-                throw BearError.ambiguous("Single content replace in note \(noteID) matched \(occurrences) times.")
+                let hint = occurrences == 0 ? quoteStyleMismatchHint(content: content, oldString: oldString) : ""
+                throw BearError.ambiguous("Single content replace in note \(noteID) matched \(occurrences) times.\(hint)")
             }
         case .all:
             guard content.contains(oldString) else {
-                throw BearError.notFound("String not found in editable content for note \(noteID).")
+                throw BearError.notFound("String not found in editable content for note \(noteID).\(quoteStyleMismatchHint(content: content, oldString: oldString))")
             }
         }
 
         return content.replacingOccurrences(of: oldString, with: newString)
+    }
+
+    private func quoteStyleMismatchHint(content: String, oldString: String) -> String {
+        let normalizedContent = normalizedQuoteStyle(content)
+        let normalizedOldString = normalizedQuoteStyle(oldString)
+        guard
+            (normalizedContent != content || normalizedOldString != oldString),
+            normalizedContent.contains(normalizedOldString)
+        else {
+            return ""
+        }
+
+        return " A quote-style variant appears to exist; use the exact text from bear_get_notes, including curly quotes or apostrophes."
+    }
+
+    private func normalizedQuoteStyle(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\u{2018}", with: "'")
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: "\u{201A}", with: "'")
+            .replacingOccurrences(of: "\u{201B}", with: "'")
+            .replacingOccurrences(of: "\u{2032}", with: "'")
+            .replacingOccurrences(of: "\u{201C}", with: "\"")
+            .replacingOccurrences(of: "\u{201D}", with: "\"")
+            .replacingOccurrences(of: "\u{201E}", with: "\"")
+            .replacingOccurrences(of: "\u{201F}", with: "\"")
+            .replacingOccurrences(of: "\u{2033}", with: "\"")
     }
 
     private func executeFindOperation(_ operation: FindNotesOperation) throws -> NoteSummaryPage {

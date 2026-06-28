@@ -92,6 +92,12 @@ func batchedToolValidationMatrixNormalizesOperationsContract() async throws {
                 tool: testCase.tool,
                 arguments: ["operations": .array([testCase.validOperation])]
             )
+
+            try await assertToolSuccess(
+                client: client,
+                tool: testCase.tool,
+                arguments: testCase.validOperationObject
+            )
         }
     }
 }
@@ -102,6 +108,9 @@ private struct BatchValidationCase {
     let invalidError: String
     let emptyOperationShouldSucceed: Bool
     let validOperation: Value
+    var validOperationObject: [String: Value] {
+        validOperation.objectValue ?? [:]
+    }
 
     init(
         tool: String,

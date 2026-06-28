@@ -729,6 +729,39 @@ func replaceContentStringRejectsMissingOccurrence() async throws {
 }
 
 @Test
+func replaceContentStringHintsWhenOnlyQuoteStyleDiffers() async throws {
+    let note = makeReplaceContentSourceNote(
+        id: "note-1",
+        title: "Inbox",
+        body: "I\u{2019}m here",
+        tags: ["0-inbox"]
+    )
+    let service = BearService(
+        configuration: makeReplaceContentConfiguration(templateManagementEnabled: false),
+        readStore: ReplaceContentReadStore(noteByID: ["note-1": note]),
+        writeTransport: ReplaceContentRecordingWriteTransport(),
+        logger: Logger(label: "BearServiceReplaceContentTests")
+    )
+
+    do {
+        _ = try await service.replaceContent([
+            ReplaceContentRequest(
+                noteID: "note-1",
+                kind: .string,
+                oldString: "I'm here",
+                occurrence: .one,
+                newString: "I am here",
+                presentation: BearPresentationOptions()
+            ),
+        ])
+        Issue.record("Expected smart quote mismatch to fail with a hint.")
+    } catch let error as BearError {
+        #expect(error.errorDescription?.contains("quote-style variant") == true)
+        #expect(error.errorDescription?.contains("bear_get_notes") == true)
+    }
+}
+
+@Test
 func replaceContentTitleRejectsOldString() async throws {
     let note = makeReplaceContentSourceNote(
         id: "note-1",

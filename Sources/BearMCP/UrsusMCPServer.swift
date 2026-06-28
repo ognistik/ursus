@@ -484,7 +484,13 @@ public final class UrsusMCPServer: Sendable {
     }
 
     private func requiredObjectArray(_ arguments: [String: Value]?, _ key: String) throws -> [[String: Value]] {
-        guard let rawValue = arguments?[key], let rawArray = rawValue.arrayValue else {
+        guard let arguments, let rawValue = arguments[key] else {
+            if let arguments, !arguments.isEmpty {
+                return [arguments]
+            }
+            throw BearError.invalidInput("Missing required array argument '\(key)'. This tool only accepts a top-level `operations` array. Put each requested action inside one object in `operations`, not at the top level.")
+        }
+        guard let rawArray = rawValue.arrayValue else {
             throw BearError.invalidInput("Missing required array argument '\(key)'. This tool only accepts a top-level `operations` array. Put each requested action inside one object in `operations`, not at the top level.")
         }
         guard !rawArray.isEmpty else {
