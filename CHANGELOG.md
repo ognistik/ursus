@@ -2,6 +2,9 @@
 
 ## UNRELEASED
 
+---
+## [v1.0.3](https://github.com/ognistik/ursus/releases/tag/v1.0.3) - 2026/06/29
+### Changed
 - Improvements to the auto-update system, so the actual notice of update appears. 
 - Improved `bear_replace_content` resilience for AI clients:
   - Internally accepts an unbatched single-operation payload while keeping the public schema focused on `operations`.

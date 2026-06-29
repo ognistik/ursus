@@ -3,6 +3,20 @@
     <channel>
         <title>Ursus</title>
         <item>
+            <title>1.0.3</title>
+            <pubDate>Mon, 29 Jun 2026 16:41:07 -0600</pubDate>
+            <sparkle:version>8</sparkle:version>
+            <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description sparkle:format="markdown"><![CDATA[### Changed
+- Improvements to the auto-update system, so the actual notice of update appears. 
+- Improved `bear_replace_content` resilience for AI clients:
+  - Internally accepts an unbatched single-operation payload while keeping the public schema focused on `operations` <- Reduces errors with less capable models
+  - Adds a clearer hint when exact string replacement fails because the requested text differs only by straight vs curly quote style.
+]]></description>
+            <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.3/Ursus.1.0.3.dmg" length="19888549" type="application/octet-stream" sparkle:edSignature="JTT5OMEEYx3w0MRH9hxA7QpQQOggUIvUhenXQX3jf6mQuV36w8m7ICryJhM8Yt9skDbQwDKUsffhEtq3EqIiDw=="/>
+        </item>
+        <item>
             <title>1.0.2</title>
             <pubDate>Mon, 20 Apr 2026 18:22:32 -0600</pubDate>
             <sparkle:version>7</sparkle:version>
@@ -33,18 +47,6 @@
 * Fixed a bug in the Sparkle update system where users would see a “No Updates Available” popup during automatic updates.
 ]]></description>
             <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.1/Ursus.1.0.1.dmg" length="19673161" type="application/octet-stream" sparkle:edSignature="B/xHpTr22+AbIHRkqPk2vR+mFbBbnFWeiTaqpoy+nYePrUmcwF8+ojW2WSSAXq1Uj7RcxlTNNO+5SBEdc14NBg=="/>
-        </item>
-        <item>
-            <title>1.0.0</title>
-            <pubDate>Wed, 15 Apr 2026 12:28:51 -0600</pubDate>
-            <sparkle:version>5</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description sparkle:format="markdown"><![CDATA[## First Official Release!
-
-Lots of bug fixes from previous alpha versions. Happy to have this live!
-]]></description>
-            <enclosure url="https://github.com/ognistik/ursus/releases/download/v1.0.0/Ursus.1.0.0.dmg" length="19672144" type="application/octet-stream" sparkle:edSignature="EU7gh/0nls76m9kLCjRvEeEn975IhWOlDLIfqKx4iL8cmNHw+P6F4HHeFIT247yHftiXjWeF/A+Gij3Cbay3DA=="/>
         </item>
         <item>
             <title>0.2.1</title>
