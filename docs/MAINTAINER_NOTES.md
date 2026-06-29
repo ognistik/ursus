@@ -200,7 +200,7 @@ swift run ursus --help
 swift run ursus bridge status
 ```
 
-For release builds, follow `docs/BUILD_INSTALL.md`; it includes version bumping, Developer ID signing/notarization, DMG creation, release notes, and Sparkle appcast generation.
+For release builds, follow `docs/BUILD_INSTALL.md`; it includes version bumping, Developer ID signing/notarization, DMG creation, changelog promotion, draft GitHub Release preparation, and Sparkle appcast generation.
 Release artifacts should be universal. Check the app executable and helper before uploading:
 
 ```sh

@@ -65,9 +65,12 @@ CONFIGURATION=Release Support/scripts/build-ursus-app.sh
 Support/scripts/sign-and-notarize-release.sh
 ```
 
-The script outputs one final DMG filename in `.build/release-artifacts`:
+The signing script also prepares the GitHub release draft. It reads the app version from the built app, promotes the current `CHANGELOG.md` `UNRELEASED` notes into a dated `v<version>` section, writes a same-stem Markdown notes file beside the DMG, and creates or updates a draft GitHub Release with the DMG attached.
+
+The script outputs one final DMG filename and a matching release-notes file in `.build/release-artifacts`:
 
 - `Ursus.0.2.2.dmg`: the GitHub/Sparkle upload file
+- `Ursus.0.2.2.md`: the release notes copied from the changelog
 
 The signing script now stages the `.app` in a temporary directory, creates the DMG from that temporary signed copy, and removes the default built `Release/Ursus.app` after a successful run. After the script finishes successfully, `.build/release-artifacts` should contain the DMG plus notarization metadata, not a leftover `.app` bundle.
 
@@ -84,7 +87,7 @@ Both commands should print:
 x86_64 arm64
 ```
 
-Upload that dotted DMG to the GitHub Release, and write the release notes in the GitHub Release body.
+Review the draft GitHub Release before publishing it. If you need a local release build without changelog or GitHub release automation, pass `--skip-github-release` to `Support/scripts/sign-and-notarize-release.sh`.
 
 3. Generate the Sparkle appcast entry.
 
@@ -96,7 +99,7 @@ Support/scripts/generate-sparkle-appcast.sh \
   --tag v1.0.3
 ```
 
-This fetches the release notes from the GitHub Release body with `gh` and updates `docs/appcast.xml`. To override that body locally, pass `--release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"` or place a same-stem `.md`, `.html`, or `.txt` file beside the dotted DMG.
+This updates `docs/appcast.xml` and, by default, uses the same-stem `.md` release notes created during signing. To override those notes locally, pass `--release-notes "$PWD/.build/release-artifacts/Ursus.0.2.2.md"` with a different file path.
 
 For a universal DMG, the new appcast item should keep `sparkle:minimumSystemVersion` at `14.0` and should not include `<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>` for the new release. Do not edit older appcast entries to widen hardware support unless the already-uploaded asset for that entry is replaced with a universal build.
 
@@ -229,7 +232,8 @@ The checklist at the top is the normal release path. These are the key rules beh
 - `Support/scripts/build-ursus-helper-app.sh` builds separate `arm64` and `x86_64` helper slices for Release and merges them with `lipo` before embedding.
 - The script embeds the Developer ID provisioning profile required by the Bear token keychain access group.
 - The signing script stages the app in a temporary directory and removes the default built `Release/Ursus.app` after a successful DMG build, so the DMG is the only lasting release bundle artifact.
-- The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to upload to GitHub and pass to Sparkle appcast generation.
+- After the final dotted DMG exists, `Support/scripts/prepare-github-release.sh` promotes the `UNRELEASED` changelog notes into a `v<version>` section, writes same-stem Markdown release notes beside the DMG, and creates or updates a draft GitHub Release with the DMG attached.
+- The dotted DMG, for example `Ursus.0.2.2.dmg`, is the one to review in the draft GitHub Release and pass to Sparkle appcast generation.
 - `Support/scripts/generate-sparkle-appcast.sh` updates `docs/appcast.xml` from one exact archive path and does not require a leftover `.app` beside the DMG.
 - The appcast helper prefers explicitly passed release notes, then same-stem local notes beside the archive, then the GitHub Release body for the passed tag.
 - The appcast helper uses temporary staging under `.build/sparkle-appcast/work` while it runs, then cleans that staging folder before it exits.

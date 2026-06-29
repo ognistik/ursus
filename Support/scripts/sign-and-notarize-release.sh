@@ -11,6 +11,7 @@ NOTARY_PROFILE="${NOTARYTOOL_PROFILE:-}"
 PROVISIONING_PROFILE="${DEVELOPER_ID_PROVISIONING_PROFILE:-}"
 CREATE_DMG_BIN="${CREATE_DMG_BIN:-create-dmg}"
 SKIP_NOTARIZE=0
+SKIP_GITHUB_RELEASE=0
 
 usage() {
   cat <<EOF
@@ -32,6 +33,8 @@ Options:
   --provisioning-profile PATH Developer ID provisioning profile to embed
                               Default: \$DEVELOPER_ID_PROVISIONING_PROFILE
   --skip-notarize             Stop after creating the signed DMG
+  --skip-github-release       Do not update CHANGELOG.md or create a draft
+                              GitHub Release after the DMG is created
   -h, --help                  Show this help
 
 Examples:
@@ -231,6 +234,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     --skip-notarize)
       SKIP_NOTARIZE=1
+      shift
+      ;;
+    --skip-github-release)
+      SKIP_GITHUB_RELEASE=1
       shift
       ;;
     -h|--help)
@@ -446,11 +453,22 @@ if [ "$RELEASE_ASSET_DMG_PATH" != "$DMG_PATH" ]; then
   DMG_PATH="$RELEASE_ASSET_DMG_PATH"
 fi
 
+if [ "$SKIP_GITHUB_RELEASE" -eq 0 ]; then
+  "$ROOT_DIR/Support/scripts/prepare-github-release.sh" \
+    --version "$APP_VERSION" \
+    --dmg "$DMG_PATH"
+fi
+
 RELEASE_SUCCEEDED=1
 
 echo
 echo "Release artifacts:"
 echo "  DMG: $DMG_PATH"
+if [ "$SKIP_GITHUB_RELEASE" -eq 0 ]; then
+  echo "  GitHub draft: prepared"
+else
+  echo "  GitHub draft: skipped"
+fi
 if [ "$REMOVE_SOURCE_APP_ON_SUCCESS" -eq 1 ]; then
   echo "  Source app kept: no"
 else
