@@ -11,7 +11,7 @@ public final class UrsusMCPServer: Sendable {
     // Bump this only when the served MCP behavior changes in a way that
     // `tools/list` will not naturally reflect. Tool-schema and description
     // edits should flow through the catalog hash without touching this epoch.
-    public static let bridgeSurfaceEpoch = 1
+    public static let bridgeSurfaceEpoch = 2
 
     private let service: BearService
     private let configuration: BearConfiguration

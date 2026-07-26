@@ -2,6 +2,29 @@
 import Foundation
 import Testing
 
+@Test(.timeLimit(.minutes(1)))
+func runtimeStateStoreCoordinatesConcurrentWriters() async throws {
+    let databaseURL = temporaryRuntimeStateDatabaseURL()
+    let writerCount = 16
+    let operationsPerWriter = 20
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for _ in 0..<writerCount {
+            group.addTask {
+                let store = BearRuntimeStateStore(databaseURL: databaseURL)
+                for _ in 0..<operationsPerWriter {
+                    _ = try await store.recordSuccessfulMCPToolOperations(1)
+                }
+            }
+        }
+        try await group.waitForAll()
+    }
+
+    let store = BearRuntimeStateStore(databaseURL: databaseURL)
+    let snapshot = try await store.loadDonationPromptSnapshot()
+    #expect(snapshot.totalSuccessfulOperationCount == writerCount * operationsPerWriter)
+}
+
 @Test
 func donationPromptFirstBecomesEligibleAtTwentySuccessfulOperations() async throws {
     let store = BearRuntimeStateStore(databaseURL: temporaryRuntimeStateDatabaseURL())

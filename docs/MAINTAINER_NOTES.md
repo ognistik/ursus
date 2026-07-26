@@ -110,6 +110,7 @@ The server does not expose Bear resources, but it answers empty `resources/list`
 - The optional HTTP bridge runs through `ursus bridge serve`, binds to loopback, and exposes MCP at the configured endpoint path, defaulting to `/mcp`.
 - Remote connector clients should use the full MCP endpoint URL, not the bare bridge origin.
 - The bridge uses stateless HTTP transport and returns one-shot SSE-formatted POST responses when clients advertise `text/event-stream`.
+- Concurrent bridge requests are isolated by translating each client-provided JSON-RPC request ID to a unique transport-local ID and restoring the original ID in the HTTP response. Keep this compatibility layer while the shared stateless Swift SDK transport keys response waiters only by JSON-RPC ID.
 - Bridge install/resume waits for MCP `initialize` and `tools/list` probes before reporting success.
 - App-level Restart is intentionally lighter than Repair: it stop/starts the existing LaunchAgent when the plist still matches expectations, while Repair rewrites the LaunchAgent and reconciles bridge install artifacts.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`.
@@ -159,12 +160,12 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 
 - Config and template editing are JSON / file based under `~/Library/Application Support/Ursus`.
 - The Bear database path is resolved directly from Bear's canonical group-container path and is not stored in `config.json`.
-- Bear DB reads stay read-only and use a bounded retry/backoff window only for transient SQLite lock/busy errors so brief Bear write contention does not affect ordinary tool reads.
+- Bear DB reads stay read-only. The connection opens lazily on the first note operation so temporary Bear database unavailability cannot kill the MCP initialize handshake, and reads use a bounded retry/backoff window only for transient SQLite lock/busy errors so brief Bear write contention does not affect ordinary tool reads.
 - The selected-note token is managed in macOS Keychain through Ursus-owned code rather than `config.json`.
 - Discovery page size and snippet length come from config defaults; MCP discovery inputs do not accept per-call `limit` or `snippet_length` overrides.
 - Backup snapshot payloads live in canonical per-note folders under `Backups/<note-id>/<snapshot-id>.json`; rebuildable metadata lives in root-level `backups.sqlite`.
 - Ursus keeps two separate in-memory note-state concepts during one runtime session: long-lived trusted full-note lineage for replace-eligible `version` values, and short-lived editable-content snapshots (15-minute TTL) used only for diff/conflict summaries on stale body replacements.
-- Successful user-meaningful MCP operations are counted in `Runtime/runtime-state.sqlite`; probes and failed tool calls are excluded, and successful operations inside batches are counted per operation.
+- Successful user-meaningful MCP operations are counted in `Runtime/runtime-state.sqlite`; probes and failed tool calls are excluded, and successful operations inside batches are counted per operation. The store uses WAL, a bounded busy timeout, atomic counter increments, and a sibling advisory migration lock so multiple stdio or bridge clients can safely initialize and update the same database.
 - Debug builds include hidden donation-testing CLI flags; release builds keep threshold-only behavior.
 - App bundle versioning has one release-facing source of truth in the Xcode project build settings.
 - Bridge HTTP request tracing writes compact ingress/egress lines to `Logs/debug.log`, including a `base-url-miss` hint when clients hit the bridge origin instead of the MCP endpoint.

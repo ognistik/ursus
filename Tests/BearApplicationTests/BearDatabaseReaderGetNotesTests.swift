@@ -5,6 +5,19 @@ import GRDB
 import Testing
 
 @Test
+func databaseReaderDefersUnavailableDatabaseFailureUntilFirstRead() throws {
+    let databaseURL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        .appendingPathComponent("unavailable.sqlite", isDirectory: false)
+
+    let reader = try BearDatabaseReader(databaseURL: databaseURL)
+
+    #expect(throws: DatabaseError.self) {
+        _ = try reader.note(id: "note-1")
+    }
+}
+
+@Test
 func databaseReaderMatchesTitlesCaseInsensitivelyWithinRequestedLocation() throws {
     let databaseURL = try makeTemporaryBearDatabaseURL()
     try seedBearDatabase(at: databaseURL) { db in
