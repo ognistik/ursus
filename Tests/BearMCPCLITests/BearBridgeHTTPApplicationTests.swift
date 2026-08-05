@@ -500,6 +500,62 @@ func bridgeToolsListSucceedsAfterInitializeOverLocalHTTP() async throws {
     try await startTask.value
 }
 
+@Test(.timeLimit(.minutes(1)))
+func bridgeHandlesConcurrentRequestsThatReuseTheSameJSONRPCID() async throws {
+    let port = try availableLoopbackPort()
+    let application = BearBridgeHTTPApplication(
+        configuration: .init(
+            host: "127.0.0.1",
+            port: port
+        ),
+        serverFactory: {
+            await makeToolsListTestingServer()
+        },
+        logger: Logger(label: "test.ursus.bridge")
+    )
+
+    let startTask = Task {
+        try await application.start()
+    }
+    defer {
+        Task {
+            await application.stop()
+        }
+    }
+
+    try await waitUntilPortIsReachable(port: port)
+
+    let initializeData = try await sendInitializeRequest(port: port, requestID: "concurrent-init")
+    let initializeResponse = try JSONDecoder().decode(Response<Initialize>.self, from: initializeData)
+    let initializeResult = try initializeResponse.result.get()
+
+    async let firstResponse = sendToolsListRequest(
+        port: port,
+        requestID: "reused-client-request-id",
+        protocolVersion: initializeResult.protocolVersion
+    )
+    async let secondResponse = sendToolsListRequest(
+        port: port,
+        requestID: "reused-client-request-id",
+        protocolVersion: initializeResult.protocolVersion
+    )
+
+    for responseData in try await [firstResponse, secondResponse] {
+        guard let object = try JSONSerialization.jsonObject(with: responseData) as? [String: Any],
+              object["jsonrpc"] as? String == "2.0",
+              object["id"] as? String == "reused-client-request-id",
+              let result = object["result"] as? [String: Any],
+              result["tools"] as? [Any] != nil
+        else {
+            Issue.record("Expected each concurrent request to receive its own tools/list response.")
+            throw CancellationError()
+        }
+    }
+
+    await application.stop()
+    try await startTask.value
+}
+
 @Test
 func bridgeReturnsNotFoundForOAuthRoutesWhenBridgeIsOpen() async throws {
     let port = try availableLoopbackPort()

@@ -1,4 +1,5 @@
 import BearCore
+import Darwin
 import Foundation
 import GRDB
 
@@ -45,6 +46,13 @@ public struct BearDonationPromptSnapshot: Codable, Hashable, Sendable {
 }
 
 public actor BearRuntimeStateStore {
+    private enum StorageRetry {
+        static let totalWindow: TimeInterval = 5
+        static let initialDelay: TimeInterval = 0.025
+        static let maxDelay: TimeInterval = 0.25
+        static let backoffMultiplier = 2.0
+    }
+
     private let databaseURL: URL
     private let fileManager: FileManager
     private var databaseQueue: DatabaseQueue?
@@ -71,10 +79,15 @@ public actor BearRuntimeStateStore {
 
         let dbQueue = try prepareDatabaseQueue()
         return try dbQueue.write { db in
-            var record = try Self.fetchDonationRecord(in: db)
-            record.totalSuccessfulOperationCount += count
-            try record.update(db)
-            return record.snapshot
+            try db.execute(
+                sql: """
+                    UPDATE donation_prompt_state
+                    SET total_successful_operation_count = total_successful_operation_count + ?
+                    WHERE id = 1
+                    """,
+                arguments: [count]
+            )
+            return try Self.fetchDonationRecord(in: db).snapshot
         }
     }
 
@@ -177,8 +190,40 @@ private extension BearRuntimeStateStore {
             withIntermediateDirectories: true
         )
 
+        var attempt = 1
+        var nextDelay = StorageRetry.initialDelay
+        let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(StorageRetry.totalWindow * 1_000_000_000)
+
+        while true {
+            do {
+                return try openAndMigrateDatabaseQueue(databaseURL: databaseURL)
+            } catch let error as DatabaseError {
+                guard isRetryableStorageContention(error) else {
+                    throw error
+                }
+
+                let now = DispatchTime.now().uptimeNanoseconds
+                guard now < deadline else {
+                    throw error
+                }
+
+                let remaining = TimeInterval(deadline - now) / 1_000_000_000
+                let sleepDuration = min(nextDelay, remaining)
+                BearDebugLog.append(
+                    "runtime-state.open retrying after sqlite contention code=\(error.resultCode.rawValue) attempt=\(attempt) next_delay_ms=\(Int((sleepDuration * 1_000).rounded())) message=\(error.message ?? "unknown")"
+                )
+                Thread.sleep(forTimeInterval: sleepDuration)
+                attempt += 1
+                nextDelay = min(nextDelay * StorageRetry.backoffMultiplier, StorageRetry.maxDelay)
+            }
+        }
+    }
+
+    static func openAndMigrateDatabaseQueue(databaseURL: URL) throws -> DatabaseQueue {
         var configuration = Configuration()
         configuration.label = "ursus.runtime-state"
+        configuration.journalMode = .wal
+        configuration.busyMode = .timeout(5)
 
         let dbQueue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
         var migrator = DatabaseMigrator()
@@ -190,11 +235,69 @@ private extension BearRuntimeStateStore {
                 table.column("permanent_suppression_reason", .text)
             }
         }
-        try migrator.migrate(dbQueue)
-        try dbQueue.write { db in
-            _ = try fetchDonationRecord(in: db)
+        try withMigrationLock(databaseURL: databaseURL) {
+            try migrator.migrate(dbQueue)
+            try dbQueue.write { db in
+                _ = try fetchDonationRecord(in: db)
+            }
         }
         return dbQueue
+    }
+
+    static func withMigrationLock<T>(
+        databaseURL: URL,
+        operation: () throws -> T
+    ) throws -> T {
+        let lockURL = databaseURL.appendingPathExtension("migrate.lock")
+        let fileDescriptor = open(
+            lockURL.path,
+            O_CREAT | O_RDWR,
+            S_IRUSR | S_IWUSR
+        )
+        guard fileDescriptor >= 0 else {
+            let errorCode = errno
+            throw NSError(
+                domain: NSPOSIXErrorDomain,
+                code: Int(errorCode),
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Could not open runtime-state migration lock at \(lockURL.path): \(String(cString: strerror(errorCode))).",
+                ]
+            )
+        }
+        defer {
+            flock(fileDescriptor, LOCK_UN)
+            close(fileDescriptor)
+        }
+
+        while flock(fileDescriptor, LOCK_EX) != 0 {
+            let errorCode = errno
+            guard errorCode == EINTR else {
+                throw NSError(
+                    domain: NSPOSIXErrorDomain,
+                    code: Int(errorCode),
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Could not acquire runtime-state migration lock at \(lockURL.path): \(String(cString: strerror(errorCode))).",
+                    ]
+                )
+            }
+        }
+
+        return try operation()
+    }
+
+    static func isRetryableStorageContention(_ error: DatabaseError) -> Bool {
+        switch error.resultCode {
+        case .SQLITE_BUSY,
+             .SQLITE_LOCKED,
+             .SQLITE_BUSY_RECOVERY,
+             .SQLITE_BUSY_SNAPSHOT,
+             .SQLITE_BUSY_TIMEOUT,
+             .SQLITE_LOCKED_SHAREDCACHE,
+             .SQLITE_LOCKED_VTAB:
+            true
+        default:
+            false
+        }
     }
 }
 

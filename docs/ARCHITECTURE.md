@@ -17,7 +17,7 @@
 ## Read And Write Model
 
 - Reads come directly from Bear's local SQLite database.
-- Normal reads use a bounded backoff retry window on transient SQLite busy/locked errors so brief Bear write contention does not surface as tool failures, while still failing promptly on longer lockouts.
+- The Bear database connection is opened lazily on the first note operation so a temporarily unavailable Bear store cannot prevent the MCP initialize handshake. Normal reads use a bounded backoff retry window on transient SQLite busy/locked errors so brief Bear write contention does not surface as tool failures, while still failing promptly on longer lockouts.
 - Mutations are submitted through Bear's official x-callback actions. Ursus never writes directly to Bear's SQLite database.
 - Bear x-callback URLs use an action-aware activation policy: UI navigation and requested note opens foreground Bear, while background mutations send `open_note=no` plus `show_window=no`.
 - Debug traces log x-callback action/query summaries while redacting token-bearing callback URLs and large `text` / `file` payload values.
@@ -102,7 +102,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - Long-running bridge / stdio processes are expected to keep Sparkle scheduling alive for days at a time. Sparkle maintains its own next-check timer inside that running process, so leaving bridge / MCP running should continue 3-hour checks without requiring the dashboard app to stay open.
 - `ursus mcp` prefers a shared Application Support runtime lock and falls back to temp per-launch locks when hosts open additional stdio MCP children.
 - The stdio runtime exits when the MCP connection finishes or the original parent PID disappears.
-- Config, template, backups, logs, bridge auth, process locks, and runtime state live under `~/Library/Application Support/Ursus`, with temp fallback locks under `TMPDIR/ursus/Runtime/...`.
+- Config, template, backups, logs, bridge auth, process locks, and runtime state live under `~/Library/Application Support/Ursus`, with temp fallback locks under `TMPDIR/ursus/Runtime/...`. Runtime-state SQLite uses WAL plus a bounded busy timeout so independently launched MCP clients can update shared usage state without losing increments during ordinary contention. A sibling advisory lock serializes schema migration because GRDB's migration discovery can otherwise race across processes before its per-migration transaction begins.
 - Runtime bootstrap does not migrate prerelease support roots or legacy debug logs forward; clean reset is the intended fallback for old prerelease state.
 
 ## HTTP Bridge
@@ -117,6 +117,7 @@ The helper bundle version follows the app target's Xcode `MARKETING_VERSION` and
 - `Ursus.app` remains the control center for bridge auth state and remembered-grant revocation.
 - The app manages the bridge as a per-user LaunchAgent at `~/Library/LaunchAgents/com.aft.ursus.plist`, targeting `~/.local/bin/ursus bridge serve`.
 - Bridge install/resume/restart waits for MCP `initialize` and `tools/list` probes. Repeated HTTP `initialize` requests return compatibility handshakes so hosts can reconnect cleanly.
+- The stateless bridge namespaces each in-flight JSON-RPC request ID before forwarding it to the shared SDK transport, then restores the client-provided ID in the response. This prevents unrelated clients that reuse common IDs such as `1` from overwriting each other's response waiters.
 - App-level Restart reuses the existing LaunchAgent plist when it still matches the expected launcher and log paths; Repair remains the heavier reinstall path for missing or drifted LaunchAgent artifacts.
 - Bridge diagnostics combine LaunchAgent state, TCP reachability, MCP `initialize` health, and recent stdout/stderr log hints.
 - Bridge runtime state records config drift inputs, selected-note token availability, and a hash of the served MCP surface. If MCP behavior changes in a way that `tools/list` will not reflect, bump `UrsusMCPServer.bridgeSurfaceEpoch`.

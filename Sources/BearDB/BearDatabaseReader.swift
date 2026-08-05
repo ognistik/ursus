@@ -10,13 +10,12 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
         static let backoffMultiplier = 2.0
     }
 
-    private let databaseQueue: DatabaseQueue
+    private let databaseURL: URL
+    private let databaseQueueLock = NSLock()
+    private var cachedDatabaseQueue: DatabaseQueue?
 
     public init(databaseURL: URL) throws {
-        var configuration = Configuration()
-        configuration.readonly = true
-        configuration.label = "ursus.db"
-        self.databaseQueue = try DatabaseQueue(path: databaseURL.path, configuration: configuration)
+        self.databaseURL = databaseURL
     }
 
     public func findNotes(_ query: FindNotesQuery) throws -> DiscoveryNoteBatch {
@@ -718,6 +717,27 @@ public final class BearDatabaseReader: @unchecked Sendable, BearReadStore {
                 attempt += 1
                 nextDelay = min(nextDelay * ReadRetry.backoffMultiplier, ReadRetry.maxDelay)
             }
+        }
+    }
+
+    private var databaseQueue: DatabaseQueue {
+        get throws {
+            databaseQueueLock.lock()
+            defer { databaseQueueLock.unlock() }
+
+            if let cachedDatabaseQueue {
+                return cachedDatabaseQueue
+            }
+
+            var configuration = Configuration()
+            configuration.readonly = true
+            configuration.label = "ursus.db"
+            let databaseQueue = try DatabaseQueue(
+                path: databaseURL.path,
+                configuration: configuration
+            )
+            cachedDatabaseQueue = databaseQueue
+            return databaseQueue
         }
     }
 

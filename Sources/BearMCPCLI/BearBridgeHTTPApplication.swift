@@ -27,6 +27,12 @@ actor BearBridgeHTTPApplication {
         let protocolVersion: String
     }
 
+    struct NamespacedRequest: Sendable {
+        let request: HTTPRequest
+        let clientRequestID: ID
+        let transportRequestID: ID
+    }
+
     struct RequestLogContext: Sendable {
         let requestID: String
         let method: String
@@ -384,8 +390,12 @@ actor BearBridgeHTTPApplication {
             )
         }
 
-        let mcpResponse = await transport.handleRequest(request)
-        response = .mcp(Self.wrapStreamingHTTPResponseIfRequested(mcpResponse, for: request))
+        let namespacedRequest = Self.namespacedJSONRPCRequest(request)
+        let mcpResponse = await transport.handleRequest(namespacedRequest?.request ?? request)
+        let clientResponse = namespacedRequest.map {
+            Self.restoringClientRequestID(in: mcpResponse, from: $0)
+        } ?? mcpResponse
+        response = .mcp(Self.wrapStreamingHTTPResponseIfRequested(clientResponse, for: request))
         return finish(Self.applyingCORSHeaders(to: response, for: request))
     }
 
@@ -696,6 +706,68 @@ extension BearBridgeHTTPApplication {
         default:
             return nil
         }
+    }
+
+    static func namespacedJSONRPCRequest(_ request: HTTPRequest) -> NamespacedRequest? {
+        guard request.method.caseInsensitiveCompare("POST") == .orderedSame,
+              let body = request.body,
+              !body.isEmpty,
+              let jsonObject = try? JSONSerialization.jsonObject(with: body),
+              var dictionary = jsonObject as? [String: Any],
+              dictionary["method"] is String,
+              let clientRequestID = decodeJSONRPCID(dictionary["id"])
+        else {
+            return nil
+        }
+
+        let transportRequestID = ID.string("ursus-http-\(UUID().uuidString.lowercased())")
+        dictionary["id"] = transportRequestID.description
+        guard let namespacedBody = try? JSONSerialization.data(
+            withJSONObject: dictionary,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        ) else {
+            return nil
+        }
+
+        return NamespacedRequest(
+            request: HTTPRequest(
+                method: request.method,
+                headers: request.headers,
+                body: namespacedBody,
+                path: request.path
+            ),
+            clientRequestID: clientRequestID,
+            transportRequestID: transportRequestID
+        )
+    }
+
+    static func restoringClientRequestID(
+        in response: HTTPResponse,
+        from namespacedRequest: NamespacedRequest
+    ) -> HTTPResponse {
+        guard case .data(let body, let headers) = response,
+              let jsonObject = try? JSONSerialization.jsonObject(with: body),
+              var dictionary = jsonObject as? [String: Any],
+              decodeJSONRPCID(dictionary["id"]) == namespacedRequest.transportRequestID
+        else {
+            return response
+        }
+
+        switch namespacedRequest.clientRequestID {
+        case .string(let value):
+            dictionary["id"] = value
+        case .number(let value):
+            dictionary["id"] = value
+        }
+
+        guard let restoredBody = try? JSONSerialization.data(
+            withJSONObject: dictionary,
+            options: [.sortedKeys, .withoutEscapingSlashes]
+        ) else {
+            return response
+        }
+
+        return .data(restoredBody, headers: headers)
     }
 
     static func makeStartedRuntime(
